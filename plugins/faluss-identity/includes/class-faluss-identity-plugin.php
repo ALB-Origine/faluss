@@ -8,10 +8,14 @@ final class Faluss_Identity_Plugin {
 
     public static function boot() {
         add_action( 'plugins_loaded', array( __CLASS__, 'load_textdomain' ) );
+
+        if ( is_admin() ) {
+            add_action( 'admin_notices', array( 'Faluss_Identity_Admin_Diagnostic', 'render' ) );
+        }
     }
 
     public static function activate() {
-        // FI-01 adds verified migrations here. Activation must not create partial schema.
+        Faluss_Identity_Schema::install_or_verify();
     }
 
     public static function load_textdomain() {

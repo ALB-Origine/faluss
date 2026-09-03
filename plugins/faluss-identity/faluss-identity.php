@@ -17,6 +17,9 @@ define( 'FALUSS_IDENTITY_FILE', __FILE__ );
 define( 'FALUSS_IDENTITY_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once FALUSS_IDENTITY_DIR . 'includes/class-faluss-identity-plugin.php';
+require_once FALUSS_IDENTITY_DIR . 'includes/class-faluss-identity-schema.php';
+require_once FALUSS_IDENTITY_DIR . 'includes/class-faluss-identity-registry.php';
+require_once FALUSS_IDENTITY_DIR . 'includes/class-faluss-identity-admin-diagnostic.php';
 
 register_activation_hook( __FILE__, array( 'Faluss_Identity_Plugin', 'activate' ) );
 
