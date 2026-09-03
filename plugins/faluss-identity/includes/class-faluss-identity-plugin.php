@@ -8,6 +8,9 @@ final class Faluss_Identity_Plugin {
 
     public static function boot() {
         add_action( 'plugins_loaded', array( __CLASS__, 'load_textdomain' ) );
+        add_action( 'init', array( 'Faluss_Identity_Passwordless', 'register' ) );
+        add_action( 'wp_enqueue_scripts', array( 'Faluss_Identity_Passwordless', 'register_assets' ) );
+        add_action( 'elementor/widgets/register', array( __CLASS__, 'register_elementor_widget' ) );
 
         if ( is_admin() ) {
             add_action( 'admin_notices', array( 'Faluss_Identity_Admin_Diagnostic', 'render' ) );
@@ -28,5 +31,21 @@ final class Faluss_Identity_Plugin {
 
     public static function load_textdomain() {
         load_plugin_textdomain( 'faluss-identity', false, dirname( plugin_basename( FALUSS_IDENTITY_FILE ) ) . '/languages' );
+    }
+
+    /**
+     * Keeps the public login usable without Elementor while exposing a native,
+     * customizable widget when Elementor is active.
+     *
+     * @param mixed $widgets_manager Elementor widget manager.
+     * @return void
+     */
+    public static function register_elementor_widget( $widgets_manager ) {
+        if ( ! class_exists( 'Elementor\\Widget_Base' ) || ! is_object( $widgets_manager ) || ! method_exists( $widgets_manager, 'register' ) ) {
+            return;
+        }
+
+        require_once FALUSS_IDENTITY_DIR . 'includes/class-faluss-identity-elementor-widget.php';
+        $widgets_manager->register( new Faluss_Identity_Elementor_Widget() );
     }
 }

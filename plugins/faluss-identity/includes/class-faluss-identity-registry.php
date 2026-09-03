@@ -60,6 +60,52 @@ final class Faluss_Identity_Registry {
         return is_string( $faluss_id ) && 1 === preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D', $faluss_id );
     }
 
+    /**
+     * Activates the profile only after a successful identity proof. A suspended
+     * or otherwise unknown profile fails closed and is never silently revived.
+     *
+     * @param int $wp_user_id Local WordPress user ID.
+     * @return string|null Active Faluss ID.
+     */
+    public static function activate_for_wp_user( $wp_user_id ) {
+        global $wpdb;
+
+        $wp_user_id = (int) $wp_user_id;
+        if ( $wp_user_id < 1 || ! self::schema_is_ready() || ! self::local_user_exists( $wp_user_id ) ) {
+            return null;
+        }
+
+        $faluss_id = self::get_or_create_for_wp_user( $wp_user_id );
+        if ( null === $faluss_id ) {
+            return null;
+        }
+
+        $table = self::profiles_table();
+        $updated = $wpdb->query(
+            $wpdb->prepare(
+                'UPDATE ' . self::quote_identifier( $table ) . ' SET status = %s, updated_at = %s WHERE wp_user_id = %d AND status IN (%s, %s)',
+                'active',
+                current_time( 'mysql', true ),
+                $wp_user_id,
+                'pending',
+                'active'
+            )
+        );
+        if ( false === $updated ) {
+            return null;
+        }
+
+        $active = $wpdb->get_var(
+            $wpdb->prepare(
+                'SELECT faluss_id FROM ' . self::quote_identifier( $table ) . ' WHERE wp_user_id = %d AND status = %s',
+                $wp_user_id,
+                'active'
+            )
+        );
+
+        return self::is_valid_faluss_id( $active ) ? $active : null;
+    }
+
     private static function schema_is_ready() {
         $status = Faluss_Identity_Schema::get_status();
         return ! empty( $status['ready'] );
