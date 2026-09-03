@@ -11,11 +11,19 @@ final class Faluss_Identity_Plugin {
 
         if ( is_admin() ) {
             add_action( 'admin_notices', array( 'Faluss_Identity_Admin_Diagnostic', 'render' ) );
+            add_action( 'admin_init', array( __CLASS__, 'migrate_fi02' ) );
         }
     }
 
     public static function activate() {
         Faluss_Identity_Schema::install_or_verify();
+        Faluss_Identity_Schema::migrate_fi02();
+    }
+
+    public static function migrate_fi02() {
+        if ( current_user_can( 'manage_options' ) ) {
+            Faluss_Identity_Schema::migrate_fi02();
+        }
     }
 
     public static function load_textdomain() {

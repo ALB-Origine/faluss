@@ -7,6 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Faluss_Identity_Schema {
 
     const VERSION = '1';
+    const FI02_VERSION = '2';
     const OPTION_VERSION = 'faluss_identity_schema_version';
     const OPTION_DIAGNOSTIC = 'faluss_identity_schema_diagnostic';
     const INSTALL_LOCK_TIMEOUT = 10;
@@ -161,6 +162,25 @@ final class Faluss_Identity_Schema {
         $status = self::get_status();
         self::store_diagnostic( $status['code'] );
         return 'fi_schema_ready' === $status['code'];
+    }
+
+    public static function migrate_fi02() {
+        global $wpdb;
+        if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) ) { return false; }
+        if ( self::FI02_VERSION === (string) get_option( self::OPTION_VERSION, '' ) ) { return self::verify_fi02(); }
+        if ( 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_fi02_source_invalid' ); return false; }
+        $tables = self::get_table_names();
+        $sql = 'ALTER TABLE ' . self::quote_identifier( $tables['challenges'] ) . ' MODIFY otp_hash varchar(255) NULL, ADD email varchar(320) NULL, ADD email_hash char(64) NULL';
+        if ( false === $wpdb->query( $sql ) || ! self::verify_fi02() ) { self::store_diagnostic( 'fi_schema_fi02_failed' ); return false; }
+        update_option( self::OPTION_VERSION, self::FI02_VERSION, false ); self::store_diagnostic( 'fi_schema_ready' ); return true;
+    }
+
+    private static function verify_fi02() {
+        global $wpdb; $tables = self::get_table_names(); if ( empty( $tables ) ) { return false; }
+        $rows = $wpdb->get_results( 'SHOW FULL COLUMNS FROM ' . self::quote_identifier( $tables['challenges'] ), ARRAY_A ); if ( ! is_array( $rows ) || 11 !== count( $rows ) ) { return false; }
+        $columns = array(); foreach ( $rows as $row ) { $columns[ $row['Field'] ] = $row; }
+        foreach ( array( 'otp_hash'=>array('varchar(255)','YES'),'email'=>array('varchar(320)','YES'),'email_hash'=>array('char(64)','YES') ) as $name=>$want ) { if ( ! isset($columns[$name]) || strtolower($columns[$name]['Type']) !== $want[0] || $columns[$name]['Null'] !== $want[1] ) { return false; } }
+        return true;
     }
 
     /**
