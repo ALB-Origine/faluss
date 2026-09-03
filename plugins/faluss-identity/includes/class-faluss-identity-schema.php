@@ -9,6 +9,8 @@ final class Faluss_Identity_Schema {
     const VERSION = '1';
     const OPTION_VERSION = 'faluss_identity_schema_version';
     const OPTION_DIAGNOSTIC = 'faluss_identity_schema_diagnostic';
+    const INSTALL_LOCK_TIMEOUT = 10;
+    const MYSQL_IDENTIFIER_MAX_LENGTH = 64;
 
     /**
      * The FI-01 schema contract contains structure only and no member data.
@@ -145,8 +147,14 @@ final class Faluss_Identity_Schema {
             self::store_diagnostic( $status['code'] );
             return false;
         }
-        if ( ! self::create_all_tables() ) {
-            self::store_diagnostic( 'fi_schema_create_failed' );
+        $result = self::create_all_tables();
+        if ( 'fi_schema_ready' !== $result ) {
+            $status = self::get_status();
+            if ( 'fi_schema_ready' === $status['code'] ) {
+                self::store_diagnostic( $status['code'] );
+                return true;
+            }
+            self::store_diagnostic( $result );
             return false;
         }
 
@@ -259,17 +267,203 @@ final class Faluss_Identity_Schema {
         return null;
     }
 
+    /**
+     * Builds, verifies and atomically promotes one complete temporary schema.
+     *
+     * @return string A bounded diagnostic code.
+     */
     private static function create_all_tables() {
         global $wpdb;
 
-        $tables = self::get_table_names();
-        if ( empty( $tables ) || ! method_exists( $wpdb, 'get_charset_collate' ) ) {
+        if ( ! is_object( $wpdb ) || ! method_exists( $wpdb, 'get_charset_collate' ) ) {
+            return 'fi_schema_unverifiable';
+        }
+
+        $lock_name = self::get_install_lock_name();
+        if ( null === $lock_name || ! self::acquire_install_lock( $lock_name ) ) {
+            return 'fi_schema_lock_failed';
+        }
+
+        try {
+            // Re-check while holding the targeted lock so concurrent activation is safe.
+            $status = self::get_status();
+            if ( 'fi_schema_ready' === $status['code'] ) {
+                return 'fi_schema_ready';
+            }
+            if ( 'fi_schema_missing' !== $status['code'] ) {
+                return $status['code'];
+            }
+
+            $plan = self::get_install_plan();
+            if ( null === $plan ) {
+                return 'fi_schema_temp_name_invalid';
+            }
+            if ( ! self::prepare_temporary_tables( $plan ) ) {
+                return 'fi_schema_prepare_failed';
+            }
+            foreach ( $plan['temporary_tables'] as $key => $temporary_table ) {
+                $code = self::verify_table( $temporary_table, self::get_expected_schema()[ $key ] );
+                if ( null !== $code ) {
+                    return 'fi_schema_temp_verify_failed';
+                }
+            }
+            if ( ! self::final_tables_are_absent( $plan['final_tables'] ) ) {
+                return 'fi_schema_promotion_blocked';
+            }
+            if ( ! self::promote_temporary_tables( $plan ) ) {
+                return 'fi_schema_promotion_failed';
+            }
+
+            return self::get_status()['code'];
+        } finally {
+            self::release_install_lock( $lock_name );
+        }
+    }
+
+    /**
+     * Produces one validated, non-secret temporary install plan.
+     *
+     * @param string|null $attempt_token Optional test-only hexadecimal token.
+     * @return array<string, mixed>|null
+     */
+    public static function get_install_plan( $attempt_token = null ) {
+        global $wpdb;
+
+        $final_tables = self::get_table_names();
+        if ( empty( $final_tables ) || ! is_object( $wpdb ) ) {
+            return null;
+        }
+        if ( null === $attempt_token ) {
+            try {
+                $attempt_token = bin2hex( random_bytes( 8 ) );
+            } catch ( Exception $exception ) {
+                return null;
+            }
+        }
+        if ( ! is_string( $attempt_token ) || 1 !== preg_match( '/^[a-f0-9]{16}$/D', $attempt_token ) ) {
+            return null;
+        }
+
+        $temporary_tables = array();
+        foreach ( self::get_expected_schema() as $key => $definition ) {
+            $temporary_table = $wpdb->prefix . 'faluss_fi01_tmp_' . $attempt_token . '_' . $key;
+            if ( ! self::is_valid_identifier( $temporary_table ) ) {
+                return null;
+            }
+            $temporary_tables[ $key ] = $temporary_table;
+        }
+
+        return array(
+            'final_tables' => $final_tables,
+            'temporary_tables' => $temporary_tables,
+        );
+    }
+
+    /**
+     * Returns SQL exclusively for temporary preparation followed by one promotion.
+     * This narrow test seam performs no database write.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function get_install_queries( $plan, $charset_collate ) {
+        if ( ! self::is_valid_install_plan( $plan ) ) {
+            return null;
+        }
+
+        $creates = array();
+        foreach ( self::get_expected_schema() as $key => $definition ) {
+            $creates[ $key ] = self::build_create_query( $plan['temporary_tables'][ $key ], $definition, $charset_collate );
+        }
+
+        return array(
+            'temporary_creates' => $creates,
+            'promotion' => self::build_promotion_query( $plan ),
+        );
+    }
+
+    private static function prepare_temporary_tables( $plan ) {
+        global $wpdb;
+
+        $queries = self::get_install_queries( $plan, $wpdb->get_charset_collate() );
+        if ( null === $queries ) {
             return false;
         }
-        foreach ( self::get_expected_schema() as $key => $definition ) {
-            $query = self::build_create_query( $tables[ $key ], $definition, $wpdb->get_charset_collate() );
+        foreach ( $queries['temporary_creates'] as $query ) {
             if ( false === $wpdb->query( $query ) ) {
                 return false;
+            }
+        }
+        return true;
+    }
+
+    private static function promote_temporary_tables( $plan ) {
+        global $wpdb;
+
+        return false !== $wpdb->query( self::build_promotion_query( $plan ) );
+    }
+
+    private static function build_promotion_query( $plan ) {
+        $renames = array();
+        foreach ( self::get_expected_schema() as $key => $definition ) {
+            $renames[] = self::quote_identifier( $plan['temporary_tables'][ $key ] ) . ' TO ' . self::quote_identifier( $plan['final_tables'][ $key ] );
+        }
+        return 'RENAME TABLE ' . implode( ', ', $renames );
+    }
+
+    private static function final_tables_are_absent( $tables ) {
+        global $wpdb;
+
+        foreach ( $tables as $table ) {
+            $found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+            if ( null === $found && ! empty( $wpdb->last_error ) ) {
+                return false;
+            }
+            if ( $table === $found ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static function get_install_lock_name() {
+        global $wpdb;
+
+        if ( ! is_object( $wpdb ) || ! isset( $wpdb->prefix ) ) {
+            return null;
+        }
+        $lock_name = 'faluss_identity_fi01_' . substr( hash( 'sha256', $wpdb->prefix ), 0, 32 );
+        return self::is_valid_lock_name( $lock_name ) ? $lock_name : null;
+    }
+
+    private static function acquire_install_lock( $lock_name ) {
+        global $wpdb;
+
+        if ( ! method_exists( $wpdb, 'get_var' ) || ! method_exists( $wpdb, 'prepare' ) ) {
+            return false;
+        }
+        return 1 === (int) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK( %s, %d )', $lock_name, self::INSTALL_LOCK_TIMEOUT ) );
+    }
+
+    private static function release_install_lock( $lock_name ) {
+        global $wpdb;
+
+        if ( is_object( $wpdb ) && method_exists( $wpdb, 'get_var' ) && method_exists( $wpdb, 'prepare' ) ) {
+            $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK( %s )', $lock_name ) );
+        }
+    }
+
+    private static function is_valid_install_plan( $plan ) {
+        if ( ! is_array( $plan ) || ! isset( $plan['final_tables'], $plan['temporary_tables'] ) ) {
+            return false;
+        }
+        foreach ( array( 'final_tables', 'temporary_tables' ) as $table_set ) {
+            if ( count( $plan[ $table_set ] ) !== count( self::get_expected_schema() ) ) {
+                return false;
+            }
+            foreach ( self::get_expected_schema() as $key => $definition ) {
+                if ( ! isset( $plan[ $table_set ][ $key ] ) || ! self::is_valid_identifier( $plan[ $table_set ][ $key ] ) ) {
+                    return false;
+                }
             }
         }
         return true;
@@ -308,9 +502,21 @@ final class Faluss_Identity_Schema {
         }
         $tables = array();
         foreach ( self::get_expected_schema() as $key => $definition ) {
-            $tables[ $key ] = $wpdb->prefix . $definition['suffix'];
+            $table = $wpdb->prefix . $definition['suffix'];
+            if ( ! self::is_valid_identifier( $table ) ) {
+                return array();
+            }
+            $tables[ $key ] = $table;
         }
         return $tables;
+    }
+
+    private static function is_valid_identifier( $identifier ) {
+        return is_string( $identifier ) && strlen( $identifier ) <= self::MYSQL_IDENTIFIER_MAX_LENGTH && 1 === preg_match( '/^[A-Za-z0-9_]+$/D', $identifier );
+    }
+
+    private static function is_valid_lock_name( $lock_name ) {
+        return is_string( $lock_name ) && strlen( $lock_name ) <= self::MYSQL_IDENTIFIER_MAX_LENGTH && 1 === preg_match( '/^[A-Za-z0-9_]+$/D', $lock_name );
     }
 
     private static function quote_identifier( $identifier ) {

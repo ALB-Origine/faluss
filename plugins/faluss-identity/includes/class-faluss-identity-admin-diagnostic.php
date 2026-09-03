@@ -13,7 +13,6 @@ final class Faluss_Identity_Admin_Diagnostic {
 
         $status = Faluss_Identity_Schema::get_status();
         if ( ! empty( $status['ready'] ) ) {
-            echo '<div class="notice notice-success"><p>Faluss Identity : schéma prêt.</p></div>';
             return;
         }
 
