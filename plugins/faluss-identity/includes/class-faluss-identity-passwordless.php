@@ -55,19 +55,25 @@ final class Faluss_Identity_Passwordless {
         $defaults = array(
             'heading'       => __( 'Bienvenue sur Faluss', 'faluss-identity' ),
             'intro'         => __( 'Entrez votre adresse e-mail pour recevoir un code de connexion.', 'faluss-identity' ),
-            'accent_color'  => '#9b5cff',
-            'surface_color' => '#171225',
-            'text_color'    => '#f7f3ff',
-            'radius'        => '18',
+            'redirect_url'  => home_url( '/' ),
+            'accent_color'  => '#FF3D16',
+            'page_color'    => '#FFFDF5',
+            'card_color'    => '#FFFFFF',
+            'text_color'    => '#000000',
+            'border_color'  => '#E8E3D9',
+            'radius'        => '20',
         );
         $settings = wp_parse_args( $settings, $defaults );
         $style = sprintf(
-            '--faluss-identity-accent:%1$s;--faluss-identity-surface:%2$s;--faluss-identity-text:%3$s;--faluss-identity-radius:%4$dpx;',
+            '--faluss-identity-accent:%1$s;--faluss-identity-page:%2$s;--faluss-identity-card:%3$s;--faluss-identity-text:%4$s;--faluss-identity-border:%5$s;--faluss-identity-radius:%6$dpx;',
             esc_attr( self::sanitize_hex_color( $settings['accent_color'], $defaults['accent_color'] ) ),
-            esc_attr( self::sanitize_hex_color( $settings['surface_color'], $defaults['surface_color'] ) ),
+            esc_attr( self::sanitize_hex_color( $settings['page_color'], $defaults['page_color'] ) ),
+            esc_attr( self::sanitize_hex_color( $settings['card_color'], $defaults['card_color'] ) ),
             esc_attr( self::sanitize_hex_color( $settings['text_color'], $defaults['text_color'] ) ),
+            esc_attr( self::sanitize_hex_color( $settings['border_color'], $defaults['border_color'] ) ),
             max( 0, min( 48, (int) $settings['radius'] ) )
         );
+        $redirect_to = self::local_redirect( $settings['redirect_url'] );
 
         $notice = isset( $_GET[ self::NOTICE_KEY ] ) ? sanitize_key( wp_unslash( $_GET[ self::NOTICE_KEY ] ) ) : '';
         $has_challenge = self::read_cookie_state() !== null;
@@ -75,7 +81,6 @@ final class Faluss_Identity_Passwordless {
         ob_start();
         ?>
         <section class="faluss-identity-login" style="<?php echo $style; ?>">
-            <div class="faluss-identity-login__glow" aria-hidden="true"></div>
             <div class="faluss-identity-login__content">
                 <p class="faluss-identity-login__eyebrow">FALUSS IDENTITY</p>
                 <h2><?php echo esc_html( $settings['heading'] ); ?></h2>
@@ -86,6 +91,7 @@ final class Faluss_Identity_Passwordless {
                 <?php elseif ( $has_challenge ) : ?>
                     <form class="faluss-identity-login__form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" novalidate>
                         <input type="hidden" name="action" value="faluss_identity_verify_code">
+                        <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
                         <?php wp_nonce_field( 'faluss_identity_verify_code', 'faluss_identity_nonce' ); ?>
                         <label for="faluss-identity-otp"><?php esc_html_e( 'Code à 6 chiffres', 'faluss-identity' ); ?></label>
                         <input id="faluss-identity-otp" name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
@@ -93,12 +99,14 @@ final class Faluss_Identity_Passwordless {
                     </form>
                     <form class="faluss-identity-login__secondary" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                         <input type="hidden" name="action" value="faluss_identity_request_code">
+                        <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
                         <?php wp_nonce_field( 'faluss_identity_request_code', 'faluss_identity_nonce' ); ?>
                         <button type="submit" class="faluss-identity-login__link"><?php esc_html_e( 'Recevoir un nouveau code', 'faluss-identity' ); ?></button>
                     </form>
                 <?php else : ?>
                     <form class="faluss-identity-login__form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                         <input type="hidden" name="action" value="faluss_identity_request_code">
+                        <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
                         <?php wp_nonce_field( 'faluss_identity_request_code', 'faluss_identity_nonce' ); ?>
                         <label for="faluss-identity-email"><?php esc_html_e( 'Adresse e-mail', 'faluss-identity' ); ?></label>
                         <input id="faluss-identity-email" name="email" type="email" autocomplete="email" maxlength="320" required>
@@ -112,8 +120,9 @@ final class Faluss_Identity_Passwordless {
     }
 
     public static function handle_request_code() {
+        $redirect_to = self::posted_redirect();
         if ( ! self::valid_nonce( 'faluss_identity_request_code' ) ) {
-            self::redirect_with_notice( 'invalid' );
+            self::redirect_with_notice( 'invalid', $redirect_to );
         }
 
         $email = isset( $_POST['email'] ) ? self::normalize_email( wp_unslash( $_POST['email'] ) ) : null;
@@ -124,33 +133,34 @@ final class Faluss_Identity_Passwordless {
             if ( null === $email ) {
                 self::clear_cookie();
             }
-            self::redirect_with_notice( 'sent' );
+            self::redirect_with_notice( 'sent', $redirect_to );
         }
 
         self::issue_challenge( $email, self::client_ip() );
-        self::redirect_with_notice( 'sent' );
+        self::redirect_with_notice( 'sent', $redirect_to );
     }
 
     public static function handle_verify_code() {
+        $redirect_to = self::posted_redirect();
         if ( ! self::valid_nonce( 'faluss_identity_verify_code' ) ) {
-            self::redirect_with_notice( 'invalid' );
+            self::redirect_with_notice( 'invalid', $redirect_to );
         }
 
         $otp = isset( $_POST['otp'] ) ? (string) wp_unslash( $_POST['otp'] ) : '';
         $state = self::read_cookie_state();
         if ( ! self::is_valid_otp( $otp ) || null === $state ) {
-            self::redirect_with_notice( 'invalid' );
+            self::redirect_with_notice( 'invalid', $redirect_to );
         }
 
         $email = self::consume_valid_otp( $state, $otp );
         if ( null === $email ) {
-            self::redirect_with_notice( 'invalid' );
+            self::redirect_with_notice( 'invalid', $redirect_to );
         }
 
         $user = self::establish_local_identity( $email );
         if ( ! $user instanceof WP_User || self::is_privileged_user( $user ) ) {
             self::clear_cookie();
-            self::redirect_with_notice( 'invalid' );
+            self::redirect_with_notice( 'invalid', $redirect_to );
         }
 
         wp_set_current_user( $user->ID );
@@ -158,7 +168,7 @@ final class Faluss_Identity_Passwordless {
         do_action( 'wp_login', $user->user_login, $user );
         self::clear_cookie();
         self::record_audit( 'passwordless_session_opened' );
-        self::redirect_with_notice( 'authenticated' );
+        self::redirect_with_notice( 'authenticated', $redirect_to );
     }
 
     /**
@@ -349,8 +359,7 @@ final class Faluss_Identity_Passwordless {
             return $existing;
         }
 
-        $role = self::safe_default_role();
-        if ( null === $role ) {
+        if ( ! get_role( 'subscriber' ) instanceof WP_Role ) {
             return null;
         }
         for ( $attempt = 0; $attempt < 3; ++$attempt ) {
@@ -360,7 +369,7 @@ final class Faluss_Identity_Passwordless {
             } catch ( Exception $exception ) {
                 return null;
             }
-            $user_id = wp_insert_user( array( 'user_login' => $login, 'user_pass' => $password, 'user_email' => $email, 'role' => $role ) );
+            $user_id = wp_insert_user( array( 'user_login' => $login, 'user_pass' => $password, 'user_email' => $email, 'role' => 'subscriber' ) );
             if ( ! is_wp_error( $user_id ) ) {
                 return get_user_by( 'id', (int) $user_id );
             }
@@ -399,30 +408,9 @@ final class Faluss_Identity_Passwordless {
         }
     }
 
-    private static function safe_default_role() {
-        $role = (string) get_option( 'default_role', 'subscriber' );
-        if ( '' === $role || self::role_is_privileged( $role ) ) {
-            return null;
-        }
-        return $role;
-    }
-
     private static function is_privileged_user( $user ) {
         foreach ( array( 'manage_options', 'edit_users', 'promote_users', 'delete_users' ) as $capability ) {
             if ( user_can( $user, $capability ) ) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static function role_is_privileged( $role_name ) {
-        $role = get_role( $role_name );
-        if ( ! $role instanceof WP_Role ) {
-            return true;
-        }
-        foreach ( array( 'manage_options', 'edit_users', 'promote_users', 'delete_users' ) as $capability ) {
-            if ( ! empty( $role->capabilities[ $capability ] ) ) {
                 return true;
             }
         }
@@ -549,8 +537,52 @@ final class Faluss_Identity_Passwordless {
         return preg_match( '/^#[a-fA-F0-9]{6}$/D', $color ) ? $color : $fallback;
     }
 
-    private static function redirect_with_notice( $notice ) {
-        $url = wp_validate_redirect( wp_get_referer(), home_url( '/' ) );
+    private static function posted_redirect() {
+        $redirect_to = isset( $_POST['redirect_to'] ) && is_string( $_POST['redirect_to'] ) ? wp_unslash( $_POST['redirect_to'] ) : null;
+        return self::local_redirect( $redirect_to );
+    }
+
+    /**
+     * Accepts only a URL on this Identity installation, without delegating the
+     * host decision to any global redirect allow-list.
+     */
+    private static function local_redirect( $candidate ) {
+        $home = home_url( '/' );
+        $home_parts = wp_parse_url( $home );
+        if ( ! is_array( $home_parts ) || empty( $home_parts['scheme'] ) || empty( $home_parts['host'] ) || ! is_string( $candidate ) ) {
+            return $home;
+        }
+
+        $candidate = trim( $candidate );
+        if ( '' === $candidate ) {
+            return $home;
+        }
+        if ( 0 === strpos( $candidate, '/' ) && 0 !== strpos( $candidate, '//' ) ) {
+            $candidate = home_url( $candidate );
+        } elseif ( 0 === strpos( $candidate, '?' ) ) {
+            $candidate = $home . $candidate;
+        }
+
+        $parts = wp_parse_url( $candidate );
+        if ( ! is_array( $parts ) || isset( $parts['user'], $parts['pass'] ) || empty( $parts['scheme'] ) || empty( $parts['host'] ) ) {
+            return $home;
+        }
+        if ( 0 !== strcasecmp( $parts['scheme'], $home_parts['scheme'] ) || 0 !== strcasecmp( $parts['host'], $home_parts['host'] ) || self::url_port( $parts ) !== self::url_port( $home_parts ) ) {
+            return $home;
+        }
+
+        return $candidate;
+    }
+
+    private static function url_port( $parts ) {
+        if ( isset( $parts['port'] ) ) {
+            return (int) $parts['port'];
+        }
+        return 'https' === strtolower( $parts['scheme'] ) ? 443 : 80;
+    }
+
+    private static function redirect_with_notice( $notice, $redirect_to = null ) {
+        $url = self::local_redirect( $redirect_to );
         wp_safe_redirect( add_query_arg( self::NOTICE_KEY, sanitize_key( $notice ), $url ) );
         exit;
     }
