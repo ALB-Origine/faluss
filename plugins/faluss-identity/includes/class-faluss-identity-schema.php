@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Faluss_Identity_Schema {
 
-    const VERSION = '1';
+    const VERSION = '2';
     const FI02_VERSION = '2';
     const OPTION_VERSION = 'faluss_identity_schema_version';
     const OPTION_DIAGNOSTIC = 'faluss_identity_schema_diagnostic';
@@ -18,7 +18,7 @@ final class Faluss_Identity_Schema {
      *
      * @return array<string, array<string, mixed>>
      */
-    public static function get_expected_schema() {
+    public static function get_fi01_schema() {
         return array(
             'profiles' => array(
                 'suffix' => 'faluss_identity_profiles',
@@ -130,6 +130,17 @@ final class Faluss_Identity_Schema {
                 ),
             ),
         );
+    }
+
+    public static function get_expected_schema() {
+        $schema = self::get_fi01_schema();
+        if ( function_exists( 'get_option' ) && '1' === (string) get_option( self::OPTION_VERSION, '' ) ) {
+            return $schema;
+        }
+        $schema['challenges']['columns']['otp_hash']['type'] = 'varchar(255)';
+        $schema['challenges']['columns']['email'] = array( 'type' => 'varchar(320)', 'null' => true );
+        $schema['challenges']['columns']['email_hash'] = array( 'type' => 'char(64)', 'null' => true );
+        return $schema;
     }
 
     /**

@@ -28,6 +28,9 @@ final class FI01_Failing_Preparation_Wpdb {
 }
 
 $schema = Faluss_Identity_Schema::get_expected_schema();
+fi01_assert( 'varchar(255)' === $schema['challenges']['columns']['otp_hash']['type'], 'FI-02 keeps the widened OTP hash.' );
+fi01_assert( isset( $schema['challenges']['columns']['email'], $schema['challenges']['columns']['email_hash'] ), 'FI-02 challenge fields are present.' );
+fi01_assert( '2' === Faluss_Identity_Schema::VERSION, 'A successful schema diagnostic preserves version 2.' );
 fi01_assert( 6 === count( $schema ), 'FI-01 defines exactly six Identity tables.' );
 
 foreach ( array( 'profiles', 'challenges', 'rate_limits', 'clients', 'auth_codes', 'audit' ) as $table ) {
