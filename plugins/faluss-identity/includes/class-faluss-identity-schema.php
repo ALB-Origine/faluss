@@ -152,6 +152,7 @@ final class Faluss_Identity_Schema {
     public static function install_or_verify() {
         $status = self::get_status();
         if ( 'fi_schema_ready' === $status['code'] ) {
+            if ( '1' !== (string) get_option( self::OPTION_VERSION, '' ) ) { update_option( self::OPTION_VERSION, self::VERSION, false ); }
             self::store_diagnostic( $status['code'] );
             return true;
         }
@@ -183,7 +184,7 @@ final class Faluss_Identity_Schema {
         $tables = self::get_table_names();
         $sql = 'ALTER TABLE ' . self::quote_identifier( $tables['challenges'] ) . ' MODIFY otp_hash varchar(255) NULL, ADD email varchar(320) NULL, ADD email_hash char(64) NULL';
         if ( false === $wpdb->query( $sql ) || ! self::verify_fi02() ) { self::store_diagnostic( 'fi_schema_fi02_failed' ); return false; }
-        update_option( self::OPTION_VERSION, self::FI02_VERSION, false ); self::store_diagnostic( 'fi_schema_ready' ); return true;
+        update_option( self::OPTION_VERSION, self::FI02_VERSION, false ); update_option( self::OPTION_DIAGNOSTIC, 'fi_schema_ready', false ); return true;
     }
 
     private static function verify_fi02() {
@@ -572,9 +573,6 @@ final class Faluss_Identity_Schema {
 
     private static function store_diagnostic( $code ) {
         update_option( self::OPTION_DIAGNOSTIC, $code, false );
-        if ( 'fi_schema_ready' === $code ) {
-            update_option( self::OPTION_VERSION, self::VERSION, false );
-        }
     }
 
     private static function status( $ready, $code ) {
