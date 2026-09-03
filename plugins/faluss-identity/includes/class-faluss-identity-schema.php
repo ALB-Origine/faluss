@@ -172,6 +172,7 @@ final class Faluss_Identity_Schema {
         }
 
         $status = self::get_status();
+        if ( 'fi_schema_ready' === $status['code'] && '1' !== (string) get_option( self::OPTION_VERSION, '' ) ) { update_option( self::OPTION_VERSION, self::VERSION, false ); }
         self::store_diagnostic( $status['code'] );
         return 'fi_schema_ready' === $status['code'];
     }

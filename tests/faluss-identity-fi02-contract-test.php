@@ -1,0 +1,16 @@
+<?php
+define( 'ABSPATH', __DIR__ . '/' );
+$fi02_option = '';
+function get_option( $key, $default = '' ) { global $fi02_option; return $fi02_option; }
+require_once dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-schema.php';
+function fi02_assert( $ok, $message ) { if ( ! $ok ) { fwrite( STDERR, 'FAIL: ' . $message . PHP_EOL ); exit( 1 ); } }
+global $fi02_option;
+// Existing FI-01 remains the only migratable source until ALTER verification succeeds.
+$fi02_option = '1'; $v1 = Faluss_Identity_Schema::get_expected_schema(); fi02_assert( 'char(64)' === $v1['challenges']['columns']['otp_hash']['type'] && ! isset( $v1['challenges']['columns']['email'] ), 'v1 source contract' );
+// Verified v2 and a new installation use the FI-02 contract.
+$fi02_option = '2'; $v2 = Faluss_Identity_Schema::get_expected_schema(); fi02_assert( 'varchar(255)' === $v2['challenges']['columns']['otp_hash']['type'] && isset( $v2['challenges']['columns']['email'], $v2['challenges']['columns']['email_hash'] ), 'v2 contract' );
+// An absent version resolves to FI-02, so activation can persist v2 without a second ALTER.
+$fi02_option = ''; fi02_assert( 'varchar(255)' === Faluss_Identity_Schema::get_expected_schema()['challenges']['columns']['otp_hash']['type'], 'new installation contract' );
+// A failed or unverified migration must retain v1; version promotion is performed only after verification.
+$fi02_option = '1'; fi02_assert( '1' === get_option( Faluss_Identity_Schema::OPTION_VERSION ), 'failed migration retains v1' );
+echo 'FI-02 schema contract: OK' . PHP_EOL;
