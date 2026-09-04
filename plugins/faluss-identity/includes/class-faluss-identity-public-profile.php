@@ -10,6 +10,7 @@ final class Faluss_Identity_Public_Profile {
     const QUERY_VAR = 'faluss_public_profile';
     const STYLE_HANDLE = 'faluss-identity-public-profile';
     const MAX_LINKS = 8;
+    const OPTION_TEMPLATE_ID = 'faluss_identity_public_profile_template_id';
 
     public static function register() {
         add_shortcode( 'faluss_identity_profile_editor', array( __CLASS__, 'editor_shortcode' ) );
@@ -20,6 +21,10 @@ final class Faluss_Identity_Public_Profile {
         add_filter( 'query_vars', array( __CLASS__, 'register_query_var' ) );
         add_action( 'parse_request', array( __CLASS__, 'protect_wordpress_routes' ), 5 );
         add_action( 'template_redirect', array( __CLASS__, 'render_routed_profile' ), 0 );
+        if ( is_admin() ) {
+            add_action( 'admin_menu', array( __CLASS__, 'register_template_settings_page' ) );
+            add_action( 'admin_init', array( __CLASS__, 'register_template_setting' ) );
+        }
     }
 
     public static function register_assets() {
@@ -47,8 +52,45 @@ final class Faluss_Identity_Public_Profile {
 
     public static function public_shortcode( $attributes = array() ) {
         $attributes = shortcode_atts( array( 'identifier' => '' ), (array) $attributes, 'faluss_identity_public_profile' );
-        $slug = '' !== $attributes['identifier'] ? self::normalize_slug( $attributes['identifier'] ) : self::normalize_slug( (string) get_query_var( self::QUERY_VAR ) );
+        $slug = self::resolve_public_slug( $attributes['identifier'] );
         return '' === $slug ? '' : self::render_public_profile( $slug );
+    }
+
+    public static function register_template_settings_page() {
+        add_options_page( __( 'Profil public Faluss', 'faluss-identity' ), __( 'Profil public Faluss', 'faluss-identity' ), 'manage_options', 'faluss-identity-public-profile', array( __CLASS__, 'render_template_settings_page' ) );
+    }
+
+    public static function register_template_setting() {
+        register_setting( 'faluss_identity_public_profile', self::OPTION_TEMPLATE_ID, array( 'type' => 'integer', 'sanitize_callback' => array( __CLASS__, 'sanitize_template_id' ), 'default' => 0 ) );
+    }
+
+    public static function sanitize_template_id( $template_id ) {
+        $template_id = (int) $template_id;
+        return self::is_valid_elementor_template( $template_id ) ? $template_id : 0;
+    }
+
+    public static function render_template_settings_page() {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+        $selected = (int) get_option( self::OPTION_TEMPLATE_ID, 0 );
+        $templates = self::get_elementor_templates();
+        ?>
+        <div class="wrap">
+            <h1><?php esc_html_e( 'Profil public Faluss', 'faluss-identity' ); ?></h1>
+            <p><?php esc_html_e( 'Choisissez une page Elementor publiée comme modèle pour les profils à la racine. Le widget « Profil public Faluss » sans identifiant affichera le profil de l’URL. Sans modèle valide ou sans Elementor, le rendu autonome reste actif.', 'faluss-identity' ); ?></p>
+            <form method="post" action="options.php">
+                <?php settings_fields( 'faluss_identity_public_profile' ); ?>
+                <table class="form-table" role="presentation"><tr><th scope="row"><label for="faluss-identity-public-profile-template"><?php esc_html_e( 'Modèle Elementor', 'faluss-identity' ); ?></label></th><td>
+                    <select id="faluss-identity-public-profile-template" name="<?php echo esc_attr( self::OPTION_TEMPLATE_ID ); ?>">
+                        <option value="0"><?php esc_html_e( 'Rendu autonome', 'faluss-identity' ); ?></option>
+                        <?php foreach ( $templates as $template ) : ?><option value="<?php echo (int) $template->ID; ?>" <?php selected( $selected, $template->ID ); ?>><?php echo esc_html( $template->post_title ); ?></option><?php endforeach; ?>
+                    </select>
+                </td></tr></table>
+                <?php submit_button(); ?>
+            </form>
+        </div>
+        <?php
     }
 
     public static function handle_save_unauthenticated() {
@@ -113,6 +155,10 @@ final class Faluss_Identity_Public_Profile {
         nocache_headers();
         self::enqueue_style();
         get_header();
+        if ( self::render_elementor_template( self::get_template_id() ) ) {
+            get_footer();
+            exit;
+        }
         echo '<main class="faluss-identity-profile-page">' . self::render_profile_markup( $profile ) . '</main>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- safe markup assembled below.
         get_footer();
         exit;
@@ -181,6 +227,7 @@ final class Faluss_Identity_Public_Profile {
     /** @return string */
     public static function render_public_profile( $slug ) {
         self::enqueue_style();
+        $slug = self::resolve_public_slug( $slug );
         $profile = self::find_published_by_slug( $slug );
         return null === $profile ? '' : self::render_profile_markup( $profile );
     }
@@ -309,6 +356,49 @@ final class Faluss_Identity_Public_Profile {
             return null;
         }
         return $url;
+    }
+
+    /** Uses the current root route when the shortcode or Elementor field is empty. */
+    private static function resolve_public_slug( $slug ) {
+        $slug = self::normalize_slug( $slug );
+        return '' !== $slug ? $slug : self::normalize_slug( (string) get_query_var( self::QUERY_VAR ) );
+    }
+
+    private static function get_template_id() {
+        return self::sanitize_template_id( get_option( self::OPTION_TEMPLATE_ID, 0 ) );
+    }
+
+    private static function is_valid_elementor_template( $template_id ) {
+        if ( $template_id < 1 || ! class_exists( 'Elementor\\Plugin' ) ) {
+            return false;
+        }
+        $post = get_post( $template_id );
+        return $post instanceof WP_Post && 'page' === $post->post_type && 'publish' === $post->post_status && '' !== (string) get_post_meta( $template_id, '_elementor_data', true );
+    }
+
+    /** @return array<int, WP_Post> */
+    private static function get_elementor_templates() {
+        if ( ! class_exists( 'Elementor\\Plugin' ) ) {
+            return array();
+        }
+        return get_posts( array( 'post_type' => 'page', 'post_status' => 'publish', 'posts_per_page' => 100, 'orderby' => 'title', 'order' => 'ASC', 'meta_key' => '_elementor_data', 'meta_compare' => 'EXISTS' ) );
+    }
+
+    /**
+     * Renders a selected Elementor page while preserving QUERY_VAR for its
+     * profile widget. A missing, invalid or empty builder result returns false
+     * so the standalone profile remains a reliable fallback.
+     */
+    private static function render_elementor_template( $template_id ) {
+        if ( ! self::is_valid_elementor_template( $template_id ) ) {
+            return false;
+        }
+        $content = \Elementor\Plugin::instance()->frontend->get_builder_content_for_display( $template_id );
+        if ( ! is_string( $content ) || '' === trim( $content ) ) {
+            return false;
+        }
+        echo '<main class="faluss-identity-profile-page faluss-identity-profile-page--elementor">' . $content . '</main>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Elementor returns its own escaped builder markup.
+        return true;
     }
 
     private static function normalize_slug( $slug ) {

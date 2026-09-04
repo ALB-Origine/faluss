@@ -3,14 +3,17 @@
 define( 'ABSPATH', __DIR__ . '/' );
 define( 'OBJECT', 'OBJECT' );
 
-class WP_Post {}
+class WP_Post { public $post_type = 'page'; public $post_status = 'publish'; public $post_title = 'Profile template'; }
 function sanitize_title( $value ) { return trim( preg_replace( '/-+/', '-', preg_replace( '/[^a-z0-9]+/', '-', strtolower( (string) $value ) ) ), '-' ); }
 function sanitize_text_field( $value ) { return trim( (string) $value ); }
 function sanitize_textarea_field( $value ) { return trim( (string) $value ); }
 function esc_url_raw( $url, $protocols = array() ) { return filter_var( $url, FILTER_VALIDATE_URL ) ? $url : ''; }
 function wp_parse_url( $url ) { return parse_url( $url ); }
+function get_query_var( $key ) { global $fi03_route_slug; return 'faluss_public_profile' === $key ? $fi03_route_slug : ''; }
 function get_post_types( $args = array(), $output = 'names' ) { return array( 'post', 'page' ); }
 function get_page_by_path( $slug, $output = OBJECT, $post_types = array() ) { return null; }
+function get_post( $id ) { global $fi03_template_post; return $fi03_template_post; }
+function get_post_meta( $id, $key, $single = false ) { return '_elementor_data' === $key ? '{"content":[]}' : ''; }
 
 require_once dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-public-profile.php';
 
@@ -41,8 +44,21 @@ fi03_assert( '' === fi03_private( 'normalize_slug', 'x' ) && '' === fi03_private
 fi03_assert( fi03_private( 'is_reserved_slug', 'wp-json' ) && fi03_private( 'is_reserved_slug', 'login' ), 'Core and login routes are reserved.' );
 fi03_assert( null === fi03_private( 'validate_external_url', 'javascript:alert(1)' ) && null === fi03_private( 'validate_external_url', 'http://example.test/' ), 'Only safe HTTPS external links are accepted.' );
 
+// A public widget with no configured identifier inherits the root-route slug.
+global $fi03_route_slug;
+$fi03_route_slug = 'alice-lab';
+fi03_assert( 'alice-lab' === fi03_private( 'resolve_public_slug', '' ), 'An empty public widget resolves the current profile route.' );
+fi03_assert( 'portfolio' === fi03_private( 'resolve_public_slug', 'portfolio' ), 'An explicit public-widget identifier remains supported.' );
+fi03_assert( false === fi03_private( 'render_elementor_template', 42 ), 'Without Elementor, route rendering reliably falls back to the standalone profile.' );
+$fi03_template_post = new WP_Post();
+eval( 'namespace Elementor { final class Frontend { public function get_builder_content_for_display( $id ) { return "<section class=\\"elementor-profile-template\\">template</section>"; } } final class Plugin { public $frontend; private static $instance; public static function instance() { if ( null === self::$instance ) { self::$instance = new self(); self::$instance->frontend = new Frontend(); } return self::$instance; } } }' );
+ob_start();
+fi03_assert( true === fi03_private( 'render_elementor_template', 42 ), 'A valid selected Elementor page renders its builder content.' );
+$template_markup = ob_get_clean();
+fi03_assert( false !== strpos( $template_markup, 'elementor-profile-template' ), 'The routed profile emits the selected Elementor model.' );
+
 $source = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-public-profile.php' );
-foreach ( array( 'faluss_id', 'public_slug', 'publication_status', 'FOR UPDATE', 'target="_blank"', 'noopener noreferrer nofollow', 'add_rewrite_rule', 'get_page_by_path' ) as $required ) {
+foreach ( array( 'faluss_id', 'public_slug', 'publication_status', 'FOR UPDATE', 'target="_blank"', 'noopener noreferrer nofollow', 'add_rewrite_rule', 'get_page_by_path', 'get_builder_content_for_display', 'OPTION_TEMPLATE_ID', 'get_elementor_templates' ) as $required ) {
     fi03_assert( false !== strpos( $source, $required ), 'Missing FI-03 invariant: ' . $required );
 }
 fi03_assert( false === strpos( $source, 'user_email' ), 'Public profiles never store or render e-mail data.' );
