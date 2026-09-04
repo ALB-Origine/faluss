@@ -52,7 +52,7 @@
     }
 
     function contentBlock(type) {
-        var titles = { section_title: 'Titre de section', text: 'Texte', link: 'Lien' }, block = $('<article>', { 'class': 'faluss-link-content-block', 'data-block-type': type }), header = $('<header>', { 'class': 'faluss-link-content-block__header' }), actions = $('<div>', { 'class': 'faluss-link-content-block__actions' });
+        var titles = { section_title: 'Titre de section', text: 'Texte', link: 'Lien', media_teaser: 'Teaser média' }, block = $('<article>', { 'class': 'faluss-link-content-block', 'data-block-type': type }), header = $('<header>', { 'class': 'faluss-link-content-block__header' }), actions = $('<div>', { 'class': 'faluss-link-content-block__actions' });
         header.append($('<strong>', { text: titles[type] || 'Texte' })).append(actions
             .append($('<button>', { type: 'button', 'data-fl-block-action': 'up', 'aria-label': 'Monter cet élément', text: 'Monter' }))
             .append($('<button>', { type: 'button', 'data-fl-block-action': 'down', 'aria-label': 'Descendre cet élément', text: 'Descendre' }))
@@ -60,6 +60,7 @@
         block.append($('<input>', { type: 'hidden', 'data-fl-block-field': 'block_id', value: blockId() })).append($('<input>', { type: 'hidden', 'data-fl-block-field': 'type', value: type })).append(header);
         if (type === 'section_title') { block.append($('<label>', { text: 'Titre' }).append($('<input>', { type: 'text', maxlength: 80, 'data-fl-block-field': 'value' }))); }
         else if (type === 'link') { block.append($('<label>', { text: 'Libellé' }).append($('<input>', { type: 'text', maxlength: 80, 'data-fl-block-field': 'label' }))).append($('<label>', { text: 'URL HTTPS' }).append($('<input>', { type: 'url', maxlength: 2048, placeholder: 'https://', 'data-fl-block-field': 'url' }))); }
+        else if (type === 'media_teaser') { block.append($('<div>', { 'class': 'faluss-link-content-block__media' }).append($('<input>', { type: 'hidden', 'data-fl-block-field': 'attachment_id' })).append($('<button>', { type: 'button', 'class': 'faluss-link-content-block__select-teaser', text: 'Choisir une image' })).append($('<button>', { type: 'button', 'class': 'faluss-link-content-block__remove-teaser', text: 'Retirer' })).append($('<div>', { 'class': 'faluss-link-content-block__media-preview' }))).append($('<label>', { text: 'Titre facultatif' }).append($('<input>', { type: 'text', maxlength: 80, 'data-fl-block-field': 'title' }))).append($('<label>', { text: 'Texte facultatif' }).append($('<textarea>', { maxlength: 240, rows: 3, 'data-fl-block-field': 'text' }))); }
         else { block.append($('<label>', { text: 'Texte' }).append($('<textarea>', { maxlength: 480, rows: 3, 'data-fl-block-field': 'value' }))); }
         return block;
     }
@@ -107,6 +108,10 @@
             if (type === 'section_title' && $.trim(value)) { wrap.append($('<h3>', { 'class': 'faluss-link-card__section-title', text: value })); }
             else if (type === 'text' && $.trim(value)) { wrap.append($('<p>', { 'class': 'faluss-link-card__content-text', text: value })); }
             else if (type === 'link' && $.trim(label) && safeURL(url)) { wrap.append($('<a>', { 'class': 'faluss-link-card__link', href: url, target: '_blank', rel: 'noopener noreferrer nofollow', text: label })); }
+            else if (type === 'media_teaser' && block.find('[data-fl-block-field="attachment_id"]').val()) {
+                var image = block.find('.faluss-link-content-block__media-preview img').attr('src'), title = block.find('[data-fl-block-field="title"]').val() || '', text = block.find('[data-fl-block-field="text"]').val() || '';
+                if (image) { var teaser = $('<section>', { 'class': 'faluss-link-card__media-teaser' }).append($('<img>', { src: image, alt: title })); if ($.trim(title) || $.trim(text)) { var copy = $('<div>', { 'class': 'faluss-link-card__media-teaser-copy' }); if ($.trim(title)) { copy.append($('<h3>', { text: title })); } if ($.trim(text)) { copy.append($('<p>', { text: text })); } teaser.append(copy); } wrap.append(teaser); }
+            }
         });
         wrap.prop('hidden', wrap.children().length === 0);
     }
@@ -160,6 +165,19 @@
         }).always(function () { root.removeClass('is-uploading'); });
     }
 
+    function uploadTeaser(block, file, studio) {
+        if (!file || !/^image\//.test(file.type || '') || !window.falussLinkCover || !falussLinkCover.teaserNonce) { return; }
+        var data = new FormData();
+        data.append('action', 'faluss_link_upload_teaser'); data.append('nonce', falussLinkCover.teaserNonce); data.append('teaser', file);
+        block.addClass('is-uploading');
+        $.ajax({ url: falussLinkCover.url, type: 'POST', data: data, contentType: false, processData: false }).done(function (response) {
+            if (!response || !response.success) { return; }
+            block.find('[data-fl-block-field="attachment_id"]').val(response.data.id);
+            block.find('.faluss-link-content-block__media-preview').empty().append($('<img>', { src: response.data.url, alt: '' }));
+            update(studio);
+        }).always(function () { block.removeClass('is-uploading'); });
+    }
+
     function initialize(root) {
         $(root).find('.faluss-link-studio').addBack('.faluss-link-studio').each(function () {
             var studio = $(this);
@@ -192,7 +210,7 @@
         })
         .on('click.falussLink', '.faluss-link-content-composer__add-button', function () {
             var studio = $(this).closest('.faluss-link-studio'), composer = $(this).closest('.faluss-link-content-composer'), list = composer.find('.faluss-link-content-composer__list'), type = composer.find('.faluss-link-content-composer__type').val();
-            if (list.find('.faluss-link-content-block').length < 32 && /^(section_title|text|link)$/.test(type || '')) { list.append(contentBlock(type)); renumberBlocks(studio); update(studio); }
+            if (list.find('.faluss-link-content-block').length < 32 && /^(section_title|text|link|media_teaser)$/.test(type || '')) { list.append(contentBlock(type)); renumberBlocks(studio); update(studio); }
         })
         .on('click.falussLink', '.faluss-link-studio__add-network', function () {
             var studio = $(this).closest('.faluss-link-studio'), list = $(this).siblings('.faluss-link-studio__network-list');
@@ -204,6 +222,14 @@
             else if (action === 'down') { block.next('.faluss-link-content-block').after(block); }
             else { block.remove(); }
             renumberBlocks(studio); update(studio);
+        })
+        .on('click.falussLink', '.faluss-link-content-block__select-teaser', function () {
+            var block = $(this).closest('.faluss-link-content-block'), input = $('<input>', { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/gif' }), studio = block.closest('.faluss-link-studio');
+            input.on('change', function () { uploadTeaser(block, this.files[0], studio); }).trigger('click');
+        })
+        .on('click.falussLink', '.faluss-link-content-block__remove-teaser', function () {
+            var block = $(this).closest('.faluss-link-content-block');
+            block.find('[data-fl-block-field="attachment_id"]').val(''); block.find('.faluss-link-content-block__media-preview').empty(); update(block.closest('.faluss-link-studio'));
         })
         .on('click.falussLink', '.faluss-link-studio__remove-row', function () {
             var studio = $(this).closest('.faluss-link-studio'); $(this).closest('.faluss-link-studio__network-row').remove(); renumberRows(studio); update(studio);

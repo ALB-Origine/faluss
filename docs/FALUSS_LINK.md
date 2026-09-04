@@ -29,3 +29,9 @@ Faluss Link prépare une résolution de styles de carte sans encore introduire d
 L’onglet **Liens** contient un compositeur de contenu mobile : **Titre de section**, **Texte** et **Lien**. Chaque bloc est ajouté, déplacé avec les actions Monter/Descendre ou supprimé sans position technique visible. Les liens historiques sont importés de façon idempotente dans la source Faluss Link à la première ouverture du Studio ; tant que cette migration n’a pas eu lieu, la carte publique les rend depuis le profil Identity sans perte.
 
 Les modules ultérieurs pourront fournir leurs propres blocs validés, par exemple un produit `pro.faluss`, un contenu verrouillé ou une récompense quotidienne. Faluss Link ne portera jamais leurs règles d’accès, de paiement, de token ou d’abonnement : elles resteront dans les moteurs communs de l’écosystème.
+
+## Teaser média public (FL-09)
+
+Le compositeur **Liens** ajoute le bloc **Teaser média** : une image déposée explicitement par le membre, avec un titre et un texte facultatifs. Le Studio et la carte publique hydratent la même source Faluss Link normalisée ; chaque bloc conserve son identifiant et son ordre lors des modifications, suppressions et déplacements. L’image est validée comme image appartenant au membre avant sa persistance. Aucun URL de média externe, vidéo, iframe, téléchargement, droit Premium ou mécanisme de paiement n’est accepté.
+
+Le teaser est une fondation visuelle publique. Lorsqu’un moteur commun Faluss de contenus et d’entitlements existera, il pourra lui associer des règles d’accès réelles, une vente en euros ou en ALB. Faluss Link ne possédera jamais ces règles d’accès, de paiement, de token ou d’abonnement.

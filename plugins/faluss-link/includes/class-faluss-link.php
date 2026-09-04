@@ -13,7 +13,7 @@ final class Faluss_Link {
     const LAYOUTS = array( 'bubbles' => 'Bulles', 'inline' => 'Ligne' );
     const LINK_STYLES = array( 'solid' => 'Plein', 'outline' => 'Contour' );
     const NAME_COLORS = array( '#BE79FF' => 'Rose', '#FFFFFF' => 'Blanc', '#000000' => 'Noir', '#82206B' => 'Prune' );
-    const BLOCK_TYPES = array( 'section_title' => 'Titre de section', 'text' => 'Texte', 'link' => 'Lien' );
+    const BLOCK_TYPES = array( 'section_title' => 'Titre de section', 'text' => 'Texte', 'link' => 'Lien', 'media_teaser' => 'Teaser média' );
 
     public static function boot() {
         add_action( 'plugins_loaded', array( 'Faluss_Link_Schema', 'maybe_install' ), 1 );
@@ -23,6 +23,7 @@ final class Faluss_Link {
         add_action( 'admin_post_faluss_link_save', array( __CLASS__, 'save' ) );
         add_action( 'admin_post_faluss_link_save_studio', array( __CLASS__, 'save_studio' ) );
         add_action( 'wp_ajax_faluss_link_upload_cover', array( __CLASS__, 'upload_cover' ) );
+        add_action( 'wp_ajax_faluss_link_upload_teaser', array( __CLASS__, 'upload_teaser' ) );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ), 5 );
         add_action( 'elementor/frontend/after_register_scripts', array( __CLASS__, 'assets' ), 5 );
         add_action( 'elementor/frontend/after_register_styles', array( __CLASS__, 'assets' ), 5 );
@@ -40,7 +41,7 @@ final class Faluss_Link {
         wp_register_style( self::STUDIO_STYLE, plugins_url( 'assets/css/faluss-link-studio.css', FALUSS_LINK_FILE ), array( self::STYLE, self::IMMERSIVE_STYLE ), FALUSS_LINK_VERSION );
         wp_register_script( self::SCRIPT, plugins_url( 'assets/js/faluss-link-editor.js', FALUSS_LINK_FILE ), array( 'jquery' ), FALUSS_LINK_VERSION, true );
         wp_register_script( self::IMMERSIVE_SCRIPT, plugins_url( 'assets/js/faluss-link-immersive.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
-        wp_localize_script( self::SCRIPT, 'falussLinkCover', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_upload_cover' ), 'networks' => self::network_catalog() ) );
+        wp_localize_script( self::SCRIPT, 'falussLinkCover', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_upload_cover' ), 'teaserNonce' => wp_create_nonce( 'faluss_link_upload_teaser' ), 'networks' => self::network_catalog() ) );
     }
 
     public static function render_card( $attributes = array() ) {
@@ -107,10 +108,18 @@ final class Faluss_Link {
     }
 
     public static function upload_cover() {
-        if ( ! is_user_logged_in() || ! check_ajax_referer( 'faluss_link_upload_cover', 'nonce', false ) || ! self::identity_ready() || ! Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() ) ) { wp_send_json_error( array( 'message' => 'Accès refusé.' ), 403 ); }
-        if ( empty( $_FILES['cover'] ) || ! is_array( $_FILES['cover'] ) ) { wp_send_json_error( array( 'message' => 'Image requise.' ), 400 ); }
+        self::upload_member_image( 'cover', 'faluss_link_upload_cover' );
+    }
+
+    public static function upload_teaser() {
+        self::upload_member_image( 'teaser', 'faluss_link_upload_teaser' );
+    }
+
+    private static function upload_member_image( $field, $nonce_action ) {
+        if ( ! is_user_logged_in() || ! check_ajax_referer( $nonce_action, 'nonce', false ) || ! self::identity_ready() || ! Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() ) ) { wp_send_json_error( array( 'message' => 'Accès refusé.' ), 403 ); }
+        if ( empty( $_FILES[ $field ] ) || ! is_array( $_FILES[ $field ] ) ) { wp_send_json_error( array( 'message' => 'Image requise.' ), 400 ); }
         require_once ABSPATH . 'wp-admin/includes/file.php'; require_once ABSPATH . 'wp-admin/includes/image.php';
-        $file = $_FILES['cover']; $type = wp_check_filetype_and_ext( $file['tmp_name'], $file['name'] );
+        $file = $_FILES[ $field ]; $type = wp_check_filetype_and_ext( $file['tmp_name'], $file['name'] );
         if ( empty( $type['type'] ) || 0 !== strpos( $type['type'], 'image/' ) ) { wp_send_json_error( array( 'message' => 'Image invalide.' ), 400 ); }
         $upload = wp_handle_upload( $file, array( 'test_form' => false, 'mimes' => array( 'jpg|jpeg|jpe' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', 'webp' => 'image/webp' ) ) );
         if ( ! empty( $upload['error'] ) ) { wp_send_json_error( array( 'message' => 'Envoi impossible.' ), 400 ); }
@@ -170,7 +179,7 @@ final class Faluss_Link {
 
     private static function content_block_fields( $block, $index, $count ) {
         $type = $block['type']; $label = self::BLOCK_TYPES[ $type ]; $prefix = 'content_blocks[' . (int) $index . ']';
-        ?><article class="faluss-link-content-block" data-block-type="<?php echo esc_attr( $type ); ?>"><input data-fl-block-field="block_id" name="<?php echo esc_attr( $prefix ); ?>[block_id]" type="hidden" value="<?php echo esc_attr( $block['block_id'] ); ?>"><input data-fl-block-field="type" name="<?php echo esc_attr( $prefix ); ?>[type]" type="hidden" value="<?php echo esc_attr( $type ); ?>"><header class="faluss-link-content-block__header"><strong><?php echo esc_html( $label ); ?></strong><div class="faluss-link-content-block__actions"><button data-fl-block-action="up" type="button" aria-label="<?php echo esc_attr( sprintf( __( 'Monter %s', 'faluss-link' ), $label ) ); ?>" <?php disabled( 0 === (int) $index ); ?>><?php esc_html_e( 'Monter', 'faluss-link' ); ?></button><button data-fl-block-action="down" type="button" aria-label="<?php echo esc_attr( sprintf( __( 'Descendre %s', 'faluss-link' ), $label ) ); ?>" <?php disabled( (int) $index === (int) $count - 1 ); ?>><?php esc_html_e( 'Descendre', 'faluss-link' ); ?></button><button data-fl-block-action="remove" type="button" aria-label="<?php echo esc_attr( sprintf( __( 'Supprimer %s', 'faluss-link' ), $label ) ); ?>"><?php esc_html_e( 'Supprimer', 'faluss-link' ); ?></button></div></header><?php if ( 'section_title' === $type ) : ?><label><?php esc_html_e( 'Titre', 'faluss-link' ); ?><input data-fl-block-field="value" name="<?php echo esc_attr( $prefix ); ?>[value]" type="text" maxlength="80" value="<?php echo esc_attr( $block['value'] ); ?>"></label><?php elseif ( 'text' === $type ) : ?><label><?php esc_html_e( 'Texte', 'faluss-link' ); ?><textarea data-fl-block-field="value" name="<?php echo esc_attr( $prefix ); ?>[value]" maxlength="480" rows="3"><?php echo esc_textarea( $block['value'] ); ?></textarea></label><?php else : ?><label><?php esc_html_e( 'Libellé', 'faluss-link' ); ?><input data-fl-block-field="label" name="<?php echo esc_attr( $prefix ); ?>[label]" type="text" maxlength="80" value="<?php echo esc_attr( $block['label'] ); ?>"></label><label><?php esc_html_e( 'URL HTTPS', 'faluss-link' ); ?><input data-fl-block-field="url" name="<?php echo esc_attr( $prefix ); ?>[url]" type="url" maxlength="2048" value="<?php echo esc_attr( $block['url'] ); ?>" placeholder="https://"></label><?php endif; ?></article><?php
+        ?><article class="faluss-link-content-block" data-block-type="<?php echo esc_attr( $type ); ?>"><input data-fl-block-field="block_id" name="<?php echo esc_attr( $prefix ); ?>[block_id]" type="hidden" value="<?php echo esc_attr( $block['block_id'] ); ?>"><input data-fl-block-field="type" name="<?php echo esc_attr( $prefix ); ?>[type]" type="hidden" value="<?php echo esc_attr( $type ); ?>"><header class="faluss-link-content-block__header"><strong><?php echo esc_html( $label ); ?></strong><div class="faluss-link-content-block__actions"><button data-fl-block-action="up" type="button" aria-label="<?php echo esc_attr( sprintf( __( 'Monter %s', 'faluss-link' ), $label ) ); ?>" <?php disabled( 0 === (int) $index ); ?>><?php esc_html_e( 'Monter', 'faluss-link' ); ?></button><button data-fl-block-action="down" type="button" aria-label="<?php echo esc_attr( sprintf( __( 'Descendre %s', 'faluss-link' ), $label ) ); ?>" <?php disabled( (int) $index === (int) $count - 1 ); ?>><?php esc_html_e( 'Descendre', 'faluss-link' ); ?></button><button data-fl-block-action="remove" type="button" aria-label="<?php echo esc_attr( sprintf( __( 'Supprimer %s', 'faluss-link' ), $label ) ); ?>"><?php esc_html_e( 'Supprimer', 'faluss-link' ); ?></button></div></header><?php if ( 'section_title' === $type ) : ?><label><?php esc_html_e( 'Titre', 'faluss-link' ); ?><input data-fl-block-field="value" name="<?php echo esc_attr( $prefix ); ?>[value]" type="text" maxlength="80" value="<?php echo esc_attr( $block['value'] ); ?>"></label><?php elseif ( 'text' === $type ) : ?><label><?php esc_html_e( 'Texte', 'faluss-link' ); ?><textarea data-fl-block-field="value" name="<?php echo esc_attr( $prefix ); ?>[value]" maxlength="480" rows="3"><?php echo esc_textarea( $block['value'] ); ?></textarea></label><?php elseif ( 'media_teaser' === $type ) : ?><div class="faluss-link-content-block__media"><input data-fl-block-field="attachment_id" name="<?php echo esc_attr( $prefix ); ?>[attachment_id]" type="hidden" value="<?php echo (int) $block['attachment_id']; ?>"><button class="faluss-link-content-block__select-teaser" type="button"><?php esc_html_e( 'Choisir une image', 'faluss-link' ); ?></button><button class="faluss-link-content-block__remove-teaser" type="button"><?php esc_html_e( 'Retirer', 'faluss-link' ); ?></button><div class="faluss-link-content-block__media-preview"><?php echo self::teaser_image_markup( (int) $block['attachment_id'], $block['title'] ); ?></div></div><label><?php esc_html_e( 'Titre facultatif', 'faluss-link' ); ?><input data-fl-block-field="title" name="<?php echo esc_attr( $prefix ); ?>[title]" type="text" maxlength="80" value="<?php echo esc_attr( $block['title'] ); ?>"></label><label><?php esc_html_e( 'Texte facultatif', 'faluss-link' ); ?><textarea data-fl-block-field="text" name="<?php echo esc_attr( $prefix ); ?>[text]" maxlength="240" rows="3"><?php echo esc_textarea( $block['text'] ); ?></textarea></label><?php else : ?><label><?php esc_html_e( 'Libellé', 'faluss-link' ); ?><input data-fl-block-field="label" name="<?php echo esc_attr( $prefix ); ?>[label]" type="text" maxlength="80" value="<?php echo esc_attr( $block['label'] ); ?>"></label><label><?php esc_html_e( 'URL HTTPS', 'faluss-link' ); ?><input data-fl-block-field="url" name="<?php echo esc_attr( $prefix ); ?>[url]" type="url" maxlength="2048" value="<?php echo esc_attr( $block['url'] ); ?>" placeholder="https://"></label><?php endif; ?></article><?php
     }
 
     private static function page_background_field( $preferences, $studio ) {
@@ -196,7 +205,11 @@ final class Faluss_Link {
 
     private static function public_blocks_markup( $blocks ) {
         if ( ! $blocks ) { return ''; }
-        ob_start(); ?><div class="faluss-link-card__content-blocks faluss-link-card__links"><?php foreach ( $blocks as $block ) : if ( 'section_title' === $block['type'] ) : ?><h3 class="faluss-link-card__section-title"><?php echo esc_html( $block['value'] ); ?></h3><?php elseif ( 'text' === $block['type'] ) : ?><p class="faluss-link-card__content-text"><?php echo esc_html( $block['value'] ); ?></p><?php elseif ( 'link' === $block['type'] ) : ?><a class="faluss-link-card__link" href="<?php echo esc_url( $block['url'] ); ?>" target="_blank" rel="noopener noreferrer nofollow"><?php echo esc_html( $block['label'] ); ?></a><?php endif; endforeach; ?></div><?php return (string) ob_get_clean();
+        ob_start(); ?><div class="faluss-link-card__content-blocks faluss-link-card__links"><?php foreach ( $blocks as $block ) : if ( 'section_title' === $block['type'] ) : ?><h3 class="faluss-link-card__section-title"><?php echo esc_html( $block['value'] ); ?></h3><?php elseif ( 'text' === $block['type'] ) : ?><p class="faluss-link-card__content-text"><?php echo esc_html( $block['value'] ); ?></p><?php elseif ( 'link' === $block['type'] ) : ?><a class="faluss-link-card__link" href="<?php echo esc_url( $block['url'] ); ?>" target="_blank" rel="noopener noreferrer nofollow"><?php echo esc_html( $block['label'] ); ?></a><?php elseif ( 'media_teaser' === $block['type'] ) : ?><section class="faluss-link-card__media-teaser"><?php echo self::teaser_image_markup( (int) $block['attachment_id'], $block['title'] ); ?><?php if ( '' !== $block['title'] || '' !== $block['text'] ) : ?><div class="faluss-link-card__media-teaser-copy"><?php if ( '' !== $block['title'] ) : ?><h3><?php echo esc_html( $block['title'] ); ?></h3><?php endif; ?><?php if ( '' !== $block['text'] ) : ?><p><?php echo esc_html( $block['text'] ); ?></p><?php endif; ?></div><?php endif; ?></section><?php endif; endforeach; ?></div><?php return (string) ob_get_clean();
+    }
+
+    private static function teaser_image_markup( $attachment_id, $alt = '' ) {
+        return $attachment_id && wp_attachment_is_image( $attachment_id ) ? wp_get_attachment_image( $attachment_id, 'large', false, array( 'alt' => $alt, 'loading' => 'lazy' ) ) : '';
     }
 
     private static function published_profile( $slug ) {
@@ -226,23 +239,24 @@ final class Faluss_Link {
 
     private static function content_blocks( $faluss_id, $legacy_links, $migrate = false ) {
         $stored = self::stored_blocks( $faluss_id );
-        if ( $stored ) { return $stored; }
+        if ( $stored['blocks'] ) { return $stored['blocks']; }
         $legacy = self::legacy_blocks( $faluss_id, $legacy_links );
-        if ( $migrate && $legacy && self::migrate_legacy_links( $faluss_id, $legacy ) ) { return self::stored_blocks( $faluss_id ) ?: $legacy; }
+        if ( $migrate && $legacy && self::migrate_legacy_links( $faluss_id, $legacy ) ) { $stored = self::stored_blocks( $faluss_id ); return $stored['blocks'] ?: $legacy; }
         return $legacy;
     }
 
     private static function stored_blocks( $faluss_id ) {
         global $wpdb; $table = Faluss_Link_Schema::blocks_table();
-        if ( '' === $table ) { return array(); }
+        if ( '' === $table ) { return array( 'blocks' => array(), 'has_rows' => false ); }
         $rows = $wpdb->get_results( $wpdb->prepare( 'SELECT block_id,block_type,payload FROM ' . $table . ' WHERE faluss_id=%s ORDER BY sort_order ASC,id ASC', $faluss_id ), ARRAY_A );
-        $blocks = array();
-        foreach ( (array) $rows as $row ) { $payload = json_decode( $row['payload'] ?? '', true ); $block = self::normalise_block( is_array( $payload ) ? array_merge( $payload, array( 'block_id' => $row['block_id'] ?? '', 'type' => $row['block_type'] ?? '' ) ) : array() ); if ( $block ) { $blocks[] = $block; } }
-        return $blocks;
+        $blocks = array(); $has_rows = false;
+        foreach ( (array) $rows as $row ) { $has_rows = true; $block = self::hydrate_stored_block( $row ); if ( $block ) { $blocks[] = $block; } }
+        return array( 'blocks' => $blocks, 'has_rows' => $has_rows );
     }
 
     private static function migrate_legacy_links( $faluss_id, $legacy ) {
-        return self::stored_blocks( $faluss_id ) ? true : self::save_blocks( $faluss_id, $legacy );
+        $stored = self::stored_blocks( $faluss_id );
+        return $stored['blocks'] ? true : self::save_blocks( $faluss_id, $legacy );
     }
 
     private static function legacy_blocks( $faluss_id, $links ) {
@@ -256,24 +270,34 @@ final class Faluss_Link {
         return substr( $hash, 0, 8 ) . '-' . substr( $hash, 8, 4 ) . '-' . substr( $hash, 12, 4 ) . '-' . substr( $hash, 16, 4 ) . '-' . substr( $hash, 20, 12 );
     }
 
-    private static function normalise_blocks( $raw ) {
+    private static function normalise_blocks( $raw, $require_owned_media = true ) {
         $blocks = array();
-        foreach ( array_slice( is_array( $raw ) ? $raw : array(), 0, 32 ) as $block ) { $clean = self::normalise_block( $block ); if ( $clean ) { $blocks[] = $clean; } }
+        foreach ( array_slice( is_array( $raw ) ? $raw : array(), 0, 32 ) as $block ) { $clean = self::normalise_block( $block, false, $require_owned_media ); if ( $clean ) { $blocks[] = $clean; } }
         return $blocks;
     }
 
-    private static function normalise_block( $block ) {
+    private static function hydrate_stored_block( $row ) {
+        if ( ! is_array( $row ) || ! self::valid_block_id( $row['block_id'] ?? '' ) ) { return null; }
+        $payload = json_decode( $row['payload'] ?? '', true );
+        return is_array( $payload ) ? self::normalise_block( array_merge( $payload, array( 'block_id' => $row['block_id'], 'type' => $row['block_type'] ?? '' ) ), true, false ) : null;
+    }
+
+    private static function normalise_block( $block, $stored = false, $require_owned_media = true ) {
         if ( ! is_array( $block ) ) { return null; }
-        $type = sanitize_key( (string) ( $block['type'] ?? '' ) ); $block_id = self::block_id( $block['block_id'] ?? '' );
+        $type = sanitize_key( (string) ( $block['type'] ?? '' ) ); $block_id = self::block_id( $block['block_id'] ?? '', $stored );
+        if ( '' === $block_id ) { return null; }
         if ( 'section_title' === $type ) { $value = self::block_text( $block['value'] ?? '', 80, false ); return '' === $value ? null : array( 'block_id' => $block_id, 'type' => $type, 'value' => $value ); }
         if ( 'text' === $type ) { $value = self::block_text( $block['value'] ?? '', 480, true ); return '' === $value ? null : array( 'block_id' => $block_id, 'type' => $type, 'value' => $value ); }
         if ( 'link' === $type ) { $label = self::block_text( $block['label'] ?? '', 80, false ); $url = self::block_url( $block['url'] ?? '' ); return '' === $label || '' === $url ? null : array( 'block_id' => $block_id, 'type' => $type, 'label' => $label, 'url' => $url ); }
+        if ( 'media_teaser' === $type ) { $attachment_id = self::media_attachment_id( $block['attachment_id'] ?? 0, $require_owned_media ); if ( ! $attachment_id ) { return null; } return array( 'block_id' => $block_id, 'type' => $type, 'attachment_id' => $attachment_id, 'title' => self::block_text( $block['title'] ?? '', 80, false ), 'text' => self::block_text( $block['text'] ?? '', 240, true ) ); }
         return null;
     }
 
-    private static function block_id( $value ) { $value = strtolower( (string) $value ); return preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $value ) ? $value : wp_generate_uuid4(); }
+    private static function valid_block_id( $value ) { return 1 === preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', strtolower( (string) $value ) ); }
+    private static function block_id( $value, $strict = false ) { $value = strtolower( (string) $value ); return self::valid_block_id( $value ) ? $value : ( $strict ? '' : wp_generate_uuid4() ); }
     private static function block_text( $value, $length, $multiline ) { if ( ! is_string( $value ) ) { return ''; } $value = trim( $multiline ? sanitize_textarea_field( wp_unslash( $value ) ) : sanitize_text_field( wp_unslash( $value ) ) ); return function_exists( 'mb_substr' ) ? mb_substr( $value, 0, $length ) : substr( $value, 0, $length ); }
     private static function block_url( $value ) { $url = is_string( $value ) ? esc_url_raw( trim( wp_unslash( $value ) ), array( 'https' ) ) : ''; $parts = wp_parse_url( $url ); return '' !== $url && is_array( $parts ) && 'https' === strtolower( $parts['scheme'] ?? '' ) && ! empty( $parts['host'] ) && ! isset( $parts['user'], $parts['pass'] ) ? $url : ''; }
+    private static function media_attachment_id( $value, $require_owned ) { $attachment_id = absint( $value ); if ( ! $attachment_id || ! wp_attachment_is_image( $attachment_id ) ) { return 0; } return ! $require_owned || self::owned_image( $attachment_id, get_current_user_id() ) ? $attachment_id : 0; }
 
     private static function identity_links( $blocks ) {
         $links = array(); foreach ( $blocks as $block ) { if ( 'link' === $block['type'] && count( $links ) < 8 ) { $links[] = array( 'label' => $block['label'], 'url' => $block['url'], 'position' => count( $links ) + 1 ); } } return $links;
