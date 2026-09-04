@@ -101,6 +101,7 @@
         var style = studio.find('[name="link_style"]').val() || 'solid';
         var align = studio.find('[name="alignment"]').val() || 'left';
         var avatar = studio.find('[name="avatar_visible"]').prop('checked');
+        var nameColor = studio.find('[name="name_color"]:checked').val() || '#000000';
         preview.find('.faluss-link-card__name').text(name).attr('class', 'faluss-link-card__name faluss-link-card__name--' + treatment);
         preview.find('.faluss-link-card__handle').text(slug ? '@' + slug : '@—');
         preview.find('.faluss-link-card__bio').text(studio.find('[name="bio"]').val() || '').prop('hidden', mode === 'announcement');
@@ -112,6 +113,7 @@
             .addClass('faluss-link-card--links-' + style)
             .addClass('faluss-link-card--align-' + align);
         preview[0].style.setProperty('--fl-page-background', studio.find('[name="page_background"]').val() || '#FFFDF5');
+        preview[0].style.setProperty('--fl-name-color', nameColor);
         preview[0].style.setProperty('--fl-hero-transition-color', studio.find('[name="hero_transition_color"]').val() || '#FFFDF5');
         preview[0].style.setProperty('--fl-hero-transition-intensity', (studio.find('[name="hero_transition_intensity"]').val() || 82) + '%');
         preview[0].style.setProperty('--fl-hero-transition-position', (studio.find('[name="hero_transition_position"]').val() || 72) + '%');
