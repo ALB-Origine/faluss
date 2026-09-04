@@ -31,20 +31,37 @@
     }
 
     function renumberRows(studio) {
-        studio.find('.faluss-link-studio__link-row').each(function (index) {
-            $(this).find('input').each(function () { this.name = this.name.replace(/links\[\d+\]/, 'links[' + index + ']'); });
-        });
         studio.find('.faluss-link-studio__network-row').each(function (index) {
             $(this).find('select,input').each(function () { this.name = this.name.replace(/social_networks\[\d+\]/, 'social_networks[' + index + ']'); });
         });
     }
 
-    function linkRow(index) {
-        return $('<div>', { 'class': 'faluss-link-studio__link-row' })
-            .append($('<input>', { type: 'hidden', name: 'links[' + index + '][position]', value: index }))
-            .append($('<input>', { type: 'text', name: 'links[' + index + '][label]', maxlength: 80, placeholder: 'Libellé' }))
-            .append($('<input>', { type: 'url', name: 'links[' + index + '][url]', maxlength: 2048, placeholder: 'https://' }))
-            .append($('<button>', { type: 'button', 'class': 'faluss-link-studio__remove-row', text: 'Supprimer' }));
+    function blockId() {
+        if (window.crypto && window.crypto.randomUUID) { return window.crypto.randomUUID(); }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (value) { var random = Math.random() * 16 | 0, bit = value === 'x' ? random : (random & 3 | 8); return bit.toString(16); });
+    }
+
+    function renumberBlocks(studio) {
+        var blocks = studio.find('.faluss-link-content-block');
+        blocks.each(function (index) {
+            var block = $(this);
+            block.find('[data-fl-block-field]').each(function () { this.name = 'content_blocks[' + index + '][' + $(this).data('fl-block-field') + ']'; });
+            block.find('[data-fl-block-action="up"]').prop('disabled', index === 0);
+            block.find('[data-fl-block-action="down"]').prop('disabled', index === blocks.length - 1);
+        });
+    }
+
+    function contentBlock(type) {
+        var titles = { section_title: 'Titre de section', text: 'Texte', link: 'Lien' }, block = $('<article>', { 'class': 'faluss-link-content-block', 'data-block-type': type }), header = $('<header>', { 'class': 'faluss-link-content-block__header' }), actions = $('<div>', { 'class': 'faluss-link-content-block__actions' });
+        header.append($('<strong>', { text: titles[type] || 'Texte' })).append(actions
+            .append($('<button>', { type: 'button', 'data-fl-block-action': 'up', 'aria-label': 'Monter cet élément', text: 'Monter' }))
+            .append($('<button>', { type: 'button', 'data-fl-block-action': 'down', 'aria-label': 'Descendre cet élément', text: 'Descendre' }))
+            .append($('<button>', { type: 'button', 'data-fl-block-action': 'remove', 'aria-label': 'Supprimer cet élément', text: 'Supprimer' })));
+        block.append($('<input>', { type: 'hidden', 'data-fl-block-field': 'block_id', value: blockId() })).append($('<input>', { type: 'hidden', 'data-fl-block-field': 'type', value: type })).append(header);
+        if (type === 'section_title') { block.append($('<label>', { text: 'Titre' }).append($('<input>', { type: 'text', maxlength: 80, 'data-fl-block-field': 'value' }))); }
+        else if (type === 'link') { block.append($('<label>', { text: 'Libellé' }).append($('<input>', { type: 'text', maxlength: 80, 'data-fl-block-field': 'label' }))).append($('<label>', { text: 'URL HTTPS' }).append($('<input>', { type: 'url', maxlength: 2048, placeholder: 'https://', 'data-fl-block-field': 'url' }))); }
+        else { block.append($('<label>', { text: 'Texte' }).append($('<textarea>', { maxlength: 480, rows: 3, 'data-fl-block-field': 'value' }))); }
+        return block;
     }
 
     function networkRow(index) {
@@ -82,12 +99,16 @@
     }
 
     function updateLinks(studio) {
-        var wrap = card(studio).find('.faluss-link-card__links').empty();
-        studio.find('.faluss-link-studio__link-row').each(function () {
-            var row = $(this), label = row.find('[name$="[label]"]').val(), url = row.find('[name$="[url]"]').val();
-            if (!safeURL(url)) { return; }
-            wrap.append($('<a>', { 'class': 'faluss-link-card__link', href: url, target: '_blank', rel: 'noopener noreferrer nofollow' }).text(label || url));
+        var preview = card(studio), wrap = preview.find('.faluss-link-card__content-blocks');
+        if (!wrap.length) { wrap = $('<div>', { 'class': 'faluss-link-card__content-blocks faluss-link-card__links' }).insertAfter(preview.find('.faluss-link-card__social')); }
+        wrap.empty();
+        studio.find('.faluss-link-content-block').each(function () {
+            var block = $(this), type = block.data('block-type'), value = block.find('[data-fl-block-field="value"]').val() || '', label = block.find('[data-fl-block-field="label"]').val() || '', url = block.find('[data-fl-block-field="url"]').val() || '';
+            if (type === 'section_title' && $.trim(value)) { wrap.append($('<h3>', { 'class': 'faluss-link-card__section-title', text: value })); }
+            else if (type === 'text' && $.trim(value)) { wrap.append($('<p>', { 'class': 'faluss-link-card__content-text', text: value })); }
+            else if (type === 'link' && $.trim(label) && safeURL(url)) { wrap.append($('<a>', { 'class': 'faluss-link-card__link', href: url, target: '_blank', rel: 'noopener noreferrer nofollow', text: label })); }
         });
+        wrap.prop('hidden', wrap.children().length === 0);
     }
 
     function update(studio) {
@@ -145,7 +166,7 @@
             if (studio.data('falussLinkStudioReady')) { updateCursor(studio); return; }
             studio.data('falussLinkStudioReady', true);
             studio.find('[data-fl-tab]').each(function (index) { $(this).attr('tabindex', index === 0 ? '0' : '-1'); });
-            activate(studio, 'profile', false); update(studio);
+            renumberBlocks(studio); activate(studio, 'profile', false); update(studio);
         });
     }
 
@@ -169,16 +190,23 @@
             if (event.key === 'Home') { index = 0; } if (event.key === 'End') { index = tabs.length - 1; }
             event.preventDefault(); activate($(this).closest('.faluss-link-studio'), tabs.eq(index).data('fl-tab'), true);
         })
-        .on('click.falussLink', '.faluss-link-studio__add-link', function () {
-            var studio = $(this).closest('.faluss-link-studio'), list = $(this).siblings('.faluss-link-studio__link-list');
-            if (list.find('.faluss-link-studio__link-row').length < 8) { list.append(linkRow(list.find('.faluss-link-studio__link-row').length)); update(studio); }
+        .on('click.falussLink', '.faluss-link-content-composer__add-button', function () {
+            var studio = $(this).closest('.faluss-link-studio'), composer = $(this).closest('.faluss-link-content-composer'), list = composer.find('.faluss-link-content-composer__list'), type = composer.find('.faluss-link-content-composer__type').val();
+            if (list.find('.faluss-link-content-block').length < 32 && /^(section_title|text|link)$/.test(type || '')) { list.append(contentBlock(type)); renumberBlocks(studio); update(studio); }
         })
         .on('click.falussLink', '.faluss-link-studio__add-network', function () {
             var studio = $(this).closest('.faluss-link-studio'), list = $(this).siblings('.faluss-link-studio__network-list');
             list.append(networkRow(list.find('.faluss-link-studio__network-row').length)); update(studio);
         })
+        .on('click.falussLink', '.faluss-link-content-block [data-fl-block-action]', function () {
+            var studio = $(this).closest('.faluss-link-studio'), block = $(this).closest('.faluss-link-content-block'), action = $(this).data('fl-block-action');
+            if (action === 'up') { block.prev('.faluss-link-content-block').before(block); }
+            else if (action === 'down') { block.next('.faluss-link-content-block').after(block); }
+            else { block.remove(); }
+            renumberBlocks(studio); update(studio);
+        })
         .on('click.falussLink', '.faluss-link-studio__remove-row', function () {
-            var studio = $(this).closest('.faluss-link-studio'); $(this).closest('.faluss-link-studio__link-row,.faluss-link-studio__network-row').remove(); renumberRows(studio); update(studio);
+            var studio = $(this).closest('.faluss-link-studio'); $(this).closest('.faluss-link-studio__network-row').remove(); renumberRows(studio); update(studio);
         })
         .on('input.falussLink change.falussLink', '.faluss-link-studio input,.faluss-link-studio textarea,.faluss-link-studio select', function () { update($(this).closest('.faluss-link-studio')); })
         .on('change.falussLink', '.faluss-link-studio [name="faluss_identity_avatar"]', function () {

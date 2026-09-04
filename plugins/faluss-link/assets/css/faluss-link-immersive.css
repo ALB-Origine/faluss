@@ -124,3 +124,4 @@
     will-change: auto;
   }
 }
+.faluss-link-card--presentation-immersive .faluss-link-card__content-blocks{max-width:44rem;margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--fl-border)}.faluss-link-card--presentation-immersive .faluss-link-card__section-title{margin-top:1.8rem;padding-top:1.8rem;font-size:clamp(1.2rem,4vw,1.65rem)}.faluss-link-card--presentation-immersive .faluss-link-card__content-text{max-width:42rem;font-size:1rem}

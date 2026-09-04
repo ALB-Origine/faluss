@@ -23,3 +23,9 @@ La couverture s’envoie depuis le Studio avec une action explicite du membre. L
 Dans **Studio Faluss > Style**, le membre choisit la couleur de son nom parmi les quatre pastilles Faluss accessibles : Rose (`#BE79FF`), Blanc (`#FFFFFF`), Noir (`#000000`, valeur par défaut) et Prune (`#82206B`). Ce choix n’affecte ni le handle, ni le statut, ni la bio, ni les liens. Une couleur explicitement renseignée dans le widget Elementor **Carte Faluss** peut la surcharger ; un contrôle Elementor laissé vide conserve la préférence membre.
 
 Faluss Link prépare une résolution de styles de carte sans encore introduire de sélecteur de thème, de contenu Premium ou de droit associé. Lorsqu’un thème de carte existera, la priorité sera : thème sélectionné, préférences du membre, puis tokens Faluss Theme. Aujourd’hui, aucun thème n’est sélectionnable et les préférences du membre restent la source effective.
+
+## Blocs de contenu v1 (FL-08)
+
+L’onglet **Liens** contient un compositeur de contenu mobile : **Titre de section**, **Texte** et **Lien**. Chaque bloc est ajouté, déplacé avec les actions Monter/Descendre ou supprimé sans position technique visible. Les liens historiques sont importés de façon idempotente dans la source Faluss Link à la première ouverture du Studio ; tant que cette migration n’a pas eu lieu, la carte publique les rend depuis le profil Identity sans perte.
+
+Les modules ultérieurs pourront fournir leurs propres blocs validés, par exemple un produit `pro.faluss`, un contenu verrouillé ou une récompense quotidienne. Faluss Link ne portera jamais leurs règles d’accès, de paiement, de token ou d’abonnement : elles resteront dans les moteurs communs de l’écosystème.
