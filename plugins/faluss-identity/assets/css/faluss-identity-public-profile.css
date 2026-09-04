@@ -53,3 +53,6 @@
 @media (max-width: 600px) {
   .faluss-identity-profile-editor__link-row { grid-template-columns: 1fr; }
 }
+
+body.faluss-identity-public-shell { margin: 0; min-height: 100svh; }
+.faluss-identity-public-shell .faluss-identity-profile-page--elementor { padding: 0; }

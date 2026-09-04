@@ -11,6 +11,7 @@ function home_url( $path = '/' ) {
 }
 function wp_parse_url( $url ) { return parse_url( $url ); }
 function wp_validate_redirect( $url, $fallback = '' ) { return $url ?: $fallback; }
+function add_query_arg( $key, $value, $url ) { return $url . '?' . rawurlencode( $key ) . '=' . rawurlencode( $value ); }
 
 require_once dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-passwordless.php';
 
@@ -46,6 +47,7 @@ fi02_passwordless_assert( 'https://faluss.me/espace-membre' === fi02_passwordles
 fi02_passwordless_assert( 'https://faluss.me/retour?state=ok' === fi02_passwordless_private( 'local_redirect', 'https://faluss.me/retour?state=ok' ), 'A same-origin absolute URL is retained.' );
 fi02_passwordless_assert( 'https://faluss.me/' === fi02_passwordless_private( 'local_redirect', 'https://attacker.example/collect' ), 'An external redirect falls back to the local home page.' );
 fi02_passwordless_assert( 'https://faluss.me/' === fi02_passwordless_private( 'local_redirect', '//attacker.example/collect' ), 'A protocol-relative external redirect falls back to the local home page.' );
+fi02_passwordless_assert( 'https://faluss.me/login/' === fi02_passwordless_private( 'login_return_url', 'https://faluss.me/mon-faluss/' ), 'The non-JavaScript login step always returns to /login/ before OTP verification.' );
 
 $source = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-passwordless.php' );
 foreach ( array( 'wp_hash_password', 'wp_check_password', 'START TRANSACTION', 'FOR UPDATE', "'secure' => true", "'httponly' => true", "'samesite' => 'Lax'", 'wp_set_auth_cookie' ) as $required ) {
@@ -56,11 +58,20 @@ fi02_passwordless_assert( false !== strpos( $source, "'role' => 'subscriber'" ),
 fi02_passwordless_assert( false === strpos( $source, "get_option( 'default_role'" ), 'New passwordless accounts do not inherit default_role.' );
 fi02_passwordless_assert( strpos( $source, "get_user_by( 'email'" ) < strpos( $source, 'wp_insert_user' ), 'Existing accounts are returned before any role-bearing insert.' );
 fi02_passwordless_assert( 3 === substr_count( $source, 'name="redirect_to"' ), 'Every passwordless form carries the redirect target.' );
-foreach ( array( '#FFFDF5', '#FFFFFF', '#000000', '#FF3D16', 'Outfit', 'border-radius: 999px' ) as $required ) {
+fi02_passwordless_assert( 3 === substr_count( $source, 'name="return_to"' ), 'Every non-JavaScript passwordless form carries the /login/ return target.' );
+foreach ( array( 'handle_request_code_ajax', 'handle_verify_code_ajax', 'request_code_result', 'verify_code_result', 'login_return_url', "home_url( '/mon-faluss/' )", 'wp_send_json_success' ) as $required ) {
+    fi02_passwordless_assert( false !== strpos( $source, $required ), 'Missing FI-06 in-place passwordless invariant: ' . $required );
+}
+fi02_passwordless_assert( false === strpos( $source, 'Faluss_Identity_Authorization' ), 'Ordinary passwordless login remains separate from the FI-04 authorization flow.' );
+$login_js = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/assets/js/faluss-identity-passwordless-login.js' );
+foreach ( array( 'fetch(', "action.value + '_ajax'", 'replaceWithOtp', 'window.location.assign' ) as $required ) {
+    fi02_passwordless_assert( false !== strpos( $login_js, $required ), 'Missing FI-06 in-place login client behavior: ' . $required );
+}
+foreach ( array( '#FFFDF5', '#FFFFFF', '#000000', '#FF3D16', 'Outfit', '--faluss-pill-radius' ) as $required ) {
     fi02_passwordless_assert( false !== strpos( $source . file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/assets/css/faluss-identity-passwordless.css' ), $required ), 'Missing Faluss.me design token: ' . $required );
 }
 $widget_source = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-elementor-widget.php' );
-foreach ( array( "'redirect_url'", 'Group_Control_Typography', 'Group_Control_Border', 'Group_Control_Box_Shadow', "'button_hover'", '#FFFDF5', '#FF3D16' ) as $required ) {
+foreach ( array( "'redirect_url'", 'Group_Control_Typography', 'Group_Control_Border', 'Group_Control_Box_Shadow', "'button_hover'", '#FFFDF5', '#080808', 'get_script_depends' ) as $required ) {
     fi02_passwordless_assert( false !== strpos( $widget_source, $required ), 'Missing Elementor FI-02 control: ' . $required );
 }
 

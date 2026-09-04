@@ -6,10 +6,11 @@ final class Faluss_Link_Card_Widget extends \Elementor\Widget_Base {
     public function get_title() { return 'Carte Faluss'; }
     public function get_icon() { return 'eicon-person'; }
     public function get_categories() { return array( 'general' ); }
-    public function get_style_depends() { return array( 'faluss-link-card' ); }
+    public function get_style_depends() { return array( 'faluss-link-card', 'faluss-link-immersive' ); }
     protected function register_controls() {
         $this->start_controls_section( 'content', array( 'label' => 'Contenu' ) );
         $this->add_control( 'identifier', array( 'label' => 'Identifiant', 'type' => \Elementor\Controls_Manager::TEXT ) );
+        $this->add_control( 'presentation', array( 'label' => 'Présentation', 'type' => \Elementor\Controls_Manager::SELECT, 'default' => 'immersive', 'options' => array( 'immersive' => 'Page immersive', 'compact' => 'Carte compacte' ) ) );
         $this->add_responsive_control( 'align', array( 'label' => 'Alignement', 'type' => \Elementor\Controls_Manager::CHOOSE, 'default' => 'center', 'options' => array( 'left' => array( 'title' => 'Gauche', 'icon' => 'eicon-text-align-left' ), 'center' => array( 'title' => 'Centre', 'icon' => 'eicon-text-align-center' ), 'right' => array( 'title' => 'Droite', 'icon' => 'eicon-text-align-right' ) ), 'selectors_dictionary' => array( 'left' => 'margin-left:0;margin-right:auto;', 'center' => 'margin-left:auto;margin-right:auto;', 'right' => 'margin-left:auto;margin-right:0;' ), 'selectors' => array( '{{WRAPPER}} .faluss-link-card' => '{{VALUE}}' ) ) );
         $this->end_controls_section();
         $this->start_controls_section( 'style', array( 'label' => 'Carte', 'tab' => \Elementor\Controls_Manager::TAB_STYLE ) );
@@ -20,13 +21,17 @@ final class Faluss_Link_Card_Widget extends \Elementor\Widget_Base {
         $this->add_control( 'action', array( 'label' => 'Action', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card' => '--fl-action:{{VALUE}};' ) ) );
         $this->add_control( 'action_text', array( 'label' => 'Texte action', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card' => '--fl-action-text:{{VALUE}};' ) ) );
         $this->add_control( 'action_hover', array( 'label' => 'Action au survol', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card__link:hover' => 'background:{{VALUE}};' ) ) );
+        $this->add_control( 'hero_overlay_top', array( 'label' => 'Overlay haut du hero', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card--presentation-immersive' => '--fl-hero-overlay-top:{{VALUE}};' ) ) );
+        $this->add_control( 'hero_overlay_bottom', array( 'label' => 'Overlay bas du hero', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card--presentation-immersive' => '--fl-hero-overlay-bottom:{{VALUE}};' ) ) );
+        $this->add_control( 'primary_text', array( 'label' => 'Texte principal', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card' => '--fl-ink:{{VALUE}};' ) ) );
+        $this->add_control( 'secondary_text', array( 'label' => 'Texte secondaire', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card' => '--fl-muted:{{VALUE}};' ) ) );
         $this->add_group_control( \Elementor\Group_Control_Typography::get_type(), array( 'name' => 'typography', 'selector' => '{{WRAPPER}} .faluss-link-card' ) );
         $this->add_group_control( \Elementor\Group_Control_Border::get_type(), array( 'name' => 'border', 'selector' => '{{WRAPPER}} .faluss-link-card' ) );
         $this->add_control( 'radius', array( 'label' => 'Arrondi', 'type' => \Elementor\Controls_Manager::DIMENSIONS, 'selectors' => array( '{{WRAPPER}} .faluss-link-card' => 'border-radius:{{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};' ) ) );
         $this->add_group_control( \Elementor\Group_Control_Box_Shadow::get_type(), array( 'name' => 'shadow', 'selector' => '{{WRAPPER}} .faluss-link-card' ) );
         $this->end_controls_section();
     }
-    protected function render() { $settings = $this->get_settings_for_display(); echo Faluss_Link::render_card( array( 'identifier' => $settings['identifier'], 'align' => $settings['align'] ) ); }
+    protected function render() { $settings = $this->get_settings_for_display(); echo Faluss_Link::render_card( array( 'identifier' => $settings['identifier'], 'align' => $settings['align'], 'presentation' => $settings['presentation'] ) ); }
 }
 final class Faluss_Link_Appearance_Widget extends \Elementor\Widget_Base { public function get_name() { return 'faluss_link_appearance'; } public function get_title() { return 'Apparence de ma carte Faluss'; } public function get_icon() { return 'eicon-settings'; } public function get_categories() { return array( 'general' ); } public function get_style_depends() { return array( 'faluss-link-card' ); } public function get_script_depends() { return array( 'faluss-link-editor' ); } protected function render() { echo Faluss_Link::render_editor(); } }
 final class Faluss_Link_Studio_Widget extends \Elementor\Widget_Base { public function get_name() { return 'faluss_link_studio'; } public function get_title() { return 'Studio Faluss'; } public function get_icon() { return 'eicon-dashboard'; } public function get_categories() { return array( 'general' ); } public function get_style_depends() { return array( 'faluss-link-card' ); } public function get_script_depends() { return array( 'faluss-link-editor' ); } protected function render() { echo Faluss_Link::render_studio(); } }

@@ -12,6 +12,8 @@ final class Faluss_Identity_Plugin {
         add_action( 'init', array( 'Faluss_Identity_Public_Profile', 'register' ) );
         add_action( 'init', array( 'Faluss_Identity_Authorization', 'register' ) );
         add_action( 'wp_enqueue_scripts', array( 'Faluss_Identity_Passwordless', 'register_assets' ) );
+        add_action( 'elementor/frontend/after_register_scripts', array( 'Faluss_Identity_Passwordless', 'register_assets' ), 5 );
+        add_action( 'elementor/frontend/after_register_styles', array( 'Faluss_Identity_Passwordless', 'register_assets' ), 5 );
         add_action( 'wp_enqueue_scripts', array( 'Faluss_Identity_Public_Profile', 'register_assets' ) );
         add_action( 'wp_enqueue_scripts', array( 'Faluss_Identity_Authorization', 'register_assets' ) );
         add_action( 'elementor/widgets/register', array( __CLASS__, 'register_elementor_widget' ) );

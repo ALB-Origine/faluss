@@ -26,11 +26,15 @@ final class Faluss_Identity_Elementor_Widget extends \Elementor\Widget_Base {
         return array( Faluss_Identity_Passwordless::STYLE_HANDLE );
     }
 
+    public function get_script_depends() {
+        return array( Faluss_Identity_Passwordless::SCRIPT_HANDLE );
+    }
+
     protected function register_controls() {
         $this->start_controls_section( 'content_section', array( 'label' => __( 'Contenu', 'faluss-identity' ) ) );
         $this->add_control( 'heading', array( 'label' => __( 'Titre', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::TEXT, 'default' => __( 'Bienvenue sur Faluss', 'faluss-identity' ) ) );
         $this->add_control( 'intro', array( 'label' => __( 'Introduction', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::TEXTAREA, 'default' => __( 'Entrez votre adresse e-mail pour recevoir un code de connexion.', 'faluss-identity' ) ) );
-        $this->add_control( 'redirect_url', array( 'label' => __( 'URL de redirection', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::URL, 'default' => array( 'url' => home_url( '/' ) ), 'description' => __( 'Seules les URL locales à faluss.me sont acceptées.', 'faluss-identity' ) ) );
+        $this->add_control( 'redirect_url', array( 'label' => __( 'URL de redirection', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::URL, 'default' => array( 'url' => home_url( '/mon-faluss/' ) ), 'description' => __( 'Seules les URL locales à faluss.me sont acceptées.', 'faluss-identity' ) ) );
         $this->end_controls_section();
 
         $this->start_controls_section( 'style_card_section', array( 'label' => __( 'Carte', 'faluss-identity' ), 'tab' => \Elementor\Controls_Manager::TAB_STYLE ) );
@@ -55,7 +59,7 @@ final class Faluss_Identity_Elementor_Widget extends \Elementor\Widget_Base {
         $this->start_controls_tabs( 'button_tabs' );
         $this->start_controls_tab( 'button_normal', array( 'label' => __( 'Normal', 'faluss-identity' ) ) );
         $this->add_control( 'button_text', array( 'label' => __( 'Texte', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#FFFFFF', 'selectors' => array( '{{WRAPPER}} .faluss-identity-login__form button, {{WRAPPER}} .faluss-identity-login__link' => 'color: {{VALUE}};' ) ) );
-        $this->add_control( 'accent_color', array( 'label' => __( 'Fond', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#FF3D16', 'selectors' => array( '{{WRAPPER}} .faluss-identity-login__form button, {{WRAPPER}} .faluss-identity-login__link' => 'background-color: {{VALUE}};' ) ) );
+        $this->add_control( 'accent_color', array( 'label' => __( 'Fond', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#080808', 'selectors' => array( '{{WRAPPER}} .faluss-identity-login' => '--faluss-identity-action: {{VALUE}};' ) ) );
         $this->add_group_control( \Elementor\Group_Control_Border::get_type(), array( 'name' => 'button_border', 'selector' => '{{WRAPPER}} .faluss-identity-login__form button, {{WRAPPER}} .faluss-identity-login__link' ) );
         $this->add_responsive_control( 'button_radius', array( 'label' => __( 'Arrondi pill', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::DIMENSIONS, 'size_units' => array( 'px', '%' ), 'default' => array( 'top' => 999, 'right' => 999, 'bottom' => 999, 'left' => 999, 'unit' => 'px', 'isLinked' => true ), 'selectors' => array( '{{WRAPPER}} .faluss-identity-login__form button, {{WRAPPER}} .faluss-identity-login__link' => 'border-radius: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};' ) ) );
         $this->add_group_control( \Elementor\Group_Control_Box_Shadow::get_type(), array( 'name' => 'button_shadow', 'selector' => '{{WRAPPER}} .faluss-identity-login__form button, {{WRAPPER}} .faluss-identity-login__link' ) );
@@ -74,7 +78,7 @@ final class Faluss_Identity_Elementor_Widget extends \Elementor\Widget_Base {
     protected function render() {
         $settings = $this->get_settings_for_display();
         $settings['radius'] = isset( $settings['radius']['top'] ) ? $settings['radius']['top'] : 20;
-        $settings['redirect_url'] = isset( $settings['redirect_url']['url'] ) ? $settings['redirect_url']['url'] : home_url( '/' );
+        $settings['redirect_url'] = isset( $settings['redirect_url']['url'] ) ? $settings['redirect_url']['url'] : home_url( '/mon-faluss/' );
         echo Faluss_Identity_Passwordless::render_form( $settings ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- safe, server-rendered widget markup.
     }
 }

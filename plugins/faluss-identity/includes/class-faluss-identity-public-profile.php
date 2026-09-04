@@ -154,14 +154,21 @@ final class Faluss_Identity_Public_Profile {
         status_header( 200 );
         nocache_headers();
         self::enqueue_style();
-        get_header();
-        if ( self::render_elementor_template( self::get_template_id() ) ) {
-            get_footer();
-            exit;
-        }
-        echo '<main class="faluss-identity-profile-page">' . self::render_profile_markup( $profile ) . '</main>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- safe markup assembled below.
-        get_footer();
+        self::render_public_shell( $profile );
         exit;
+    }
+
+    private static function render_public_shell( $profile ) {
+        show_admin_bar( false );
+        ?>
+        <!doctype html>
+        <html <?php language_attributes(); ?>><head><meta charset="<?php bloginfo( 'charset' ); ?>"><meta name="viewport" content="width=device-width, initial-scale=1"><?php wp_head(); ?></head>
+        <body <?php body_class( 'faluss-identity-public-shell' ); ?>><?php wp_body_open(); ?>
+        <?php if ( ! self::render_elementor_template( self::get_template_id() ) ) : ?>
+            <main class="faluss-identity-profile-page"><?php echo self::render_profile_markup( $profile ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- safe server-rendered fallback. ?></main>
+        <?php endif; ?>
+        <?php wp_footer(); ?></body></html>
+        <?php
     }
 
     /** @return string */

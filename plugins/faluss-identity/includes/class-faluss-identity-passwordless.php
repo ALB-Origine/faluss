@@ -20,6 +20,7 @@ final class Faluss_Identity_Passwordless {
     const REQUEST_WINDOW = 900;
     const NOTICE_KEY = 'faluss_identity_notice';
     const STYLE_HANDLE = 'faluss-identity-passwordless';
+    const SCRIPT_HANDLE = 'faluss-identity-passwordless-login';
 
     public static function register() {
         add_shortcode( 'faluss_identity_login', array( __CLASS__, 'shortcode' ) );
@@ -27,6 +28,10 @@ final class Faluss_Identity_Passwordless {
         add_action( 'admin_post_faluss_identity_request_code', array( __CLASS__, 'handle_request_code' ) );
         add_action( 'admin_post_nopriv_faluss_identity_verify_code', array( __CLASS__, 'handle_verify_code' ) );
         add_action( 'admin_post_faluss_identity_verify_code', array( __CLASS__, 'handle_verify_code' ) );
+        add_action( 'wp_ajax_nopriv_faluss_identity_request_code_ajax', array( __CLASS__, 'handle_request_code_ajax' ) );
+        add_action( 'wp_ajax_faluss_identity_request_code_ajax', array( __CLASS__, 'handle_request_code_ajax' ) );
+        add_action( 'wp_ajax_nopriv_faluss_identity_verify_code_ajax', array( __CLASS__, 'handle_verify_code_ajax' ) );
+        add_action( 'wp_ajax_faluss_identity_verify_code_ajax', array( __CLASS__, 'handle_verify_code_ajax' ) );
     }
 
     public static function register_assets() {
@@ -35,6 +40,13 @@ final class Faluss_Identity_Passwordless {
             plugins_url( 'assets/css/faluss-identity-passwordless.css', FALUSS_IDENTITY_FILE ),
             array(),
             FALUSS_IDENTITY_VERSION
+        );
+        wp_register_script(
+            self::SCRIPT_HANDLE,
+            plugins_url( 'assets/js/faluss-identity-passwordless-login.js', FALUSS_IDENTITY_FILE ),
+            array(),
+            FALUSS_IDENTITY_VERSION,
+            true
         );
     }
 
@@ -51,12 +63,13 @@ final class Faluss_Identity_Passwordless {
             self::register_assets();
         }
         wp_enqueue_style( self::STYLE_HANDLE );
+        wp_enqueue_script( self::SCRIPT_HANDLE );
 
         $defaults = array(
             'heading'       => __( 'Bienvenue sur Faluss', 'faluss-identity' ),
             'intro'         => __( 'Entrez votre adresse e-mail pour recevoir un code de connexion.', 'faluss-identity' ),
-            'redirect_url'  => home_url( '/' ),
-            'accent_color'  => '#FF3D16',
+            'redirect_url'  => home_url( '/mon-faluss/' ),
+            'accent_color'  => '',
             'page_color'    => '#FFFDF5',
             'card_color'    => '#FFFFFF',
             'text_color'    => '#000000',
@@ -64,49 +77,41 @@ final class Faluss_Identity_Passwordless {
             'radius'        => '20',
         );
         $settings = wp_parse_args( $settings, $defaults );
+        $action_color = self::sanitize_hex_color( $settings['accent_color'], '' );
         $style = sprintf(
-            '--faluss-identity-accent:%1$s;--faluss-identity-page:%2$s;--faluss-identity-card:%3$s;--faluss-identity-text:%4$s;--faluss-identity-border:%5$s;--faluss-identity-radius:%6$dpx;',
-            esc_attr( self::sanitize_hex_color( $settings['accent_color'], $defaults['accent_color'] ) ),
+            '--faluss-identity-action:%1$s;--faluss-identity-page:%2$s;--faluss-identity-card:%3$s;--faluss-identity-text:%4$s;--faluss-identity-border:%5$s;--faluss-identity-radius:%6$dpx;',
+            '' === $action_color ? 'var(--faluss-action,#080808)' : esc_attr( $action_color ),
             esc_attr( self::sanitize_hex_color( $settings['page_color'], $defaults['page_color'] ) ),
             esc_attr( self::sanitize_hex_color( $settings['card_color'], $defaults['card_color'] ) ),
             esc_attr( self::sanitize_hex_color( $settings['text_color'], $defaults['text_color'] ) ),
             esc_attr( self::sanitize_hex_color( $settings['border_color'], $defaults['border_color'] ) ),
             max( 0, min( 48, (int) $settings['radius'] ) )
         );
-        $redirect_to = self::local_redirect( $settings['redirect_url'] );
+        $redirect_to = self::local_redirect( isset( $_GET['redirect_to'] ) ? wp_unslash( $_GET['redirect_to'] ) : $settings['redirect_url'] );
+        $return_to = self::login_return_url( $redirect_to );
+        wp_localize_script( self::SCRIPT_HANDLE, 'falussIdentityLogin', array( 'url' => admin_url( 'admin-ajax.php' ) ) );
 
         $notice = isset( $_GET[ self::NOTICE_KEY ] ) ? sanitize_key( wp_unslash( $_GET[ self::NOTICE_KEY ] ) ) : '';
         $has_challenge = self::read_cookie_state() !== null;
 
         ob_start();
         ?>
-        <section class="faluss-identity-login" style="<?php echo $style; ?>">
+        <section class="faluss-identity-login" data-faluss-identity-login style="<?php echo $style; ?>">
             <div class="faluss-identity-login__content">
                 <p class="faluss-identity-login__eyebrow">FALUSS IDENTITY</p>
                 <h2><?php echo esc_html( $settings['heading'] ); ?></h2>
                 <p class="faluss-identity-login__intro"><?php echo esc_html( $settings['intro'] ); ?></p>
                 <?php self::render_notice( $notice ); ?>
+                <p class="faluss-identity-login__notice faluss-identity-login__ajax-notice" role="status" aria-live="polite" hidden></p>
                 <?php if ( is_user_logged_in() ) : ?>
                     <p class="faluss-identity-login__notice faluss-identity-login__notice--success"><?php esc_html_e( 'Votre session Faluss est active.', 'faluss-identity' ); ?></p>
                 <?php elseif ( $has_challenge ) : ?>
-                    <form class="faluss-identity-login__form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" novalidate>
-                        <input type="hidden" name="action" value="faluss_identity_verify_code">
-                        <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
-                        <?php wp_nonce_field( 'faluss_identity_verify_code', 'faluss_identity_nonce' ); ?>
-                        <label for="faluss-identity-otp"><?php esc_html_e( 'Code à 6 chiffres', 'faluss-identity' ); ?></label>
-                        <input id="faluss-identity-otp" name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
-                        <button type="submit"><?php esc_html_e( 'Vérifier et continuer', 'faluss-identity' ); ?></button>
-                    </form>
-                    <form class="faluss-identity-login__secondary" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-                        <input type="hidden" name="action" value="faluss_identity_request_code">
-                        <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
-                        <?php wp_nonce_field( 'faluss_identity_request_code', 'faluss_identity_nonce' ); ?>
-                        <button type="submit" class="faluss-identity-login__link"><?php esc_html_e( 'Recevoir un nouveau code', 'faluss-identity' ); ?></button>
-                    </form>
+                    <?php echo self::render_otp_stage( $redirect_to, $return_to ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- server-rendered safe form. ?>
                 <?php else : ?>
-                    <form class="faluss-identity-login__form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                    <form class="faluss-identity-login__form" data-faluss-login-stage="email" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                         <input type="hidden" name="action" value="faluss_identity_request_code">
                         <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
+                        <input type="hidden" name="return_to" value="<?php echo esc_url( $return_to ); ?>">
                         <?php wp_nonce_field( 'faluss_identity_request_code', 'faluss_identity_nonce' ); ?>
                         <label for="faluss-identity-email"><?php esc_html_e( 'Adresse e-mail', 'faluss-identity' ); ?></label>
                         <input id="faluss-identity-email" name="email" type="email" autocomplete="email" maxlength="320" required>
@@ -119,56 +124,98 @@ final class Faluss_Identity_Passwordless {
         return (string) ob_get_clean();
     }
 
-    public static function handle_request_code() {
-        $redirect_to = self::posted_redirect();
-        if ( ! self::valid_nonce( 'faluss_identity_request_code' ) ) {
-            self::redirect_with_notice( 'invalid', $redirect_to );
-        }
+    private static function render_otp_stage( $redirect_to, $return_to ) {
+        ob_start();
+        ?>
+        <div class="faluss-identity-login__otp-stage" data-faluss-login-stage="otp">
+        <form class="faluss-identity-login__form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" novalidate>
+            <input type="hidden" name="action" value="faluss_identity_verify_code">
+            <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
+            <input type="hidden" name="return_to" value="<?php echo esc_url( $return_to ); ?>">
+            <?php wp_nonce_field( 'faluss_identity_verify_code', 'faluss_identity_nonce' ); ?>
+            <label for="faluss-identity-otp"><?php esc_html_e( 'Code à 6 chiffres', 'faluss-identity' ); ?></label>
+            <input id="faluss-identity-otp" name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+            <button type="submit"><?php esc_html_e( 'Vérifier et continuer', 'faluss-identity' ); ?></button>
+        </form>
+        <form class="faluss-identity-login__secondary" data-faluss-login-stage="otp" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+            <input type="hidden" name="action" value="faluss_identity_request_code">
+            <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
+            <input type="hidden" name="return_to" value="<?php echo esc_url( $return_to ); ?>">
+            <?php wp_nonce_field( 'faluss_identity_request_code', 'faluss_identity_nonce' ); ?>
+            <button type="submit" class="faluss-identity-login__link"><?php esc_html_e( 'Recevoir un nouveau code', 'faluss-identity' ); ?></button>
+        </form>
+        </div>
+        <?php
+        return (string) ob_get_clean();
+    }
 
+    public static function handle_request_code() {
+        self::redirect_with_notice( self::request_code_result(), self::posted_return() );
+    }
+
+    public static function handle_verify_code() {
+        $redirect_to = self::posted_redirect();
+        $user = self::verify_code_result();
+        if ( ! $user instanceof WP_User ) {
+            self::redirect_with_notice( 'invalid', self::posted_return() );
+        }
+        self::open_session( $user );
+        self::redirect_with_notice( 'authenticated', $redirect_to );
+    }
+
+    public static function handle_request_code_ajax() {
+        $notice = self::request_code_result();
+        if ( 'invalid' === $notice ) {
+            wp_send_json_error( array( 'notice' => self::notice_message( $notice ) ), 400 );
+        }
+        wp_send_json_success( array( 'notice' => self::notice_message( $notice ), 'otp_html' => self::render_otp_stage( self::posted_redirect(), self::posted_return() ) ) );
+    }
+
+    public static function handle_verify_code_ajax() {
+        $user = self::verify_code_result();
+        if ( ! $user instanceof WP_User ) {
+            wp_send_json_error( array( 'notice' => self::notice_message( 'invalid' ) ), 400 );
+        }
+        self::open_session( $user );
+        wp_send_json_success( array( 'redirect' => self::posted_redirect() ) );
+    }
+
+    private static function request_code_result() {
+        if ( ! self::valid_nonce( 'faluss_identity_request_code' ) ) {
+            return 'invalid';
+        }
         $email = isset( $_POST['email'] ) ? self::normalize_email( wp_unslash( $_POST['email'] ) ) : null;
         if ( null === $email ) {
             $email = self::email_for_current_challenge();
         }
         if ( null === $email || ! Faluss_Identity_Schema::get_status()['ready'] ) {
-            if ( null === $email ) {
-                self::clear_cookie();
-            }
-            self::redirect_with_notice( 'sent', $redirect_to );
+            if ( null === $email ) { self::clear_cookie(); }
+            return 'sent';
         }
-
         self::issue_challenge( $email, self::client_ip() );
-        self::redirect_with_notice( 'sent', $redirect_to );
+        return 'sent';
     }
 
-    public static function handle_verify_code() {
-        $redirect_to = self::posted_redirect();
-        if ( ! self::valid_nonce( 'faluss_identity_verify_code' ) ) {
-            self::redirect_with_notice( 'invalid', $redirect_to );
-        }
-
+    private static function verify_code_result() {
+        if ( ! self::valid_nonce( 'faluss_identity_verify_code' ) ) { return null; }
         $otp = isset( $_POST['otp'] ) ? (string) wp_unslash( $_POST['otp'] ) : '';
         $state = self::read_cookie_state();
-        if ( ! self::is_valid_otp( $otp ) || null === $state ) {
-            self::redirect_with_notice( 'invalid', $redirect_to );
-        }
-
+        if ( ! self::is_valid_otp( $otp ) || null === $state ) { return null; }
         $email = self::consume_valid_otp( $state, $otp );
-        if ( null === $email ) {
-            self::redirect_with_notice( 'invalid', $redirect_to );
-        }
-
-        $user = self::establish_local_identity( $email );
+        $user = null === $email ? null : self::establish_local_identity( $email );
         if ( ! $user instanceof WP_User || self::is_privileged_user( $user ) ) {
             self::clear_cookie();
-            self::redirect_with_notice( 'invalid', $redirect_to );
+            return null;
         }
+        return $user;
+    }
 
+    private static function open_session( $user ) {
         wp_set_current_user( $user->ID );
         wp_set_auth_cookie( $user->ID, false, is_ssl() );
         do_action( 'wp_login', $user->user_login, $user );
         self::clear_cookie();
         self::record_audit( 'passwordless_session_opened' );
-        self::redirect_with_notice( 'authenticated', $redirect_to );
     }
 
     /**
@@ -542,6 +589,16 @@ final class Faluss_Identity_Passwordless {
         return self::local_redirect( $redirect_to );
     }
 
+    private static function posted_return() {
+        return self::login_return_url( self::posted_redirect() );
+    }
+
+    private static function login_return_url( $redirect_to ) {
+        $login = home_url( '/login/' );
+        $default = home_url( '/mon-faluss/' );
+        return self::local_redirect( $redirect_to ) === $default ? $login : add_query_arg( 'redirect_to', self::local_redirect( $redirect_to ), $login );
+    }
+
     /**
      * Accepts only a URL on this Identity installation, without delegating the
      * host decision to any global redirect allow-list.
@@ -588,15 +645,20 @@ final class Faluss_Identity_Passwordless {
     }
 
     private static function render_notice( $notice ) {
+        $message = self::notice_message( $notice );
+        if ( '' !== $message ) {
+            $modifier = 'authenticated' === $notice ? ' faluss-identity-login__notice--success' : '';
+            echo '<p class="faluss-identity-login__notice' . esc_attr( $modifier ) . '">' . esc_html( $message ) . '</p>';
+        }
+    }
+
+    private static function notice_message( $notice ) {
         $messages = array(
             'sent'          => __( 'Si cette adresse peut recevoir un code, celui-ci vient d’être envoyé. Vérifiez aussi vos indésirables.', 'faluss-identity' ),
             'invalid'       => __( 'Nous ne pouvons pas valider ce code. Demandez-en un nouveau et réessayez.', 'faluss-identity' ),
             'authenticated' => __( 'Votre identité a été vérifiée.', 'faluss-identity' ),
         );
-        if ( isset( $messages[ $notice ] ) ) {
-            $modifier = 'authenticated' === $notice ? ' faluss-identity-login__notice--success' : '';
-            echo '<p class="faluss-identity-login__notice' . esc_attr( $modifier ) . '">' . esc_html( $messages[ $notice ] ) . '</p>';
-        }
+        return isset( $messages[ $notice ] ) ? $messages[ $notice ] : '';
     }
 
     private static function record_audit( $event_type ) {

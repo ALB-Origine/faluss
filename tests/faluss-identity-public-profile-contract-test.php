@@ -80,6 +80,10 @@ $source = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/incl
 foreach ( array( 'faluss_id', 'public_slug', 'publication_status', 'FOR UPDATE', 'target="_blank"', 'noopener noreferrer nofollow', 'add_rewrite_rule', 'get_page_by_path', 'get_builder_content_for_display', 'OPTION_TEMPLATE_ID', 'get_elementor_templates' ) as $required ) {
     fi03_assert( false !== strpos( $source, $required ), 'Missing FI-03 invariant: ' . $required );
 }
+foreach ( array( 'render_public_shell', 'wp_head();', 'wp_body_open();', 'wp_footer();', 'show_admin_bar( false )' ) as $required ) {
+    fi03_assert( false !== strpos( $source, $required ), 'Missing FI-06 public-shell invariant: ' . $required );
+}
+fi03_assert( false === strpos( $source, 'get_header();' ) && false === strpos( $source, 'get_footer();' ), 'Public profile routes do not render the theme header or footer.');
 fi03_assert( false === strpos( $source, 'user_email' ), 'Public profiles never store or render e-mail data.' );
 
 echo 'FI-03 public-profile contract: OK' . PHP_EOL;
