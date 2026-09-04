@@ -32,8 +32,12 @@ Un administrateur peut sélectionner une page Elementor déjà publiée dans **R
 
 Le client stocke une liaison unique `wp_user_id ↔ faluss_id`. La liaison est créée seulement après l'échange de code validé par Faluss Identity.
 
+Le client conserve l’état SSO éphémère sous empreinte serveur et cookie `HttpOnly`, puis consomme cet état une seule fois avant l’échange PKCE. Un e-mail existant sans liaison ne peut jamais déclencher de rapprochement automatique : l’utilisateur ouvre d’abord sa session locale et lie explicitement son Faluss ID.
+
 ## Découplage métier
 
 Faluss Identity ne connaît pas les commandes, acquisitions, tokens, progression ou données de rencontre. Il ne renvoie que les attributs consentis au client, dans un scope déterminé.
 
 Faluss Hub agrège ultérieurement des états minimaux, par exemple « Pro activé ». Une donnée ne remonte jamais par défaut : chaque projection est spécifiée, validée et révocable.
+
+Faluss Identity ne porte ni abonnement, ni portefeuille ALB ni cosmétique. Faluss.me consommera ultérieurement des droits d’abonnement et un inventaire cosmétique propres à sa carte publique ; les objets acquis avec ALB ou progression restent possédés, tandis que les avantages inclus à l’abonnement sont temporaires.

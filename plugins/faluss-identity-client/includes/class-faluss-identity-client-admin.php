@@ -1,0 +1,15 @@
+<?php
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+final class Faluss_Identity_Client_Admin {
+ public static function register(){ add_action('admin_menu',array(__CLASS__,'menu')); add_action('admin_init',array(__CLASS__,'settings')); }
+ public static function menu(){ add_options_page('Faluss Identity Client','Faluss Identity Client','manage_options','faluss-identity-client',array(__CLASS__,'page')); }
+ public static function settings(){ register_setting('faluss_identity_client',Faluss_Identity_Client::SETTINGS,array('sanitize_callback'=>array(__CLASS__,'sanitize'))); }
+ public static function sanitize($value){ $value=(array)$value; $urls=array(); foreach((array)preg_split('/\r\n|\r|\n/',trim((string)($value['return_urls']??''))) as $url){$url=trim($url);if(''!==$url&&self::local($url))$urls[]=$url;} return array('enabled'=>!empty($value['enabled']),'authority'=>'https://faluss.me','client_id'=>sanitize_text_field($value['client_id']??''),'return_urls'=>array_values(array_unique($urls))); }
+ public static function page(){ if(!current_user_can('manage_options'))return; $c=Faluss_Identity_Client::config(); ?>
+ <div class="wrap"><h1>Faluss Identity Client</h1><p>Le client est désactivé par défaut et ne modifie aucun parcours de connexion existant.</p><form method="post" action="options.php"><?php settings_fields('faluss_identity_client'); ?>
+ <table class="form-table"><tr><th>Activer SSO Faluss</th><td><label><input type="checkbox" name="<?php echo esc_attr(Faluss_Identity_Client::SETTINGS); ?>[enabled]" value="1" <?php checked(!empty($c['enabled'])); ?>> Activer après recette</label></td></tr>
+ <tr><th>Autorité</th><td><input class="regular-text" readonly value="https://faluss.me"></td></tr><tr><th>Client ID</th><td><input class="regular-text" name="<?php echo esc_attr(Faluss_Identity_Client::SETTINGS); ?>[client_id]" value="<?php echo esc_attr($c['client_id']); ?>"></td></tr>
+ <tr><th>Secret optionnel</th><td><code>FALUSS_IDENTITY_CLIENT_SECRET</code><p class="description">À définir côté serveur dans wp-config.php ou l’environnement ; jamais dans les options WordPress.</p></td></tr><tr><th>Callback à déclarer</th><td><code><?php echo esc_html(Faluss_Identity_Client::callback_url()); ?></code></td></tr>
+ <tr><th>Retours locaux autorisés</th><td><textarea class="large-text" rows="4" name="<?php echo esc_attr(Faluss_Identity_Client::SETTINGS); ?>[return_urls]"><?php echo esc_textarea(implode("\n",(array)$c['return_urls'])); ?></textarea></td></tr></table><?php submit_button(); ?></form></div><?php }
+ private static function local($url){$a=wp_parse_url($url);$b=wp_parse_url(home_url('/'));return is_array($a)&&is_array($b)&&isset($a['scheme'],$a['host'])&&0===strcasecmp($a['scheme'],$b['scheme'])&&0===strcasecmp($a['host'],$b['host']);}
+}
