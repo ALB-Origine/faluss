@@ -51,6 +51,7 @@ final class Faluss_Theme {
         foreach ( array( 'canvas', 'surface', 'ink', 'muted', 'accent', 'action', 'action_text', 'action_hover', 'action_active', 'card_radius', 'control_radius', 'pill_radius' ) as $key ) {
             $css .= '--faluss-' . $key . ':' . $tokens[ $key ] . ';';
         }
+        $css .= '--faluss-card-radius:' . $tokens['card_radius'] . ';--faluss-control-radius:' . $tokens['control_radius'] . ';--faluss-pill-radius:' . $tokens['pill_radius'] . ';';
         $css .= '--faluss-action-text:' . $tokens['action_text'] . ';--faluss-action-hover:' . $tokens['action_hover'] . ';--faluss-action-active:' . $tokens['action_active'] . ';';
         $css .= '--faluss-border:rgba(' . self::rgb( $tokens['border_color'] ) . ',' . ( (int) $tokens['border_opacity'] / 100 ) . ');';
         $css .= '--faluss-shadow:' . $shadow[ $tokens['shadow'] ]['value'] . ';}';

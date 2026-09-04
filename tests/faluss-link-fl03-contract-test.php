@@ -13,5 +13,6 @@ foreach(array('height:clamp(280px,64vw,420px)','linear-gradient(180deg','faluss-
 fl03_assert(false===strpos($source,'public-tabs'),'No fictitious public navigation is rendered before a real tab exists.');
 foreach(array('faluss-link-card__handle','<svg aria-hidden="true"','rel="noopener noreferrer nofollow"','esc_url','esc_html') as $needle)fl03_assert(false!==strpos($source,$needle),'Public identity, social, or safe-link contract regressed: '.$needle);
 foreach(array('--faluss-action','--faluss-action-hover','--faluss-action-active') as $needle)fl03_assert(false!==strpos($css,$needle),'Card actions must consume Faluss Theme tokens: '.$needle);
+foreach(array('--faluss-card-radius','--faluss-control-radius','--faluss-pill-radius') as $needle)fl03_assert(false!==strpos($css,$needle),'FL-03 must consume Faluss Theme dashed radius aliases: '.$needle);
 fl03_assert(false===strpos($source,'user_email')&&false===strpos($source,'passwordless')&&false===strpos($source,'subscription'),'FL-03 keeps Identity and business data separate.');
 echo "FL-03 contract: OK\n";
