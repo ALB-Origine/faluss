@@ -17,8 +17,10 @@
             if (!cover || rect.bottom < 0 || rect.top > window.innerHeight) {
                 return;
             }
-            var depth = Math.max(-18, Math.min(18, -rect.top * 0.08));
+            var depth = Math.max(-24, Math.min(24, -rect.top * 0.12));
+            var panelDepth = Math.max(-10, Math.min(0, rect.top * 0.035));
             cover.style.setProperty('--fl-immersive-depth', depth.toFixed(2) + 'px');
+            card.style.setProperty('--fl-immersive-panel-depth', panelDepth.toFixed(2) + 'px');
         });
     }
 

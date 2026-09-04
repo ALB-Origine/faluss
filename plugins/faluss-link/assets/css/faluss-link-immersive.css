@@ -17,7 +17,7 @@
 
 .faluss-link-card--presentation-immersive .faluss-link-card__cover img {
   height: calc(100% + 3rem);
-  transform: translate3d(0, var(--fl-immersive-depth, 0px), 0) scale(1.035);
+  transform: translate3d(0, var(--fl-immersive-depth, 0px), 0) scale(1.05);
   transform-origin: center top;
   mask-image: none;
   will-change: transform;
@@ -29,7 +29,7 @@
     var(--fl-hero-overlay-top, rgba(8, 8, 8, .08)) 0%,
     rgba(8, 8, 8, .18) calc(100% - var(--fl-hero-transition-intensity, 82%)),
     var(--fl-hero-transition-color, var(--fl-page)) var(--fl-hero-transition-position, 72%),
-    var(--fl-hero-transition-color, var(--fl-page)) 100%
+    var(--fl-page) 100%
   );
   opacity: 1;
 }
@@ -39,6 +39,8 @@
   padding: 8rem clamp(1.25rem, 6vw, 4rem) 3rem;
   background: linear-gradient(180deg, transparent 0, var(--fl-page) 19rem);
   color: var(--fl-ink);
+  transform: translate3d(0, var(--fl-immersive-panel-depth, 0px), 0);
+  will-change: transform;
 }
 
 .faluss-link-card--presentation-immersive .faluss-link-card__name {
@@ -113,6 +115,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   .faluss-link-card--presentation-immersive .faluss-link-card__cover img {
+    transform: none;
+    will-change: auto;
+  }
+
+  .faluss-link-card--presentation-immersive .faluss-link-card__body {
     transform: none;
     will-change: auto;
   }
