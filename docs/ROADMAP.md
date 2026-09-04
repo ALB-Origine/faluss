@@ -12,9 +12,9 @@ Créer le bootstrap, migrations vérifiées, tables Identity, profils `faluss_id
 
 Adapter la cérémonie Altlab sous les noms Faluss, avec ses tests de concurrence et de rôles. Le seul résultat est une session locale sur `faluss.me` et un profil Identity actif.
 
-## FI-03 — Registre des clients
+## FI-03 — Profil public Faluss.me
 
-Créer une administration réservée aux administrateurs : clients, URI exactes, scopes, rotation/révocation du secret. Aucun secret n'est affichable après création.
+Créer le profil public rattaché au Faluss ID : identifiant stable, nom, bio, avatar, publication et liens externes ordonnés. Aucun annuaire, recherche ni donnée métier.
 
 ## FI-04 — Autorisation et échange de code
 

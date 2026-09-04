@@ -9,23 +9,42 @@ final class Faluss_Identity_Plugin {
     public static function boot() {
         add_action( 'plugins_loaded', array( __CLASS__, 'load_textdomain' ) );
         add_action( 'init', array( 'Faluss_Identity_Passwordless', 'register' ) );
+        add_action( 'init', array( 'Faluss_Identity_Public_Profile', 'register' ) );
         add_action( 'wp_enqueue_scripts', array( 'Faluss_Identity_Passwordless', 'register_assets' ) );
+        add_action( 'wp_enqueue_scripts', array( 'Faluss_Identity_Public_Profile', 'register_assets' ) );
         add_action( 'elementor/widgets/register', array( __CLASS__, 'register_elementor_widget' ) );
 
         if ( is_admin() ) {
             add_action( 'admin_notices', array( 'Faluss_Identity_Admin_Diagnostic', 'render' ) );
             add_action( 'admin_init', array( __CLASS__, 'migrate_fi02' ) );
+            add_action( 'admin_init', array( __CLASS__, 'migrate_fi03' ) );
         }
     }
 
     public static function activate() {
         Faluss_Identity_Schema::install_or_verify();
         Faluss_Identity_Schema::migrate_fi02();
+        Faluss_Identity_Schema::migrate_fi03();
+        Faluss_Identity_Public_Profile::register_rewrite_rule();
+        flush_rewrite_rules();
+    }
+
+    public static function deactivate() {
+        flush_rewrite_rules();
     }
 
     public static function migrate_fi02() {
         if ( current_user_can( 'manage_options' ) ) {
             Faluss_Identity_Schema::migrate_fi02();
+        }
+    }
+
+    public static function migrate_fi03() {
+        if ( current_user_can( 'manage_options' ) ) {
+            $was_fi03 = Faluss_Identity_Schema::FI03_VERSION === (string) get_option( Faluss_Identity_Schema::OPTION_VERSION, '' );
+            if ( Faluss_Identity_Schema::migrate_fi03() && ! $was_fi03 ) {
+                flush_rewrite_rules();
+            }
         }
     }
 
@@ -46,6 +65,9 @@ final class Faluss_Identity_Plugin {
         }
 
         require_once FALUSS_IDENTITY_DIR . 'includes/class-faluss-identity-elementor-widget.php';
+        require_once FALUSS_IDENTITY_DIR . 'includes/class-faluss-identity-public-profile-elementor-widgets.php';
         $widgets_manager->register( new Faluss_Identity_Elementor_Widget() );
+        $widgets_manager->register( new Faluss_Identity_Public_Profile_Editor_Widget() );
+        $widgets_manager->register( new Faluss_Identity_Public_Profile_Widget() );
     }
 }

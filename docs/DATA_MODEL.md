@@ -7,6 +7,7 @@ Les noms réels utilisent le préfixe WordPress actif.
 | Table | Clés / contenu |
 |---|---|
 | `faluss_identity_profiles` | `faluss_id` unique, `wp_user_id` unique, statut, dates, version de consentement |
+| `faluss_identity_public_profiles` | `faluss_id` unique, identifiant public unique, contenu public, ordre des liens et statut de publication |
 | `faluss_identity_challenges` | challenge haché, OTP haché, empreinte cookie navigateur, tentatives, statut, expiration |
 | `faluss_identity_rate_limits` | bucket haché, compteur, fenêtre et expiration ; InnoDB |
 | `faluss_identity_clients` | client opaque, statut, secret haché, scopes et URI de retour autorisées |

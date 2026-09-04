@@ -1,0 +1,397 @@
+<?php
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+/** FI-03 public profile data, member editing and root-level public routing. */
+final class Faluss_Identity_Public_Profile {
+
+    const QUERY_VAR = 'faluss_public_profile';
+    const STYLE_HANDLE = 'faluss-identity-public-profile';
+    const MAX_LINKS = 8;
+
+    public static function register() {
+        add_shortcode( 'faluss_identity_profile_editor', array( __CLASS__, 'editor_shortcode' ) );
+        add_shortcode( 'faluss_identity_public_profile', array( __CLASS__, 'public_shortcode' ) );
+        add_action( 'admin_post_faluss_identity_save_public_profile', array( __CLASS__, 'handle_save' ) );
+        add_action( 'admin_post_nopriv_faluss_identity_save_public_profile', array( __CLASS__, 'handle_save_unauthenticated' ) );
+        add_action( 'init', array( __CLASS__, 'register_rewrite_rule' ), 20 );
+        add_filter( 'query_vars', array( __CLASS__, 'register_query_var' ) );
+        add_action( 'parse_request', array( __CLASS__, 'protect_wordpress_routes' ), 5 );
+        add_action( 'template_redirect', array( __CLASS__, 'render_routed_profile' ), 0 );
+    }
+
+    public static function register_assets() {
+        wp_register_style(
+            self::STYLE_HANDLE,
+            plugins_url( 'assets/css/faluss-identity-public-profile.css', FALUSS_IDENTITY_FILE ),
+            array(),
+            FALUSS_IDENTITY_VERSION
+        );
+    }
+
+    public static function register_rewrite_rule() {
+        // Static exclusions protect core endpoints before the dynamic root slug.
+        add_rewrite_rule( '^(?!(?:wp-admin|wp-json|wp-login\\.php|login|logout|api|assets|wp-content|wp-includes|wp-cron\\.php|xmlrpc\\.php|feed|search|author|category|tag|embed|index\\.php)(?:/|$))([a-z0-9][a-z0-9-]{1,39})/?$', 'index.php?' . self::QUERY_VAR . '=$matches[1]', 'top' );
+    }
+
+    public static function register_query_var( $query_vars ) {
+        $query_vars[] = self::QUERY_VAR;
+        return $query_vars;
+    }
+
+    public static function editor_shortcode( $attributes = array() ) {
+        return self::render_editor( (array) $attributes );
+    }
+
+    public static function public_shortcode( $attributes = array() ) {
+        $attributes = shortcode_atts( array( 'identifier' => '' ), (array) $attributes, 'faluss_identity_public_profile' );
+        $slug = '' !== $attributes['identifier'] ? self::normalize_slug( $attributes['identifier'] ) : self::normalize_slug( (string) get_query_var( self::QUERY_VAR ) );
+        return '' === $slug ? '' : self::render_public_profile( $slug );
+    }
+
+    public static function handle_save_unauthenticated() {
+        wp_safe_redirect( home_url( '/' ) );
+        exit;
+    }
+
+    public static function handle_save() {
+        if ( ! is_user_logged_in() || ! isset( $_POST['faluss_identity_profile_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['faluss_identity_profile_nonce'] ) ), 'faluss_identity_save_public_profile' ) ) {
+            self::redirect_editor( 'invalid' );
+        }
+
+        $faluss_id = Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() );
+        if ( null === $faluss_id ) {
+            self::redirect_editor( 'invalid' );
+        }
+
+        $result = self::save_profile( $faluss_id, $_POST, $_FILES );
+        self::redirect_editor( $result );
+    }
+
+    public static function protect_wordpress_routes( $wp ) {
+        if ( ! is_object( $wp ) || empty( $wp->query_vars[ self::QUERY_VAR ] ) ) {
+            return;
+        }
+        $slug = self::normalize_slug( (string) $wp->query_vars[ self::QUERY_VAR ] );
+        $wordpress_post = '' === $slug ? null : self::existing_wordpress_post( $slug );
+        if ( '' === $slug || self::is_reserved_slug( $slug ) || $wordpress_post instanceof WP_Post ) {
+            unset( $wp->query_vars[ self::QUERY_VAR ] );
+            if ( '' !== $slug ) {
+                if ( $wordpress_post instanceof WP_Post && 'page' !== $wordpress_post->post_type ) {
+                    $wp->query_vars['name'] = $slug;
+                    $wp->query_vars['post_type'] = $wordpress_post->post_type;
+                } else {
+                    $wp->query_vars['pagename'] = $slug;
+                }
+            }
+            return;
+        }
+        if ( null === self::find_published_by_slug( $slug ) ) {
+            unset( $wp->query_vars[ self::QUERY_VAR ] );
+            $wp->query_vars['pagename'] = $slug;
+        }
+    }
+
+    public static function render_routed_profile() {
+        $slug = self::normalize_slug( (string) get_query_var( self::QUERY_VAR ) );
+        if ( '' === $slug ) {
+            return;
+        }
+        $profile = self::find_published_by_slug( $slug );
+        if ( null === $profile ) {
+            return;
+        }
+
+        global $wp_query;
+        if ( $wp_query instanceof WP_Query ) {
+            $wp_query->is_404 = false;
+            $wp_query->is_singular = true;
+        }
+        status_header( 200 );
+        nocache_headers();
+        self::enqueue_style();
+        get_header();
+        echo '<main class="faluss-identity-profile-page">' . self::render_profile_markup( $profile ) . '</main>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- safe markup assembled below.
+        get_footer();
+        exit;
+    }
+
+    /** @return string */
+    public static function render_editor( $settings = array() ) {
+        self::enqueue_style();
+        if ( ! is_user_logged_in() ) {
+            return '<p class="faluss-identity-profile-notice">' . esc_html__( 'Connectez-vous pour administrer votre profil Faluss.', 'faluss-identity' ) . '</p>';
+        }
+        $faluss_id = Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() );
+        if ( null === $faluss_id ) {
+            return '<p class="faluss-identity-profile-notice">' . esc_html__( 'Votre identité Faluss doit être vérifiée avant de créer un profil public.', 'faluss-identity' ) . '</p>';
+        }
+        $profile = self::find_by_faluss_id( $faluss_id );
+        $defaults = array( 'heading' => __( 'Mon profil Faluss', 'faluss-identity' ), 'intro' => __( 'Choisissez les informations visibles sur faluss.me.', 'faluss-identity' ) );
+        $settings = wp_parse_args( $settings, $defaults );
+        $links = null === $profile ? array() : $profile['links'];
+        while ( count( $links ) < self::MAX_LINKS ) {
+            $links[] = array( 'label' => '', 'url' => '', 'position' => count( $links ) + 1 );
+        }
+
+        ob_start();
+        ?>
+        <section class="faluss-identity-profile-editor">
+            <div class="faluss-identity-profile-editor__card">
+                <h2><?php echo esc_html( $settings['heading'] ); ?></h2>
+                <p class="faluss-identity-profile__intro"><?php echo esc_html( $settings['intro'] ); ?></p>
+                <?php self::render_editor_notice(); ?>
+                <form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                    <input type="hidden" name="action" value="faluss_identity_save_public_profile">
+                    <?php wp_nonce_field( 'faluss_identity_save_public_profile', 'faluss_identity_profile_nonce' ); ?>
+                    <label for="faluss-public-identifier"><?php esc_html_e( 'Identifiant public', 'faluss-identity' ); ?></label>
+                    <input id="faluss-public-identifier" name="public_slug" type="text" value="<?php echo esc_attr( null === $profile ? '' : $profile['public_slug'] ); ?>" pattern="[a-z0-9][a-z0-9-]{1,39}" maxlength="40" <?php echo null !== $profile ? 'readonly' : ''; ?> required>
+                    <p class="faluss-identity-profile__hint"><?php esc_html_e( 'Il ne peut plus être modifié après sa création.', 'faluss-identity' ); ?></p>
+                    <label for="faluss-public-name"><?php esc_html_e( 'Nom affiché', 'faluss-identity' ); ?></label>
+                    <input id="faluss-public-name" name="display_name" type="text" maxlength="80" value="<?php echo esc_attr( null === $profile ? '' : $profile['display_name'] ); ?>" required>
+                    <label for="faluss-public-bio"><?php esc_html_e( 'Bio courte', 'faluss-identity' ); ?></label>
+                    <textarea id="faluss-public-bio" name="bio" maxlength="280" rows="4"><?php echo esc_textarea( null === $profile ? '' : $profile['bio'] ); ?></textarea>
+                    <label for="faluss-public-avatar"><?php esc_html_e( 'Avatar', 'faluss-identity' ); ?></label>
+                    <?php if ( null !== $profile && $profile['avatar_attachment_id'] > 0 ) : ?>
+                        <div class="faluss-identity-profile-editor__avatar"><?php echo wp_get_attachment_image( $profile['avatar_attachment_id'], 'thumbnail', false, array( 'alt' => '' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- WordPress image HTML. ?></div>
+                    <?php endif; ?>
+                    <input id="faluss-public-avatar" name="faluss_identity_avatar" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+                    <fieldset class="faluss-identity-profile-editor__links">
+                        <legend><?php esc_html_e( 'Liens externes', 'faluss-identity' ); ?></legend>
+                        <p class="faluss-identity-profile__hint"><?php esc_html_e( 'Utilisez la position pour choisir leur ordre de publication.', 'faluss-identity' ); ?></p>
+                        <?php foreach ( $links as $index => $link ) : ?>
+                            <div class="faluss-identity-profile-editor__link-row">
+                                <input name="links[<?php echo (int) $index; ?>][position]" type="number" min="1" max="<?php echo (int) self::MAX_LINKS; ?>" value="<?php echo (int) $link['position']; ?>" aria-label="<?php esc_attr_e( 'Position', 'faluss-identity' ); ?>">
+                                <input name="links[<?php echo (int) $index; ?>][label]" type="text" maxlength="80" value="<?php echo esc_attr( $link['label'] ); ?>" placeholder="<?php esc_attr_e( 'Libellé', 'faluss-identity' ); ?>">
+                                <input name="links[<?php echo (int) $index; ?>][url]" type="url" maxlength="2048" value="<?php echo esc_attr( $link['url'] ); ?>" placeholder="https://">
+                            </div>
+                        <?php endforeach; ?>
+                    </fieldset>
+                    <label class="faluss-identity-profile-editor__publish" for="faluss-public-publish"><input id="faluss-public-publish" name="publication_status" type="checkbox" value="published" <?php checked( null !== $profile && 'published' === $profile['publication_status'] ); ?>> <?php esc_html_e( 'Publier mon profil', 'faluss-identity' ); ?></label>
+                    <button type="submit"><?php esc_html_e( 'Enregistrer le profil', 'faluss-identity' ); ?></button>
+                </form>
+            </div>
+        </section>
+        <?php
+        return (string) ob_get_clean();
+    }
+
+    /** @return string */
+    public static function render_public_profile( $slug ) {
+        self::enqueue_style();
+        $profile = self::find_published_by_slug( $slug );
+        return null === $profile ? '' : self::render_profile_markup( $profile );
+    }
+
+    /** @return array<string, mixed>|null */
+    public static function find_published_by_slug( $slug ) {
+        global $wpdb;
+        $slug = self::normalize_slug( $slug );
+        $table = Faluss_Identity_Schema::get_public_profiles_table();
+        if ( '' === $slug || '' === $table || ! self::schema_ready() ) {
+            return null;
+        }
+        $row = $wpdb->get_row( $wpdb->prepare( 'SELECT faluss_id, public_slug, display_name, bio, avatar_attachment_id, publication_status, external_links, published_at FROM ' . self::quote_identifier( $table ) . ' WHERE public_slug = %s AND publication_status = %s', $slug, 'published' ), ARRAY_A );
+        return self::hydrate_profile( $row );
+    }
+
+    /** @return array<string, mixed>|null */
+    private static function find_by_faluss_id( $faluss_id ) {
+        global $wpdb;
+        $table = Faluss_Identity_Schema::get_public_profiles_table();
+        if ( '' === $table || ! Faluss_Identity_Registry::is_valid_faluss_id( $faluss_id ) || ! self::schema_ready() ) {
+            return null;
+        }
+        $row = $wpdb->get_row( $wpdb->prepare( 'SELECT faluss_id, public_slug, display_name, bio, avatar_attachment_id, publication_status, external_links, published_at FROM ' . self::quote_identifier( $table ) . ' WHERE faluss_id = %s', $faluss_id ), ARRAY_A );
+        return self::hydrate_profile( $row );
+    }
+
+    private static function save_profile( $faluss_id, $post, $files ) {
+        global $wpdb;
+        if ( ! self::schema_ready() ) {
+            return 'invalid';
+        }
+        $existing = self::find_by_faluss_id( $faluss_id );
+        $slug = null === $existing ? self::normalize_slug( isset( $post['public_slug'] ) ? wp_unslash( $post['public_slug'] ) : '' ) : $existing['public_slug'];
+        $display_name = self::limit_text( isset( $post['display_name'] ) ? sanitize_text_field( wp_unslash( $post['display_name'] ) ) : '', 80 );
+        $bio = self::limit_text( isset( $post['bio'] ) ? sanitize_textarea_field( wp_unslash( $post['bio'] ) ) : '', 280 );
+        $links = self::sanitize_links( isset( $post['links'] ) && is_array( $post['links'] ) ? wp_unslash( $post['links'] ) : array() );
+        if ( '' === $slug || self::is_reserved_slug( $slug ) || '' === $display_name || null === $links ) {
+            return 'invalid';
+        }
+
+        $avatar_id = self::handle_avatar_upload( $files, null === $existing ? 0 : $existing['avatar_attachment_id'] );
+        if ( false === $avatar_id ) {
+            return 'invalid';
+        }
+        $status = isset( $post['publication_status'] ) && 'published' === $post['publication_status'] ? 'published' : 'draft';
+        $now = current_time( 'mysql', true );
+        $published_at = 'published' === $status ? ( null !== $existing && 'published' === $existing['publication_status'] ? $existing['published_at'] : $now ) : null;
+        $table = Faluss_Identity_Schema::get_public_profiles_table();
+        if ( '' === $table || false === $wpdb->query( 'START TRANSACTION' ) ) {
+            return 'invalid';
+        }
+        try {
+            if ( null === $existing ) {
+                $owner = $wpdb->get_var( $wpdb->prepare( 'SELECT faluss_id FROM ' . self::quote_identifier( $table ) . ' WHERE public_slug = %s FOR UPDATE', $slug ) );
+                if ( is_string( $owner ) && '' !== $owner ) {
+                    $wpdb->query( 'ROLLBACK' );
+                    return 'taken';
+                }
+                $saved = $wpdb->query( $wpdb->prepare( 'INSERT INTO ' . self::quote_identifier( $table ) . ' (faluss_id, public_slug, display_name, bio, avatar_attachment_id, publication_status, external_links, created_at, updated_at, published_at) VALUES (%s, %s, %s, %s, %d, %s, %s, %s, %s, %s)', $faluss_id, $slug, $display_name, $bio, $avatar_id, $status, wp_json_encode( $links ), $now, $now, $published_at ) );
+            } else {
+                $saved = $wpdb->query( $wpdb->prepare( 'UPDATE ' . self::quote_identifier( $table ) . ' SET display_name = %s, bio = %s, avatar_attachment_id = %d, publication_status = %s, external_links = %s, updated_at = %s, published_at = %s WHERE faluss_id = %s', $display_name, $bio, $avatar_id, $status, wp_json_encode( $links ), $now, $published_at, $faluss_id ) );
+            }
+            if ( false === $saved || false === $wpdb->query( 'COMMIT' ) ) {
+                $wpdb->query( 'ROLLBACK' );
+                return 'taken';
+            }
+        } catch ( Exception $exception ) {
+            $wpdb->query( 'ROLLBACK' );
+            return 'invalid';
+        }
+        return 'saved';
+    }
+
+    private static function handle_avatar_upload( $files, $current_id ) {
+        if ( empty( $files['faluss_identity_avatar']['name'] ) ) {
+            return (int) $current_id;
+        }
+        if ( empty( $files['faluss_identity_avatar']['tmp_name'] ) || ! is_uploaded_file( $files['faluss_identity_avatar']['tmp_name'] ) ) {
+            return false;
+        }
+        $type = wp_check_filetype_and_ext( $files['faluss_identity_avatar']['tmp_name'], $files['faluss_identity_avatar']['name'] );
+        if ( empty( $type['type'] ) || 0 !== strpos( $type['type'], 'image/' ) ) {
+            return false;
+        }
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        $attachment_id = media_handle_upload( 'faluss_identity_avatar', 0, array(), array( 'test_form' => false ) );
+        return is_wp_error( $attachment_id ) || ! wp_attachment_is_image( $attachment_id ) ? false : (int) $attachment_id;
+    }
+
+    /** @return array<int, array{label: string, url: string, position: int}>|null */
+    private static function sanitize_links( $links ) {
+        $clean = array();
+        foreach ( array_slice( $links, 0, self::MAX_LINKS, true ) as $link ) {
+            if ( ! is_array( $link ) ) {
+                return null;
+            }
+            $url = isset( $link['url'] ) ? trim( (string) $link['url'] ) : '';
+            $label = self::limit_text( isset( $link['label'] ) ? sanitize_text_field( (string) $link['label'] ) : '', 80 );
+            if ( '' === $url && '' === $label ) {
+                continue;
+            }
+            $safe_url = self::validate_external_url( $url );
+            if ( null === $safe_url ) {
+                return null;
+            }
+            if ( '' === $label ) {
+                $parts = wp_parse_url( $safe_url );
+                $label = isset( $parts['host'] ) ? $parts['host'] : $safe_url;
+            }
+            $clean[] = array( 'label' => $label, 'url' => $safe_url, 'position' => max( 1, min( self::MAX_LINKS, isset( $link['position'] ) ? (int) $link['position'] : count( $clean ) + 1 ) ) );
+        }
+        usort( $clean, static function ( $left, $right ) { return $left['position'] <=> $right['position']; } );
+        foreach ( $clean as $index => $link ) {
+            $clean[ $index ]['position'] = $index + 1;
+        }
+        return $clean;
+    }
+
+    private static function validate_external_url( $url ) {
+        $url = esc_url_raw( $url, array( 'https' ) );
+        $parts = wp_parse_url( $url );
+        if ( '' === $url || ! is_array( $parts ) || ! isset( $parts['scheme'], $parts['host'] ) || 'https' !== strtolower( $parts['scheme'] ) || isset( $parts['user'], $parts['pass'] ) ) {
+            return null;
+        }
+        return $url;
+    }
+
+    private static function normalize_slug( $slug ) {
+        $slug = sanitize_title( (string) $slug );
+        return 1 === preg_match( '/^[a-z0-9][a-z0-9-]{1,39}$/D', $slug ) ? $slug : '';
+    }
+
+    private static function is_reserved_slug( $slug ) {
+        static $reserved = array( 'admin', 'api', 'assets', 'author', 'category', 'embed', 'feed', 'index', 'index.php', 'login', 'logout', 'profile', 'profiles', 'search', 'tag', 'wp-admin', 'wp-content', 'wp-includes', 'wp-json', 'wp-login.php', 'wp-cron.php', 'xmlrpc.php' );
+        return in_array( $slug, $reserved, true ) || self::existing_wordpress_post( $slug ) instanceof WP_Post;
+    }
+
+    private static function existing_wordpress_post( $slug ) {
+        $post_types = get_post_types( array( 'public' => true ), 'names' );
+        return get_page_by_path( $slug, OBJECT, $post_types );
+    }
+
+    private static function schema_ready() {
+        if ( ! function_exists( 'get_option' ) || Faluss_Identity_Schema::FI03_VERSION !== (string) get_option( Faluss_Identity_Schema::OPTION_VERSION, '' ) ) {
+            return false;
+        }
+        $status = Faluss_Identity_Schema::get_status();
+        return ! empty( $status['ready'] );
+    }
+
+    private static function hydrate_profile( $row ) {
+        if ( ! is_array( $row ) || ! Faluss_Identity_Registry::is_valid_faluss_id( $row['faluss_id'] ) || '' === self::normalize_slug( $row['public_slug'] ) ) {
+            return null;
+        }
+        $links = json_decode( $row['external_links'], true );
+        $links = is_array( $links ) ? self::sanitize_links( $links ) : array();
+        return array( 'faluss_id' => $row['faluss_id'], 'public_slug' => $row['public_slug'], 'display_name' => $row['display_name'], 'bio' => (string) $row['bio'], 'avatar_attachment_id' => (int) $row['avatar_attachment_id'], 'publication_status' => $row['publication_status'], 'links' => is_array( $links ) ? $links : array(), 'published_at' => $row['published_at'] );
+    }
+
+    private static function render_profile_markup( $profile ) {
+        ob_start();
+        ?>
+        <article class="faluss-identity-public-profile">
+            <div class="faluss-identity-public-profile__card">
+                <?php if ( $profile['avatar_attachment_id'] > 0 ) : ?>
+                    <div class="faluss-identity-public-profile__avatar"><?php echo wp_get_attachment_image( $profile['avatar_attachment_id'], 'medium', false, array( 'alt' => '' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- WordPress image HTML. ?></div>
+                <?php endif; ?>
+                <h1><?php echo esc_html( $profile['display_name'] ); ?></h1>
+                <p class="faluss-identity-public-profile__identifier">@<?php echo esc_html( $profile['public_slug'] ); ?></p>
+                <?php if ( '' !== $profile['bio'] ) : ?><p class="faluss-identity-public-profile__bio"><?php echo nl2br( esc_html( $profile['bio'] ) ); ?></p><?php endif; ?>
+                <?php if ( ! empty( $profile['links'] ) ) : ?>
+                    <ul class="faluss-identity-public-profile__links">
+                        <?php foreach ( $profile['links'] as $link ) : ?><li><a href="<?php echo esc_url( $link['url'] ); ?>" target="_blank" rel="noopener noreferrer nofollow"><?php echo esc_html( $link['label'] ); ?></a></li><?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            </div>
+        </article>
+        <?php
+        return (string) ob_get_clean();
+    }
+
+    private static function render_editor_notice() {
+        $notice = isset( $_GET['faluss_identity_profile_notice'] ) ? sanitize_key( wp_unslash( $_GET['faluss_identity_profile_notice'] ) ) : '';
+        $messages = array( 'saved' => __( 'Votre profil a été enregistré.', 'faluss-identity' ), 'taken' => __( 'Cet identifiant public n’est pas disponible.', 'faluss-identity' ), 'invalid' => __( 'Nous ne pouvons pas enregistrer ce profil.', 'faluss-identity' ) );
+        if ( isset( $messages[ $notice ] ) ) {
+            echo '<p class="faluss-identity-profile-notice">' . esc_html( $messages[ $notice ] ) . '</p>';
+        }
+    }
+
+    private static function redirect_editor( $notice ) {
+        $url = wp_validate_redirect( wp_get_referer(), home_url( '/' ) );
+        wp_safe_redirect( add_query_arg( 'faluss_identity_profile_notice', sanitize_key( $notice ), $url ) );
+        exit;
+    }
+
+    private static function enqueue_style() {
+        if ( ! wp_style_is( self::STYLE_HANDLE, 'registered' ) ) {
+            self::register_assets();
+        }
+        wp_enqueue_style( self::STYLE_HANDLE );
+    }
+
+    private static function limit_text( $value, $length ) {
+        $value = trim( (string) $value );
+        return function_exists( 'mb_substr' ) ? mb_substr( $value, 0, $length ) : substr( $value, 0, $length );
+    }
+
+    private static function quote_identifier( $identifier ) {
+        return chr( 96 ) . str_replace( chr( 96 ), chr( 96 ) . chr( 96 ), $identifier ) . chr( 96 );
+    }
+}

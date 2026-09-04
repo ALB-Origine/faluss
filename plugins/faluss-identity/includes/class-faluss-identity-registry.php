@@ -106,6 +106,30 @@ final class Faluss_Identity_Registry {
         return self::is_valid_faluss_id( $active ) ? $active : null;
     }
 
+    /**
+     * Resolves an already active local Identity session to its stable Faluss ID.
+     * It never creates or activates a profile as a side effect.
+     *
+     * @param int $wp_user_id Local WordPress user ID.
+     * @return string|null
+     */
+    public static function get_active_for_wp_user( $wp_user_id ) {
+        global $wpdb;
+
+        $wp_user_id = (int) $wp_user_id;
+        if ( $wp_user_id < 1 || ! self::schema_is_ready() ) {
+            return null;
+        }
+        $faluss_id = $wpdb->get_var(
+            $wpdb->prepare(
+                'SELECT faluss_id FROM ' . self::quote_identifier( self::profiles_table() ) . ' WHERE wp_user_id = %d AND status = %s',
+                $wp_user_id,
+                'active'
+            )
+        );
+        return self::is_valid_faluss_id( $faluss_id ) ? $faluss_id : null;
+    }
+
     private static function schema_is_ready() {
         $status = Faluss_Identity_Schema::get_status();
         return ! empty( $status['ready'] );

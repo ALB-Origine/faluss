@@ -6,8 +6,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Faluss_Identity_Schema {
 
-    const VERSION = '2';
+    const VERSION = '3';
     const FI02_VERSION = '2';
+    const FI03_VERSION = '3';
     const OPTION_VERSION = 'faluss_identity_schema_version';
     const OPTION_DIAGNOSTIC = 'faluss_identity_schema_diagnostic';
     const INSTALL_LOCK_TIMEOUT = 10;
@@ -132,15 +133,50 @@ final class Faluss_Identity_Schema {
         );
     }
 
-    public static function get_expected_schema() {
+    public static function get_fi02_schema() {
         $schema = self::get_fi01_schema();
-        if ( function_exists( 'get_option' ) && '1' === (string) get_option( self::OPTION_VERSION, '' ) ) {
-            return $schema;
-        }
         $schema['challenges']['columns']['otp_hash']['type'] = 'varchar(255)';
         $schema['challenges']['columns']['email'] = array( 'type' => 'varchar(320)', 'null' => true );
         $schema['challenges']['columns']['email_hash'] = array( 'type' => 'char(64)', 'null' => true );
         return $schema;
+    }
+
+    public static function get_fi03_schema() {
+        $schema = self::get_fi02_schema();
+        $schema['public_profiles'] = array(
+            'suffix' => 'faluss_identity_public_profiles',
+            'columns' => array(
+                'id' => array( 'type' => 'bigint(20) unsigned', 'null' => false, 'auto_increment' => true ),
+                'faluss_id' => array( 'type' => 'char(36)', 'null' => false ),
+                'public_slug' => array( 'type' => 'varchar(40)', 'null' => false ),
+                'display_name' => array( 'type' => 'varchar(80)', 'null' => false ),
+                'bio' => array( 'type' => 'varchar(280)', 'null' => true ),
+                'avatar_attachment_id' => array( 'type' => 'bigint(20) unsigned', 'null' => true ),
+                'publication_status' => array( 'type' => 'varchar(20)', 'null' => false ),
+                'external_links' => array( 'type' => 'longtext', 'null' => false ),
+                'created_at' => array( 'type' => 'datetime', 'null' => false ),
+                'updated_at' => array( 'type' => 'datetime', 'null' => false ),
+                'published_at' => array( 'type' => 'datetime', 'null' => true ),
+            ),
+            'indexes' => array(
+                'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ),
+                'faluss_id_unique' => array( 'unique' => true, 'columns' => array( 'faluss_id' ) ),
+                'public_slug_unique' => array( 'unique' => true, 'columns' => array( 'public_slug' ) ),
+                'publication_slug' => array( 'unique' => false, 'columns' => array( 'publication_status', 'public_slug' ) ),
+            ),
+        );
+        return $schema;
+    }
+
+    public static function get_expected_schema() {
+        $version = function_exists( 'get_option' ) ? (string) get_option( self::OPTION_VERSION, '' ) : '';
+        if ( '1' === $version ) {
+            return self::get_fi01_schema();
+        }
+        if ( self::FI02_VERSION === $version ) {
+            return self::get_fi02_schema();
+        }
+        return self::get_fi03_schema();
     }
 
     /**
@@ -152,7 +188,7 @@ final class Faluss_Identity_Schema {
     public static function install_or_verify() {
         $status = self::get_status();
         if ( 'fi_schema_ready' === $status['code'] ) {
-            if ( '1' !== (string) get_option( self::OPTION_VERSION, '' ) ) { update_option( self::OPTION_VERSION, self::VERSION, false ); }
+            if ( '' === (string) get_option( self::OPTION_VERSION, '' ) ) { update_option( self::OPTION_VERSION, self::VERSION, false ); }
             self::store_diagnostic( $status['code'] );
             return true;
         }
@@ -172,7 +208,7 @@ final class Faluss_Identity_Schema {
         }
 
         $status = self::get_status();
-        if ( 'fi_schema_ready' === $status['code'] && '1' !== (string) get_option( self::OPTION_VERSION, '' ) ) { update_option( self::OPTION_VERSION, self::VERSION, false ); }
+        if ( 'fi_schema_ready' === $status['code'] && '' === (string) get_option( self::OPTION_VERSION, '' ) ) { update_option( self::OPTION_VERSION, self::VERSION, false ); }
         self::store_diagnostic( $status['code'] );
         return 'fi_schema_ready' === $status['code'];
     }
@@ -180,12 +216,35 @@ final class Faluss_Identity_Schema {
     public static function migrate_fi02() {
         global $wpdb;
         if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) ) { return false; }
-        if ( self::FI02_VERSION === (string) get_option( self::OPTION_VERSION, '' ) ) { return self::verify_fi02(); }
+        if ( in_array( (string) get_option( self::OPTION_VERSION, '' ), array( self::FI02_VERSION, self::FI03_VERSION ), true ) ) { return self::verify_fi02(); }
         if ( 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_fi02_source_invalid' ); return false; }
         $tables = self::get_table_names();
         $sql = 'ALTER TABLE ' . self::quote_identifier( $tables['challenges'] ) . ' MODIFY otp_hash varchar(255) NULL, ADD email varchar(320) NULL, ADD email_hash char(64) NULL';
         if ( false === $wpdb->query( $sql ) || ! self::verify_fi02() ) { self::store_diagnostic( 'fi_schema_fi02_failed' ); return false; }
         update_option( self::OPTION_VERSION, self::FI02_VERSION, false ); update_option( self::OPTION_DIAGNOSTIC, 'fi_schema_ready', false ); return true;
+    }
+
+    /**
+     * Adds the isolated Faluss-ID keyed public-profile table. Existing FI-02
+     * tables are verified first and never altered or rebuilt by this migration.
+     */
+    public static function migrate_fi03() {
+        global $wpdb;
+        if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) || ! method_exists( $wpdb, 'get_charset_collate' ) ) { return false; }
+        $version = (string) get_option( self::OPTION_VERSION, '' );
+        if ( self::FI03_VERSION === $version ) { return 'fi_schema_ready' === self::get_status()['code']; }
+        if ( self::FI02_VERSION !== $version || 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_fi03_source_invalid' ); return false; }
+
+        $table = self::get_public_profiles_table();
+        $definition = self::get_fi03_schema()['public_profiles'];
+        if ( '' === $table ) { self::store_diagnostic( 'fi_schema_prefix_invalid' ); return false; }
+        $query = preg_replace( '/^CREATE TABLE /', 'CREATE TABLE IF NOT EXISTS ', self::build_create_query( $table, $definition, $wpdb->get_charset_collate() ) );
+        if ( ! is_string( $query ) || false === $wpdb->query( $query ) || null !== self::verify_table( $table, $definition ) ) { self::store_diagnostic( 'fi_schema_fi03_failed' ); return false; }
+
+        update_option( self::OPTION_VERSION, self::FI03_VERSION, false );
+        $status = self::get_status();
+        self::store_diagnostic( $status['code'] );
+        return ! empty( $status['ready'] );
     }
 
     private static function verify_fi02() {
@@ -542,6 +601,17 @@ final class Faluss_Identity_Schema {
             $tables[ $key ] = $table;
         }
         return $tables;
+    }
+
+    /** @return string Empty when the current WordPress table prefix is invalid. */
+    public static function get_public_profiles_table() {
+        global $wpdb;
+
+        if ( ! is_object( $wpdb ) || empty( $wpdb->prefix ) || 1 !== preg_match( '/^[A-Za-z0-9_]+$/', $wpdb->prefix ) ) {
+            return '';
+        }
+        $table = $wpdb->prefix . self::get_fi03_schema()['public_profiles']['suffix'];
+        return self::is_valid_identifier( $table ) ? $table : '';
     }
 
     private static function is_valid_identifier( $identifier ) {
