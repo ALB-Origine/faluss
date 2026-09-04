@@ -41,7 +41,8 @@ foreach ( array( 'code_challenge_method', "'S256'", 'START TRANSACTION', 'FOR UP
 fi04_assert( false === strpos( $source, 'access_token' ) && false === strpos( $source, 'refresh_token' ), 'FI-04 does not issue bearer tokens.' );
 
 $admin_source = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-sso-clients-admin.php' );
-fi04_assert( false !== strpos( $admin_source, 'client_secret_hash' ) && false !== strpos( $admin_source, 'self::render( array( \'client_id\' => $client_id, \'secret\' => $secret ) )' ), 'An administrator receives a new secret only in its creation or rotation response.' );
+fi04_assert( false !== strpos( $admin_source, 'client_secret_hash' ) && 2 === substr_count( $admin_source, 'self::render_secret_confirmation( array( \'client_id\' => $client_id, \'secret\' => $secret ) )' ), 'An administrator receives a new secret only in its creation or rotation response.' );
 fi04_assert( false === strpos( $admin_source, 'set_transient' ) && false === strpos( $admin_source, 'update_option' ), 'Raw client secrets are never retained in WordPress options or transients.' );
+fi04_assert( false !== strpos( $admin_source, "ABSPATH . 'wp-admin/admin-header.php'" ) && false !== strpos( $admin_source, "ABSPATH . 'wp-admin/admin-footer.php'" ) && false !== strpos( $admin_source, "'options-general.php'" ), 'Secret confirmation renders inside the native WordPress administration shell.' );
 
 echo 'FI-04 authorization contract: OK' . PHP_EOL;

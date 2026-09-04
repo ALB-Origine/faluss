@@ -41,8 +41,7 @@ final class Faluss_Identity_SSO_Clients_Admin {
         $inserted = $wpdb->query( $wpdb->prepare( 'INSERT INTO ' . self::quote_identifier( $tables['clients'] ) . ' (client_id, client_name, status, client_secret_hash, allowed_scopes, redirect_uris, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s)', $client_id, $name, $status, $hash, implode( ' ', $scopes ), wp_json_encode( $uris ), $now ) );
         if ( 1 !== $inserted ) { self::redirect( 'error' ); }
         // Render in this response: no option, transient, log, or redirect ever holds the secret.
-        self::render( array( 'client_id' => $client_id, 'secret' => $secret ) );
-        exit;
+        self::render_secret_confirmation( array( 'client_id' => $client_id, 'secret' => $secret ) );
     }
 
     public static function rotate_secret() {
@@ -53,8 +52,7 @@ final class Faluss_Identity_SSO_Clients_Admin {
         global $wpdb; $tables = Faluss_Identity_Schema::get_table_names();
         $updated = null === $hash || empty( $tables['clients'] ) ? false : $wpdb->query( $wpdb->prepare( 'UPDATE ' . self::quote_identifier( $tables['clients'] ) . ' SET client_secret_hash = %s, updated_at = %s WHERE client_id = %s', $hash, gmdate( 'Y-m-d H:i:s' ), $client_id ) );
         if ( 1 !== $updated ) { self::redirect( 'error' ); }
-        self::render( array( 'client_id' => $client_id, 'secret' => $secret ) );
-        exit;
+        self::render_secret_confirmation( array( 'client_id' => $client_id, 'secret' => $secret ) );
     }
 
     /** @param array<string, string>|null $secret_notice */
@@ -71,6 +69,24 @@ final class Faluss_Identity_SSO_Clients_Admin {
         <h2><?php esc_html_e( 'Clients déclarés', 'faluss-identity' ); ?></h2>
         <?php foreach ( is_array( $clients ) ? $clients : array() as $client ) : ?><div class="card" style="max-width:760px;margin:16px 0;padding:16px"><p><code><?php echo esc_html( $client['client_id'] ); ?></code></p><?php self::form( $client ); ?><?php if ( ! empty( $client['client_secret_hash'] ) ) : ?><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="faluss_identity_rotate_sso_client_secret"><input type="hidden" name="client_id" value="<?php echo esc_attr( $client['client_id'] ); ?>"><?php wp_nonce_field( 'faluss_identity_rotate_sso_client_secret' ); ?><button class="button" type="submit"><?php esc_html_e( 'Générer un nouveau secret', 'faluss-identity' ); ?></button></form><?php endif; ?></div><?php endforeach; ?>
         </div><?php
+    }
+
+    /**
+     * admin-post.php does not load the visual WordPress administration shell.
+     * Keep the raw secret in this direct response only, but render that response
+     * through the normal header/menu/styles/footer used by the Settings screen.
+     *
+     * @param array<string, string> $secret_notice
+     */
+    private static function render_secret_confirmation( $secret_notice ) {
+        global $parent_file, $submenu_file, $title;
+        $parent_file = 'options-general.php';
+        $submenu_file = 'faluss-identity-sso-clients';
+        $title = __( 'Clients SSO Faluss', 'faluss-identity' );
+        require_once ABSPATH . 'wp-admin/admin-header.php';
+        self::render( $secret_notice );
+        require_once ABSPATH . 'wp-admin/admin-footer.php';
+        exit;
     }
 
     private static function form( $client = null ) {
