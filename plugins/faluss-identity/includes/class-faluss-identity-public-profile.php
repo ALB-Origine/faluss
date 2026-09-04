@@ -163,12 +163,23 @@ final class Faluss_Identity_Public_Profile {
         ?>
         <!doctype html>
         <html <?php language_attributes(); ?>><head><meta charset="<?php bloginfo( 'charset' ); ?>"><meta name="viewport" content="width=device-width, initial-scale=1"><?php wp_head(); ?></head>
-        <body <?php body_class( 'faluss-identity-public-shell' ); ?>><?php wp_body_open(); ?>
+        <body <?php body_class( 'faluss-identity-public-shell faluss-identity-public-route' ); ?>><?php wp_body_open(); ?>
+        <?php self::render_elementor_header(); ?>
         <?php if ( ! self::render_elementor_template( self::get_template_id() ) ) : ?>
             <main class="faluss-identity-profile-page"><?php echo self::render_profile_markup( $profile ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- safe server-rendered fallback. ?></main>
         <?php endif; ?>
         <?php wp_footer(); ?></body></html>
         <?php
+    }
+
+    /**
+     * The route shell intentionally avoids the theme chrome, but an Elementor
+     * Theme Builder header remains an explicit, designer-owned location.
+     */
+    private static function render_elementor_header() {
+        if ( function_exists( 'elementor_theme_do_location' ) ) {
+            elementor_theme_do_location( 'header' );
+        }
     }
 
     /** @return string */

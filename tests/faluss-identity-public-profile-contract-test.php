@@ -14,6 +14,7 @@ function get_post_types( $args = array(), $output = 'names' ) { return array( 'p
 function get_page_by_path( $slug, $output = OBJECT, $post_types = array() ) { return null; }
 function get_post( $id ) { global $fi03_template_post; return $fi03_template_post; }
 function get_post_meta( $id, $key, $single = false ) { return '_elementor_data' === $key ? '{"content":[]}' : ''; }
+function elementor_theme_do_location( $location ) { if ( 'header' === $location ) { echo '<header class="elementor-location-header">header</header>'; return true; } return false; }
 global $fi03_schema_version, $fi03_schema_ready;
 $fi03_schema_version = '3'; $fi03_schema_ready = true;
 function get_option( $key, $default = '' ) { global $fi03_schema_version; return 'faluss_identity_schema_version' === $key ? $fi03_schema_version : $default; }
@@ -75,8 +76,14 @@ ob_start();
 fi03_assert( true === fi03_private( 'render_elementor_template', 42 ), 'A valid selected Elementor page renders its builder content.' );
 $template_markup = ob_get_clean();
 fi03_assert( false !== strpos( $template_markup, 'elementor-profile-template' ), 'The routed profile emits the selected Elementor model.' );
+ob_start();
+fi03_private( 'render_elementor_header' );
+$header_markup = ob_get_clean();
+fi03_assert( false !== strpos( $header_markup, 'elementor-location-header' ), 'The routed public shell emits the configured Elementor header location.' );
 
 $source = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-public-profile.php' );
+$identity_css = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/assets/css/faluss-identity-public-profile.css' );
+$link_css = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-link/assets/css/faluss-link-immersive.css' );
 foreach ( array( 'faluss_id', 'public_slug', 'publication_status', 'FOR UPDATE', 'target="_blank"', 'noopener noreferrer nofollow', 'add_rewrite_rule', 'get_page_by_path', 'get_builder_content_for_display', 'OPTION_TEMPLATE_ID', 'get_elementor_templates' ) as $required ) {
     fi03_assert( false !== strpos( $source, $required ), 'Missing FI-03 invariant: ' . $required );
 }
@@ -84,6 +91,15 @@ foreach ( array( 'render_public_shell', 'wp_head();', 'wp_body_open();', 'wp_foo
     fi03_assert( false !== strpos( $source, $required ), 'Missing FI-06 public-shell invariant: ' . $required );
 }
 fi03_assert( false === strpos( $source, 'get_header();' ) && false === strpos( $source, 'get_footer();' ), 'Public profile routes do not render the theme header or footer.');
+foreach ( array( 'faluss-identity-public-route', 'render_elementor_header', "elementor_theme_do_location( 'header' )" ) as $required ) {
+    fi03_assert( false !== strpos( $source, $required ), 'Public routes expose the Elementor header location and its dedicated body class: ' . $required );
+}
+$faluss_css = preg_replace( '/\s+/', '', strtolower( $identity_css . $link_css ) );
+foreach ( array( 'header{display:none', 'footer{display:none', '.elementor-location-header{display:none' ) as $forbidden ) {
+    fi03_assert( false === strpos( $faluss_css, $forbidden ), 'Faluss route CSS must not hide Elementor or theme chrome: ' . $forbidden );
+}
+fi03_assert( false !== strpos( $link_css, 'body.faluss-identity-public-route .faluss-link-card--presentation-immersive' ) && false !== strpos( $link_css, 'z-index: 0;' ), 'The immersive profile is explicitly below a designer-owned header.');
+fi03_assert( false !== strpos( $link_css, '@media (max-width: 799px)' ) && 2 <= substr_count( $link_css, 'body.faluss-identity-public-route .faluss-link-card--presentation-immersive' ), 'The header collision guard is explicit on mobile too.');
 fi03_assert( false === strpos( $source, 'user_email' ), 'Public profiles never store or render e-mail data.' );
 
 echo 'FI-03 public-profile contract: OK' . PHP_EOL;

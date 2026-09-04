@@ -10,6 +10,11 @@
   background: var(--fl-page);
 }
 
+/* The Elementor header owns its overlay treatment. The immersive route never outranks it. */
+body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
+  z-index: 0;
+}
+
 .faluss-link-card--presentation-immersive .faluss-link-card__cover {
   height: clamp(32rem, 92svh, 54rem);
   background: var(--fl-hero-transition-color, var(--fl-page));
@@ -96,6 +101,10 @@
 }
 
 @media (max-width: 799px) {
+  body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
+    z-index: 0;
+  }
+
   .faluss-link-card--presentation-immersive .faluss-link-card__social a,
   .faluss-link-card--presentation-immersive .faluss-link-card__social--inline a {
     width: 44px;
