@@ -25,3 +25,9 @@ Les codes, OTP, secrets navigateur et secrets client ne sont jamais conservés e
 | `faluss_identity_client_state` | état SSO haché, retour local validé et expiration courte |
 
 Un conflit de liaison est bloquant : il ne doit jamais être résolu automatiquement par l'e-mail.
+
+## Faluss Link
+
+| Table | Clés / contenu |
+|---|---|
+| `faluss_link_cards` | `faluss_id` unique, préférences visuelles, réseaux sociaux complémentaires et dates ; aucune donnée d’identité dupliquée |
