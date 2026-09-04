@@ -10,9 +10,9 @@ $fi02_option = '1'; $v1 = Faluss_Identity_Schema::get_expected_schema(); fi02_as
 // Verified v2 retains the FI-02 contract until the additive FI-03 migration.
 $fi02_option = '2'; $v2 = Faluss_Identity_Schema::get_expected_schema(); fi02_assert( 'varchar(255)' === $v2['challenges']['columns']['otp_hash']['type'] && isset( $v2['challenges']['columns']['email'], $v2['challenges']['columns']['email_hash'] ), 'v2 contract' );
 fi02_assert( ! isset( $v2['public_profiles'] ), 'v2 has no implicit FI-03 table.' );
-// A new installation creates the coherent FI-03 superset in one atomic plan.
-$fi02_option = ''; $v3 = Faluss_Identity_Schema::get_expected_schema(); fi02_assert( 'varchar(255)' === $v3['challenges']['columns']['otp_hash']['type'] && isset( $v3['public_profiles'] ), 'new installation FI-03 contract' );
-fi02_assert( '3' === Faluss_Identity_Schema::VERSION, 'FI-03 becomes the current schema version.' );
+// A new installation creates the coherent FI-04 superset in one atomic plan.
+$fi02_option = ''; $v4 = Faluss_Identity_Schema::get_expected_schema(); fi02_assert( 'varchar(255)' === $v4['challenges']['columns']['otp_hash']['type'] && isset( $v4['public_profiles'], $v4['authorization_requests'] ), 'new installation FI-04 contract' );
+fi02_assert( '4' === Faluss_Identity_Schema::VERSION, 'FI-04 becomes the current schema version.' );
 // A failed or unverified migration must retain v1; version promotion is performed only after verification.
 $fi02_option = '1'; fi02_assert( '1' === get_option( Faluss_Identity_Schema::OPTION_VERSION ), 'failed migration retains v1' );
 echo 'FI-02 schema contract: OK' . PHP_EOL;

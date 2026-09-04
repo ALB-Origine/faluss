@@ -12,6 +12,7 @@ Les noms réels utilisent le préfixe WordPress actif.
 | `faluss_identity_rate_limits` | bucket haché, compteur, fenêtre et expiration ; InnoDB |
 | `faluss_identity_clients` | client opaque, statut, secret haché, scopes et URI de retour autorisées |
 | `faluss_identity_auth_codes` | code haché, Faluss ID, client, URI, challenge PKCE, scopes, expiration, consommation atomique |
+| `faluss_identity_authorization_requests` | empreinte de poignée navigateur, client, URI, scopes, PKCE et `state`, expiration et décision ; reprise locale de consentement |
 | `faluss_identity_audit` | événement minimal et non sensible, conservation bornée |
 
 Les codes, OTP, secrets navigateur et secrets client ne sont jamais conservés en clair. Les migrations valident moteur InnoDB, index, unicité et ordre d'index avant de déclarer le schéma utilisable.

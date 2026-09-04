@@ -31,9 +31,10 @@ $schema = Faluss_Identity_Schema::get_expected_schema();
 $fi01_schema = Faluss_Identity_Schema::get_fi01_schema();
 fi01_assert( 'varchar(255)' === $schema['challenges']['columns']['otp_hash']['type'], 'FI-02 keeps the widened OTP hash.' );
 fi01_assert( isset( $schema['challenges']['columns']['email'], $schema['challenges']['columns']['email_hash'] ), 'FI-02 challenge fields are present.' );
-fi01_assert( '3' === Faluss_Identity_Schema::VERSION, 'A new installation targets FI-03.' );
+fi01_assert( '4' === Faluss_Identity_Schema::VERSION, 'A new installation targets FI-04.' );
 fi01_assert( 6 === count( $fi01_schema ), 'FI-01 defines exactly six Identity tables.' );
 fi01_assert( isset( $schema['public_profiles'] ), 'FI-03 adds the isolated public-profile table.' );
+fi01_assert( isset( $schema['authorization_requests'] ), 'FI-04 adds the server-side authorization-request ledger.' );
 
 foreach ( array( 'profiles', 'challenges', 'rate_limits', 'clients', 'auth_codes', 'audit' ) as $table ) {
     fi01_assert( isset( $schema[ $table ] ), 'Missing ' . $table . ' table definition.' );
@@ -55,13 +56,13 @@ fi01_assert( null === Faluss_Identity_Schema::get_install_plan( '0123456789abcde
 $wpdb->prefix = 'wp_';
 $plan = Faluss_Identity_Schema::get_install_plan( '0123456789abcdef' );
 fi01_assert( is_array( $plan ), 'Atomic install plan must be generated.' );
-fi01_assert( 7 === count( $plan['temporary_tables'] ), 'Atomic install needs all FI-03 tables.' );
+fi01_assert( 8 === count( $plan['temporary_tables'] ), 'Atomic install needs all FI-04 tables.' );
 foreach ( $plan['temporary_tables'] as $temporary_table ) {
     fi01_assert( strlen( $temporary_table ) <= 64, 'Temporary table name must stay within MySQL limits.' );
 }
 
 $queries = Faluss_Identity_Schema::get_install_queries( $plan, $wpdb->get_charset_collate() );
-fi01_assert( is_array( $queries ) && 7 === count( $queries['temporary_creates'] ), 'All FI-03 temporary CREATE statements are planned.' );
+fi01_assert( is_array( $queries ) && 8 === count( $queries['temporary_creates'] ), 'All FI-04 temporary CREATE statements are planned.' );
 foreach ( $queries['temporary_creates'] as $key => $query ) {
     fi01_assert( false !== strpos( $query, chr( 96 ) . $plan['temporary_tables'][ $key ] . chr( 96 ) ), 'Preparation must target its temporary table.' );
     foreach ( $plan['final_tables'] as $final_table ) {
@@ -69,7 +70,7 @@ foreach ( $queries['temporary_creates'] as $key => $query ) {
     }
 }
 fi01_assert( 0 === strpos( $queries['promotion'], 'RENAME TABLE ' ), 'Promotion must use one grouped RENAME TABLE statement.' );
-fi01_assert( 7 === substr_count( $queries['promotion'], ' TO ' ), 'Promotion must include all FI-03 table renames.' );
+fi01_assert( 8 === substr_count( $queries['promotion'], ' TO ' ), 'Promotion must include all FI-04 table renames.' );
 
 $prepare = new ReflectionMethod( 'Faluss_Identity_Schema', 'prepare_temporary_tables' );
 $prepare->setAccessible( true );

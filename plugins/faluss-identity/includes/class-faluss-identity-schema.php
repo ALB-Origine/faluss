@@ -6,9 +6,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Faluss_Identity_Schema {
 
-    const VERSION = '3';
+    const VERSION = '4';
     const FI02_VERSION = '2';
     const FI03_VERSION = '3';
+    const FI04_VERSION = '4';
     const OPTION_VERSION = 'faluss_identity_schema_version';
     const OPTION_DIAGNOSTIC = 'faluss_identity_schema_diagnostic';
     const INSTALL_LOCK_TIMEOUT = 10;
@@ -168,6 +169,39 @@ final class Faluss_Identity_Schema {
         return $schema;
     }
 
+    /**
+     * FI-04 keeps an authorization request server-side while a member signs in
+     * or reviews consent. The browser receives only an opaque HttpOnly handle.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function get_fi04_schema() {
+        $schema = self::get_fi03_schema();
+        $schema['authorization_requests'] = array(
+            'suffix' => 'faluss_identity_authorization_requests',
+            'columns' => array(
+                'id' => array( 'type' => 'bigint(20) unsigned', 'null' => false, 'auto_increment' => true ),
+                'request_hash' => array( 'type' => 'char(64)', 'null' => false ),
+                'client_id' => array( 'type' => 'varchar(191)', 'null' => false ),
+                'redirect_uri' => array( 'type' => 'varchar(2048)', 'null' => false ),
+                'scopes' => array( 'type' => 'varchar(255)', 'null' => false ),
+                'pkce_challenge' => array( 'type' => 'char(43)', 'null' => false ),
+                'state' => array( 'type' => 'varchar(2048)', 'null' => false ),
+                'status' => array( 'type' => 'varchar(20)', 'null' => false ),
+                'expires_at' => array( 'type' => 'datetime', 'null' => false ),
+                'created_at' => array( 'type' => 'datetime', 'null' => false ),
+                'updated_at' => array( 'type' => 'datetime', 'null' => true ),
+            ),
+            'indexes' => array(
+                'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ),
+                'request_hash_unique' => array( 'unique' => true, 'columns' => array( 'request_hash' ) ),
+                'status_expires_at' => array( 'unique' => false, 'columns' => array( 'status', 'expires_at' ) ),
+                'client_expires_at' => array( 'unique' => false, 'columns' => array( 'client_id', 'expires_at' ) ),
+            ),
+        );
+        return $schema;
+    }
+
     public static function get_expected_schema() {
         $version = function_exists( 'get_option' ) ? (string) get_option( self::OPTION_VERSION, '' ) : '';
         if ( '1' === $version ) {
@@ -176,7 +210,10 @@ final class Faluss_Identity_Schema {
         if ( self::FI02_VERSION === $version ) {
             return self::get_fi02_schema();
         }
-        return self::get_fi03_schema();
+        if ( self::FI03_VERSION === $version ) {
+            return self::get_fi03_schema();
+        }
+        return self::get_fi04_schema();
     }
 
     /**
@@ -216,7 +253,7 @@ final class Faluss_Identity_Schema {
     public static function migrate_fi02() {
         global $wpdb;
         if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) ) { return false; }
-        if ( in_array( (string) get_option( self::OPTION_VERSION, '' ), array( self::FI02_VERSION, self::FI03_VERSION ), true ) ) { return self::verify_fi02(); }
+        if ( in_array( (string) get_option( self::OPTION_VERSION, '' ), array( self::FI02_VERSION, self::FI03_VERSION, self::FI04_VERSION ), true ) ) { return self::verify_fi02(); }
         if ( 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_fi02_source_invalid' ); return false; }
         $tables = self::get_table_names();
         $sql = 'ALTER TABLE ' . self::quote_identifier( $tables['challenges'] ) . ' MODIFY otp_hash varchar(255) NULL, ADD email varchar(320) NULL, ADD email_hash char(64) NULL';
@@ -232,7 +269,7 @@ final class Faluss_Identity_Schema {
         global $wpdb;
         if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) || ! method_exists( $wpdb, 'get_charset_collate' ) ) { return false; }
         $version = (string) get_option( self::OPTION_VERSION, '' );
-        if ( self::FI03_VERSION === $version ) { return 'fi_schema_ready' === self::get_status()['code']; }
+        if ( in_array( $version, array( self::FI03_VERSION, self::FI04_VERSION ), true ) ) { return 'fi_schema_ready' === self::get_status()['code']; }
         if ( self::FI02_VERSION !== $version || 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_fi03_source_invalid' ); return false; }
 
         $table = self::get_public_profiles_table();
@@ -242,6 +279,29 @@ final class Faluss_Identity_Schema {
         if ( ! is_string( $query ) || false === $wpdb->query( $query ) || null !== self::verify_table( $table, $definition ) ) { self::store_diagnostic( 'fi_schema_fi03_failed' ); return false; }
 
         update_option( self::OPTION_VERSION, self::FI03_VERSION, false );
+        $status = self::get_status();
+        self::store_diagnostic( $status['code'] );
+        return ! empty( $status['ready'] );
+    }
+
+    /**
+     * Adds the FI-04 authorization request ledger without rebuilding earlier
+     * Identity tables. It is deliberately a one-way, additive migration.
+     */
+    public static function migrate_fi04() {
+        global $wpdb;
+        if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) || ! method_exists( $wpdb, 'get_charset_collate' ) ) { return false; }
+        $version = (string) get_option( self::OPTION_VERSION, '' );
+        if ( self::FI04_VERSION === $version ) { return 'fi_schema_ready' === self::get_status()['code']; }
+        if ( self::FI03_VERSION !== $version || 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_fi04_source_invalid' ); return false; }
+
+        $table = self::get_authorization_requests_table();
+        $definition = self::get_fi04_schema()['authorization_requests'];
+        if ( '' === $table ) { self::store_diagnostic( 'fi_schema_prefix_invalid' ); return false; }
+        $query = preg_replace( '/^CREATE TABLE /', 'CREATE TABLE IF NOT EXISTS ', self::build_create_query( $table, $definition, $wpdb->get_charset_collate() ) );
+        if ( ! is_string( $query ) || false === $wpdb->query( $query ) || null !== self::verify_table( $table, $definition ) ) { self::store_diagnostic( 'fi_schema_fi04_failed' ); return false; }
+
+        update_option( self::OPTION_VERSION, self::FI04_VERSION, false );
         $status = self::get_status();
         self::store_diagnostic( $status['code'] );
         return ! empty( $status['ready'] );
@@ -611,6 +671,17 @@ final class Faluss_Identity_Schema {
             return '';
         }
         $table = $wpdb->prefix . self::get_fi03_schema()['public_profiles']['suffix'];
+        return self::is_valid_identifier( $table ) ? $table : '';
+    }
+
+    /** @return string Empty when the current WordPress table prefix is invalid. */
+    public static function get_authorization_requests_table() {
+        global $wpdb;
+
+        if ( ! is_object( $wpdb ) || empty( $wpdb->prefix ) || 1 !== preg_match( '/^[A-Za-z0-9_]+$/', $wpdb->prefix ) ) {
+            return '';
+        }
+        $table = $wpdb->prefix . self::get_fi04_schema()['authorization_requests']['suffix'];
         return self::is_valid_identifier( $table ) ? $table : '';
     }
 

@@ -10,14 +10,18 @@ final class Faluss_Identity_Plugin {
         add_action( 'plugins_loaded', array( __CLASS__, 'load_textdomain' ) );
         add_action( 'init', array( 'Faluss_Identity_Passwordless', 'register' ) );
         add_action( 'init', array( 'Faluss_Identity_Public_Profile', 'register' ) );
+        add_action( 'init', array( 'Faluss_Identity_Authorization', 'register' ) );
         add_action( 'wp_enqueue_scripts', array( 'Faluss_Identity_Passwordless', 'register_assets' ) );
         add_action( 'wp_enqueue_scripts', array( 'Faluss_Identity_Public_Profile', 'register_assets' ) );
+        add_action( 'wp_enqueue_scripts', array( 'Faluss_Identity_Authorization', 'register_assets' ) );
         add_action( 'elementor/widgets/register', array( __CLASS__, 'register_elementor_widget' ) );
 
         if ( is_admin() ) {
             add_action( 'admin_notices', array( 'Faluss_Identity_Admin_Diagnostic', 'render' ) );
             add_action( 'admin_init', array( __CLASS__, 'migrate_fi02' ) );
             add_action( 'admin_init', array( __CLASS__, 'migrate_fi03' ) );
+            add_action( 'admin_init', array( __CLASS__, 'migrate_fi04' ) );
+            Faluss_Identity_SSO_Clients_Admin::register();
         }
     }
 
@@ -25,7 +29,9 @@ final class Faluss_Identity_Plugin {
         Faluss_Identity_Schema::install_or_verify();
         Faluss_Identity_Schema::migrate_fi02();
         Faluss_Identity_Schema::migrate_fi03();
+        Faluss_Identity_Schema::migrate_fi04();
         Faluss_Identity_Public_Profile::register_rewrite_rule();
+        Faluss_Identity_Authorization::register_rewrite_rules();
         flush_rewrite_rules();
     }
 
@@ -45,6 +51,12 @@ final class Faluss_Identity_Plugin {
             if ( Faluss_Identity_Schema::migrate_fi03() && ! $was_fi03 ) {
                 flush_rewrite_rules();
             }
+        }
+    }
+
+    public static function migrate_fi04() {
+        if ( current_user_can( 'manage_options' ) ) {
+            Faluss_Identity_Schema::migrate_fi04();
         }
     }
 
