@@ -275,6 +275,25 @@ final class Faluss_Identity_Public_Profile {
         return (string) ob_get_clean();
     }
 
+    /**
+     * Minimal data contract for Faluss Link Studio. No identity data is copied
+     * into Faluss Link and persistence keeps this class as the sole owner.
+     *
+     * @return array<string, mixed>
+     */
+    public static function studio_profile( $faluss_id ) {
+        $profile = self::find_by_faluss_id( $faluss_id );
+        return null === $profile ? array(
+            'faluss_id' => $faluss_id, 'public_slug' => '', 'display_name' => '', 'bio' => '',
+            'avatar_attachment_id' => 0, 'publication_status' => 'draft', 'links' => array(),
+        ) : $profile;
+    }
+
+    /** @return string saved|taken|invalid */
+    public static function save_studio_profile( $faluss_id, $post, $files ) {
+        return self::save_profile( $faluss_id, $post, $files );
+    }
+
     /** @return string */
     public static function render_public_profile( $slug ) {
         self::enqueue_style();

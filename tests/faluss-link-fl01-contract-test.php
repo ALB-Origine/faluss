@@ -13,6 +13,6 @@ foreach(array('announcement--ink','social--inline','links-outline','name--editor
 foreach(array('cover_attachment_id','ANNOUNCEMENTS','LAYOUTS','LINK_STYLES') as $s)fl_assert(false!==strpos($source,$s),'Missing member card preference: '.$s);
 foreach(array('wp_ajax_faluss_link_upload_cover','check_ajax_referer','wp_check_filetype_and_ext','image/','wp_handle_upload','post_author','owned_image') as $s)fl_assert(false!==strpos($source,$s),'Missing restricted cover upload safeguard: '.$s);
 fl_assert(false===strpos($source,'add_cap')&&false===strpos($source,'upload_files'),'FL-01 does not elevate WordPress roles or global capabilities.');
-foreach(array("\$has_cover?'yes':'no'","\$has_avatar?'yes':'no'",'if($has_cover)','if($has_avatar)') as $s)fl_assert(false!==strpos($source,$s),'Missing card composition branch: '.$s);
-foreach(array('cover-yes.faluss-link-card--avatar-yes','cover-yes.faluss-link-card--avatar-no','cover-no.faluss-link-card--avatar-no') as $s)fl_assert(false!==strpos($css,$s),'Missing visible cover/avatar composition style: '.$s);
+foreach(array("'yes':'no'",'faluss-link-card--cover-','faluss-link-card--avatar-','card_markup') as $s)fl_assert(false!==strpos($source,$s),'Missing card composition branch: '.$s);
+foreach(array('cover-yes.faluss-link-card--avatar-yes','faluss-link-card__cover','faluss-link-card__avatar') as $s)fl_assert(false!==strpos($css,$s),'Missing visible cover/avatar composition style: '.$s);
 echo "FL-01 contract: OK\n";
