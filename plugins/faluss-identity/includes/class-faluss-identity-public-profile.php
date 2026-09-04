@@ -417,7 +417,8 @@ final class Faluss_Identity_Public_Profile {
     }
 
     private static function schema_ready() {
-        if ( ! function_exists( 'get_option' ) || Faluss_Identity_Schema::FI03_VERSION !== (string) get_option( Faluss_Identity_Schema::OPTION_VERSION, '' ) ) {
+        $version = function_exists( 'get_option' ) ? (string) get_option( Faluss_Identity_Schema::OPTION_VERSION, '' ) : '';
+        if ( ! ctype_digit( $version ) || (int) $version < (int) Faluss_Identity_Schema::FI03_VERSION ) {
             return false;
         }
         $status = Faluss_Identity_Schema::get_status();

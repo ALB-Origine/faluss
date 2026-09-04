@@ -14,6 +14,10 @@ function get_post_types( $args = array(), $output = 'names' ) { return array( 'p
 function get_page_by_path( $slug, $output = OBJECT, $post_types = array() ) { return null; }
 function get_post( $id ) { global $fi03_template_post; return $fi03_template_post; }
 function get_post_meta( $id, $key, $single = false ) { return '_elementor_data' === $key ? '{"content":[]}' : ''; }
+global $fi03_schema_version, $fi03_schema_ready;
+$fi03_schema_version = '3'; $fi03_schema_ready = true;
+function get_option( $key, $default = '' ) { global $fi03_schema_version; return 'faluss_identity_schema_version' === $key ? $fi03_schema_version : $default; }
+final class Faluss_Identity_Schema { const FI03_VERSION = '3'; const OPTION_VERSION = 'faluss_identity_schema_version'; public static function get_status() { global $fi03_schema_ready; return array( 'ready' => $fi03_schema_ready ); } }
 
 require_once dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-public-profile.php';
 
@@ -29,6 +33,21 @@ function fi03_private( $method, ...$arguments ) {
     $reflection->setAccessible( true );
     return $reflection->invoke( null, ...$arguments );
 }
+
+// FI-03 remains available under FI-04; older schemas and an unready schema fail closed.
+$schema_ready = new ReflectionMethod( 'Faluss_Identity_Public_Profile', 'schema_ready' );
+$schema_ready->setAccessible( true );
+$fi03_schema_version = '3'; $fi03_schema_ready = true;
+fi03_assert( true === $schema_ready->invoke( null ), 'Public profiles are available on FI-03.' );
+$fi03_schema_version = '4';
+fi03_assert( true === $schema_ready->invoke( null ), 'Public profiles remain available on FI-04.' );
+$fi03_schema_version = '1';
+fi03_assert( false === $schema_ready->invoke( null ), 'Public profiles stay unavailable before FI-03.' );
+$fi03_schema_version = '2';
+fi03_assert( false === $schema_ready->invoke( null ), 'Public profiles stay unavailable on FI-02.' );
+$fi03_schema_version = '4'; $fi03_schema_ready = false;
+fi03_assert( false === $schema_ready->invoke( null ), 'Public profiles fail closed when the current schema is not ready.' );
+$fi03_schema_ready = true;
 
 // Positive scenario: a readable stable handle and ordered HTTPS links form a public profile.
 fi03_assert( 'alice-lab' === fi03_private( 'normalize_slug', 'Alice Lab' ), 'Readable identifiers normalize to a stable slug.' );
