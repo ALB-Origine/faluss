@@ -111,6 +111,7 @@
             .addClass('faluss-link-card--avatar-' + (avatar ? 'yes' : 'no'))
             .addClass('faluss-link-card--links-' + style)
             .addClass('faluss-link-card--align-' + align);
+        preview[0].style.setProperty('--fl-page-background', studio.find('[name="page_background"]').val() || '#FFFDF5');
         preview[0].style.setProperty('--fl-hero-transition-color', studio.find('[name="hero_transition_color"]').val() || '#FFFDF5');
         preview[0].style.setProperty('--fl-hero-transition-intensity', (studio.find('[name="hero_transition_intensity"]').val() || 82) + '%');
         preview[0].style.setProperty('--fl-hero-transition-position', (studio.find('[name="hero_transition_position"]').val() || 72) + '%');

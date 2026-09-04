@@ -1,0 +1,67 @@
+(function () {
+    'use strict';
+
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return;
+    }
+
+    var cards = [];
+    var frame = 0;
+    var listening = false;
+
+    function update() {
+        frame = 0;
+        cards.forEach(function (card) {
+            var cover = card.querySelector('.faluss-link-card__cover');
+            var rect = card.getBoundingClientRect();
+            if (!cover || rect.bottom < 0 || rect.top > window.innerHeight) {
+                return;
+            }
+            var depth = Math.max(-18, Math.min(18, -rect.top * 0.08));
+            cover.style.setProperty('--fl-immersive-depth', depth.toFixed(2) + 'px');
+        });
+    }
+
+    function requestUpdate() {
+        if (!frame) {
+            frame = window.requestAnimationFrame(update);
+        }
+    }
+
+    function bindListeners() {
+        if (listening) {
+            return;
+        }
+        listening = true;
+        window.addEventListener('scroll', requestUpdate, { passive: true });
+        window.addEventListener('resize', requestUpdate, { passive: true });
+    }
+
+    function initialize(root) {
+        var scope = root && root.jquery ? root[0] : (root || document);
+        var candidates = scope.querySelectorAll ? scope.querySelectorAll('.faluss-link-card--presentation-immersive') : [];
+        Array.prototype.forEach.call(candidates, function (card) {
+            if (card.dataset.falussLinkImmersiveReady) {
+                return;
+            }
+            card.dataset.falussLinkImmersiveReady = '1';
+            cards.push(card);
+        });
+        if (cards.length) {
+            bindListeners();
+            requestUpdate();
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { initialize(document); });
+    } else {
+        initialize(document);
+    }
+
+    window.addEventListener('elementor/frontend/init', function () {
+        if (window.elementorFrontend && window.elementorFrontend.hooks) {
+            window.elementorFrontend.hooks.addAction('frontend/element_ready/faluss_link_card.default', initialize);
+        }
+    });
+}());

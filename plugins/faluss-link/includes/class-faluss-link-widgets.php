@@ -7,6 +7,7 @@ final class Faluss_Link_Card_Widget extends \Elementor\Widget_Base {
     public function get_icon() { return 'eicon-person'; }
     public function get_categories() { return array( 'general' ); }
     public function get_style_depends() { return array( 'faluss-link-card', 'faluss-link-immersive' ); }
+    public function get_script_depends() { return array( 'faluss-link-immersive' ); }
     protected function register_controls() {
         $this->start_controls_section( 'content', array( 'label' => 'Contenu' ) );
         $this->add_control( 'identifier', array( 'label' => 'Identifiant', 'type' => \Elementor\Controls_Manager::TEXT ) );
@@ -17,6 +18,10 @@ final class Faluss_Link_Card_Widget extends \Elementor\Widget_Base {
         $this->add_responsive_control( 'width', array( 'label' => 'Largeur', 'type' => \Elementor\Controls_Manager::SLIDER, 'range' => array( 'px' => array( 'min' => 240, 'max' => 900 ) ), 'selectors' => array( '{{WRAPPER}} .faluss-link-card' => 'max-width:{{SIZE}}{{UNIT}};' ) ) );
         $this->add_responsive_control( 'spacing', array( 'label' => 'Espacement', 'type' => \Elementor\Controls_Manager::DIMENSIONS, 'selectors' => array( '{{WRAPPER}} .faluss-link-card__body' => 'padding:{{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};' ) ) );
         $this->add_control( 'surface', array( 'label' => 'Surface', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card' => '--fl-canvas:{{VALUE}};' ) ) );
+        $this->add_control( 'page_background', array( 'label' => 'Fond de page', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card--presentation-immersive' => '--fl-page-background:{{VALUE}} !important;' ) ) );
+        $this->add_control( 'hero_transition_color', array( 'label' => 'Couleur de transition du hero', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card--presentation-immersive' => '--fl-hero-transition-color:{{VALUE}} !important;' ) ) );
+        $this->add_control( 'hero_transition_position', array( 'label' => 'Position de transition', 'type' => \Elementor\Controls_Manager::SLIDER, 'range' => array( '%' => array( 'min' => 35, 'max' => 100 ) ), 'selectors' => array( '{{WRAPPER}} .faluss-link-card--presentation-immersive' => '--fl-hero-transition-position:{{SIZE}}% !important;' ) ) );
+        $this->add_control( 'hero_transition_intensity', array( 'label' => 'Intensité de transition', 'type' => \Elementor\Controls_Manager::SLIDER, 'range' => array( '%' => array( 'min' => 0, 'max' => 100 ) ), 'selectors' => array( '{{WRAPPER}} .faluss-link-card--presentation-immersive' => '--fl-hero-transition-intensity:{{SIZE}}% !important;' ) ) );
         $this->add_control( 'accent', array( 'label' => 'Accent', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card' => '--fl-accent:{{VALUE}};' ) ) );
         $this->add_control( 'action', array( 'label' => 'Action', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card' => '--fl-action:{{VALUE}};' ) ) );
         $this->add_control( 'action_text', array( 'label' => 'Texte action', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-card' => '--fl-action-text:{{VALUE}};' ) ) );
