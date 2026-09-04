@@ -224,6 +224,57 @@ final class Faluss_Identity_Public_Profile {
         return (string) ob_get_clean();
     }
 
+    /**
+     * Minimal internal UI contract for Faluss Link Studio.
+     * Identity remains the only owner of this form and its persistence route.
+     *
+     * @return string
+     */
+    public static function render_studio_fields() {
+        self::enqueue_style();
+        if ( ! is_user_logged_in() ) {
+            return '<p class="faluss-identity-profile-notice">' . esc_html__( 'Connectez-vous pour administrer votre profil Faluss.', 'faluss-identity' ) . '</p>';
+        }
+        $faluss_id = Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() );
+        if ( null === $faluss_id ) {
+            return '<p class="faluss-identity-profile-notice">' . esc_html__( 'Votre identité Faluss doit être vérifiée avant de créer un profil public.', 'faluss-identity' ) . '</p>';
+        }
+        $profile = self::find_by_faluss_id( $faluss_id );
+        $links = null === $profile ? array() : $profile['links'];
+        while ( count( $links ) < self::MAX_LINKS ) {
+            $links[] = array( 'label' => '', 'url' => '', 'position' => count( $links ) + 1 );
+        }
+
+        ob_start();
+        ?>
+        <form class="faluss-link-studio__identity" method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+            <input type="hidden" name="action" value="faluss_identity_save_public_profile">
+            <?php wp_nonce_field( 'faluss_identity_save_public_profile', 'faluss_identity_profile_nonce' ); ?>
+            <?php self::render_editor_notice(); ?>
+            <div data-fl-panel="profile">
+                <label for="faluss-public-identifier"><?php esc_html_e( 'Identifiant public', 'faluss-identity' ); ?></label>
+                <input id="faluss-public-identifier" name="public_slug" type="text" value="<?php echo esc_attr( null === $profile ? '' : $profile['public_slug'] ); ?>" pattern="[a-z0-9][a-z0-9-]{1,39}" maxlength="40" <?php echo null !== $profile ? 'readonly' : ''; ?> required>
+                <p class="faluss-identity-profile__hint"><?php esc_html_e( 'Il ne peut plus être modifié après sa création.', 'faluss-identity' ); ?></p>
+                <label for="faluss-public-name"><?php esc_html_e( 'Nom affiché', 'faluss-identity' ); ?></label>
+                <input id="faluss-public-name" name="display_name" type="text" maxlength="80" value="<?php echo esc_attr( null === $profile ? '' : $profile['display_name'] ); ?>" required>
+                <label for="faluss-public-bio"><?php esc_html_e( 'Bio courte', 'faluss-identity' ); ?></label>
+                <textarea id="faluss-public-bio" name="bio" maxlength="280" rows="4"><?php echo esc_textarea( null === $profile ? '' : $profile['bio'] ); ?></textarea>
+                <label for="faluss-public-avatar"><?php esc_html_e( 'Avatar', 'faluss-identity' ); ?></label>
+                <?php if ( null !== $profile && $profile['avatar_attachment_id'] > 0 ) : ?><div class="faluss-identity-profile-editor__avatar"><?php echo wp_get_attachment_image( $profile['avatar_attachment_id'], 'thumbnail', false, array( 'alt' => '' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped. ?></div><?php endif; ?>
+                <input id="faluss-public-avatar" name="faluss_identity_avatar" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+                <label class="faluss-identity-profile-editor__publish" for="faluss-public-publish"><input id="faluss-public-publish" name="publication_status" type="checkbox" value="published" <?php checked( null !== $profile && 'published' === $profile['publication_status'] ); ?>> <?php esc_html_e( 'Publier mon profil', 'faluss-identity' ); ?></label>
+            </div>
+            <div data-fl-panel="links" hidden>
+                <fieldset class="faluss-identity-profile-editor__links"><legend><?php esc_html_e( 'Liens publics', 'faluss-identity' ); ?></legend>
+                    <?php foreach ( $links as $index => $link ) : ?><div class="faluss-identity-profile-editor__link-row"><input name="links[<?php echo (int) $index; ?>][position]" type="number" min="1" max="<?php echo (int) self::MAX_LINKS; ?>" value="<?php echo (int) $link['position']; ?>" aria-label="<?php esc_attr_e( 'Position', 'faluss-identity' ); ?>"><input name="links[<?php echo (int) $index; ?>][label]" type="text" maxlength="80" value="<?php echo esc_attr( $link['label'] ); ?>" placeholder="<?php esc_attr_e( 'Libellé', 'faluss-identity' ); ?>"><input name="links[<?php echo (int) $index; ?>][url]" type="url" maxlength="2048" value="<?php echo esc_attr( $link['url'] ); ?>" placeholder="https://"></div><?php endforeach; ?>
+                </fieldset>
+            </div>
+            <button type="submit"><?php esc_html_e( 'Enregistrer le profil', 'faluss-identity' ); ?></button>
+        </form>
+        <?php
+        return (string) ob_get_clean();
+    }
+
     /** @return string */
     public static function render_public_profile( $slug ) {
         self::enqueue_style();
@@ -460,7 +511,7 @@ final class Faluss_Identity_Public_Profile {
         $notice = isset( $_GET['faluss_identity_profile_notice'] ) ? sanitize_key( wp_unslash( $_GET['faluss_identity_profile_notice'] ) ) : '';
         $messages = array( 'saved' => __( 'Votre profil a été enregistré.', 'faluss-identity' ), 'taken' => __( 'Cet identifiant public n’est pas disponible.', 'faluss-identity' ), 'invalid' => __( 'Nous ne pouvons pas enregistrer ce profil.', 'faluss-identity' ) );
         if ( isset( $messages[ $notice ] ) ) {
-            echo '<p class="faluss-identity-profile-notice">' . esc_html( $messages[ $notice ] ) . '</p>';
+            echo '<p class="faluss-identity-profile-notice" role="status">' . esc_html( $messages[ $notice ] ) . '</p>';
         }
     }
 
