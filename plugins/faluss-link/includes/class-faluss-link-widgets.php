@@ -6,6 +6,7 @@ final class Faluss_Link_Card_Widget extends \Elementor\Widget_Base {
     public function get_title() { return 'Carte Faluss'; }
     public function get_icon() { return 'eicon-person'; }
     public function get_categories() { return array( 'general' ); }
+    public function get_style_depends() { return array( 'faluss-link-card' ); }
     protected function register_controls() {
         $this->start_controls_section( 'content', array( 'label' => 'Contenu' ) );
         $this->add_control( 'identifier', array( 'label' => 'Identifiant', 'type' => \Elementor\Controls_Manager::TEXT ) );
@@ -27,5 +28,5 @@ final class Faluss_Link_Card_Widget extends \Elementor\Widget_Base {
     }
     protected function render() { $settings = $this->get_settings_for_display(); echo Faluss_Link::render_card( array( 'identifier' => $settings['identifier'], 'align' => $settings['align'] ) ); }
 }
-final class Faluss_Link_Appearance_Widget extends \Elementor\Widget_Base { public function get_name() { return 'faluss_link_appearance'; } public function get_title() { return 'Apparence de ma carte Faluss'; } public function get_icon() { return 'eicon-settings'; } public function get_categories() { return array( 'general' ); } protected function render() { echo Faluss_Link::render_editor(); } }
-final class Faluss_Link_Studio_Widget extends \Elementor\Widget_Base { public function get_name() { return 'faluss_link_studio'; } public function get_title() { return 'Studio Faluss'; } public function get_icon() { return 'eicon-dashboard'; } public function get_categories() { return array( 'general' ); } protected function render() { echo Faluss_Link::render_studio(); } }
+final class Faluss_Link_Appearance_Widget extends \Elementor\Widget_Base { public function get_name() { return 'faluss_link_appearance'; } public function get_title() { return 'Apparence de ma carte Faluss'; } public function get_icon() { return 'eicon-settings'; } public function get_categories() { return array( 'general' ); } public function get_style_depends() { return array( 'faluss-link-card' ); } public function get_script_depends() { return array( 'faluss-link-editor' ); } protected function render() { echo Faluss_Link::render_editor(); } }
+final class Faluss_Link_Studio_Widget extends \Elementor\Widget_Base { public function get_name() { return 'faluss_link_studio'; } public function get_title() { return 'Studio Faluss'; } public function get_icon() { return 'eicon-dashboard'; } public function get_categories() { return array( 'general' ); } public function get_style_depends() { return array( 'faluss-link-card' ); } public function get_script_depends() { return array( 'faluss-link-editor' ); } protected function render() { echo Faluss_Link::render_studio(); } }

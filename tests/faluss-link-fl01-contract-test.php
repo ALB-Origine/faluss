@@ -9,7 +9,7 @@ foreach(array('Faluss_Identity_Registry','get_public_profiles_table','publicatio
  $typed=Faluss_Link::socials("github|https://github.com/faluss\ngithub|https://github.com/faluss");fl_assert(1===count($typed)&&'github'===$typed[0]['network'],'Editor network input remains accepted and deduplicated.');
 fl_assert(false===strpos($source,'user_email')&&false===strpos($source,'subscription'),'FL-01 does not duplicate identity or business data.');
 foreach(array('#FFFDF5','#FF3D16','Outfit','focus-visible','@media') as $s)fl_assert(false!==strpos($css,$s),'Missing Faluss UI accessibility token: '.$s);
-foreach(array('announcement--ink','social--inline','links-outline','name--editorial','mask-image') as $s)fl_assert(false!==strpos($css,$s),'Missing visible FL-01 variant: '.$s);
+foreach(array('announcement--ink','social--inline','links-outline','name--editorial','linear-gradient') as $s)fl_assert(false!==strpos($css,$s),'Missing visible FL-01 variant: '.$s);
 foreach(array('cover_attachment_id','ANNOUNCEMENTS','LAYOUTS','LINK_STYLES') as $s)fl_assert(false!==strpos($source,$s),'Missing member card preference: '.$s);
 foreach(array('wp_ajax_faluss_link_upload_cover','check_ajax_referer','wp_check_filetype_and_ext','image/','wp_handle_upload','post_author','owned_image') as $s)fl_assert(false!==strpos($source,$s),'Missing restricted cover upload safeguard: '.$s);
 fl_assert(false===strpos($source,'add_cap')&&false===strpos($source,'upload_files'),'FL-01 does not elevate WordPress roles or global capabilities.');
