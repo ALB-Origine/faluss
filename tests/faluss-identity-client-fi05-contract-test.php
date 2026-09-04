@@ -5,9 +5,17 @@ require_once dirname(__DIR__).'/plugins/faluss-identity-client/includes/class-fa
 require_once dirname(__DIR__).'/plugins/faluss-identity-client/includes/class-faluss-identity-client.php';
 function fi05_assert($v,$m){if(!$v){fwrite(STDERR,"FAIL: $m\n");exit(1);}}
 $s=Faluss_Identity_Client_Schema::schema();
-fi05_assert(isset($s['links']['indexes'][1],$s['states']['columns']['state_hash'],$s['states']['columns']['consumed_at']),'Links and one-use state tables exist.');
+fi05_assert(isset($s['links']['indexes']['wp_user_id_unique'],$s['states']['columns']['state_hash'],$s['states']['columns']['consumed_at']),'Links and one-use state tables exist.');
+fi05_assert('char(64)'===$s['states']['columns']['state_hash']['type'] && true===$s['states']['columns']['wp_user_id']['null'],'The strict state schema preserves hashes and nullability.');
 $source=file_get_contents(dirname(__DIR__).'/plugins/faluss-identity-client/includes/class-faluss-identity-client.php');
 foreach(array('START TRANSACTION','FOR UPDATE','consumed_at IS NULL','code_challenge_method','S256','code_verifier','wp_remote_post','FALUSS_IDENTITY_CLIENT_SECRET',"'subscriber'",'flow_mode','link_required','enabled') as $need){fi05_assert(false!==strpos($source,$need),'Missing FI-05 invariant: '.$need);}
+fi05_assert(false!==strpos($source,"if('link'===\$state['flow_mode']){if(\$linked"),'A link flow blocks an already-linked Faluss ID before any session can be opened.');
 fi05_assert(false===strpos($source,'get_user_by( \'email\', $email )'),'No automatic e-mail linkage primitive is present.');
 fi05_assert(false===strpos($source,'access_token'),'The client does not persist bearer tokens.');
+$schema_source=file_get_contents(dirname(__DIR__).'/plugins/faluss-identity-client/includes/class-faluss-identity-client-schema.php');
+foreach(array('GET_LOCK','RELEASE_LOCK','SHOW TABLE STATUS','SHOW FULL COLUMNS','SHOW INDEX') as $need){fi05_assert(false!==strpos($schema_source,$need),'Missing strict schema invariant: '.$need);}
+$plugin_source=file_get_contents(dirname(__DIR__).'/plugins/faluss-identity-client/includes/class-faluss-identity-client-plugin.php');
+fi05_assert(false!==strpos($plugin_source,'flush_rewrite_rules')&&false!==strpos(file_get_contents(dirname(__DIR__).'/plugins/faluss-identity-client/faluss-identity-client.php'),'register_deactivation_hook'),'Activation and deactivation manage callback rewrite rules.');
+$css=file_get_contents(dirname(__DIR__).'/plugins/faluss-identity-client/assets/css/faluss-identity-client.css');$widget=file_get_contents(dirname(__DIR__).'/plugins/faluss-identity-client/includes/class-faluss-identity-client-elementor-widget.php');
+fi05_assert(false!==strpos($css,'color:var(--fic-ink)')&&false!==strpos($widget,"'padding'"),'Fallback text color and Elementor padding controls are present.');
 echo "FI-05 client contract: OK\n";

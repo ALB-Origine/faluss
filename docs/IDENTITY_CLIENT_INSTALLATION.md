@@ -2,7 +2,7 @@
 
 Ne pas installer ce plugin sur `faluss.me`. Il est destiné aux applications clientes, après recette isolée.
 
-1. Activez le plugin sur l’application cliente : les tables de liaisons et d’état SSO sont créées localement.
+1. Activez le plugin sur l’application cliente : les tables de liaisons et d’état SSO sont créées localement après vérification stricte, et la règle du callback est enregistrée puis purgée. La désactivation purgera également cette règle.
 2. Dans **Réglages → Faluss Identity Client**, renseignez le `client_id`, les retours locaux exacts et gardez le flag désactivé jusqu’à validation.
 3. Déclarez `https://site-client.example/faluss-identity/callback` comme URI HTTPS exacte dans Faluss Identity.
 4. Pour un client confidentiel, définissez `FALUSS_IDENTITY_CLIENT_SECRET` côté serveur dans `wp-config.php` ou l’environnement. Le secret n’est ni dans Git ni dans les options WordPress.

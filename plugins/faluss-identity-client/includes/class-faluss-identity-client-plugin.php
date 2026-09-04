@@ -17,8 +17,10 @@ final class Faluss_Identity_Client_Plugin {
 
     public static function activate() {
         if ( self::is_identity_host() ) { wp_die( 'Faluss Identity Client ne peut pas être activé sur faluss.me.' ); }
-        Faluss_Identity_Client_Schema::install_or_verify();
+        if ( Faluss_Identity_Client_Schema::install_or_verify() ) { Faluss_Identity_Client::rewrite(); flush_rewrite_rules(); }
     }
+
+    public static function deactivate() { flush_rewrite_rules(); }
 
     public static function load_textdomain() {
         load_plugin_textdomain( 'faluss-identity-client', false, dirname( plugin_basename( FALUSS_IDENTITY_CLIENT_FILE ) ) . '/languages' );

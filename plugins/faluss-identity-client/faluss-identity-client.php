@@ -22,5 +22,6 @@ require_once FALUSS_IDENTITY_CLIENT_DIR . 'includes/class-faluss-identity-client
 require_once FALUSS_IDENTITY_CLIENT_DIR . 'includes/class-faluss-identity-client-admin.php';
 
 register_activation_hook( __FILE__, array( 'Faluss_Identity_Client_Plugin', 'activate' ) );
+register_deactivation_hook( __FILE__, array( 'Faluss_Identity_Client_Plugin', 'deactivate' ) );
 
 Faluss_Identity_Client_Plugin::boot();
