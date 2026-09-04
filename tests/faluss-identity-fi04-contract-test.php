@@ -2,9 +2,11 @@
 
 define( 'ABSPATH', __DIR__ . '/' );
 function wp_parse_url( $url ) { return parse_url( $url ); }
+function wp_unslash( $value ) { return $value; }
 
 require_once dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-schema.php';
 require_once dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-authorization.php';
+require_once dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-sso-clients-admin.php';
 
 function fi04_assert( $condition, $message ) {
     if ( ! $condition ) { fwrite( STDERR, 'FAIL: ' . $message . PHP_EOL ); exit( 1 ); }
@@ -20,6 +22,13 @@ fi04_assert( Faluss_Identity_Authorization::is_valid_code_verifier( str_repeat( 
 fi04_assert( ! Faluss_Identity_Authorization::valid_redirect_uri( 'http://pro.faluss.com/callback' ) && ! Faluss_Identity_Authorization::valid_redirect_uri( 'https://pro.faluss.com/callback#fragment' ), 'Unsafe redirect URI variants are refused.' );
 fi04_assert( null === Faluss_Identity_Authorization::normalize_scopes( 'identity.basic profile.read' ) && null === Faluss_Identity_Authorization::normalize_scopes( 'identity.basic identity.basic' ), 'Unknown or duplicated scopes are refused.' );
 fi04_assert( ! Faluss_Identity_Authorization::is_valid_pkce_challenge( str_repeat( 'A', 42 ) ) && ! Faluss_Identity_Authorization::is_valid_code_verifier( 'short' ), 'Malformed PKCE values are refused.' );
+
+$_POST['scopes'] = array( 'identity.basic', 'identity.email' );
+$posted_scopes = new ReflectionMethod( 'Faluss_Identity_SSO_Clients_Admin', 'posted_scopes' );
+$posted_scopes->setAccessible( true );
+fi04_assert( array( 'identity.basic', 'identity.email' ) === $posted_scopes->invoke( null ), 'SSO administration preserves the two valid dotted scope names.' );
+$_POST['scopes'] = array( 'identity.basic', 'identityevil' );
+fi04_assert( null === $posted_scopes->invoke( null ), 'SSO administration refuses invalid scope names without rewriting them.' );
 
 $schema = Faluss_Identity_Schema::get_fi04_schema();
 fi04_assert( isset( $schema['authorization_requests'] ) && $schema['authorization_requests']['indexes']['request_hash_unique']['unique'], 'The FI-04 request handle is persisted only as a unique hash.' );

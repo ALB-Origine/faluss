@@ -79,7 +79,17 @@ final class Faluss_Identity_SSO_Clients_Admin {
     }
 
     private static function parse_uris( $value ) { $uris = preg_split( '/\r\n|\r|\n/', trim( $value ) ); if ( ! is_array( $uris ) || empty( $uris ) ) { return array(); } $out = array(); foreach ( $uris as $uri ) { $uri = trim( $uri ); if ( ! Faluss_Identity_Authorization::valid_redirect_uri( $uri ) || in_array( $uri, $out, true ) ) { return array(); } $out[] = $uri; } return $out; }
-    private static function posted_scopes() { $raw = isset( $_POST['scopes'] ) && is_array( $_POST['scopes'] ) ? array_map( 'sanitize_key', wp_unslash( $_POST['scopes'] ) ) : array(); return Faluss_Identity_Authorization::normalize_scopes( implode( ' ', $raw ) ); }
+    private static function posted_scopes() {
+        $raw = isset( $_POST['scopes'] ) && is_array( $_POST['scopes'] ) ? wp_unslash( $_POST['scopes'] ) : array();
+        $scopes = array();
+        foreach ( $raw as $scope ) {
+            if ( ! is_string( $scope ) || ! in_array( $scope, array( Faluss_Identity_Authorization::SCOPE_BASIC, Faluss_Identity_Authorization::SCOPE_EMAIL ), true ) ) {
+                return null;
+            }
+            $scopes[] = $scope;
+        }
+        return Faluss_Identity_Authorization::normalize_scopes( implode( ' ', $scopes ) );
+    }
     private static function new_secret() { try { return rtrim( strtr( base64_encode( random_bytes( 32 ) ), '+/', '-_' ), '=' ); } catch ( Exception $exception ) { return null; } }
     private static function redirect( $notice ) { wp_safe_redirect( add_query_arg( 'faluss_identity_sso_notice', sanitize_key( $notice ), admin_url( 'options-general.php?page=faluss-identity-sso-clients' ) ) ); exit; }
     private static function quote_identifier( $identifier ) { return chr( 96 ) . str_replace( chr( 96 ), chr( 96 ) . chr( 96 ), $identifier ) . chr( 96 ); }
