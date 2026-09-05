@@ -31,3 +31,7 @@ Un conflit de liaison est bloquant : il ne doit jamais être résolu automatique
 | Table | Clés / contenu |
 |---|---|
 | `faluss_link_cards` | `faluss_id` unique, préférences visuelles, réseaux sociaux complémentaires et dates ; aucune donnée d’identité dupliquée |
+
+## Économie Faluss future
+
+EC-01 ne crée aucune table WordPress de balance, récompense ou entitlement. Le futur service partagé portera hors de Faluss Link une transaction immuable liée au `faluss_id`, son montant ALB, une clé d’idempotence, une référence source, un horodatage et la décision de règles correspondante.

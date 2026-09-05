@@ -9,8 +9,15 @@
     var frame = 0;
     var listening = false;
 
+    function isPublicProfileRoute() {
+        return !!(document.body && document.body.classList.contains('faluss-identity-public-route'));
+    }
+
     function update() {
         frame = 0;
+        if (!isPublicProfileRoute()) {
+            return;
+        }
         cards.forEach(function (card) {
             var cover = card.querySelector('.faluss-link-card__cover');
             var rect = card.getBoundingClientRect();
@@ -36,10 +43,12 @@
         }
         listening = true;
         window.addEventListener('scroll', requestUpdate, { passive: true });
-        window.addEventListener('resize', requestUpdate, { passive: true });
     }
 
     function initialize(root) {
+        if (!isPublicProfileRoute()) {
+            return;
+        }
         var scope = root && root.jquery ? root[0] : (root || document);
         var candidates = scope.querySelectorAll ? scope.querySelectorAll('.faluss-link-card--presentation-immersive') : [];
         Array.prototype.forEach.call(candidates, function (card) {

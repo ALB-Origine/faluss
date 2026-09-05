@@ -41,3 +41,7 @@ Faluss Identity ne connaît pas les commandes, acquisitions, tokens, progression
 Faluss Hub agrège ultérieurement des états minimaux, par exemple « Pro activé ». Une donnée ne remonte jamais par défaut : chaque projection est spécifiée, validée et révocable.
 
 Faluss Identity ne porte ni abonnement, ni portefeuille ALB ni cosmétique. Faluss.me consommera ultérieurement des droits d’abonnement et un inventaire cosmétique propres à sa carte publique ; les objets acquis avec ALB ou progression restent possédés, tandis que les avantages inclus à l’abonnement sont temporaires.
+
+## Économie Faluss future
+
+Le futur moteur partagé **Faluss Economy** sera le seul détenteur du ledger, des règles d’attribution, de l’idempotence et du solde ALB pour `faluss.me`, `pro.faluss.com` et `date.faluss.com`. Les dérivés y enverront des événements métier validés ; Faluss Link rendra uniquement les droits déjà résolus et ne modifiera jamais une balance. Le contrat cible et la migration non exécutée sont documentés dans `ECONOMY_PROTOCOL.md` et `ECONOMY_MIGRATION.md`.

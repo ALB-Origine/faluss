@@ -2,6 +2,7 @@
   --fl-page: var(--fl-page-background, var(--fl-canvas));
   width: 100%;
   max-width:none;
+  min-height:100vh;
   min-height:100svh;
   margin: 0 !important;
   border:0;
@@ -15,8 +16,8 @@
 body.faluss-identity-public-route {
   margin: 0;
   padding: 0;
+  min-height: 100vh;
   min-height: 100svh;
-  min-height: 100dvh;
   background: var(--faluss-ink, #080808);
 }
 
@@ -44,13 +45,14 @@ body.faluss-identity-public-route > .faluss-identity-profile-page {
 /* The Elementor header owns its overlay treatment. The immersive route never outranks it. */
 body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
   z-index: 0;
+  min-height: 100vh;
   min-height: 100svh;
-  min-height: 100dvh;
 }
 
 .faluss-link-card--presentation-immersive .faluss-link-card__cover {
+  /* svh is stable while Safari expands or collapses its browser chrome. */
+  height: clamp(32rem, 92vh, 54rem);
   height: clamp(32rem, 92svh, 54rem);
-  height: clamp(32rem, 92dvh, 54rem);
   background: var(--fl-hero-transition-color, var(--fl-page));
 }
 
@@ -113,8 +115,8 @@ body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
 }
 
 .faluss-link-card--presentation-immersive.faluss-link-card--cover-no .faluss-link-card__body {
+  min-height: 100vh;
   min-height: 100svh;
-  min-height: 100dvh;
   margin-top: 0;
   padding-top: max(clamp(7rem, 22vw, 13rem), calc(env(safe-area-inset-top, 0px) + 4.5rem));
   background: var(--fl-page);
@@ -152,8 +154,8 @@ body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
   }
 
   .faluss-link-card--presentation-immersive .faluss-link-card__cover {
+    height: min(80vh, 54rem);
     height: min(80svh, 54rem);
-    height: min(80dvh, 54rem);
   }
 }
 

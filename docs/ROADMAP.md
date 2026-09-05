@@ -31,3 +31,7 @@ Documenter l'export/import de liaison et des données Pro avant le changement de
 ## Hors périmètre initial
 
 Facturation centralisée, dashboard Faluss.com, personnalisation complète de faluss.me, tableaux agrégés et intégration Date. Ils viennent après la validation FI-05.
+
+## EC-01 — Contrat d’économie préparatoire
+
+Documenter le moteur économique commun, la frontière Catalogue/Entitlements et une migration progressive depuis les règles Altlab observées, sans créer de ledger, de solde, de récompense ni de droit actif. Les prochains lots seront le moteur partagé, les entitlements, le daily reward Faluss Link puis les usages commerce et cosmétiques.
