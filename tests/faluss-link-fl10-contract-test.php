@@ -9,6 +9,7 @@ function sanitize_textarea_field( $value ) { return trim( strip_tags( (string) $
 function esc_url_raw( $value ) { return trim( (string) $value ); }
 function esc_url( $value ) { return (string) $value; }
 function esc_html( $value ) { return htmlspecialchars( (string) $value, ENT_QUOTES, 'UTF-8' ); }
+function esc_attr( $value ) { return htmlspecialchars( (string) $value, ENT_QUOTES, 'UTF-8' ); }
 function wp_generate_uuid4() { return '99999999-9999-4999-8999-999999999999'; }
 function absint( $value ) { return abs( (int) $value ); }
 function get_current_user_id() { return 17; }

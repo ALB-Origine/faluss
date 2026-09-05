@@ -13,3 +13,15 @@
 .faluss-link-card__social--automatic-light{--fl-social-background:#000;--fl-social-color:#fff;--fl-social-border:#000}.faluss-link-card__social--automatic-dark{--fl-social-background:#fff;--fl-social-color:#000;--fl-social-border:rgba(255,255,255,.5)}
 .faluss-link-card__social--appearance-official a[data-faluss-network=instagram]{--fl-social-background:#e4405f;--fl-social-color:#fff;--fl-social-border:#e4405f}.faluss-link-card__social--appearance-official a[data-faluss-network=tiktok]{--fl-social-background:#010101;--fl-social-color:#fff;--fl-social-border:#010101}.faluss-link-card__social--appearance-official a[data-faluss-network=youtube]{--fl-social-background:#f00;--fl-social-color:#fff;--fl-social-border:#f00}.faluss-link-card__social--appearance-official a[data-faluss-network=x]{--fl-social-background:#000;--fl-social-color:#fff;--fl-social-border:#000}.faluss-link-card__social--appearance-official a[data-faluss-network=linkedin]{--fl-social-background:#0a66c2;--fl-social-color:#fff;--fl-social-border:#0a66c2}.faluss-link-card__social--appearance-official a[data-faluss-network=github]{--fl-social-background:#24292f;--fl-social-color:#fff;--fl-social-border:#24292f}
 .faluss-link-card__social--appearance-full a{display:grid;place-items:center;background:var(--fl-surface);color:var(--fl-ink)}.faluss-link-card__social--appearance-full .faluss-link-card__network-icon{width:24px;height:24px;max-width:24px;max-height:24px;object-fit:contain}.faluss-link-card__social a:focus-visible{outline:2px solid var(--fl-accent);outline-offset:3px}
+
+/* FL-11: each editorial surface resolves its own readable text and media geometry. */
+.faluss-link-card__link{color:var(--fl-link-text-resolved,var(--fl-action-text))}
+.faluss-link-card__media-teaser{background:var(--fl-surface)}
+.faluss-link-card__media-teaser--image-only{background:transparent}
+.faluss-link-card__media-teaser--image-only>img{border-radius:inherit}
+.faluss-link-card__media-teaser--format-landscape>img{aspect-ratio:16/9}
+.faluss-link-card__media-teaser--format-portrait>img{aspect-ratio:4/5}
+.faluss-link-card__media-teaser--format-square>img{aspect-ratio:1/1}
+.faluss-link-card__media-teaser-copy{background:var(--fl-surface)}
+.faluss-link-card__media-teaser-copy h3{color:var(--fl-title-color-resolved,var(--fl-ink))}
+.faluss-link-card__media-teaser-copy p{color:var(--fl-secondary-color-resolved,var(--fl-muted))}
