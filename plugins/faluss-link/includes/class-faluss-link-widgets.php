@@ -42,6 +42,36 @@ final class Faluss_Link_Card_Widget extends \Elementor\Widget_Base {
 final class Faluss_Link_Appearance_Widget extends \Elementor\Widget_Base { public function get_name() { return 'faluss_link_appearance'; } public function get_title() { return 'Apparence de ma carte Faluss'; } public function get_icon() { return 'eicon-settings'; } public function get_categories() { return array( 'general' ); } public function get_style_depends() { return array( 'faluss-link-card', 'faluss-link-studio' ); } public function get_script_depends() { return array( 'faluss-link-card', 'faluss-link-editor' ); } protected function render() { echo Faluss_Link::render_editor(); } }
 final class Faluss_Link_Studio_Widget extends \Elementor\Widget_Base { public function get_name() { return 'faluss_link_studio'; } public function get_title() { return 'Studio Faluss'; } public function get_icon() { return 'eicon-dashboard'; } public function get_categories() { return array( 'general' ); } public function get_style_depends() { return array( 'faluss-link-card', 'faluss-link-immersive', 'faluss-link-studio' ); } public function get_script_depends() { return array( 'faluss-link-card', 'faluss-link-editor' ); } protected function render() { echo Faluss_Link::render_studio(); } }
 
+final class Faluss_Link_Discoveries_Widget extends \Elementor\Widget_Base {
+    public function get_name() { return 'faluss_link_discoveries'; }
+    public function get_title() { return 'Mes découvertes Faluss'; }
+    public function get_icon() { return 'eicon-heart'; }
+    public function get_categories() { return array( 'general' ); }
+    public function get_style_depends() { return array( 'faluss-link-discoveries' ); }
+    protected function register_controls() {
+        $this->start_controls_section( 'content', array( 'label' => 'Bibliothèque' ) );
+        $this->add_control( 'title', array( 'label' => 'Titre', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'Mes découvertes' ) );
+        $this->add_control( 'empty_label', array( 'label' => 'État vide', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'Aucune découverte pour le moment.' ) );
+        $this->add_control( 'per_page', array( 'label' => 'Nombre maximal affiché par page', 'type' => \Elementor\Controls_Manager::NUMBER, 'default' => 24, 'min' => 1, 'max' => 250 ) );
+        $this->add_control( 'layout', array( 'label' => 'Présentation', 'type' => \Elementor\Controls_Manager::SELECT, 'default' => 'list', 'options' => array( 'list' => 'Liste', 'grid' => 'Grille' ) ) );
+        $this->end_controls_section();
+        $this->start_controls_section( 'style', array( 'label' => 'Bibliothèque', 'tab' => \Elementor\Controls_Manager::TAB_STYLE ) );
+        $this->add_responsive_control( 'spacing', array( 'label' => 'Espacement', 'type' => \Elementor\Controls_Manager::DIMENSIONS, 'selectors' => array( '{{WRAPPER}} .faluss-link-discoveries' => 'padding:{{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};' ) ) );
+        $this->add_control( 'surface', array( 'label' => 'Surface', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-discoveries' => '--fld-surface:{{VALUE}};' ) ) );
+        $this->add_control( 'text_color', array( 'label' => 'Texte', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-discoveries' => '--fld-ink:{{VALUE}};' ) ) );
+        $this->add_control( 'muted_color', array( 'label' => 'Texte secondaire', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => array( '{{WRAPPER}} .faluss-link-discoveries' => '--fld-muted:{{VALUE}};' ) ) );
+        $this->add_group_control( \Elementor\Group_Control_Typography::get_type(), array( 'name' => 'typography', 'selector' => '{{WRAPPER}} .faluss-link-discoveries' ) );
+        $this->add_group_control( \Elementor\Group_Control_Border::get_type(), array( 'name' => 'border', 'selector' => '{{WRAPPER}} .faluss-link-discoveries__item' ) );
+        $this->add_control( 'radius', array( 'label' => 'Arrondi', 'type' => \Elementor\Controls_Manager::DIMENSIONS, 'selectors' => array( '{{WRAPPER}} .faluss-link-discoveries__item' => 'border-radius:{{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};' ) ) );
+        $this->add_group_control( \Elementor\Group_Control_Box_Shadow::get_type(), array( 'name' => 'shadow', 'selector' => '{{WRAPPER}} .faluss-link-discoveries__item' ) );
+        $this->end_controls_section();
+    }
+    protected function render() {
+        $settings = $this->get_settings_for_display();
+        echo Faluss_Link::render_discoveries( array( 'title' => $settings['title'] ?? '', 'empty_label' => $settings['empty_label'] ?? '', 'per_page' => $settings['per_page'] ?? 24, 'layout' => $settings['layout'] ?? 'list' ) );
+    }
+}
+
 final class Faluss_Link_Daily_Reward_Widget extends \Elementor\Widget_Base {
     public function get_name() { return 'faluss_link_daily_reward'; }
     public function get_title() { return 'Récompense quotidienne Faluss'; }

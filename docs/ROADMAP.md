@@ -51,3 +51,7 @@ Le Core exécute désormais la règle globale configurable `daily_reward` pour u
 ## EC-02 — Droits centralisés et thèmes Faluss verrouillables
 
 Le Core porte les définitions et attributions historisées de droits de thème. Le Connector les lit uniquement avec `entitlements.read`; Catalogue référence seulement une définition active et Faluss Link revalide la décision côté serveur pour chaque sélection et rendu public. Aucun paiement, abonnement, boutique, entitlement local ou donnée métier n’est ajouté.
+
+## FL-18 — Mes découvertes Faluss
+
+Ajouter à Faluss Link une bibliothèque privée locale à `faluss.me` : un membre actif peut retrouver les cartes publiques d’autres membres qu’il a consultées. L’entrée est enregistrée côté serveur, est bornée par membre, reste invisible aux créateurs et ne contient aucune donnée de navigation ni snapshot de profil. Le widget et shortcode résident sur une page membre créée manuellement, jamais dans Studio. Un futur produit d’analytics créateur reste explicitement séparé et ne doit pas convertir cette bibliothèque en suivi de visiteurs.

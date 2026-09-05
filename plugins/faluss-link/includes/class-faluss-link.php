@@ -10,6 +10,7 @@ final class Faluss_Link {
     const IMMERSIVE_SCRIPT = 'faluss-link-immersive';
     const REWARD_STYLE = 'faluss-link-reward';
     const REWARD_SCRIPT = 'faluss-link-reward';
+    const DISCOVERIES_STYLE = 'faluss-link-discoveries';
     const NETWORKS = array( 'instagram', 'tiktok', 'youtube', 'x', 'linkedin', 'github' );
     const ANNOUNCEMENTS = array( 'accent' => 'Accent / ink', 'ink' => 'Ink / white' );
     const NAME_TREATMENTS = array( 'editorial' => 'Éditorial', 'strong' => 'Fort' );
@@ -27,8 +28,12 @@ final class Faluss_Link {
         add_shortcode( 'faluss_link_appearance', array( __CLASS__, 'appearance_shortcode' ) );
         add_shortcode( 'faluss_link_studio', array( __CLASS__, 'studio_shortcode' ) );
         add_shortcode( 'faluss_link_daily_reward', array( __CLASS__, 'daily_reward_shortcode' ) );
+        add_shortcode( 'faluss_link_discoveries', array( __CLASS__, 'discoveries_shortcode' ) );
         add_action( 'admin_post_faluss_link_save', array( __CLASS__, 'save' ) );
         add_action( 'admin_post_faluss_link_save_studio', array( __CLASS__, 'save_studio' ) );
+        add_action( 'admin_post_faluss_link_save_discovery_settings', array( __CLASS__, 'save_discovery_settings' ) );
+        add_action( 'admin_post_faluss_link_delete_discovery', array( __CLASS__, 'delete_discovery' ) );
+        add_action( 'admin_post_faluss_link_clear_discoveries', array( __CLASS__, 'clear_discoveries' ) );
         add_action( 'wp_ajax_faluss_link_upload_cover', array( __CLASS__, 'upload_cover' ) );
         add_action( 'wp_ajax_faluss_link_upload_teaser', array( __CLASS__, 'upload_teaser' ) );
         add_action( 'wp_ajax_faluss_link_daily_reward_claim', array( __CLASS__, 'claim_daily_reward' ) );
@@ -48,12 +53,14 @@ final class Faluss_Link {
     public static function appearance_shortcode() { return self::render_editor(); }
     public static function studio_shortcode() { return self::render_studio(); }
     public static function daily_reward_shortcode( $attributes = array() ) { return self::render_daily_reward( (array) $attributes ); }
+    public static function discoveries_shortcode( $attributes = array() ) { return self::render_discoveries( (array) $attributes ); }
 
     public static function assets() {
         wp_register_style( self::STYLE, plugins_url( 'assets/css/faluss-link.css', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION );
         wp_register_style( self::IMMERSIVE_STYLE, plugins_url( 'assets/css/faluss-link-immersive.css', FALUSS_LINK_FILE ), array( self::STYLE ), FALUSS_LINK_VERSION );
         wp_register_style( self::STUDIO_STYLE, plugins_url( 'assets/css/faluss-link-studio.css', FALUSS_LINK_FILE ), array( self::STYLE, self::IMMERSIVE_STYLE ), FALUSS_LINK_VERSION );
         wp_register_style( self::REWARD_STYLE, plugins_url( 'assets/css/faluss-link-reward.css', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION );
+        wp_register_style( self::DISCOVERIES_STYLE, plugins_url( 'assets/css/faluss-link-discoveries.css', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION );
         wp_register_script( self::CARD_SCRIPT, plugins_url( 'assets/js/faluss-link-card.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
         wp_register_script( self::SCRIPT, plugins_url( 'assets/js/faluss-link-editor.js', FALUSS_LINK_FILE ), array( 'jquery', self::CARD_SCRIPT ), FALUSS_LINK_VERSION, true );
         wp_register_script( self::IMMERSIVE_SCRIPT, plugins_url( 'assets/js/faluss-link-immersive.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
@@ -119,6 +126,7 @@ final class Faluss_Link {
         $slug = '' !== $attributes['identifier'] ? sanitize_title( $attributes['identifier'] ) : (string) get_query_var( 'faluss_public_profile' );
         $profile = self::published_profile( $slug );
         if ( ! $profile ) { return self::empty_card( __( 'Cette carte Faluss n’est pas disponible.', 'faluss-link' ) ); }
+        self::record_discovery_for_current_visitor( $profile['faluss_id'] );
         $preferences = self::prefs( $profile['faluss_id'] );
         $alignment = '' === (string) $attributes['align'] ? $preferences['alignment'] : self::align( $attributes['align'] );
         $blocks = self::content_blocks( $profile['faluss_id'], $profile['links'] );
@@ -182,6 +190,91 @@ final class Faluss_Link {
             wp_send_json_success( self::daily_reward_error_payload( $result ) );
         }
         wp_send_json_success( self::daily_reward_response_payload( $result ) );
+    }
+
+    /**
+     * Private, viewer-scoped library. It intentionally has no identifier
+     * attribute: a member can only ever read their own discoveries.
+     */
+    public static function render_discoveries( $attributes = array() ) {
+        if ( ! self::identity_ready() || ! is_user_logged_in() ) { return ''; }
+        $viewer = self::current_faluss_id();
+        if ( ! self::valid_faluss_id( $viewer ) ) { return ''; }
+        $attributes = wp_parse_args( (array) $attributes, array(
+            'title' => __( 'Mes découvertes', 'faluss-link' ),
+            'empty_label' => __( 'Aucune découverte pour le moment.', 'faluss-link' ),
+            'per_page' => 24,
+            'layout' => 'list',
+        ) );
+        $title = sanitize_text_field( (string) $attributes['title'] );
+        $empty_label = sanitize_text_field( (string) $attributes['empty_label'] );
+        $limit = min( 250, max( 1, absint( $attributes['per_page'] ) ) );
+        $layout = in_array( $attributes['layout'], array( 'list', 'grid' ), true ) ? $attributes['layout'] : 'list';
+        self::discoveries_assets();
+        $enabled = self::discovery_recording_enabled( $viewer );
+        $page = max( 1, absint( $_GET['faluss_discoveries_page'] ?? 1 ) );
+        $total = self::discoveries_count_for_viewer( $viewer );
+        $pages = max( 1, (int) ceil( $total / $limit ) );
+        $page = min( $page, $pages );
+        $discoveries = self::discoveries_for_viewer( $viewer, $limit, ( $page - 1 ) * $limit );
+        $instance = function_exists( 'wp_unique_id' ) ? wp_unique_id( 'faluss-link-discoveries-' ) : 'faluss-link-discoveries';
+        ob_start();
+        ?>
+        <section class="faluss-link-discoveries faluss-link-discoveries--<?php echo esc_attr( $layout ); ?>"<?php echo '' !== $title ? ' aria-labelledby="' . esc_attr( $instance ) . '-title"' : ' aria-label="' . esc_attr__( 'Mes découvertes', 'faluss-link' ) . '"'; ?>>
+            <?php if ( '' !== $title ) : ?><h2 id="<?php echo esc_attr( $instance ); ?>-title" class="faluss-link-discoveries__title"><?php echo esc_html( $title ); ?></h2><?php endif; ?>
+            <form class="faluss-link-discoveries__setting" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <input type="hidden" name="action" value="faluss_link_save_discovery_settings">
+                <?php wp_nonce_field( 'faluss_link_save_discovery_settings', 'faluss_link_discovery_settings_nonce' ); ?>
+                <label for="<?php echo esc_attr( $instance ); ?>-recording"><input id="<?php echo esc_attr( $instance ); ?>-recording" name="recording_enabled" type="checkbox" role="switch" value="1" <?php checked( $enabled ); ?>> <?php esc_html_e( 'Enregistrer mes découvertes', 'faluss-link' ); ?></label>
+                <p><?php esc_html_e( 'Votre liste reste privée et n’est jamais visible des créateurs.', 'faluss-link' ); ?></p>
+                <button class="faluss-link-discoveries__save" type="submit"><?php esc_html_e( 'Enregistrer ce réglage', 'faluss-link' ); ?></button>
+            </form>
+            <div class="faluss-link-discoveries__notice" role="status" aria-live="polite"><?php echo self::discovery_notice(); ?></div>
+            <?php if ( $discoveries ) : ?>
+                <ul class="faluss-link-discoveries__items">
+                    <?php foreach ( $discoveries as $discovery ) : ?>
+                        <li class="faluss-link-discoveries__item">
+                            <a class="faluss-link-discoveries__profile" href="<?php echo esc_url( home_url( '/' . $discovery['public_slug'] ) ); ?>">
+                                <?php if ( ! empty( $discovery['avatar_attachment_id'] ) && wp_attachment_is_image( (int) $discovery['avatar_attachment_id'] ) ) { echo wp_get_attachment_image( (int) $discovery['avatar_attachment_id'], 'thumbnail', false, array( 'alt' => '' ) ); } ?>
+                                <span class="faluss-link-discoveries__identity"><strong><?php echo esc_html( $discovery['display_name'] ); ?></strong><span><?php echo esc_html( '@' . $discovery['public_slug'] ); ?></span><time datetime="<?php echo esc_attr( self::discovery_datetime( $discovery['last_seen_at'] ) ); ?>"><?php echo esc_html( self::discovery_last_seen_label( $discovery['last_seen_at'] ) ); ?></time></span>
+                            </a>
+                            <form class="faluss-link-discoveries__remove" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                                <input type="hidden" name="action" value="faluss_link_delete_discovery"><input type="hidden" name="discovery_id" value="<?php echo (int) $discovery['id']; ?>">
+                                <?php wp_nonce_field( 'faluss_link_delete_discovery', 'faluss_link_discovery_delete_nonce' ); ?>
+                                <button type="submit"><?php esc_html_e( 'Retirer', 'faluss-link' ); ?></button>
+                            </form>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+                <?php if ( $pages > 1 ) : ?><nav class="faluss-link-discoveries__pages" aria-label="<?php esc_attr_e( 'Pages des découvertes', 'faluss-link' ); ?>"><?php if ( $page > 1 ) : ?><a href="<?php echo esc_url( self::discoveries_page_url( $page - 1 ) ); ?>"><?php esc_html_e( 'Précédent', 'faluss-link' ); ?></a><?php endif; ?><span><?php echo esc_html( sprintf( __( 'Page %1$d sur %2$d', 'faluss-link' ), $page, $pages ) ); ?></span><?php if ( $page < $pages ) : ?><a href="<?php echo esc_url( self::discoveries_page_url( $page + 1 ) ); ?>"><?php esc_html_e( 'Suivant', 'faluss-link' ); ?></a><?php endif; ?></nav><?php endif; ?>
+                <form class="faluss-link-discoveries__clear" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                    <input type="hidden" name="action" value="faluss_link_clear_discoveries"><?php wp_nonce_field( 'faluss_link_clear_discoveries', 'faluss_link_discovery_clear_nonce' ); ?>
+                    <button type="submit"><?php esc_html_e( 'Tout effacer', 'faluss-link' ); ?></button>
+                </form>
+            <?php else : ?>
+                <p class="faluss-link-discoveries__empty"><?php echo esc_html( '' !== $empty_label ? $empty_label : __( 'Aucune découverte pour le moment.', 'faluss-link' ) ); ?></p>
+            <?php endif; ?>
+        </section>
+        <?php
+        return (string) ob_get_clean();
+    }
+
+    public static function save_discovery_settings() {
+        if ( ! self::verify( 'faluss_link_discovery_settings_nonce', 'faluss_link_save_discovery_settings' ) ) { wp_die( 'Accès refusé.' ); }
+        $viewer = self::current_faluss_id();
+        self::discovery_redirect( self::valid_faluss_id( $viewer ) && self::set_discovery_recording_enabled( $viewer, ! empty( $_POST['recording_enabled'] ) ) ? 'saved' : 'invalid' );
+    }
+
+    public static function delete_discovery() {
+        if ( ! self::verify( 'faluss_link_discovery_delete_nonce', 'faluss_link_delete_discovery' ) ) { wp_die( 'Accès refusé.' ); }
+        $viewer = self::current_faluss_id(); $id = absint( $_POST['discovery_id'] ?? 0 );
+        self::discovery_redirect( self::valid_faluss_id( $viewer ) && $id && self::delete_discovery_for_viewer( $viewer, $id ) ? 'deleted' : 'invalid' );
+    }
+
+    public static function clear_discoveries() {
+        if ( ! self::verify( 'faluss_link_discovery_clear_nonce', 'faluss_link_clear_discoveries' ) ) { wp_die( 'Accès refusé.' ); }
+        $viewer = self::current_faluss_id();
+        self::discovery_redirect( self::valid_faluss_id( $viewer ) && self::clear_discoveries_for_viewer( $viewer ) ? 'cleared' : 'invalid' );
     }
 
     public static function render_editor() {
@@ -254,7 +347,7 @@ final class Faluss_Link {
     public static function widgets( $manager ) {
         if ( ! class_exists( 'Elementor\\Widget_Base' ) || ! is_object( $manager ) || ! method_exists( $manager, 'register' ) ) { return; }
         require_once FALUSS_LINK_DIR . 'includes/class-faluss-link-widgets.php';
-        $manager->register( new Faluss_Link_Card_Widget() ); $manager->register( new Faluss_Link_Appearance_Widget() ); $manager->register( new Faluss_Link_Studio_Widget() ); $manager->register( new Faluss_Link_Daily_Reward_Widget() );
+        $manager->register( new Faluss_Link_Card_Widget() ); $manager->register( new Faluss_Link_Appearance_Widget() ); $manager->register( new Faluss_Link_Studio_Widget() ); $manager->register( new Faluss_Link_Daily_Reward_Widget() ); $manager->register( new Faluss_Link_Discoveries_Widget() );
     }
 
     public static function socials( $value ) {
@@ -737,12 +830,132 @@ final class Faluss_Link {
         return true;
     }
 
+    /** Record only a server-resolved public profile for the active local member. */
+    private static function record_discovery_for_current_visitor( $discovered_faluss_id ) {
+        $viewer = self::current_faluss_id();
+        if ( ! self::valid_faluss_id( $viewer ) || ! self::valid_faluss_id( $discovered_faluss_id ) || hash_equals( $viewer, (string) $discovered_faluss_id ) || ! self::discovery_recording_enabled( $viewer ) ) {
+            return false;
+        }
+        global $wpdb;
+        $table = Faluss_Link_Schema::discoveries_table();
+        if ( '' === $table || false === $wpdb->query( 'START TRANSACTION' ) ) { return false; }
+        $now = current_time( 'mysql', true );
+        try {
+            $saved = $wpdb->query( $wpdb->prepare(
+                'INSERT INTO ' . $table . ' (viewer_faluss_id,discovered_faluss_id,first_seen_at,last_seen_at,view_count) VALUES (%s,%s,%s,%s,%d) ON DUPLICATE KEY UPDATE last_seen_at=VALUES(last_seen_at),view_count=view_count+1',
+                $viewer, $discovered_faluss_id, $now, $now, 1
+            ) );
+            if ( false === $saved || false === $wpdb->query( $wpdb->prepare(
+                'DELETE FROM ' . $table . ' WHERE viewer_faluss_id=%s AND id NOT IN (SELECT retained.id FROM (SELECT id FROM ' . $table . ' WHERE viewer_faluss_id=%s ORDER BY last_seen_at DESC,id DESC LIMIT 250) AS retained)',
+                $viewer, $viewer
+            ) ) ) { $wpdb->query( 'ROLLBACK' ); return false; }
+            if ( false === $wpdb->query( 'COMMIT' ) ) { $wpdb->query( 'ROLLBACK' ); return false; }
+            return true;
+        } catch ( Throwable $exception ) { $wpdb->query( 'ROLLBACK' ); return false; }
+    }
+
+    /** No setting row means enabled: discovery is active by default. */
+    private static function discovery_recording_enabled( $viewer ) {
+        global $wpdb;
+        $table = Faluss_Link_Schema::discovery_settings_table();
+        if ( '' === $table || ! self::valid_faluss_id( $viewer ) ) { return false; }
+        $enabled = $wpdb->get_var( $wpdb->prepare( 'SELECT recording_enabled FROM ' . $table . ' WHERE viewer_faluss_id=%s', $viewer ) );
+        return null === $enabled ? true : 1 === (int) $enabled;
+    }
+
+    private static function set_discovery_recording_enabled( $viewer, $enabled ) {
+        global $wpdb;
+        $table = Faluss_Link_Schema::discovery_settings_table();
+        if ( '' === $table || ! self::valid_faluss_id( $viewer ) ) { return false; }
+        return false !== $wpdb->query( $wpdb->prepare(
+            'INSERT INTO ' . $table . ' (viewer_faluss_id,recording_enabled,updated_at) VALUES (%s,%d,%s) ON DUPLICATE KEY UPDATE recording_enabled=VALUES(recording_enabled),updated_at=VALUES(updated_at)',
+            $viewer, $enabled ? 1 : 0, current_time( 'mysql', true )
+        ) );
+    }
+
+    /** The public Identity table is read only, and unpublished rows are omitted. */
+    private static function discoveries_for_viewer( $viewer, $limit, $offset = 0 ) {
+        global $wpdb;
+        $discoveries = Faluss_Link_Schema::discoveries_table();
+        if ( '' === $discoveries || ! self::valid_faluss_id( $viewer ) || ! class_exists( 'Faluss_Identity_Schema' ) ) { return array(); }
+        $profiles = Faluss_Identity_Schema::get_public_profiles_table();
+        if ( ! is_string( $profiles ) || '' === $profiles ) { return array(); }
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            'SELECT d.id,d.last_seen_at,p.public_slug,p.display_name,p.avatar_attachment_id FROM ' . $discoveries . ' d INNER JOIN ' . $profiles . ' p ON p.faluss_id=d.discovered_faluss_id WHERE d.viewer_faluss_id=%s AND p.publication_status=%s ORDER BY d.last_seen_at DESC,d.id DESC LIMIT %d OFFSET %d',
+            $viewer, 'published', min( 250, max( 1, absint( $limit ) ) ), max( 0, absint( $offset ) )
+        ), ARRAY_A );
+        $out = array();
+        foreach ( (array) $rows as $row ) {
+            if ( ! is_array( $row ) || ! absint( $row['id'] ?? 0 ) || '' === sanitize_title( $row['public_slug'] ?? '' ) ) { continue; }
+            $out[] = array(
+                'id' => absint( $row['id'] ),
+                'last_seen_at' => (string) $row['last_seen_at'],
+                'public_slug' => sanitize_title( $row['public_slug'] ),
+                'display_name' => sanitize_text_field( $row['display_name'] ?? '' ),
+                'avatar_attachment_id' => absint( $row['avatar_attachment_id'] ?? 0 ),
+            );
+        }
+        return $out;
+    }
+
+    private static function discoveries_count_for_viewer( $viewer ) {
+        global $wpdb;
+        $discoveries = Faluss_Link_Schema::discoveries_table();
+        if ( '' === $discoveries || ! self::valid_faluss_id( $viewer ) || ! class_exists( 'Faluss_Identity_Schema' ) ) { return 0; }
+        $profiles = Faluss_Identity_Schema::get_public_profiles_table();
+        if ( ! is_string( $profiles ) || '' === $profiles ) { return 0; }
+        return max( 0, (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . $discoveries . ' d INNER JOIN ' . $profiles . ' p ON p.faluss_id=d.discovered_faluss_id WHERE d.viewer_faluss_id=%s AND p.publication_status=%s', $viewer, 'published' ) ) );
+    }
+
+    private static function discoveries_page_url( $page ) {
+        $request = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
+        $parts = is_string( $request ) ? wp_parse_url( $request ) : array();
+        $path = is_array( $parts ) && isset( $parts['path'] ) ? $parts['path'] : '/';
+        $query = array();
+        if ( is_array( $parts ) && ! empty( $parts['query'] ) ) { parse_str( $parts['query'], $query ); }
+        $query['faluss_discoveries_page'] = max( 1, absint( $page ) );
+        return add_query_arg( $query, home_url( $path ) );
+    }
+
+    private static function delete_discovery_for_viewer( $viewer, $id ) {
+        global $wpdb;
+        return 0 < (int) $wpdb->delete( Faluss_Link_Schema::discoveries_table(), array( 'id' => absint( $id ), 'viewer_faluss_id' => $viewer ), array( '%d', '%s' ) );
+    }
+
+    private static function clear_discoveries_for_viewer( $viewer ) {
+        global $wpdb;
+        return false !== $wpdb->delete( Faluss_Link_Schema::discoveries_table(), array( 'viewer_faluss_id' => $viewer ), array( '%s' ) );
+    }
+
+    private static function discovery_datetime( $value ) {
+        $timestamp = strtotime( (string) $value . ' UTC' );
+        return $timestamp ? gmdate( DATE_ATOM, $timestamp ) : '';
+    }
+
+    private static function discovery_last_seen_label( $value ) {
+        $timestamp = strtotime( (string) $value . ' UTC' );
+        if ( ! $timestamp ) { return __( 'Découverte récente', 'faluss-link' ); }
+        $date = function_exists( 'wp_date' ) ? wp_date( get_option( 'date_format' ), $timestamp ) : gmdate( 'Y-m-d', $timestamp );
+        return sprintf( __( 'Découvert le %s', 'faluss-link' ), $date );
+    }
+
+    private static function discoveries_assets() {
+        if ( ! wp_style_is( self::DISCOVERIES_STYLE, 'registered' ) ) { self::assets(); }
+        wp_enqueue_style( self::DISCOVERIES_STYLE );
+    }
+
+    private static function valid_faluss_id( $value ) {
+        return 1 === preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', (string) $value );
+    }
+
     private static function valid_prefs( $faluss_id ) { $preferences = self::prefs( $faluss_id ); if ( (int) $preferences['cover_attachment_id'] && ! self::owned_image( (int) $preferences['cover_attachment_id'], get_current_user_id() ) ) { $preferences['cover_attachment_id'] = 0; } return $preferences; }
     private static function current_faluss_id() { return is_user_logged_in() && self::identity_ready() ? (string) Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() ) : ''; }
     private static function verify( $field, $action ) { return is_user_logged_in() && isset( $_POST[ $field ] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ $field ] ) ), $action ); }
     private static function studio_tab( $value ) { $value = sanitize_key( (string) wp_unslash( $value ) ); return in_array( $value, array( 'profile', 'links', 'style' ), true ) ? $value : 'profile'; }
     private static function redirect( $key, $notice, $studio_tab = '' ) { $url = wp_validate_redirect( wp_get_referer(), home_url( '/' ) ); $args = array( $key => $notice ); if ( '' !== $studio_tab ) { $args['faluss_studio_tab'] = self::studio_tab( $studio_tab ); } wp_safe_redirect( add_query_arg( $args, $url ) ); exit; }
     private static function notice( $key ) { $value = isset( $_GET[ $key ] ) ? sanitize_key( wp_unslash( $_GET[ $key ] ) ) : ''; $messages = array( 'saved' => __( 'Studio enregistré.', 'faluss-link' ), 'taken' => __( 'Cet identifiant public n’est pas disponible.', 'faluss-link' ), 'invalid' => __( 'Nous ne pouvons pas enregistrer le Studio.', 'faluss-link' ) ); return isset( $messages[ $value ] ) ? '<p class="faluss-link-notice">' . esc_html( $messages[ $value ] ) . '</p>' : ''; }
+    private static function discovery_redirect( $notice ) { $url = wp_validate_redirect( wp_get_referer(), home_url( '/' ) ); wp_safe_redirect( add_query_arg( 'faluss_link_discoveries_notice', sanitize_key( $notice ), $url ) ); exit; }
+    private static function discovery_notice() { $value = isset( $_GET['faluss_link_discoveries_notice'] ) ? sanitize_key( wp_unslash( $_GET['faluss_link_discoveries_notice'] ) ) : ''; $messages = array( 'saved' => __( 'Préférences des découvertes enregistrées.', 'faluss-link' ), 'deleted' => __( 'Découverte retirée.', 'faluss-link' ), 'cleared' => __( 'Vos découvertes ont été effacées.', 'faluss-link' ), 'invalid' => __( 'Cette action n’a pas pu être effectuée.', 'faluss-link' ) ); return isset( $messages[ $value ] ) ? '<p class="faluss-link-notice">' . esc_html( $messages[ $value ] ) . '</p>' : ''; }
     private static function options( $options, $selected ) { foreach ( $options as $key => $label ) { ?><option value="<?php echo esc_attr( $key ); ?>" <?php selected( $selected, $key ); ?>><?php echo esc_html( $label ); ?></option><?php } }
     private static function align( $value ) { return in_array( $value, array( 'left', 'center', 'right' ), true ) ? $value : 'left'; }
     /** @param array<string,mixed> $state @param array<string,mixed> $attributes */
