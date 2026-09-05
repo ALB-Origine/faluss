@@ -7,7 +7,7 @@ $service = file_get_contents( $root . '/plugins/token-engine-connector/includes/
 $subject = file_get_contents( $root . '/plugins/token-engine-connector/includes/class-token-engine-connector-subject.php' );
 $admin = file_get_contents( $root . '/plugins/token-engine-connector/includes/class-token-engine-connector-admin.php' );
 
-foreach ( array( "const REST_SUFFIX = '/wp-json/token-engine/v1'", "'/wp-json'", 'str_ends_with', 'trailingslashit( self::configuration()[\'core_url\'] )', "'redirection' => 0", 'connector_core_redirect_rejected', 'connector_route_missing' ) as $needle ) {
+foreach ( array( "const REST_SUFFIX = '/wp-json/token-engine/v1'", "'#(?:^|/)wp-json/token-engine/v1$#'", 'trailingslashit( self::configuration()[\'core_url\'] )', "'redirection' => 0", 'connector_core_redirect_rejected', 'connector_route_missing' ) as $needle ) {
     tec011_assert( false !== strpos( $service, $needle ), 'TEC-01.1 must accept the exact HTTPS Core URL without redirects or double REST paths: ' . $needle );
 }
 foreach ( array( 'core_connection_test', 'connector_core_url_invalid', 'connector_core_inaccessible', 'connector_project_inactive', 'connector_client_rejected', 'connector_secret_rejected', 'connector_permission_wallet_read_missing', 'connector_token_rejected', 'diagnostic_id' ) as $needle ) {

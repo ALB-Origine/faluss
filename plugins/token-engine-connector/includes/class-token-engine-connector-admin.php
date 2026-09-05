@@ -44,15 +44,22 @@ final class Token_Engine_Connector_Admin {
             'code' => is_wp_error( $connection ) ? $connection->get_error_code() : 'connector_core_valid',
             'project_key' => is_array( $connection ) ? $connection['project_key'] : '',
             'permissions' => is_array( $connection ) ? $connection['permissions'] : array(),
+            'protocol_version' => is_array( $connection ) ? (string) ( $connection['protocol_version'] ?? '' ) : '',
+            'steps' => is_array( $connection ) && is_array( $connection['steps'] ?? null ) ? $connection['steps'] : array(),
+            'stage' => is_wp_error( $connection ) && is_array( $error_data ) ? (string) ( $error_data['stage'] ?? '' ) : '',
             'diagnostic_id' => $diagnostic_id,
         );
         set_transient( self::result_key( 'core' ), $result, MINUTE_IN_SECONDS );
+        if ( ! empty( $result['connected'] ) ) { set_transient( self::core_valid_key(), true, 5 * MINUTE_IN_SECONDS ); } else { delete_transient( self::core_valid_key() ); }
         self::redirect( 'diagnostic', ! empty( $result['connected'] ) ? 'test_ok' : 'test_failed' );
     }
 
     /** Faluss Identity/profile diagnostic is separate from any remote Core call. */
     public static function test_subject() {
         self::guard( 'token_engine_connector_test_subject' );
+        if ( ! get_transient( self::core_valid_key() ) ) {
+            self::redirect( 'diagnostic', 'subject_core_required' );
+        }
         $subject = Token_Engine_Connector_Service::faluss_subject_diagnostic();
         $subject['diagnostic_id'] = wp_generate_uuid4();
         set_transient( self::result_key( 'subject' ), $subject, MINUTE_IN_SECONDS );
@@ -67,13 +74,14 @@ final class Token_Engine_Connector_Admin {
     private static function diagnostic_page() {
         $core = self::take_result( 'core' );
         $subject = self::take_result( 'subject' );
-        ?><h2>Diagnostic</h2><p>Les deux contrôles sont séparés. Aucun secret, jeton, en-tête d’autorisation ni réponse distante brute n’est affiché.</p><section class="token-engine-connector-admin__diagnostic-section" aria-labelledby="token-engine-connector-core-title"><h3 id="token-engine-connector-core-title">Connexion au Core</h3><p>Valide l’URL HTTPS, l’absence de redirection, la route, le projet actif, le client, le secret, <code>wallet.read</code> et le jeton court. Ce contrôle ne dépend pas d’une session Faluss, d’un profil ou d’un solde.</p><?php self::core_result( $core ); ?><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="token_engine_connector_test_core"><?php wp_nonce_field( 'token_engine_connector_test_core', 'token_engine_connector_nonce' ); ?><?php submit_button( 'Tester la connexion au Core', 'secondary' ); ?></form></section><section class="token-engine-connector-admin__diagnostic-section" aria-labelledby="token-engine-connector-subject-title"><h3 id="token-engine-connector-subject-title">Diagnostic Sujet Faluss</h3><p>À exécuter après une connexion Core valide. Il vérifie seulement l’adaptateur Identity, le profil actif de l’utilisateur WordPress courant et la disponibilité d’un sujet, sans afficher le Faluss ID.</p><?php self::subject_result( $subject ); ?><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="token_engine_connector_test_subject"><?php wp_nonce_field( 'token_engine_connector_test_subject', 'token_engine_connector_nonce' ); ?><?php submit_button( 'Diagnostiquer le sujet Faluss', 'secondary' ); ?></form></section><?php
+        $core_valid = (bool) get_transient( self::core_valid_key() );
+        ?><h2>Diagnostic</h2><p>Les deux contrôles sont séparés. Aucun secret, jeton, en-tête d’autorisation ni réponse distante brute n’est affiché.</p><section class="token-engine-connector-admin__diagnostic-section" aria-labelledby="token-engine-connector-core-title"><h3 id="token-engine-connector-core-title">Connexion au Core</h3><p>Valide l’URL REST, la route, l’identité et la version du Core, puis le client, le secret, <code>wallet.read</code> et le jeton court. Ce contrôle ne dépend pas d’une session Faluss, d’un profil ou d’un solde.</p><?php self::core_result( $core ); ?><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="token_engine_connector_test_core"><?php wp_nonce_field( 'token_engine_connector_test_core', 'token_engine_connector_nonce' ); ?><?php submit_button( 'Tester la connexion au Core', 'secondary' ); ?></form></section><section class="token-engine-connector-admin__diagnostic-section" aria-labelledby="token-engine-connector-subject-title"><h3 id="token-engine-connector-subject-title">Diagnostic Sujet Faluss</h3><p>Disponible seulement après une connexion Core valide. Il vérifie l’adaptateur Identity, le profil actif de l’utilisateur WordPress courant et la disponibilité d’un sujet, sans afficher le Faluss ID.</p><?php self::subject_result( $subject ); ?><?php if ( $core_valid ) : ?><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="token_engine_connector_test_subject"><?php wp_nonce_field( 'token_engine_connector_test_subject', 'token_engine_connector_nonce' ); ?><?php submit_button( 'Diagnostiquer le sujet Faluss', 'secondary' ); ?></form><?php else : ?><p class="description">Validez d’abord la connexion au Core.</p><?php endif; ?></section><?php
     }
 
     private static function core_result( $result ) {
         if ( ! is_array( $result ) ) { return; }
         $success = ! empty( $result['connected'] );
-        ?><div class="notice <?php echo $success ? 'notice-success' : 'notice-error'; ?>"><p><?php echo esc_html( self::core_message( $result['code'] ?? '' ) ); ?><?php if ( $success && ! empty( $result['project_key'] ) ) : ?> <?php echo esc_html( 'Projet : ' . $result['project_key'] . '.' ); ?><?php endif; ?></p><?php if ( ! empty( $result['diagnostic_id'] ) ) : ?><p class="description">ID de diagnostic : <code><?php echo esc_html( $result['diagnostic_id'] ); ?></code></p><?php endif; ?></div><?php
+        ?><div class="notice <?php echo $success ? 'notice-success' : 'notice-error'; ?>"><p><?php echo esc_html( self::core_message( $result['code'] ?? '' ) ); ?><?php if ( $success && ! empty( $result['project_key'] ) ) : ?> <?php echo esc_html( 'Projet : ' . $result['project_key'] . '.' ); ?><?php endif; ?></p><?php if ( $success ) : ?><ol class="token-engine-connector-admin__steps"><?php foreach ( self::step_labels() as $key => $label ) : ?><li><?php echo esc_html( $label . ' : ' . ( $result['steps'][ $key ] ?? 'non validée' ) ); ?></li><?php endforeach; ?></ol><?php elseif ( ! empty( $result['stage'] ) ) : ?><p class="description">Étape bloquante : <?php echo esc_html( self::step_labels()[ $result['stage'] ] ?? $result['stage'] ); ?></p><?php endif; ?><?php if ( ! empty( $result['diagnostic_id'] ) ) : ?><p class="description">ID de diagnostic : <code><?php echo esc_html( $result['diagnostic_id'] ); ?></code></p><?php endif; ?></div><?php
     }
 
     private static function subject_result( $result ) {
@@ -88,6 +96,8 @@ final class Token_Engine_Connector_Admin {
             'connector_core_inaccessible' => 'Core inaccessible.',
             'connector_core_redirect_rejected' => 'Redirection inattendue refusée.',
             'connector_route_missing' => 'Route Token Engine introuvable.',
+            'connector_core_unidentified' => 'Le serveur distant n’est pas le Core Token Engine attendu.',
+            'connector_protocol_incompatible' => 'Version de protocole Core/Connector incompatible.',
             'connector_project_invalid' => 'Clé projet locale invalide.',
             'connector_project_rejected' => 'Projet du Core absent ou différent.',
             'connector_project_inactive' => 'Projet du Core inactif.',
@@ -106,11 +116,13 @@ final class Token_Engine_Connector_Admin {
     }
 
     private static function take_result( $kind ) { $result = get_transient( self::result_key( $kind ) ); if ( is_array( $result ) ) { delete_transient( self::result_key( $kind ) ); return $result; } return null; }
+    private static function step_labels() { return array( 'url' => 'URL REST', 'route' => 'Route Core', 'core' => 'Core Token Engine', 'protocol' => 'Protocole', 'credentials' => 'Credentials', 'permission' => 'Permission wallet.read', 'token' => 'Jeton court' ); }
     private static function guard( $action ) { if ( ! current_user_can( self::CAPABILITY ) || ! isset( $_POST['token_engine_connector_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['token_engine_connector_nonce'] ) ), $action ) ) { wp_die( 'Accès refusé.' ); } }
     private static function tabs() { return array( 'configuration' => 'Configuration', 'diagnostic' => 'Diagnostic' ); }
     private static function tab( $value ) { $value = sanitize_key( wp_unslash( $value ) ); return isset( self::tabs()[ $value ] ) ? $value : 'configuration'; }
     private static function url( $tab ) { return add_query_arg( array( 'page' => self::PAGE, 'tab' => $tab ), admin_url( 'admin.php' ) ); }
     private static function redirect( $tab, $notice ) { wp_safe_redirect( add_query_arg( 'token_engine_connector_notice', sanitize_key( $notice ), self::url( $tab ) ) ); exit; }
     private static function result_key( $kind ) { return 'token_engine_connector_' . sanitize_key( $kind ) . '_' . get_current_user_id(); }
-    private static function notice() { $notice = sanitize_key( wp_unslash( $_GET['token_engine_connector_notice'] ?? '' ) ); if ( 'saved' === $notice ) { echo '<div class="notice notice-success"><p>Configuration enregistrée.</p></div>'; return; } $messages = array( 'connector_secret_protection_unavailable' => 'Le stockage protégé du secret n’est pas disponible sur cette instance. La configuration n’a pas été enregistrée.', 'connector_secret_persistence_failed' => 'Le secret protégé ne peut pas être relu après enregistrement. La configuration précédente est conservée.', 'connector_secret_required' => 'Secret requis : collez le secret généré par le Core.', 'connector_core_url_invalid' => 'URL HTTPS du Core invalide.', 'connector_client_invalid' => 'Identifiant client invalide.', 'connector_project_invalid' => 'Clé projet invalide.' ); if ( isset( $messages[ $notice ] ) ) { echo '<div class="notice notice-error"><p>' . esc_html( $messages[ $notice ] ) . '</p></div>'; } elseif ( '' !== $notice && ! in_array( $notice, array( 'test_ok', 'test_failed', 'subject_tested' ), true ) ) { echo '<div class="notice notice-error"><p>La configuration ne peut pas être enregistrée.</p></div>'; } }
+    private static function core_valid_key() { return 'token_engine_connector_core_valid_' . get_current_user_id(); }
+    private static function notice() { $notice = sanitize_key( wp_unslash( $_GET['token_engine_connector_notice'] ?? '' ) ); if ( 'saved' === $notice ) { echo '<div class="notice notice-success"><p>Configuration enregistrée.</p></div>'; return; } $messages = array( 'connector_secret_protection_unavailable' => 'Le stockage protégé du secret n’est pas disponible sur cette instance. La configuration n’a pas été enregistrée.', 'connector_secret_persistence_failed' => 'Le secret protégé ne peut pas être relu après enregistrement. La configuration précédente est conservée.', 'connector_secret_required' => 'Secret requis : collez le secret généré par le Core.', 'connector_core_url_invalid' => 'URL REST HTTPS du Core invalide.', 'connector_client_invalid' => 'Identifiant client invalide.', 'connector_project_invalid' => 'Clé projet invalide.', 'subject_core_required' => 'Validez d’abord la connexion au Core.' ); if ( isset( $messages[ $notice ] ) ) { echo '<div class="notice notice-error"><p>' . esc_html( $messages[ $notice ] ) . '</p></div>'; } elseif ( '' !== $notice && ! in_array( $notice, array( 'test_ok', 'test_failed', 'subject_tested' ), true ) ) { echo '<div class="notice notice-error"><p>La configuration ne peut pas être enregistrée.</p></div>'; } }
 }

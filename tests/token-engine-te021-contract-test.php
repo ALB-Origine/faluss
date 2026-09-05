@@ -7,7 +7,7 @@ $access = file_get_contents( $root . '/plugins/token-engine/includes/class-token
 $admin = file_get_contents( $root . '/plugins/token-engine/includes/class-token-engine-admin.php' );
 $script = file_get_contents( $root . '/plugins/token-engine/assets/js/token-engine-admin.js' );
 
-foreach ( array( "rest_url( 'token-engine/v1' )", 'core_rest_url', 'token-engine-core-url-', 'data-copy-target', 'token-engine-copy', 'wallet.read accordée' ) as $needle ) {
+foreach ( array( "rest_url( 'token-engine/v1/' )", 'rest_base_url', 'token-engine-core-url-', 'data-copy-target', 'token-engine-copy', 'wallet.read accordée' ) as $needle ) {
     te021_assert( false !== strpos( $access . $admin, $needle ), 'TE-02.1 must expose the exact copyable Core REST URL and permission state: ' . $needle );
 }
 te021_assert( false !== strpos( $script, 'navigator.clipboard' ) && false !== strpos( $script, 'document.execCommand' ), 'TE-02.1 must provide a functional non-sensitive copy control.' );

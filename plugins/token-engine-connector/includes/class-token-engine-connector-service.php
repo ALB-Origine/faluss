@@ -4,10 +4,12 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-/** PHP-only connector facade: configuration, separately testable core access and remote read-only balance. */
+/** PHP-only connector facade: one strict Core REST contract plus remote read-only balance. */
 final class Token_Engine_Connector_Service {
     const OPTION = 'token_engine_connector_settings';
     const REST_SUFFIX = '/wp-json/token-engine/v1';
+    const PROTOCOL_VERSION = '1';
+    const CORE_ENGINE = 'token-engine';
 
     public static function configuration() {
         $stored = get_option( self::OPTION, array() );
@@ -62,8 +64,9 @@ final class Token_Engine_Connector_Service {
     public static function subject_diagnostic() { return Token_Engine_Connector_Subject::diagnostic(); }
     public static function faluss_subject_diagnostic() { return self::subject_diagnostic(); }
 
-    /** Tests only transport, credentials, project and permission. It never resolves a local subject. */
+    /** Tests only the strict REST contract, Core protocol and credentials. It never resolves a local subject. */
     public static function core_connection_test() {
+        if ( ! self::is_configured() ) { return self::error( self::configuration_error_code(), '', self::configuration_stage() ); }
         $token = self::access_token();
         if ( is_wp_error( $token ) ) { return $token; }
         $response = wp_safe_remote_get( self::endpoint( 'diagnostic' ), array(
@@ -72,16 +75,20 @@ final class Token_Engine_Connector_Service {
             'sslverify' => true,
             'headers' => array( 'Authorization' => 'Bearer ' . $token['access_token'] ),
         ) );
-        $data = self::response_data( $response );
+        $data = self::response_data( $response, 'route' );
         if ( is_wp_error( $data ) ) { return $data; }
-        if ( empty( $data['connected'] ) ) { return self::error( 'connector_core_rejected', self::diagnostic_from( $data, $token ) ); }
-        if ( self::configuration()['project_key'] !== self::project_key( $data['project_key'] ?? '' ) ) { return self::error( 'connector_project_rejected', self::diagnostic_from( $data, $token ) ); }
+        if ( self::CORE_ENGINE !== (string) ( $data['engine'] ?? '' ) ) { return self::error( 'connector_core_unidentified', self::diagnostic_from( $data, $token ), 'core' ); }
+        if ( self::PROTOCOL_VERSION !== (string) ( $data['protocol_version'] ?? '' ) ) { return self::error( 'connector_protocol_incompatible', self::diagnostic_from( $data, $token ), 'protocol' ); }
+        if ( empty( $data['connected'] ) ) { return self::error( 'connector_core_rejected', self::diagnostic_from( $data, $token ), 'core' ); }
+        if ( self::configuration()['project_key'] !== self::project_key( $data['project_key'] ?? '' ) ) { return self::error( 'connector_project_rejected', self::diagnostic_from( $data, $token ), 'credentials' ); }
         $permissions = self::permissions( $data['permissions'] ?? array() );
-        if ( ! in_array( 'wallet.read', $permissions, true ) ) { return self::error( 'connector_permission_wallet_read_missing', self::diagnostic_from( $data, $token ) ); }
+        if ( ! in_array( 'wallet.read', $permissions, true ) ) { return self::error( 'connector_permission_wallet_read_missing', self::diagnostic_from( $data, $token ), 'permission' ); }
         return array(
             'connected' => true,
             'project_key' => self::project_key( $data['project_key'] ?? '' ),
             'permissions' => $permissions,
+            'protocol_version' => self::PROTOCOL_VERSION,
+            'steps' => self::successful_steps(),
             'diagnostic_id' => self::diagnostic_from( $data, $token ),
         );
     }
@@ -101,64 +108,69 @@ final class Token_Engine_Connector_Service {
             'headers' => array( 'Authorization' => 'Bearer ' . $token['access_token'] ),
             'body' => array( 'subject_id' => $subject ),
         ) );
-        $data = self::response_data( $response );
-        if ( is_wp_error( $data ) || ! isset( $data['balance'] ) || self::configuration()['project_key'] !== self::project_key( $data['project_key'] ?? '' ) ) { return self::error( 'connector_balance_unavailable', is_array( $data ) ? self::diagnostic_from( $data, $token ) : '' ); }
+        $data = self::response_data( $response, 'route' );
+        if ( is_wp_error( $data ) || ! isset( $data['balance'] ) || self::configuration()['project_key'] !== self::project_key( $data['project_key'] ?? '' ) ) { return self::error( 'connector_balance_unavailable', is_array( $data ) ? self::diagnostic_from( $data, $token ) : '', 'route' ); }
         return array( 'project_key' => self::project_key( $data['project_key'] ?? '' ), 'balance' => max( 0, (int) $data['balance'] ) );
     }
 
     private static function access_token() {
-        if ( ! self::is_configured() ) { return self::error( self::configuration_error_code() ); }
+        if ( ! self::is_configured() ) { return self::error( self::configuration_error_code(), '', self::configuration_stage() ); }
         $stored = get_option( self::OPTION, array() );
         $secret = Token_Engine_Connector_Crypto::decrypt( $stored['secret_protected'] ?? '' );
-        if ( is_wp_error( $secret ) ) { return self::error( 'connector_secret_unavailable' ); }
+        if ( is_wp_error( $secret ) ) { return self::error( 'connector_secret_unavailable', '', 'credentials' ); }
         $settings = self::configuration();
-        $response = wp_safe_remote_post( self::endpoint( 'access-token' ), array(
+        $response = wp_safe_remote_post( self::endpoint( 'token' ), array(
             'timeout' => 10,
             'redirection' => 0,
             'sslverify' => true,
             'body' => array( 'client_id' => $settings['client_id'], 'client_secret' => $secret ),
         ) );
-        $data = self::response_data( $response );
+        $data = self::response_data( $response, 'route' );
         if ( is_wp_error( $data ) ) { return $data; }
-        if ( ! is_string( $data['access_token'] ?? null ) || '' === $data['access_token'] ) { return self::error( 'connector_token_rejected', self::diagnostic_from( $data ) ); }
+        if ( self::PROTOCOL_VERSION !== (string) ( $data['protocol_version'] ?? '' ) ) { return self::error( 'connector_protocol_incompatible', self::diagnostic_from( $data ), 'protocol' ); }
+        if ( ! is_string( $data['access_token'] ?? null ) || '' === $data['access_token'] ) { return self::error( 'connector_token_rejected', self::diagnostic_from( $data ), 'token' ); }
         return array( 'access_token' => $data['access_token'], 'diagnostic_id' => self::diagnostic_from( $data ) );
     }
 
+    /** Builds child routes only from the saved canonical REST base. */
     private static function endpoint( $route ) {
-        return trailingslashit( self::configuration()['core_url'] ) . ltrim( $route, '/' );
+        $routes = array( 'token' => 'connector/token', 'diagnostic' => 'connector/diagnostic', 'balance' => 'connector/balance' );
+        return trailingslashit( self::configuration()['core_url'] ) . $routes[ $route ];
     }
 
     /** Parses only non-sensitive, expected error metadata; response bodies are never shown in admin. */
-    private static function response_data( $response ) {
-        if ( is_wp_error( $response ) ) { return self::error( 'connector_core_inaccessible' ); }
+    private static function response_data( $response, $default_stage ) {
+        if ( is_wp_error( $response ) ) { return self::error( 'connector_core_inaccessible', '', $default_stage ); }
         $status = (int) wp_remote_retrieve_response_code( $response );
-        if ( 300 <= $status && 399 >= $status ) { return self::error( 'connector_core_redirect_rejected' ); }
+        if ( 300 <= $status && 399 >= $status ) { return self::error( 'connector_core_redirect_rejected', '', $default_stage ); }
         $data = json_decode( wp_remote_retrieve_body( $response ), true );
-        if ( 404 === $status || ( is_array( $data ) && 'rest_no_route' === ( $data['code'] ?? '' ) ) ) { return self::error( 'connector_route_missing', self::diagnostic_from( $data ) ); }
+        if ( 404 === $status || ( is_array( $data ) && 'rest_no_route' === ( $data['code'] ?? '' ) ) ) { return self::error( 'connector_route_missing', self::diagnostic_from( $data ), 'route' ); }
         if ( 200 > $status || 299 < $status ) {
             $code = is_array( $data ) ? (string) ( $data['code'] ?? '' ) : '';
             $safe = array( 'https_required', 'connector_project_inactive', 'connector_client_rejected', 'connector_secret_rejected', 'connector_permission_wallet_read_missing', 'connector_token_rejected', 'connector_credentials_missing', 'schema_not_ready' );
-            return self::error( in_array( $code, $safe, true ) ? $code : 'connector_core_rejected', self::diagnostic_from( $data ) );
+            $code = in_array( $code, $safe, true ) ? $code : 'connector_core_rejected';
+            return self::error( $code, self::diagnostic_from( $data ), self::stage_for_code( $code, $default_stage ) );
         }
-        return is_array( $data ) ? $data : self::error( 'connector_core_invalid_response' );
+        return is_array( $data ) ? $data : self::error( 'connector_core_invalid_response', '', $default_stage );
     }
 
-    /** Accepts the exact copyable endpoint and keeps any valid WordPress subdirectory. */
+    /** Accepts only the copyable Core REST root, keeping its exact host and WordPress subdirectory. */
     private static function core_url( $value ) {
         $value = is_string( $value ) ? esc_url_raw( trim( wp_unslash( $value ) ) ) : '';
         $parts = wp_parse_url( $value );
         if ( ! is_array( $parts ) || 'https' !== strtolower( $parts['scheme'] ?? '' ) || empty( $parts['host'] ) || isset( $parts['user'] ) || isset( $parts['pass'] ) || isset( $parts['query'] ) || isset( $parts['fragment'] ) || ( isset( $parts['port'] ) && 443 !== (int) $parts['port'] ) ) { return ''; }
-        $value = rtrim( $value, '/' );
-        $suffix = self::REST_SUFFIX;
-        if ( str_ends_with( strtolower( $value ), $suffix ) ) { return $value . '/'; }
-        if ( str_ends_with( strtolower( $value ), '/wp-json' ) ) { return $value . '/token-engine/v1/'; }
-        return $value . $suffix . '/';
+        $path = rtrim( (string) ( $parts['path'] ?? '' ), '/' );
+        if ( 1 !== preg_match( '#(?:^|/)wp-json/token-engine/v1$#', $path ) ) { return ''; }
+        return rtrim( $value, '/' ) . '/';
     }
     private static function client_id( $value ) { $value = is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : ''; return 1 === preg_match( '/^tec_[A-Za-z0-9_-]{20,60}$/', $value ) ? $value : ''; }
     private static function project_key( $value ) { $value = is_string( $value ) ? strtolower( sanitize_text_field( wp_unslash( $value ) ) ) : ''; return 1 === preg_match( '/^[a-z0-9][a-z0-9_-]{1,63}$/', $value ) ? $value : ''; }
     private static function permissions( $permissions ) { return is_array( $permissions ) && in_array( 'wallet.read', $permissions, true ) ? array( 'wallet.read' ) : array(); }
+    private static function successful_steps() { return array( 'url' => 'valid', 'route' => 'reachable', 'core' => 'identified', 'protocol' => 'compatible', 'credentials' => 'accepted', 'permission' => 'wallet.read', 'token' => 'received' ); }
+    private static function stage_for_code( $code, $fallback ) { $stages = array( 'connector_client_rejected' => 'credentials', 'connector_secret_rejected' => 'credentials', 'connector_credentials_missing' => 'credentials', 'connector_project_inactive' => 'credentials', 'connector_permission_wallet_read_missing' => 'permission', 'connector_token_rejected' => 'token' ); return $stages[ $code ] ?? $fallback; }
     private static function diagnostic_from( $data, $fallback = array() ) { $id = is_array( $data ) ? (string) ( $data['diagnostic_id'] ?? ( $data['data']['diagnostic_id'] ?? '' ) ) : ''; if ( '' === $id && is_array( $fallback ) ) { $id = (string) ( $fallback['diagnostic_id'] ?? '' ); } return 1 === preg_match( '/^[a-f0-9-]{16,64}$/i', $id ) ? $id : wp_generate_uuid4(); }
     private static function secret_state( $stored ) { if ( ! is_array( $stored ) || ! is_string( $stored['secret_protected'] ?? null ) || '' === $stored['secret_protected'] ) { return 'required'; } $secret = Token_Engine_Connector_Crypto::decrypt( $stored['secret_protected'] ); return is_wp_error( $secret ) || ! is_string( $secret ) || '' === $secret ? 'required' : 'saved'; }
     private static function configuration_error_code() { $settings = self::configuration(); if ( '' === $settings['core_url'] ) { return 'connector_core_url_invalid'; } if ( '' === $settings['client_id'] ) { return 'connector_client_invalid'; } if ( '' === $settings['project_key'] ) { return 'connector_project_invalid'; } return 'connector_secret_required'; }
-    private static function error( $code, $diagnostic_id = '' ) { return new WP_Error( $code, __( 'Le connecteur ne peut pas terminer cette opération.', 'token-engine-connector' ), array( 'diagnostic_id' => '' !== $diagnostic_id ? $diagnostic_id : wp_generate_uuid4() ) ); }
+    private static function configuration_stage() { $code = self::configuration_error_code(); return 'connector_core_url_invalid' === $code ? 'url' : ( 'connector_secret_required' === $code ? 'credentials' : 'credentials' ); }
+    private static function error( $code, $diagnostic_id = '', $stage = '' ) { return new WP_Error( $code, __( 'Le connecteur ne peut pas terminer cette opération.', 'token-engine-connector' ), array( 'diagnostic_id' => '' !== $diagnostic_id ? $diagnostic_id : wp_generate_uuid4(), 'stage' => $stage ) ); }
 }

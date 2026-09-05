@@ -8,32 +8,48 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Token_Engine_Connector_Access {
     const PERMISSION_WALLET_READ = 'wallet.read';
     const TOKEN_TTL_SECONDS = 300;
+    const PROTOCOL_VERSION = '1';
 
     public static function boot() {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
     }
 
     public static function register_routes() {
-        register_rest_route( 'token-engine/v1', '/access-token', array(
-            'methods' => 'POST',
+        $contract = self::rest_contract();
+        register_rest_route( $contract['namespace'], $contract['routes']['token']['path'], array(
+            'methods' => $contract['routes']['token']['method'],
             'callback' => array( __CLASS__, 'access_token_response' ),
             'permission_callback' => array( __CLASS__, 'https_only' ),
         ) );
-        register_rest_route( 'token-engine/v1', '/diagnostic', array(
-            'methods' => 'GET',
+        register_rest_route( $contract['namespace'], $contract['routes']['diagnostic']['path'], array(
+            'methods' => $contract['routes']['diagnostic']['method'],
             'callback' => array( __CLASS__, 'diagnostic_response' ),
             'permission_callback' => array( __CLASS__, 'wallet_read_permission' ),
         ) );
-        register_rest_route( 'token-engine/v1', '/balance', array(
-            'methods' => 'POST',
+        register_rest_route( $contract['namespace'], $contract['routes']['balance']['path'], array(
+            'methods' => $contract['routes']['balance']['method'],
             'callback' => array( __CLASS__, 'balance_response' ),
             'permission_callback' => array( __CLASS__, 'wallet_read_permission' ),
         ) );
     }
 
+    /** One Core-owned REST contract for route registration, administration and integrations. */
+    public static function rest_contract() {
+        return array(
+            'base_url' => rest_url( 'token-engine/v1/' ),
+            'namespace' => 'token-engine/v1',
+            'protocol_version' => self::PROTOCOL_VERSION,
+            'routes' => array(
+                'token' => array( 'path' => '/connector/token', 'method' => 'POST' ),
+                'diagnostic' => array( 'path' => '/connector/diagnostic', 'method' => 'GET' ),
+                'balance' => array( 'path' => '/connector/balance', 'method' => 'POST' ),
+            ),
+        );
+    }
+
     /** The exact, copyable base endpoint for an external connector. */
-    public static function core_rest_url() {
-        return trailingslashit( rest_url( 'token-engine/v1' ) );
+    public static function rest_base_url() {
+        return self::rest_contract()['base_url'];
     }
 
     /** Generates a public client ID and one-time secret for an active project. */
@@ -167,7 +183,7 @@ final class Token_Engine_Connector_Access {
         if ( false === $inserted ) {
             return self::error( 'connector_token_failed', 500 );
         }
-        return array( 'access_token' => $token, 'token_type' => 'Bearer', 'expires_in' => self::TOKEN_TTL_SECONDS, 'permissions' => $permissions, 'diagnostic_id' => self::diagnostic_id() );
+        return array( 'access_token' => $token, 'token_type' => 'Bearer', 'expires_in' => self::TOKEN_TTL_SECONDS, 'permissions' => $permissions, 'protocol_version' => self::PROTOCOL_VERSION, 'diagnostic_id' => self::diagnostic_id() );
     }
 
     /** Returns the active project scoped by a valid bearer token and permission. */
@@ -211,7 +227,7 @@ final class Token_Engine_Connector_Access {
     public static function diagnostic_response( $request ) {
         $authorized = self::authorize( $request );
         if ( is_wp_error( $authorized ) ) { return $authorized; }
-        return rest_ensure_response( array( 'connected' => true, 'project_key' => $authorized['project_key'], 'permissions' => $authorized['permissions'], 'diagnostic_id' => self::diagnostic_id() ) );
+        return rest_ensure_response( array( 'engine' => 'token-engine', 'protocol_version' => self::PROTOCOL_VERSION, 'connected' => true, 'project_key' => $authorized['project_key'], 'permissions' => $authorized['permissions'], 'diagnostic_id' => self::diagnostic_id() ) );
     }
 
     public static function balance_response( $request ) {

@@ -11,7 +11,7 @@ $plugin = file_get_contents( $root . '/plugins/token-engine/token-engine.php' );
 foreach ( array( 'connector_client_id', 'connector_secret_hash', 'connector_secret_version', 'connector_permissions', 'connector_client_id_unique', 'token_engine_connector_tokens', 'token_hash_unique', 'token_project_expires', 'migrate_v1_to_v2', "const VERSION = '2'", "const LEGACY_VERSION = '1'", 'ALTER TABLE' ) as $needle ) {
     te02_assert( false !== strpos( $schema, $needle ), 'TE-02 requires the additive connector schema invariant: ' . $needle );
 }
-foreach ( array( 'wp_hash_password', 'wp_check_password', 'random_bytes', 'TOKEN_TTL_SECONDS = 300', 'secret_version', 'hash_equals', "'wallet.read'", 'connector_project_inactive', 'is_ssl()', 'nocache_headers', 'Bearer ', 'token-engine/v1', '/access-token', '/diagnostic', '/balance' ) as $needle ) {
+foreach ( array( 'wp_hash_password', 'wp_check_password', 'random_bytes', 'TOKEN_TTL_SECONDS = 300', 'secret_version', 'hash_equals', "'wallet.read'", 'connector_project_inactive', 'is_ssl()', 'nocache_headers', 'Bearer ', 'token-engine/v1', '/connector/token', '/connector/diagnostic', '/connector/balance' ) as $needle ) {
     te02_assert( false !== strpos( $access, $needle ), 'TE-02 connector access invariant is missing: ' . $needle );
 }
 te02_assert( 3 === substr_count( $access, 'register_rest_route' ), 'TE-02 exposes exactly the three private, versioned connector routes.' );
