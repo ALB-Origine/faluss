@@ -7,7 +7,7 @@ faluss.me
   └── Faluss Identity (autorité d'identité) + profil public
 
 faluss.com
-  └── Faluss Hub (compte, facturation et vues transverses)
+  └── Faluss Hub (compte, facturation et vues transverses) + Token Engine (ledger économique central)
 
 pro.faluss.com
   └── Altlab Platform + Faluss Identity Client
@@ -42,6 +42,6 @@ Faluss Hub agrège ultérieurement des états minimaux, par exemple « Pro activ
 
 Faluss Identity ne porte ni abonnement, ni portefeuille ALB ni cosmétique. Faluss.me consommera ultérieurement des droits d’abonnement et un inventaire cosmétique propres à sa carte publique ; les objets acquis avec ALB ou progression restent possédés, tandis que les avantages inclus à l’abonnement sont temporaires.
 
-## Économie Faluss future
+## Économie partagée
 
-Le futur moteur partagé **Faluss Economy** sera le seul détenteur du ledger, des règles d’attribution, de l’idempotence et du solde ALB pour `faluss.me`, `pro.faluss.com` et `date.faluss.com`. Les dérivés y enverront des événements métier validés ; Faluss Link rendra uniquement les droits déjà résolus et ne modifiera jamais une balance. Le contrat cible et la migration non exécutée sont documentés dans `ECONOMY_PROTOCOL.md` et `ECONOMY_MIGRATION.md`.
+Token Engine, installé une seule fois sur l’instance économique, est le détenteur générique du ledger, des règles, de l’idempotence et des projections de solde. Il reçoit un `subject_id` opaque ; un connecteur futur lui fournira le `faluss_id` sans répliquer l’identité. Les sites dérivés n’installeront pas le cœur : leurs connecteurs futurs enverront des événements validés. Faluss Link rendra uniquement des droits déjà résolus et ne modifiera jamais un ledger. Le contrat TE-01 est documenté dans `TOKEN_ENGINE.md` et sa frontière de connecteur dans `TOKEN_ENGINE_CONNECTOR.md`.

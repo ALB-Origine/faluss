@@ -32,6 +32,12 @@ Un conflit de liaison est bloquant : il ne doit jamais être résolu automatique
 |---|---|
 | `faluss_link_cards` | `faluss_id` unique, préférences visuelles, réseaux sociaux complémentaires et dates ; aucune donnée d’identité dupliquée |
 
-## Économie Faluss future
+## Token Engine
 
-EC-01 ne crée aucune table WordPress de balance, récompense ou entitlement. Le futur service partagé portera hors de Faluss Link une transaction immuable liée au `faluss_id`, son montant ALB, une clé d’idempotence, une référence source, un horodatage et la décision de règles correspondante.
+| Table | Clés / contenu |
+|---|---|
+| `token_engine_projects` | `project_key` unique et stable, nom, état, dates ; aucun projet système |
+| `token_engine_rules` | `rule_key` unique et stable, projet facultatif, portée, déclencheur, périodicité, cooldown, montant positif, état, dates ; aucune exécution automatique |
+| `token_engine_ledger` | UUID unique, `subject_id`, projet, règle facultative, sens, montant positif, clé d’idempotence unique, référence, métadonnées JSON bornées et date ; source unique de la projection de solde |
+
+La donnée `subject_id` reste générique. Le connecteur Faluss futur fournira un `faluss_id`, sans que cette table ne copie une identité, un e-mail ou des données métier.

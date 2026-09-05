@@ -35,3 +35,15 @@ Facturation centralisée, dashboard Faluss.com, personnalisation complète de fa
 ## EC-01 — Contrat d’économie préparatoire
 
 Documenter le moteur économique commun, la frontière Catalogue/Entitlements et une migration progressive depuis les règles Altlab observées, sans créer de ledger, de solde, de récompense ni de droit actif. Les prochains lots seront le moteur partagé, les entitlements, le daily reward Faluss Link puis les usages commerce et cosmétiques.
+
+## TE-01 — Token Engine Core
+
+Créer le cœur WordPress générique : configuration explicite d’unité, projets et règles administrables, ledger immuable, projections de solde et ajustements manuels idempotents. Il n’expose aucun endpoint, connecteur, wallet, récompense, paiement ou entitlement.
+
+## TE-02 — Connecteur WordPress Faluss
+
+Définir le transport protégé entre une application et le cœur, avec authentification d’un sujet Faluss, autorisations et reprise idempotente. Aucun site consommateur ne devra écrire les tables du cœur.
+
+## TE-03 — Daily reward Faluss Link
+
+Présenter une récompense quotidienne uniquement après que TE-02 puisse demander sa décision au moteur commun. Faluss Link restera une surface et ne portera ni solde ni logique concurrente de récompense.
