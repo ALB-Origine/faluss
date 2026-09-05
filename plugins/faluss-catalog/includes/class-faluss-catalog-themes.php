@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Faluss_Catalog_Themes {
     const OPTION = 'faluss_catalog_card_themes';
     const VERSION_OPTION = 'faluss_catalog_version';
-    const VERSION = '1';
+    const VERSION = '2';
     const SYSTEM_SLUG = 'faluss-default';
     const LINK_SCOPE = 'faluss-link';
 
@@ -60,6 +60,7 @@ final class Faluss_Catalog_Themes {
             'alignment' => 'left',
             'social_variant' => 'outline',
             'link_style' => 'dark',
+            'entitlement_code' => '',
             'system' => true,
         );
     }
@@ -143,7 +144,7 @@ final class Faluss_Catalog_Themes {
         if ( self::SYSTEM_SLUG === $slug || ! isset( $themes[ $slug ] ) ) {
             self::redirect( 'invalid' );
         }
-        $theme = self::validated_input( $_POST, $slug );
+        $theme = self::validated_input( $_POST, $slug, self::entitlement_code( $themes[ $slug ]['entitlement_code'] ?? '' ) );
         if ( ! $theme ) {
             self::redirect( 'invalid' );
         }
@@ -215,6 +216,7 @@ final class Faluss_Catalog_Themes {
                 <label>Alignement<select name="alignment"><?php self::options( self::ALIGNMENTS, $theme['alignment'] ); ?></select></label>
                 <label>Réseaux<select name="social_variant"><?php self::options( self::SOCIAL_VARIANTS, $theme['social_variant'] ); ?></select></label>
                 <label>Boutons de liens<select name="link_style"><?php self::options( self::LINK_STYLES, $theme['link_style'] ); ?></select></label>
+                <?php self::entitlement_control( $theme, $create ); ?>
                 <label>Image de prévisualisation<input type="hidden" name="preview_attachment_id" value="<?php echo (int) $theme['preview_attachment_id']; ?>"><button type="button" class="button faluss-catalog-media-picker">Choisir une image</button></label>
                 <?php if ( (int) $theme['preview_attachment_id'] ) : ?><img class="faluss-catalog-theme__preview" src="<?php echo esc_url( wp_get_attachment_image_url( (int) $theme['preview_attachment_id'], 'medium' ) ); ?>" alt=""><?php else : ?><img class="faluss-catalog-theme__preview" hidden alt=""><?php endif; ?>
             </div>
@@ -274,11 +276,12 @@ final class Faluss_Catalog_Themes {
             'alignment' => self::enum( $stored['alignment'] ?? '', self::ALIGNMENTS, $fallback['alignment'] ),
             'social_variant' => self::enum( $stored['social_variant'] ?? '', self::SOCIAL_VARIANTS, $fallback['social_variant'] ),
             'link_style' => self::enum( $stored['link_style'] ?? '', self::LINK_STYLES, $fallback['link_style'] ),
+            'entitlement_code' => self::entitlement_code( $stored['entitlement_code'] ?? '' ),
             'system' => false,
         );
     }
 
-    private static function validated_input( $post, $slug ) {
+    private static function validated_input( $post, $slug, $existing_entitlement = '' ) {
         $name = self::text( wp_unslash( $post['name'] ?? '' ), 80 );
         $background = self::hex( wp_unslash( $post['page_background'] ?? '' ) );
         $hero = self::hex( wp_unslash( $post['hero_transition_color'] ?? '' ) );
@@ -286,7 +289,8 @@ final class Faluss_Catalog_Themes {
         $alignment = self::enum( wp_unslash( $post['alignment'] ?? '' ), self::ALIGNMENTS, '' );
         $socials = self::enum( wp_unslash( $post['social_variant'] ?? '' ), self::SOCIAL_VARIANTS, '' );
         $links = self::enum( wp_unslash( $post['link_style'] ?? '' ), self::LINK_STYLES, '' );
-        if ( '' === $name || ! $background || ! $hero || ! isset( self::NAME_COLORS[ $name_color ] ) || '' === $alignment || '' === $socials || '' === $links ) {
+        $entitlement = self::validated_entitlement( $post['entitlement_code'] ?? '', $existing_entitlement );
+        if ( '' === $name || ! $background || ! $hero || ! isset( self::NAME_COLORS[ $name_color ] ) || '' === $alignment || '' === $socials || '' === $links || false === $entitlement ) {
             return false;
         }
         return array(
@@ -302,8 +306,48 @@ final class Faluss_Catalog_Themes {
             'alignment' => $alignment,
             'social_variant' => $socials,
             'link_style' => $links,
+            'entitlement_code' => $entitlement,
             'system' => false,
         );
+    }
+
+    /** Only active theme definitions received through the Connector may be attached to a preset. */
+    private static function validated_entitlement( $value, $existing_entitlement ) {
+        $requested = self::entitlement_code( wp_unslash( $value ) );
+        $existing_entitlement = self::entitlement_code( $existing_entitlement );
+        if ( '' === $requested ) {
+            return '';
+        }
+        $definitions = self::connector_theme_entitlements();
+        if ( false === $definitions ) {
+            return $requested === $existing_entitlement ? $existing_entitlement : false;
+        }
+        return isset( $definitions[ $requested ] ) ? $requested : false;
+    }
+
+    /** @return array<string, array<string, string>>|false */
+    private static function connector_theme_entitlements() {
+        if ( ! class_exists( 'Token_Engine_Connector_Service' ) || ! method_exists( 'Token_Engine_Connector_Service', 'entitlement_definitions' ) ) {
+            return false;
+        }
+        $definitions = Token_Engine_Connector_Service::entitlement_definitions();
+        if ( is_wp_error( $definitions ) || ! is_array( $definitions ) ) {
+            return false;
+        }
+        $out = array();
+        foreach ( $definitions as $definition ) {
+            $code = self::entitlement_code( $definition['code'] ?? '' );
+            if ( '' !== $code && 'theme' === (string) ( $definition['type'] ?? '' ) ) {
+                $out[ $code ] = array( 'code' => $code, 'label' => self::text( $definition['label'] ?? '', 120 ) ?: $code );
+            }
+        }
+        return $out;
+    }
+
+    private static function entitlement_control( $theme, $create ) {
+        $current = self::entitlement_code( $theme['entitlement_code'] ?? '' );
+        $definitions = self::connector_theme_entitlements();
+        ?><label>Droit requis<?php if ( false === $definitions ) : ?><input type="hidden" name="entitlement_code" value="<?php echo esc_attr( $current ); ?>"><span class="description"><?php echo $current ? 'Le droit actuellement associé reste verrouillé tant que le Core est indisponible.' : 'Core/Connector indisponible : aucun nouveau droit ne peut être associé.'; ?></span><?php else : ?><select name="entitlement_code"><option value="">Inclus — aucun droit requis</option><?php foreach ( $definitions as $code => $definition ) : ?><option value="<?php echo esc_attr( $code ); ?>" <?php selected( $current, $code ); ?>><?php echo esc_html( $definition['label'] ); ?></option><?php endforeach; ?></select><span class="description">Les droits actifs de type thème sont lus depuis le Core. Aucun code libre n’est accepté.</span><?php endif; ?></label><?php
     }
 
     private static function unique_slug( $name, $themes ) {
@@ -345,6 +389,11 @@ final class Faluss_Catalog_Themes {
     private static function name_color( $value ) {
         $color = self::hex( $value );
         return isset( self::NAME_COLORS[ $color ] ) ? $color : '';
+    }
+
+    private static function entitlement_code( $value ) {
+        $code = is_string( $value ) ? strtolower( trim( $value ) ) : '';
+        return 1 === preg_match( '/^[a-z][a-z0-9_.-]{1,118}$/', $code ) ? $code : '';
     }
 
     private static function hex( $value ) {

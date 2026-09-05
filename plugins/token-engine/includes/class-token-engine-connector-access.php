@@ -8,6 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Token_Engine_Connector_Access {
     const PERMISSION_WALLET_READ = 'wallet.read';
     const PERMISSION_REWARD_CLAIM = 'reward.claim';
+    const PERMISSION_ENTITLEMENTS_READ = 'entitlements.read';
     const TOKEN_TTL_SECONDS = 300;
     const PROTOCOL_VERSION = '1';
 
@@ -52,6 +53,16 @@ final class Token_Engine_Connector_Access {
             'callback' => array( __CLASS__, 'daily_reward_claim_response' ),
             'permission_callback' => array( __CLASS__, 'wallet_read_permission' ),
         ) );
+        register_rest_route( $contract['namespace'], $contract['routes']['entitlement_definitions']['path'], array(
+            'methods' => $contract['routes']['entitlement_definitions']['method'],
+            'callback' => array( __CLASS__, 'entitlement_definitions_response' ),
+            'permission_callback' => array( __CLASS__, 'entitlements_read_permission' ),
+        ) );
+        register_rest_route( $contract['namespace'], $contract['routes']['entitlement']['path'], array(
+            'methods' => $contract['routes']['entitlement']['method'],
+            'callback' => array( __CLASS__, 'entitlement_response' ),
+            'permission_callback' => array( __CLASS__, 'entitlements_read_permission' ),
+        ) );
     }
 
     /** One Core-owned REST contract for route registration, administration and integrations. */
@@ -69,6 +80,8 @@ final class Token_Engine_Connector_Access {
                 'reward_diagnostic' => array( 'path' => '/connector/reward/diagnostic', 'method' => 'POST' ),
                 'reward_status' => array( 'path' => '/connector/reward/status', 'method' => 'POST' ),
                 'reward_claim' => array( 'path' => '/connector/reward/claim', 'method' => 'POST' ),
+                'entitlement_definitions' => array( 'path' => '/connector/entitlements/definitions', 'method' => 'GET' ),
+                'entitlement' => array( 'path' => '/connector/entitlement', 'method' => 'POST' ),
             ),
         );
     }
@@ -143,6 +156,20 @@ final class Token_Engine_Connector_Access {
             return self::error( 'connector_permission_update_failed' );
         }
         return array( 'project_key' => $project['project_key'], 'permissions' => $permissions );
+    }
+
+    /** Toggle only entitlement reading without silently changing wallet/reward permissions. */
+    public static function update_project_entitlements_permission( $project_id, $allowed ) {
+        $project = self::project_by_id( absint( $project_id ) );
+        if ( ! $project ) {
+            return self::error( 'connector_project_missing' );
+        }
+        $permissions = self::stored_permissions( $project['connector_permissions'] ?? '' );
+        $permissions = array_values( array_filter( $permissions, static function ( $permission ) { return self::PERMISSION_ENTITLEMENTS_READ !== $permission; } ) );
+        if ( $allowed ) {
+            $permissions[] = self::PERMISSION_ENTITLEMENTS_READ;
+        }
+        return self::update_project_permissions( $project_id, $permissions );
     }
 
     /** Non-sensitive state for the project administration screen. */
@@ -228,7 +255,7 @@ final class Token_Engine_Connector_Access {
         $permissions = self::stored_permissions( $entry['permissions'] );
         $project_permissions = self::stored_permissions( $entry['connector_permissions'] );
         if ( ! in_array( $permission, $permissions, true ) || ! in_array( $permission, $project_permissions, true ) ) {
-            return self::error( self::PERMISSION_REWARD_CLAIM === $permission ? 'connector_permission_reward_claim_missing' : 'connector_permission_wallet_read_missing' );
+            return self::error( self::permission_error_code( $permission ) );
         }
         return array( 'project_key' => $entry['project_key'], 'permissions' => $permissions, 'expires_at' => $entry['expires_at'] );
     }
@@ -253,6 +280,11 @@ final class Token_Engine_Connector_Access {
         return is_wp_error( $authorized ) ? $authorized : true;
     }
 
+    public static function entitlements_read_permission( $request ) {
+        $authorized = self::authorize( $request, self::PERMISSION_ENTITLEMENTS_READ );
+        return is_wp_error( $authorized ) ? $authorized : true;
+    }
+
     public static function diagnostic_response( $request ) {
         $authorized = self::authorize( $request );
         if ( is_wp_error( $authorized ) ) { return $authorized; }
@@ -265,6 +297,30 @@ final class Token_Engine_Connector_Access {
         $subject = self::subject_id( $request->get_param( 'subject_id' ) );
         if ( '' === $subject ) { return self::error( 'invalid_subject', 400 ); }
         return rest_ensure_response( array( 'project_key' => $authorized['project_key'], 'balance' => Token_Engine_Service::balance( $subject, $authorized['project_key'] ) ) );
+    }
+
+    /** Compatible definition metadata only: no member grant leaves the Core. */
+    public static function entitlement_definitions_response( $request ) {
+        $authorized = self::authorize( $request, self::PERMISSION_ENTITLEMENTS_READ );
+        if ( is_wp_error( $authorized ) ) { return $authorized; }
+        return rest_ensure_response( array(
+            'project_key' => $authorized['project_key'],
+            'definitions' => Token_Engine_Entitlements::active_definitions_for_project( $authorized['project_key'] ),
+        ) );
+    }
+
+    /** Targeted decision, called only from a trusted local Connector integration. */
+    public static function entitlement_response( $request ) {
+        $authorized = self::authorize( $request, self::PERMISSION_ENTITLEMENTS_READ );
+        if ( is_wp_error( $authorized ) ) { return $authorized; }
+        $subject = self::subject_id( $request->get_param( 'subject_id' ) );
+        $code = self::entitlement_code( $request->get_param( 'entitlement_code' ) );
+        if ( '' === $subject || '' === $code ) { return self::error( 'invalid_entitlement_request', 400 ); }
+        return rest_ensure_response( array(
+            'project_key' => $authorized['project_key'],
+            'entitlement_code' => $code,
+            'granted' => Token_Engine_Entitlements::subject_has_entitlement( $subject, $authorized['project_key'], $code ),
+        ) );
     }
 
     /** A safe public offer is still authenticated to the authorized Connector project. */
@@ -332,16 +388,22 @@ final class Token_Engine_Connector_Access {
     private static function random_value( $bytes ) { return rtrim( strtr( base64_encode( random_bytes( $bytes ) ), '+/', '-_' ), '=' ); }
     private static function valid_client_id( $value ) { return is_string( $value ) && 1 === preg_match( '/^tec_[A-Za-z0-9_-]{20,60}$/', $value ); }
     private static function subject_id( $value ) { $value = is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : ''; return function_exists( 'mb_substr' ) ? mb_substr( trim( $value ), 0, 191 ) : substr( trim( $value ), 0, 191 ); }
+    private static function entitlement_code( $value ) { $value = strtolower( is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : '' ); return 1 === preg_match( '/^[a-z0-9][a-z0-9_.-]{1,119}$/', $value ) ? $value : ''; }
     private static function has_reward_claim_permission( $authorized ) { return is_array( $authorized ) && in_array( self::PERMISSION_REWARD_CLAIM, (array) ( $authorized['permissions'] ?? array() ), true ); }
     private static function stored_permissions( $value ) { return self::normalise_permissions_allow_empty( is_array( $value ) ? $value : json_decode( (string) $value, true ) ); }
     private static function valid_permissions( $value ) { return self::stored_permissions( $value ); }
     private static function normalise_permissions_allow_empty( $permissions ) {
         $permissions = is_array( $permissions ) ? $permissions : array();
         $normalised = array();
-        foreach ( array( self::PERMISSION_WALLET_READ, self::PERMISSION_REWARD_CLAIM ) as $permission ) {
+        foreach ( array( self::PERMISSION_WALLET_READ, self::PERMISSION_REWARD_CLAIM, self::PERMISSION_ENTITLEMENTS_READ ) as $permission ) {
             if ( in_array( $permission, $permissions, true ) ) { $normalised[] = $permission; }
         }
         return $normalised;
+    }
+    private static function permission_error_code( $permission ) {
+        if ( self::PERMISSION_REWARD_CLAIM === $permission ) { return 'connector_permission_reward_claim_missing'; }
+        if ( self::PERMISSION_ENTITLEMENTS_READ === $permission ) { return 'connector_permission_entitlements_read_missing'; }
+        return 'connector_permission_wallet_read_missing';
     }
     /** @return array<string,mixed> */
     private static function daily_reward_payload( $result, $project_key ) {

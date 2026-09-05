@@ -58,7 +58,6 @@ final class Faluss_Link {
         wp_register_script( self::SCRIPT, plugins_url( 'assets/js/faluss-link-editor.js', FALUSS_LINK_FILE ), array( 'jquery', self::CARD_SCRIPT ), FALUSS_LINK_VERSION, true );
         wp_register_script( self::IMMERSIVE_SCRIPT, plugins_url( 'assets/js/faluss-link-immersive.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
         wp_register_script( self::REWARD_SCRIPT, plugins_url( 'assets/js/faluss-link-reward.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
-        wp_localize_script( self::SCRIPT, 'falussLinkCover', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_upload_cover' ), 'teaserNonce' => wp_create_nonce( 'faluss_link_upload_teaser' ), 'networks' => self::network_catalog_for_client(), 'themes' => self::catalog_themes_for_client() ) );
         wp_localize_script( self::REWARD_SCRIPT, 'falussLinkReward', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_daily_reward_claim' ) ) );
     }
 
@@ -201,7 +200,7 @@ final class Faluss_Link {
         self::editor_assets(); $profile = Faluss_Identity_Public_Profile::studio_profile( $faluss_id ); $preferences = self::valid_prefs( $faluss_id ); $blocks = self::content_blocks( $faluss_id, $profile['links'], true ); $active_tab = self::studio_tab( $_GET['faluss_studio_tab'] ?? 'profile' ); ob_start();
         ?>
         <section class="faluss-link-studio" data-faluss-studio-tab="<?php echo esc_attr( $active_tab ); ?>">
-            <header class="faluss-link-studio__header"><div class="faluss-link-studio__member"><?php if ( (int) $profile['avatar_attachment_id'] ) { echo wp_get_attachment_image( (int) $profile['avatar_attachment_id'], 'thumbnail', false, array( 'alt' => '' ) ); } ?><strong data-studio-member-name><?php echo esc_html( $profile['display_name'] ?: __( 'Mon Faluss', 'faluss-link' ) ); ?></strong><span data-studio-member-handle><?php echo '' === $profile['public_slug'] ? '@—' : '@' . esc_html( $profile['public_slug'] ); ?></span></div><?php if ( '' !== $profile['public_slug'] && 'published' === $profile['publication_status'] ) : ?><a href="<?php echo esc_url( home_url( '/' . $profile['public_slug'] ) ); ?>"><?php esc_html_e( 'Voir mon Faluss', 'faluss-link' ); ?></a><?php endif; ?></header>
+            <header class="faluss-link-studio__header"><div class="faluss-link-studio__member"><?php if ( (int) $profile['avatar_attachment_id'] ) { echo wp_get_attachment_image( (int) $profile['avatar_attachment_id'], 'thumbnail', false, array( 'alt' => '' ) ); } ?><strong data-studio-member-name><?php echo esc_html( $profile['display_name'] ?: __( 'Mon Faluss', 'faluss-link' ) ); ?></strong><span data-studio-member-handle><?php echo '' === $profile['public_slug'] ? '@—' : '@' . esc_html( $profile['public_slug'] ); ?></span></div><div class="faluss-link-studio__header-actions"><button class="faluss-link-studio__copy-id" type="button" data-faluss-id="<?php echo esc_attr( $faluss_id ); ?>"><?php esc_html_e( 'Copier mon identifiant Faluss', 'faluss-link' ); ?></button><span class="screen-reader-text" aria-live="polite"></span><?php if ( '' !== $profile['public_slug'] && 'published' === $profile['publication_status'] ) : ?><a href="<?php echo esc_url( home_url( '/' . $profile['public_slug'] ) ); ?>"><?php esc_html_e( 'Voir mon Faluss', 'faluss-link' ); ?></a><?php endif; ?></div></header>
             <form class="faluss-link-studio__form" method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                 <input type="hidden" name="action" value="faluss_link_save_studio"><input type="hidden" name="faluss_studio_tab" data-fl-active-tab value="<?php echo esc_attr( $active_tab ); ?>"><?php wp_nonce_field( 'faluss_link_save_studio', 'faluss_link_studio_nonce' ); ?><div class="faluss-link-studio__notice" role="status" aria-live="polite"><?php echo self::notice( 'faluss_studio_notice' ); ?></div>
                 <nav class="faluss-link-studio__tabs" role="tablist" aria-label="<?php esc_attr_e( 'Sections du Studio Faluss', 'faluss-link' ); ?>"><button id="faluss-studio-tab-profile" type="button" role="tab" aria-selected="<?php echo 'profile' === $active_tab ? 'true' : 'false'; ?>" aria-controls="faluss-studio-panel-profile" tabindex="<?php echo 'profile' === $active_tab ? '0' : '-1'; ?>" data-fl-tab="profile">Profil</button><button id="faluss-studio-tab-links" type="button" role="tab" aria-selected="<?php echo 'links' === $active_tab ? 'true' : 'false'; ?>" aria-controls="faluss-studio-panel-links" tabindex="<?php echo 'links' === $active_tab ? '0' : '-1'; ?>" data-fl-tab="links">Liens</button><button id="faluss-studio-tab-style" type="button" role="tab" aria-selected="<?php echo 'style' === $active_tab ? 'true' : 'false'; ?>" aria-controls="faluss-studio-panel-style" tabindex="<?php echo 'style' === $active_tab ? '0' : '-1'; ?>" data-fl-tab="style">Style</button></nav>
@@ -276,7 +275,7 @@ final class Faluss_Link {
         global $wpdb; $table = Faluss_Link_Schema::table(); if ( '' === $table ) { return false; }
         $pick = static function( $value, $allowed, $fallback ) { return in_array( $value, $allowed, true ) ? $value : $fallback; };
         $cover = max( 0, (int) ( $post['cover_attachment_id'] ?? 0 ) ); if ( $cover && ! self::owned_image( $cover, get_current_user_id() ) ) { $cover = 0; }
-        $old = self::prefs( $faluss_id );
+        $old = self::prefs( $faluss_id, false );
         $field = static function( $key, $fallback ) use ( $post ) { return array_key_exists( $key, $post ) ? wp_unslash( $post[ $key ] ) : $fallback; };
         $color_input = $field( 'hero_transition_color', $old['hero_transition_color'] );
         $background_input = $field( 'page_background', $old['page_background'] );
@@ -285,6 +284,7 @@ final class Faluss_Link {
         $name_color = self::name_color( $field( 'name_color', $old['name_color'] ) );
         $social_variant = self::social_variant( $field( 'social_variant', $old['social_variant'] ) );
         $theme_reference = self::theme_reference( $field( 'selected_theme', $old['theme_reference'] ) );
+        if ( $theme_reference !== self::theme_reference( $old['theme_reference'] ) && ! self::theme_available_to_subject( self::catalog_theme( $theme_reference ), $faluss_id ) ) { return false; }
         $theme_overrides = self::theme_overrides( $field( 'theme_overrides', $old['theme_overrides'] ) );
         $networks = array_key_exists( 'social_networks', $post ) || array_key_exists( 'social_links', $post ) ? self::socials( wp_unslash( $post['social_networks'] ?? $post['social_links'] ) ) : self::socials( $old['social_links'] );
         $payload = array( 'networks' => $networks, 'alignment' => $pick( $field( 'alignment', $old['alignment'] ), array( 'left', 'center' ), $old['alignment'] ), 'page_background' => $page_background ? $page_background : '#FFFDF5', 'hero_transition_color' => $color ? $color : '#FFFDF5', 'hero_transition_intensity' => min( 100, max( 0, (int) $field( 'hero_transition_intensity', $old['hero_transition_intensity'] ) ) ), 'hero_transition_position' => min( 100, max( 35, (int) $field( 'hero_transition_position', $old['hero_transition_position'] ) ) ), 'name_color' => $name_color, 'social_variant' => $social_variant, 'selected_theme' => $theme_reference, 'theme_overrides' => $theme_overrides );
@@ -345,9 +345,9 @@ final class Faluss_Link {
     }
 
     private static function theme_picker( $preferences ) {
-        $themes = self::catalog_themes( true );
+        $themes = self::catalog_themes_for_client( $preferences['faluss_id'] ?? '' );
         /* The editor always hydrates the same effective theme as the public card. */
-        $reference = self::theme_reference( $preferences['selected_theme'] ?? self::system_card_theme()['slug'] );
+        $reference = self::theme_reference( $preferences['theme_reference'] ?? self::system_card_theme()['slug'] );
         ?>
         <fieldset class="faluss-link-theme-picker">
             <legend><?php esc_html_e( 'Thèmes', 'faluss-link' ); ?></legend>
@@ -356,11 +356,12 @@ final class Faluss_Link {
             <input type="hidden" name="theme_overrides" value="<?php echo esc_attr( wp_json_encode( array_values( $preferences['theme_overrides'] ?? array() ) ) ); ?>">
             <div class="faluss-link-theme-picker__rail" aria-label="<?php esc_attr_e( 'Thèmes de carte disponibles', 'faluss-link' ); ?>">
                 <?php foreach ( $themes as $theme ) : ?>
-                    <?php $preview = (int) $theme['preview_attachment_id']; $selected = $reference === $theme['slug']; ?>
-                    <button class="faluss-link-theme-picker__theme" type="button" data-faluss-theme="<?php echo esc_attr( $theme['slug'] ); ?>" aria-pressed="<?php echo $selected ? 'true' : 'false'; ?>">
+                    <?php $preview = (int) $theme['preview_attachment_id']; $locked = ! empty( $theme['locked'] ); $selected = ! $locked && $reference === $theme['slug']; ?>
+                    <button class="faluss-link-theme-picker__theme<?php echo $locked ? ' is-locked' : ''; ?>" type="button" data-faluss-theme="<?php echo esc_attr( $theme['slug'] ); ?>" aria-pressed="<?php echo $selected ? 'true' : 'false'; ?>"<?php echo $locked ? ' disabled aria-disabled="true"' : ''; ?>>
                         <span class="faluss-link-theme-picker__image" style="--fl-theme-page:<?php echo esc_attr( $theme['page_background'] ); ?>;--fl-theme-hero:<?php echo esc_attr( $theme['hero_transition_color'] ); ?>;--fl-theme-name:<?php echo esc_attr( $theme['name_color'] ); ?>"><?php if ( $preview && wp_attachment_is_image( $preview ) ) { echo wp_get_attachment_image( $preview, 'medium', false, array( 'alt' => '' ) ); } else { ?><span aria-hidden="true"></span><?php } ?></span>
                         <span class="faluss-link-theme-picker__name"><?php echo esc_html( $theme['name'] ); ?></span>
                         <span class="faluss-link-theme-picker__selected"><?php esc_html_e( 'Sélectionné', 'faluss-link' ); ?></span>
+                        <?php if ( $locked ) : ?><span class="faluss-link-theme-picker__locked"><?php esc_html_e( 'Droit requis', 'faluss-link' ); ?></span><?php endif; ?>
                     </button>
                 <?php endforeach; ?>
             </div>
@@ -433,11 +434,16 @@ final class Faluss_Link {
         if ( ! is_array( $profile ) ) { return null; } $profile['links'] = json_decode( $profile['external_links'], true ); return $profile;
     }
 
-    private static function prefs( $faluss_id ) {
+    /**
+     * Hydrates the stored member preferences. The optional raw mode exists only
+     * for a same-owner save: public rendering always revalidates entitlement.
+     */
+    private static function prefs( $faluss_id, $resolve_entitlement = true ) {
         global $wpdb;
         $defaults = array( 'faluss_id' => '', 'cover_attachment_id' => 0, 'avatar_visible' => 1, 'name_weight' => 'bold', 'name_treatment' => 'strong', 'available' => 0, 'bio_mode' => 'editorial', 'announcement' => '', 'announcement_variant' => 'accent', 'social_links' => '[]', 'social_layout' => 'bubbles', 'link_style' => 'solid', 'alignment' => 'left', 'page_background' => '#FFFDF5', 'hero_transition_color' => '#FFFDF5', 'hero_transition_intensity' => 82, 'hero_transition_position' => 72, 'name_color' => '#000000', 'social_variant' => 'outline', 'theme_reference' => 'faluss-default', 'selected_theme' => 'faluss-default', 'theme_overrides' => array() );
         $row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . Faluss_Link_Schema::table() . ' WHERE faluss_id=%s', $faluss_id ), ARRAY_A );
         $preferences = is_array( $row ) ? array_merge( $defaults, $row ) : $defaults;
+        $preferences['faluss_id'] = (string) $faluss_id;
         $payload = json_decode( $preferences['social_links'], true );
         $legacy = is_array( $payload ) && ! array_key_exists( 'selected_theme', $payload );
         if ( is_array( $payload ) ) {
@@ -451,7 +457,7 @@ final class Faluss_Link {
             $preferences['theme_reference'] = self::theme_reference( $payload['selected_theme'] ?? self::system_card_theme()['slug'] );
             $preferences['theme_overrides'] = $legacy ? self::theme_setting_keys() : self::theme_overrides( $payload['theme_overrides'] ?? array() );
         }
-        return self::resolve_card_presentation( $preferences );
+        return $resolve_entitlement ? self::resolve_card_presentation( $preferences, true ) : $preferences;
     }
 
     private static function name_color( $value ) {
@@ -463,13 +469,13 @@ final class Faluss_Link {
 
     /** Compatibility adapter: the public name still reads the single presentation resolver. */
     private static function resolve_card_styles( $preferences ) {
-        $presentation = self::resolve_card_presentation( $preferences );
+        $presentation = self::resolve_card_presentation( $preferences, true );
         return array( 'name_color' => $presentation['name_color'] );
     }
 
     /** The Link-owned fallback keeps cards working while the optional catalogue is absent. */
     private static function system_card_theme() {
-        return array( 'name' => 'Faluss par défaut', 'slug' => 'faluss-default', 'active' => 1, 'preview_attachment_id' => 0, 'scope' => 'faluss-link', 'page_background' => '#FFFDF5', 'hero_transition_color' => '#FFFDF5', 'name_color' => '#000000', 'alignment' => 'left', 'social_variant' => 'outline', 'link_style' => 'solid', 'system' => true );
+        return array( 'name' => 'Faluss par défaut', 'slug' => 'faluss-default', 'active' => 1, 'preview_attachment_id' => 0, 'scope' => 'faluss-link', 'page_background' => '#FFFDF5', 'hero_transition_color' => '#FFFDF5', 'name_color' => '#000000', 'alignment' => 'left', 'social_variant' => 'outline', 'link_style' => 'solid', 'entitlement_code' => '', 'system' => true );
     }
 
     private static function theme_setting_keys() { return array( 'page_background', 'hero_transition_color', 'name_color', 'alignment', 'social_variant', 'link_style' ); }
@@ -499,14 +505,27 @@ final class Faluss_Link {
      * Single effective presentation resolver for storage hydration, Studio and
      * public cards. Elementor's explicit CSS stays a final local CSS layer.
      */
-    private static function resolve_card_presentation( $preferences ) {
+    private static function resolve_card_presentation( $preferences, $enforce_entitlement = true ) {
         $reference = self::theme_reference( $preferences['theme_reference'] ?? $preferences['selected_theme'] ?? '' );
-        $theme = self::catalog_theme( $reference ) ?: self::system_card_theme();
+        $catalog_theme = self::catalog_theme( $reference );
+        $theme = $catalog_theme ?: self::system_card_theme();
+        /* Existing inactive/deleted presets retain FL-15's durable default fallback. */
+        if ( ! $catalog_theme ) {
+            $reference = self::system_card_theme()['slug'];
+        }
+        $locked = $enforce_entitlement && ! self::theme_available_to_subject( $theme, $preferences['faluss_id'] ?? '' );
+        if ( $locked ) {
+            $theme = self::system_card_theme();
+        }
         $effective_theme = self::theme_reference( $theme['slug'] ?? self::system_card_theme()['slug'] );
         $overrides = self::theme_overrides( $preferences['theme_overrides'] ?? array() );
+        if ( $locked ) {
+            $overrides = array();
+        }
         $member_values = $preferences;
-        $preferences['theme_reference'] = $effective_theme;
+        $preferences['theme_reference'] = $reference;
         $preferences['selected_theme'] = $effective_theme;
+        $preferences['theme_locked'] = $locked ? 1 : 0;
         $preferences['theme_overrides'] = $overrides;
         foreach ( self::theme_setting_keys() as $key ) {
             if ( ! in_array( $key, $overrides, true ) && isset( $theme[ $key ] ) ) {
@@ -554,16 +573,37 @@ final class Faluss_Link {
         if ( ! is_array( $theme ) || 'faluss-link' !== ( $theme['scope'] ?? '' ) ) { return false; }
         $slug = self::theme_reference( $theme['slug'] ?? '' );
         if ( 'faluss-default' !== $slug && ! preg_match( '/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $slug ) ) { return false; }
-        return array( 'name' => sanitize_text_field( $theme['name'] ?? '' ) ?: 'Faluss par défaut', 'slug' => $slug, 'active' => empty( $theme['active'] ) ? 0 : 1, 'preview_attachment_id' => absint( $theme['preview_attachment_id'] ?? 0 ), 'scope' => 'faluss-link', 'page_background' => self::valid_hex( $theme['page_background'] ?? '' ) ?: '#FFFDF5', 'hero_transition_color' => self::valid_hex( $theme['hero_transition_color'] ?? '' ) ?: '#FFFDF5', 'name_color' => self::name_color( $theme['name_color'] ?? '#000000' ), 'alignment' => self::align( $theme['alignment'] ?? 'left' ), 'social_variant' => self::social_variant( $theme['social_variant'] ?? 'outline' ), 'link_style' => self::theme_link_style( $theme['link_style'] ?? 'solid' ), 'system' => ! empty( $theme['system'] ) );
+        return array( 'name' => sanitize_text_field( $theme['name'] ?? '' ) ?: 'Faluss par défaut', 'slug' => $slug, 'active' => empty( $theme['active'] ) ? 0 : 1, 'preview_attachment_id' => absint( $theme['preview_attachment_id'] ?? 0 ), 'scope' => 'faluss-link', 'page_background' => self::valid_hex( $theme['page_background'] ?? '' ) ?: '#FFFDF5', 'hero_transition_color' => self::valid_hex( $theme['hero_transition_color'] ?? '' ) ?: '#FFFDF5', 'name_color' => self::name_color( $theme['name_color'] ?? '#000000' ), 'alignment' => self::align( $theme['alignment'] ?? 'left' ), 'social_variant' => self::social_variant( $theme['social_variant'] ?? 'outline' ), 'link_style' => self::theme_link_style( $theme['link_style'] ?? 'solid' ), 'entitlement_code' => self::entitlement_code( $theme['entitlement_code'] ?? '' ), 'system' => ! empty( $theme['system'] ) );
     }
 
-    private static function catalog_themes_for_client() {
+    /** Studio receives presentation data and an opaque locked state, never a right code. */
+    private static function catalog_themes_for_client( $faluss_id = '' ) {
         $themes = array();
         foreach ( self::catalog_themes( true ) as $theme ) {
             $preview = (int) $theme['preview_attachment_id'];
-            $themes[] = $theme + array( 'preview_url' => $preview && wp_attachment_is_image( $preview ) ? (string) wp_get_attachment_image_url( $preview, 'medium' ) : '' );
+            $client_theme = $theme;
+            $client_theme['locked'] = ! self::theme_available_to_subject( $theme, $faluss_id );
+            unset( $client_theme['entitlement_code'] );
+            $themes[] = $client_theme + array( 'preview_url' => $preview && wp_attachment_is_image( $preview ) ? (string) wp_get_attachment_image_url( $preview, 'medium' ) : '' );
         }
         return $themes;
+    }
+
+    /** A required entitlement is always checked centrally and failures close to the system theme. */
+    private static function theme_available_to_subject( $theme, $faluss_id ) {
+        if ( ! is_array( $theme ) || ! empty( $theme['system'] ) || '' === self::entitlement_code( $theme['entitlement_code'] ?? '' ) ) {
+            return true;
+        }
+        if ( '' === (string) $faluss_id || ! class_exists( 'Token_Engine_Connector_Service' ) || ! method_exists( 'Token_Engine_Connector_Service', 'subject_has_entitlement' ) ) {
+            return false;
+        }
+        $allowed = Token_Engine_Connector_Service::subject_has_entitlement( $faluss_id, self::entitlement_code( $theme['entitlement_code'] ) );
+        return true === $allowed;
+    }
+
+    private static function entitlement_code( $value ) {
+        $code = is_string( $value ) ? strtolower( trim( $value ) ) : '';
+        return 1 === preg_match( '/^[a-z][a-z0-9_.-]{1,118}$/', $code ) ? $code : '';
     }
 
     /** Replace only exact stored references to a preset that just became unavailable. */
@@ -694,6 +734,7 @@ final class Faluss_Link {
     }
 
     private static function valid_prefs( $faluss_id ) { $preferences = self::prefs( $faluss_id ); if ( (int) $preferences['cover_attachment_id'] && ! self::owned_image( (int) $preferences['cover_attachment_id'], get_current_user_id() ) ) { $preferences['cover_attachment_id'] = 0; } return $preferences; }
+    private static function current_faluss_id() { return is_user_logged_in() && self::identity_ready() ? (string) Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() ) : ''; }
     private static function verify( $field, $action ) { return is_user_logged_in() && isset( $_POST[ $field ] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ $field ] ) ), $action ); }
     private static function studio_tab( $value ) { $value = sanitize_key( (string) wp_unslash( $value ) ); return in_array( $value, array( 'profile', 'links', 'style' ), true ) ? $value : 'profile'; }
     private static function redirect( $key, $notice, $studio_tab = '' ) { $url = wp_validate_redirect( wp_get_referer(), home_url( '/' ) ); $args = array( $key => $notice ); if ( '' !== $studio_tab ) { $args['faluss_studio_tab'] = self::studio_tab( $studio_tab ); } wp_safe_redirect( add_query_arg( $args, $url ) ); exit; }
@@ -790,7 +831,7 @@ final class Faluss_Link {
     }
     private static function identity_ready() { return class_exists( 'Faluss_Identity_Schema' ) && class_exists( 'Faluss_Identity_Registry' ) && ! empty( Faluss_Identity_Schema::get_status()['ready'] ); }
     private static function enqueue_assets() { if ( ! wp_style_is( self::STYLE, 'registered' ) ) { self::assets(); } wp_enqueue_style( self::STYLE ); wp_enqueue_style( self::IMMERSIVE_STYLE ); wp_enqueue_style( self::STUDIO_STYLE ); wp_enqueue_script( self::CARD_SCRIPT ); }
-    private static function editor_assets() { self::enqueue_assets(); wp_enqueue_script( self::SCRIPT ); }
+    private static function editor_assets() { self::enqueue_assets(); wp_localize_script( self::SCRIPT, 'falussLinkCover', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_upload_cover' ), 'teaserNonce' => wp_create_nonce( 'faluss_link_upload_teaser' ), 'networks' => self::network_catalog_for_client(), 'themes' => self::catalog_themes_for_client( self::current_faluss_id() ) ) ); wp_enqueue_script( self::SCRIPT ); }
     private static function reward_assets() { if ( ! wp_style_is( self::REWARD_STYLE, 'registered' ) ) { self::assets(); } wp_enqueue_style( self::REWARD_STYLE ); wp_enqueue_script( self::REWARD_SCRIPT ); }
     private static function owned_image( $attachment_id, $user_id ) { $attachment = get_post( (int) $attachment_id ); return $attachment instanceof WP_Post && (int) $attachment->post_author === (int) $user_id && 0 === strpos( (string) $attachment->post_mime_type, 'image/' ); }
     private static function empty_card( $message ) { return '<div class="faluss-link-card faluss-link-card--empty" role="status">' . esc_html( $message ) . '</div>'; }

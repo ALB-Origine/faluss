@@ -51,6 +51,12 @@ Les routes privées supplémentaires sont `POST /connector/reward/offer`, `POST 
 
 Dans l’instance Faluss, `ALB` reste une unité interne de ledger : il n’est ni achetable, ni convertible, ni associé à un prix par Token Engine. Les paiements, produits, entitlements, Premium, cosmétiques et droits d’accès restent hors de ce plugin.
 
-## Limites hors TE-03
+## Droits centralisés EC-02
 
-TE-03 ne fournit ni attribution automatique, wallet complet ou interface membre publique générale, boutique, paiement, entitlement, Premium, cosmétique, progression, streak ou écriture distante arbitraire dans le ledger. Il ne dépend pas de WooCommerce, Elementor, Faluss Identity ou d’un autre plugin Faluss pour son cœur métier.
+Le Core ajoute une administration native **Droits**. Une définition possède un code stable unique, un libellé, une surface/projet, un type générique `theme` et un état actif. Une attribution manuelle relie un `subject_id` opaque à une définition, avec une référence d’opération idempotente, des dates de début/fin facultative et une révocation historisée. Une attribution active équivalente n’est jamais dupliquée ; une révocation conserve son historique et une définition inactive, une attribution expirée ou révoquée ne peut plus être consommée.
+
+`entitlements.read` est une permission distincte du client Connector. Les routes privées `GET /connector/entitlements/definitions` et `POST /connector/entitlement` ne retournent que les définitions compatibles ou la décision bornée pour un sujet et un droit ciblé ; elles ne modifient jamais le ledger. Le Core reste l’unique autorité des définitions, attributions et décisions. Il ne crée aucune attribution à l’activation.
+
+## Limites hors EC-02
+
+EC-02 ne fournit ni attribution automatique, wallet complet ou interface membre publique générale, boutique, paiement, Premium, cosmétique, progression, streak ou écriture distante arbitraire dans le ledger. Il ne dépend pas de WooCommerce, Elementor, Faluss Identity ou d’un autre plugin Faluss pour son cœur métier.

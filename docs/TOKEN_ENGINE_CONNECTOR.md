@@ -40,6 +40,12 @@ Le Connector expose `daily_reward_offer()` pour un libellé anonyme : elle ne r�
 
 La permission `reward.claim` est distincte de `wallet.read`. Elle doit être accordée par un administrateur du Core au projet concerné, sans régénérer son client ou son secret. Le Connector ne stocke pas de ledger, de règle, de solde, de fenêtre quotidienne ou de clé d’idempotence de gain : le Core en est le seul propriétaire. Une indisponibilité du Core, une permission absente ou un sujet inactif ne devient jamais un gain local.
 
+## Lecture des droits EC-02
+
+La permission optionnelle `entitlements.read` autorise un Connector à lire les définitions actives compatibles avec son projet puis, depuis une intégration PHP de confiance, la décision bornée pour un `subject_id` et un code de droit. Le Connector ne crée aucune table de droits, n’enregistre aucune décision et n’offre ni attribution ni révocation distante. Son écran **Droits** ne réalise qu’un diagnostic non mutatif : connexion au Core, permission, lecture des définitions et disponibilité du sujet local sans afficher sa valeur.
+
+Le navigateur ne fournit jamais le sujet, le code de droit ni la décision d’accès. Faluss Link résout le sujet depuis le profil public déjà lu côté serveur et revalide la décision Core au rendu. Une erreur de Connector, une permission absente ou un droit expiré échoue fermée vers le thème Faluss par défaut.
+
 ## Règles d’intégration
 
 - Un connecteur ne lit ni n’écrit directement les tables `token_engine_*`.

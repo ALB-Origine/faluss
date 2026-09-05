@@ -7,13 +7,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 /** Versioned, additive schema installer for the generic engine and private connector access. */
 final class Token_Engine_Schema {
     const OPTION = 'token_engine_schema_version';
-    const VERSION = '2';
+    const VERSION = '3';
+    const V2_VERSION = '2';
     const LEGACY_VERSION = '1';
 
     public static function projects_table() { return self::table( 'token_engine_projects' ); }
     public static function rules_table() { return self::table( 'token_engine_rules' ); }
     public static function ledger_table() { return self::table( 'token_engine_ledger' ); }
     public static function connector_tokens_table() { return self::table( 'token_engine_connector_tokens' ); }
+    public static function entitlement_definitions_table() { return self::table( 'token_engine_entitlement_definitions' ); }
+    public static function entitlement_grants_table() { return self::table( 'token_engine_entitlement_grants' ); }
 
     public static function maybe_install() { return self::install(); }
 
@@ -46,10 +49,13 @@ final class Token_Engine_Schema {
                 update_option( self::OPTION, self::VERSION, false );
                 return true;
             }
-            if ( self::legacy_schema_ready() ) {
-                if ( ! self::migrate_v1_to_v2() || ! self::current_schema_ready() ) {
-                    return false;
-                }
+            if ( self::legacy_schema_ready() && ! self::migrate_v1_to_v2() ) {
+                return false;
+            }
+            if ( self::v2_schema_ready() && ! self::migrate_v2_to_v3() ) {
+                return false;
+            }
+            if ( self::current_schema_ready() ) {
                 update_option( self::OPTION, self::VERSION, false );
                 return true;
             }
@@ -78,7 +84,31 @@ final class Token_Engine_Schema {
         if ( false === $wpdb->query( $alter ) ) {
             return false;
         }
-        return false !== $wpdb->query( self::create_query( 'connector_tokens', self::connector_tokens_table(), self::VERSION ) );
+        if ( false === $wpdb->query( self::create_query( 'connector_tokens', self::connector_tokens_table(), self::V2_VERSION ) ) ) {
+            return false;
+        }
+        update_option( self::OPTION, self::V2_VERSION, false );
+        return self::v2_schema_ready();
+    }
+
+    /** Adds only the two EC-02 entitlement tables to a verified TE-02 schema. */
+    private static function migrate_v2_to_v3() {
+        global $wpdb;
+        if ( ! self::v2_schema_ready() ) {
+            return false;
+        }
+        $existing = self::existing_tables( self::entitlement_tables() );
+        if ( $existing && count( $existing ) !== count( self::entitlement_tables() ) ) {
+            return false;
+        }
+        if ( ! $existing ) {
+            foreach ( self::entitlement_tables() as $name => $table ) {
+                if ( false === $wpdb->query( self::create_query( $name, $table, self::VERSION ) ) ) {
+                    return false;
+                }
+            }
+        }
+        return self::current_schema_ready();
     }
 
     private static function current_schema_ready() {
@@ -112,12 +142,47 @@ final class Token_Engine_Schema {
         return true;
     }
 
+    private static function v2_schema_ready() {
+        if ( self::V2_VERSION !== get_option( self::OPTION ) ) {
+            return false;
+        }
+        $tables = self::v2_tables();
+        $existing = self::existing_tables( $tables );
+        if ( count( $existing ) !== count( $tables ) ) {
+            return false;
+        }
+        foreach ( $existing as $name => $table ) {
+            if ( ! self::verify_table( $name, $table, self::V2_VERSION ) ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static function tables() {
         return array(
             'projects' => self::projects_table(),
             'rules' => self::rules_table(),
             'ledger' => self::ledger_table(),
             'connector_tokens' => self::connector_tokens_table(),
+            'entitlement_definitions' => self::entitlement_definitions_table(),
+            'entitlement_grants' => self::entitlement_grants_table(),
+        );
+    }
+
+    private static function v2_tables() {
+        return array(
+            'projects' => self::projects_table(),
+            'rules' => self::rules_table(),
+            'ledger' => self::ledger_table(),
+            'connector_tokens' => self::connector_tokens_table(),
+        );
+    }
+
+    private static function entitlement_tables() {
+        return array(
+            'entitlement_definitions' => self::entitlement_definitions_table(),
+            'entitlement_grants' => self::entitlement_grants_table(),
         );
     }
 
@@ -163,6 +228,12 @@ final class Token_Engine_Schema {
         if ( 'ledger' === $name ) {
             return 'CREATE TABLE `' . $table . '` (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`transaction_uuid` char(36) NOT NULL,`subject_id` varchar(191) NOT NULL,`project_key` varchar(64) NOT NULL,`rule_key` varchar(96) NULL,`direction` varchar(10) NOT NULL,`amount` bigint(20) unsigned NOT NULL,`idempotency_key` varchar(191) NOT NULL,`source_reference` varchar(191) NULL,`metadata` longtext NULL,`created_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `transaction_uuid_unique` (`transaction_uuid`),UNIQUE KEY `idempotency_key_unique` (`idempotency_key`),KEY `ledger_subject_project_date` (`subject_id`,`project_key`,`created_at`),KEY `ledger_project_rule_date` (`project_key`,`rule_key`,`created_at`),KEY `ledger_rule_date` (`rule_key`,`created_at`),KEY `ledger_created_at` (`created_at`)) ENGINE=InnoDB ' . $charset;
         }
+        if ( 'entitlement_definitions' === $name ) {
+            return 'CREATE TABLE `' . $table . '` (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`entitlement_code` varchar(120) NOT NULL,`label` varchar(120) NOT NULL,`project_key` varchar(64) NOT NULL,`entitlement_type` varchar(20) NOT NULL,`active` tinyint(1) NOT NULL,`created_at` datetime NOT NULL,`updated_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `entitlement_code_unique` (`entitlement_code`),KEY `entitlement_project_active` (`project_key`,`active`),KEY `entitlement_type_active` (`entitlement_type`,`active`)) ENGINE=InnoDB ' . $charset;
+        }
+        if ( 'entitlement_grants' === $name ) {
+            return 'CREATE TABLE `' . $table . '` (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`grant_uuid` char(36) NOT NULL,`subject_id` varchar(191) NOT NULL,`entitlement_id` bigint(20) unsigned NOT NULL,`source` varchar(20) NOT NULL,`operation_reference` varchar(191) NOT NULL,`starts_at` datetime NOT NULL,`ends_at` datetime NULL,`revoked_at` datetime NULL,`revoke_reason` varchar(191) NULL,`created_at` datetime NOT NULL,`updated_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `grant_uuid_unique` (`grant_uuid`),UNIQUE KEY `grant_operation_unique` (`operation_reference`),KEY `grant_subject_entitlement` (`subject_id`,`entitlement_id`,`starts_at`),KEY `grant_entitlement_state` (`entitlement_id`,`revoked_at`,`ends_at`)) ENGINE=InnoDB ' . $charset;
+        }
         return 'CREATE TABLE `' . $table . '` (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`token_hash` char(64) NOT NULL,`project_key` varchar(64) NOT NULL,`secret_version` char(36) NOT NULL,`permissions` varchar(191) NOT NULL,`expires_at` datetime NOT NULL,`created_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `token_hash_unique` (`token_hash`),KEY `token_project_expires` (`project_key`,`expires_at`),KEY `token_expires` (`expires_at`)) ENGINE=InnoDB ' . $charset;
     }
 
@@ -206,7 +277,7 @@ final class Token_Engine_Schema {
     private static function columns( $name, $version ) {
         if ( 'projects' === $name ) {
             $columns = array( 'id' => array( 'bigint(20) unsigned', 'NO' ), 'project_key' => array( 'varchar(64)', 'NO' ), 'name' => array( 'varchar(120)', 'NO' ), 'active' => array( 'tinyint(1)', 'NO' ) );
-            if ( self::VERSION === $version ) {
+            if ( $version >= self::V2_VERSION ) {
                 $columns += array( 'connector_client_id' => array( 'varchar(64)', 'YES' ), 'connector_secret_hash' => array( 'varchar(255)', 'YES' ), 'connector_secret_version' => array( 'char(36)', 'YES' ), 'connector_permissions' => array( 'varchar(191)', 'YES' ) );
             }
             return $columns + array( 'created_at' => array( 'datetime', 'NO' ), 'updated_at' => array( 'datetime', 'NO' ) );
@@ -217,17 +288,25 @@ final class Token_Engine_Schema {
         if ( 'ledger' === $name ) {
             return array( 'id' => array( 'bigint(20) unsigned', 'NO' ), 'transaction_uuid' => array( 'char(36)', 'NO' ), 'subject_id' => array( 'varchar(191)', 'NO' ), 'project_key' => array( 'varchar(64)', 'NO' ), 'rule_key' => array( 'varchar(96)', 'YES' ), 'direction' => array( 'varchar(10)', 'NO' ), 'amount' => array( 'bigint(20) unsigned', 'NO' ), 'idempotency_key' => array( 'varchar(191)', 'NO' ), 'source_reference' => array( 'varchar(191)', 'YES' ), 'metadata' => array( 'longtext', 'YES' ), 'created_at' => array( 'datetime', 'NO' ) );
         }
+        if ( 'entitlement_definitions' === $name ) {
+            return array( 'id' => array( 'bigint(20) unsigned', 'NO' ), 'entitlement_code' => array( 'varchar(120)', 'NO' ), 'label' => array( 'varchar(120)', 'NO' ), 'project_key' => array( 'varchar(64)', 'NO' ), 'entitlement_type' => array( 'varchar(20)', 'NO' ), 'active' => array( 'tinyint(1)', 'NO' ), 'created_at' => array( 'datetime', 'NO' ), 'updated_at' => array( 'datetime', 'NO' ) );
+        }
+        if ( 'entitlement_grants' === $name ) {
+            return array( 'id' => array( 'bigint(20) unsigned', 'NO' ), 'grant_uuid' => array( 'char(36)', 'NO' ), 'subject_id' => array( 'varchar(191)', 'NO' ), 'entitlement_id' => array( 'bigint(20) unsigned', 'NO' ), 'source' => array( 'varchar(20)', 'NO' ), 'operation_reference' => array( 'varchar(191)', 'NO' ), 'starts_at' => array( 'datetime', 'NO' ), 'ends_at' => array( 'datetime', 'YES' ), 'revoked_at' => array( 'datetime', 'YES' ), 'revoke_reason' => array( 'varchar(191)', 'YES' ), 'created_at' => array( 'datetime', 'NO' ), 'updated_at' => array( 'datetime', 'NO' ) );
+        }
         return array( 'id' => array( 'bigint(20) unsigned', 'NO' ), 'token_hash' => array( 'char(64)', 'NO' ), 'project_key' => array( 'varchar(64)', 'NO' ), 'secret_version' => array( 'char(36)', 'NO' ), 'permissions' => array( 'varchar(191)', 'NO' ), 'expires_at' => array( 'datetime', 'NO' ), 'created_at' => array( 'datetime', 'NO' ) );
     }
 
     private static function indexes( $name, $version ) {
         if ( 'projects' === $name ) {
             $indexes = array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'project_key_unique' => array( 'unique' => true, 'columns' => array( 'project_key' ) ), 'project_active' => array( 'unique' => false, 'columns' => array( 'active' ) ) );
-            if ( self::VERSION === $version ) { $indexes['connector_client_id_unique'] = array( 'unique' => true, 'columns' => array( 'connector_client_id' ) ); }
+            if ( $version >= self::V2_VERSION ) { $indexes['connector_client_id_unique'] = array( 'unique' => true, 'columns' => array( 'connector_client_id' ) ); }
             return $indexes;
         }
         if ( 'rules' === $name ) { return array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'rule_key_unique' => array( 'unique' => true, 'columns' => array( 'rule_key' ) ), 'rule_project' => array( 'unique' => false, 'columns' => array( 'project_id' ) ), 'rule_scope_active' => array( 'unique' => false, 'columns' => array( 'scope', 'active' ) ) ); }
         if ( 'ledger' === $name ) { return array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'transaction_uuid_unique' => array( 'unique' => true, 'columns' => array( 'transaction_uuid' ) ), 'idempotency_key_unique' => array( 'unique' => true, 'columns' => array( 'idempotency_key' ) ), 'ledger_subject_project_date' => array( 'unique' => false, 'columns' => array( 'subject_id', 'project_key', 'created_at' ) ), 'ledger_project_rule_date' => array( 'unique' => false, 'columns' => array( 'project_key', 'rule_key', 'created_at' ) ), 'ledger_rule_date' => array( 'unique' => false, 'columns' => array( 'rule_key', 'created_at' ) ), 'ledger_created_at' => array( 'unique' => false, 'columns' => array( 'created_at' ) ) ); }
+        if ( 'entitlement_definitions' === $name ) { return array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'entitlement_code_unique' => array( 'unique' => true, 'columns' => array( 'entitlement_code' ) ), 'entitlement_project_active' => array( 'unique' => false, 'columns' => array( 'project_key', 'active' ) ), 'entitlement_type_active' => array( 'unique' => false, 'columns' => array( 'entitlement_type', 'active' ) ) ); }
+        if ( 'entitlement_grants' === $name ) { return array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'grant_uuid_unique' => array( 'unique' => true, 'columns' => array( 'grant_uuid' ) ), 'grant_operation_unique' => array( 'unique' => true, 'columns' => array( 'operation_reference' ) ), 'grant_subject_entitlement' => array( 'unique' => false, 'columns' => array( 'subject_id', 'entitlement_id', 'starts_at' ) ), 'grant_entitlement_state' => array( 'unique' => false, 'columns' => array( 'entitlement_id', 'revoked_at', 'ends_at' ) ) ); }
         return array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'token_hash_unique' => array( 'unique' => true, 'columns' => array( 'token_hash' ) ), 'token_project_expires' => array( 'unique' => false, 'columns' => array( 'project_key', 'expires_at' ) ), 'token_expires' => array( 'unique' => false, 'columns' => array( 'expires_at' ) ) );
     }
 }

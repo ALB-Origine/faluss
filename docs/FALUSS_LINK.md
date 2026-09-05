@@ -85,3 +85,9 @@ Sans Catalogue Faluss, Faluss Link conserve son rendu **Faluss par défaut**, sa
 ## Résolution fiable des thèmes (FL-15.1)
 
 La carte publique, l’hydratation du Studio, son aperçu et l’enregistrement passent par le même résolveur : base **Faluss par défaut**, thème Faluss Link actif et valide, surcharges personnelles bornées pour le fond, la transition, l’alignement, la couleur du nom, les réseaux et les boutons, puis CSS Elementor explicitement renseigné. Le choix de **Faluss par défaut** est un vrai nouveau thème de base : les six surcharges visuelles précédentes sont réinitialisées, et toute modification ultérieure est de nouveau conservée. Si un thème est désactivé ou supprimé, seule sa référence est remplacée par le défaut ; sa réactivation ultérieure ne le réapplique jamais silencieusement.
+
+## Thèmes verrouillables EC-02
+
+Dans **Studio Faluss > Style**, un thème inclus reste sélectionnable. Un thème lié à un droit central actif reste visible, mais affiche simplement **Droit requis** et ne peut pas être sélectionné tant que le Connector ne confirme pas le droit du propriétaire de la carte. La vérification est répétée à l’enregistrement et pour chaque rendu public : une révocation, expiration, désactivation ou indisponibilité du Core restitue le rendu **Faluss par défaut** sans supprimer la référence ni les préférences manuelles du membre.
+
+Le bouton discret **Copier mon identifiant Faluss** est visible uniquement au propriétaire connecté dans Studio ; l’identifiant n’est jamais rendu sur la carte publique. Faluss Link ne stocke aucune attribution, aucun solde et aucune décision de droit ; aucun paiement, boutique, Premium ou accès verrouillé de contenu n’est créé par cette fonctionnalité.

@@ -47,3 +47,7 @@ Fournir le transport privé HTTPS, les identifiants de projet, le jeton court bo
 ## TE-03 — Daily reward Faluss Link
 
 Le Core exécute désormais la règle globale configurable `daily_reward` pour un Connector explicitement autorisé par `reward.claim`. Faluss Link reste une surface : elle ne porte ni solde, ni règle, ni logique concurrente de récompense.
+
+## EC-02 — Droits centralisés et thèmes Faluss verrouillables
+
+Le Core porte les définitions et attributions historisées de droits de thème. Le Connector les lit uniquement avec `entitlements.read`; Catalogue référence seulement une définition active et Faluss Link revalide la décision côté serveur pour chaque sélection et rendu public. Aucun paiement, abonnement, boutique, entitlement local ou donnée métier n’est ajouté.

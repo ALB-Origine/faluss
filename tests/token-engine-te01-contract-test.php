@@ -22,7 +22,7 @@ foreach ( array( 'Faluss', 'ALB', 'Alternative LAB', 'WooCommerce', 'Elementor',
     te01_assert( false === stripos( $core, $forbidden ), 'The Token Engine core must remain generic without this dependency or product behavior: ' . $forbidden );
 }
 
-foreach ( array( "const VERSION = '2'", "const LEGACY_VERSION = '1'", 'ENGINE=InnoDB', 'GET_LOCK', 'SHOW TABLE STATUS', 'SHOW FULL COLUMNS', 'SHOW INDEX', 'is_ready()', 'project_key_unique', 'rule_key_unique', 'transaction_uuid_unique', 'idempotency_key_unique', 'ledger_subject_project_date', 'ledger_project_rule_date', 'ledger_rule_date', 'ledger_created_at' ) as $needle ) {
+foreach ( array( "const VERSION = '3'", "const V2_VERSION = '2'", "const LEGACY_VERSION = '1'", 'ENGINE=InnoDB', 'GET_LOCK', 'SHOW TABLE STATUS', 'SHOW FULL COLUMNS', 'SHOW INDEX', 'is_ready()', 'project_key_unique', 'rule_key_unique', 'transaction_uuid_unique', 'idempotency_key_unique', 'ledger_subject_project_date', 'ledger_project_rule_date', 'ledger_rule_date', 'ledger_created_at' ) as $needle ) {
     te01_assert( false !== strpos( $schema, $needle ), 'TE-01 schema invariant is missing: ' . $needle );
 }
 foreach ( array( 'DROP TABLE', 'dbDelta', 'INSERT INTO', 'DELETE FROM' ) as $forbidden ) {

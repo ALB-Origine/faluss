@@ -14,6 +14,7 @@ final class Token_Engine_Connector_Service {
     const REST_NAMESPACE = 'token-engine/v1';
     const PERMISSION_WALLET_READ = 'wallet.read';
     const PERMISSION_REWARD_CLAIM = 'reward.claim';
+    const PERMISSION_ENTITLEMENTS_READ = 'entitlements.read';
 
     public static function configuration() {
         $stored = get_option( self::OPTION, array() );
@@ -142,6 +143,83 @@ final class Token_Engine_Connector_Service {
         return array( 'project_key' => self::project_key( $data['project_key'] ?? '' ), 'balance' => max( 0, (int) $data['balance'] ) );
     }
 
+    /**
+     * Reads compatible definition metadata for the configured local project.
+     * It is not a right registry and intentionally does not persist a result.
+     *
+     * @return array<int,array{code:string,label:string,type:string}>|WP_Error
+     */
+    public static function entitlement_definitions() {
+        $token = self::entitlements_token();
+        if ( is_wp_error( $token ) ) { return $token; }
+        $response = self::route_request( 'entitlement_definitions', 'GET', array(
+            'timeout' => 10,
+            'redirection' => 0,
+            'sslverify' => true,
+            'headers' => array( 'Authorization' => 'Bearer ' . $token['access_token'] ),
+        ), $token['rest_mode'] );
+        if ( is_wp_error( $response ) ) { return $response; }
+        $data = $response['data'];
+        if ( self::configuration()['project_key'] !== self::project_key( $data['project_key'] ?? '' ) || ! is_array( $data['definitions'] ?? null ) ) {
+            return self::error( 'connector_entitlements_unavailable', self::diagnostic_from( $data, $token ), 'entitlements' );
+        }
+        $definitions = array();
+        foreach ( $data['definitions'] as $definition ) {
+            $code = self::entitlement_code( $definition['entitlement_code'] ?? '' );
+            $label = is_string( $definition['label'] ?? null ) ? sanitize_text_field( $definition['label'] ) : '';
+            $type = 'theme' === ( $definition['entitlement_type'] ?? '' ) ? 'theme' : '';
+            if ( '' !== $code && '' !== $label && '' !== $type ) {
+                $definitions[] = array( 'code' => $code, 'label' => $label, 'type' => $type );
+            }
+        }
+        return $definitions;
+    }
+
+    /** Targeted Core decision for a subject resolved server-side by the caller. */
+    public static function subject_has_entitlement( $subject_id, $entitlement_code ) {
+        $subject_id = self::subject_id( $subject_id );
+        $entitlement_code = self::entitlement_code( $entitlement_code );
+        if ( '' === $subject_id || '' === $entitlement_code ) { return false; }
+        $token = self::entitlements_token();
+        if ( is_wp_error( $token ) ) { return $token; }
+        $response = self::route_request( 'entitlement', 'POST', array(
+            'timeout' => 10,
+            'redirection' => 0,
+            'sslverify' => true,
+            'headers' => array( 'Authorization' => 'Bearer ' . $token['access_token'] ),
+            'body' => array( 'subject_id' => $subject_id, 'entitlement_code' => $entitlement_code ),
+        ), $token['rest_mode'] );
+        if ( is_wp_error( $response ) ) { return $response; }
+        $data = $response['data'];
+        return self::configuration()['project_key'] === self::project_key( $data['project_key'] ?? '' ) && hash_equals( $entitlement_code, self::entitlement_code( $data['entitlement_code'] ?? '' ) ) && ! empty( $data['granted'] );
+    }
+
+    /** Current-session convenience wrapper; it never accepts a browser subject. */
+    public static function current_subject_has_entitlement( $entitlement_code ) {
+        $subject_id = self::current_subject_id();
+        return '' === $subject_id ? false : self::subject_has_entitlement( $subject_id, $entitlement_code );
+    }
+
+    /** Non-mutative connector diagnostic for configured entitlement reads. */
+    public static function entitlements_diagnostic() {
+        /* wallet.read is unrelated to entitlement reading: authenticate directly. */
+        $connection = self::access_token();
+        $subject = self::faluss_subject_diagnostic();
+        $base = array(
+            'core_connected' => ! is_wp_error( $connection ),
+            'entitlements_read_authorized' => ! is_wp_error( $connection ) && in_array( self::PERMISSION_ENTITLEMENTS_READ, (array) ( $connection['permissions'] ?? array() ), true ),
+            'subject_checked' => ! empty( $subject['signed_in'] ),
+            'subject_available' => ! empty( $subject['signed_in'] ) && ! empty( $subject['subject_available'] ),
+            'definitions_readable' => false,
+        );
+        if ( is_wp_error( $connection ) || empty( $base['entitlements_read_authorized'] ) ) {
+            return $base;
+        }
+        $definitions = self::entitlement_definitions();
+        $base['definitions_readable'] = ! is_wp_error( $definitions );
+        return $base;
+    }
+
     /** Reads only the active local subject's global daily-reward status. */
     public static function daily_reward_status_for_current_subject() {
         return self::daily_reward_request( 'reward_status' );
@@ -243,6 +321,17 @@ final class Token_Engine_Connector_Service {
         return $token;
     }
 
+    /** The permission is checked against the short Core token and never cached locally. */
+    private static function entitlements_token() {
+        $token = self::access_token();
+        if ( is_wp_error( $token ) ) { return $token; }
+        $permissions = self::permissions( $token['permissions'] ?? array() );
+        if ( ! in_array( self::PERMISSION_ENTITLEMENTS_READ, $permissions, true ) ) {
+            return self::error( 'connector_permission_entitlements_read_missing', self::diagnostic_from( $token ), 'permission' );
+        }
+        return $token;
+    }
+
     /** Accepts only the bounded Core outcomes, never a remote error body. */
     private static function normalise_daily_reward_response( $data, $require_balance ) {
         if ( ! is_array( $data ) || self::configuration()['project_key'] !== self::project_key( $data['project_key'] ?? '' ) ) {
@@ -327,7 +416,7 @@ final class Token_Engine_Connector_Service {
 
     /** Builds route URLs from the canonical site URL without concatenating onto a query string. */
     private static function endpoint( $route, $rest_mode ) {
-        $routes = array( 'token' => 'connector/token', 'diagnostic' => 'connector/diagnostic', 'balance' => 'connector/balance', 'reward_offer' => 'connector/reward/offer', 'reward_diagnostic' => 'connector/reward/diagnostic', 'reward_status' => 'connector/reward/status', 'reward_claim' => 'connector/reward/claim' );
+        $routes = array( 'token' => 'connector/token', 'diagnostic' => 'connector/diagnostic', 'balance' => 'connector/balance', 'reward_offer' => 'connector/reward/offer', 'reward_diagnostic' => 'connector/reward/diagnostic', 'reward_status' => 'connector/reward/status', 'reward_claim' => 'connector/reward/claim', 'entitlement_definitions' => 'connector/entitlements/definitions', 'entitlements' => 'connector/entitlements', 'entitlement' => 'connector/entitlement' );
         $route_path = $routes[ $route ] ?? '';
         $site_url = self::configuration()['core_site_url'];
         if ( self::REST_MODE_QUERY === $rest_mode ) {
@@ -352,7 +441,7 @@ final class Token_Engine_Connector_Service {
         if ( 404 === $status || ( is_array( $data ) && 'rest_no_route' === ( $data['code'] ?? '' ) ) ) { return self::error( 'connector_route_missing', self::diagnostic_from( $data ), 'route' ); }
         if ( 200 > $status || 299 < $status ) {
             $code = is_array( $data ) ? (string) ( $data['code'] ?? '' ) : '';
-            $safe = array( 'https_required', 'connector_project_inactive', 'connector_client_rejected', 'connector_secret_rejected', 'connector_permissions_missing', 'connector_permission_wallet_read_missing', 'connector_permission_reward_claim_missing', 'connector_token_rejected', 'connector_credentials_missing', 'schema_not_ready', 'not_configured', 'reward_busy' );
+            $safe = array( 'https_required', 'connector_project_inactive', 'connector_client_rejected', 'connector_secret_rejected', 'connector_permissions_missing', 'connector_permission_wallet_read_missing', 'connector_permission_reward_claim_missing', 'connector_permission_entitlements_read_missing', 'connector_token_rejected', 'connector_credentials_missing', 'schema_not_ready', 'not_configured', 'reward_busy' );
             $code = in_array( $code, $safe, true ) ? $code : 'connector_core_rejected';
             return self::error( $code, self::diagnostic_from( $data ), self::stage_for_code( $code, $default_stage ) );
         }
@@ -386,17 +475,19 @@ final class Token_Engine_Connector_Service {
 
     private static function client_id( $value ) { $value = is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : ''; return 1 === preg_match( '/^tec_[A-Za-z0-9_-]{20,60}$/', $value ) ? $value : ''; }
     private static function project_key( $value ) { $value = is_string( $value ) ? strtolower( sanitize_text_field( wp_unslash( $value ) ) ) : ''; return 1 === preg_match( '/^[a-z0-9][a-z0-9_-]{1,63}$/', $value ) ? $value : ''; }
+    private static function subject_id( $value ) { $value = is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : ''; $value = trim( $value ); return '' === $value ? '' : ( function_exists( 'mb_substr' ) ? mb_substr( $value, 0, 191 ) : substr( $value, 0, 191 ) ); }
+    private static function entitlement_code( $value ) { $value = is_string( $value ) ? strtolower( sanitize_text_field( wp_unslash( $value ) ) ) : ''; return 1 === preg_match( '/^[a-z0-9][a-z0-9_.-]{1,119}$/', $value ) ? $value : ''; }
     private static function permissions( $permissions ) {
         if ( ! is_array( $permissions ) ) { return array(); }
         $normalised = array();
-        foreach ( array( self::PERMISSION_WALLET_READ, self::PERMISSION_REWARD_CLAIM ) as $permission ) {
+        foreach ( array( self::PERMISSION_WALLET_READ, self::PERMISSION_REWARD_CLAIM, self::PERMISSION_ENTITLEMENTS_READ ) as $permission ) {
             if ( in_array( $permission, $permissions, true ) ) { $normalised[] = $permission; }
         }
         return $normalised;
     }
     private static function rest_mode_label( $rest_mode ) { return self::REST_MODE_QUERY === $rest_mode ? 'rest_route' : 'wp-json'; }
     private static function successful_steps( $rest_mode ) { return array( 'url' => 'valid', 'rest' => self::rest_mode_label( $rest_mode ), 'route' => 'reachable', 'core' => 'identified', 'protocol' => 'compatible', 'credentials' => 'accepted', 'permission' => 'wallet.read', 'token' => 'received' ); }
-    private static function stage_for_code( $code, $fallback ) { $stages = array( 'connector_client_rejected' => 'credentials', 'connector_secret_rejected' => 'credentials', 'connector_credentials_missing' => 'credentials', 'connector_project_inactive' => 'credentials', 'connector_permissions_missing' => 'permission', 'connector_permission_wallet_read_missing' => 'permission', 'connector_permission_reward_claim_missing' => 'permission', 'connector_token_rejected' => 'token' ); return $stages[ $code ] ?? $fallback; }
+    private static function stage_for_code( $code, $fallback ) { $stages = array( 'connector_client_rejected' => 'credentials', 'connector_secret_rejected' => 'credentials', 'connector_credentials_missing' => 'credentials', 'connector_project_inactive' => 'credentials', 'connector_permissions_missing' => 'permission', 'connector_permission_wallet_read_missing' => 'permission', 'connector_permission_reward_claim_missing' => 'permission', 'connector_permission_entitlements_read_missing' => 'permission', 'connector_token_rejected' => 'token' ); return $stages[ $code ] ?? $fallback; }
     private static function iso_datetime( $value ) { $value = is_string( $value ) ? trim( $value ) : ''; return '' !== $value && false !== strtotime( $value ) ? $value : ''; }
     private static function diagnostic_from( $data, $fallback = array() ) { $id = is_array( $data ) ? (string) ( $data['diagnostic_id'] ?? ( $data['data']['diagnostic_id'] ?? '' ) ) : ''; if ( '' === $id && is_array( $fallback ) ) { $id = (string) ( $fallback['diagnostic_id'] ?? '' ); } return 1 === preg_match( '/^[a-f0-9-]{16,64}$/i', $id ) ? $id : wp_generate_uuid4(); }
     private static function secret_state( $stored ) { if ( ! is_array( $stored ) || ! is_string( $stored['secret_protected'] ?? null ) || '' === $stored['secret_protected'] ) { return 'required'; } $secret = Token_Engine_Connector_Crypto::decrypt( $stored['secret_protected'] ); return is_wp_error( $secret ) || ! is_string( $secret ) || '' === $secret ? 'required' : 'saved'; }

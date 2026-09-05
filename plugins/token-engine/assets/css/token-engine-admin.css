@@ -45,6 +45,10 @@
 .token-engine-project-row__permissions label { color: var(--te-ink); }
 .token-engine-admin__secret { display: grid; gap: 14px; max-width: 680px; }
 .token-engine-admin__secret input { font-size: 14px; padding: 12px; }
+.token-engine-entitlement-permissions { display: grid; gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--te-border); }
+.token-engine-entitlement-permissions form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.token-engine-entitlements { margin-bottom: 28px; padding-bottom: 8px; border-bottom: 1px solid var(--te-border); }
+.token-engine-entitlements + section, .token-engine-entitlements ~ section { margin-top: 26px; }
 
 @media (max-width: 782px) {
   .token-engine-admin { margin: 12px 0; }

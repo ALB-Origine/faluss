@@ -6,4 +6,8 @@ Le thème système **Faluss par défaut** est immuable. Il reproduit le rendu hi
 
 Faluss Link consomme le preset sans le posséder. La cascade est : repli Faluss par défaut, thème actif sélectionné, surcharges individuelles du membre, puis surcharge Elementor explicitement renseignée. La référence effective et la liste bornée des surcharges sont conservées avec les préférences de la carte ; aucune donnée d’identité, d’e-mail ou de droit n’est dupliquée.
 
-Un moteur partagé d’entitlements pourra ultérieurement décider qu’un thème est inclus, Premium, achetable en ALB, lié à une progression ou réservé à un dérivé. Ces règles resteront dans ce moteur commun : FC-01 et Faluss Link ne créent ni token, ni abonnement, ni paiement, ni boutique, ni droit d’accès.
+## Droit de thème EC-02
+
+Un thème actif peut rester **Inclus** ou demander une définition active de type `theme`, proposée par Token Engine via le Connector pour la surface Faluss Link. L’administrateur ne saisit aucun code libre : si le Core ou Connector est indisponible, l’association ne peut pas être créée ou modifiée et le thème reste verrouillé à la consommation. Catalogue conserve seulement la métadonnée du droit ; il ne conserve ni attribution, ni décision d’accès, ni solde.
+
+Faluss Link revalide le droit pour le `faluss_id` du profil au rendu. Un droit absent, révoqué, expiré, inactif ou non vérifiable retombe vers **Faluss par défaut** sans effacer la préférence membre. Aucun prix, achat, abonnement, token ou boutique n’est ajouté par Catalogue.

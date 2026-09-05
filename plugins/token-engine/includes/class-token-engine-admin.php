@@ -20,6 +20,11 @@ final class Token_Engine_Admin {
         add_action( 'admin_post_token_engine_adjust', array( __CLASS__, 'adjust' ) );
         add_action( 'admin_post_token_engine_generate_project_credentials', array( __CLASS__, 'generate_project_credentials' ) );
         add_action( 'admin_post_token_engine_update_project_permissions', array( __CLASS__, 'update_project_permissions' ) );
+        add_action( 'admin_post_token_engine_update_project_entitlements_permission', array( __CLASS__, 'update_project_entitlements_permission' ) );
+        add_action( 'admin_post_token_engine_create_entitlement_definition', array( __CLASS__, 'create_entitlement_definition' ) );
+        add_action( 'admin_post_token_engine_update_entitlement_definition', array( __CLASS__, 'update_entitlement_definition' ) );
+        add_action( 'admin_post_token_engine_create_entitlement_grant', array( __CLASS__, 'create_entitlement_grant' ) );
+        add_action( 'admin_post_token_engine_revoke_entitlement_grant', array( __CLASS__, 'revoke_entitlement_grant' ) );
     }
 
     public static function enqueue_assets( $hook = '' ) {
@@ -57,6 +62,7 @@ final class Token_Engine_Admin {
                         <?php if ( 'rules' === $tab ) { self::rules_page(); } ?>
                         <?php if ( 'ledger' === $tab ) { self::ledger_page(); } ?>
                         <?php if ( 'adjustment' === $tab ) { self::adjustment_page(); } ?>
+                        <?php if ( 'entitlements' === $tab ) { self::entitlements_page(); } ?>
                     </div>
                 </section>
             </div>
@@ -86,6 +92,36 @@ final class Token_Engine_Admin {
         self::guard( 'token_engine_update_project_permissions' );
         $result = Token_Engine_Connector_Access::update_project_permissions( $_POST['project_id'] ?? 0, $_POST['permissions'] ?? array() );
         self::redirect( 'projects', is_wp_error( $result ) ? $result->get_error_code() : 'connector_permissions_saved' );
+    }
+
+    public static function update_project_entitlements_permission() {
+        self::guard( 'token_engine_update_project_entitlements_permission' );
+        $result = Token_Engine_Connector_Access::update_project_entitlements_permission( $_POST['project_id'] ?? 0, ! empty( $_POST['entitlements_read'] ) );
+        self::redirect( 'projects', is_wp_error( $result ) ? $result->get_error_code() : 'connector_permissions_saved' );
+    }
+
+    public static function create_entitlement_definition() {
+        self::guard( 'token_engine_create_entitlement_definition' );
+        $result = Token_Engine_Entitlements::create_definition( $_POST );
+        self::redirect( 'entitlements', is_wp_error( $result ) ? $result->get_error_code() : 'entitlement_definition_created' );
+    }
+
+    public static function update_entitlement_definition() {
+        self::guard( 'token_engine_update_entitlement_definition' );
+        $result = Token_Engine_Entitlements::update_definition( $_POST['entitlement_definition_id'] ?? 0, $_POST );
+        self::redirect( 'entitlements', is_wp_error( $result ) ? $result->get_error_code() : 'entitlement_definition_saved' );
+    }
+
+    public static function create_entitlement_grant() {
+        self::guard( 'token_engine_create_entitlement_grant' );
+        $result = Token_Engine_Entitlements::create_manual_grant( $_POST );
+        self::redirect( 'entitlements', is_wp_error( $result ) ? $result->get_error_code() : 'entitlement_grant_created' );
+    }
+
+    public static function revoke_entitlement_grant() {
+        self::guard( 'token_engine_revoke_entitlement_grant' );
+        $result = Token_Engine_Entitlements::revoke_grant( $_POST['entitlement_grant_id'] ?? 0, $_POST['revoke_reason'] ?? '' );
+        self::redirect( 'entitlements', is_wp_error( $result ) ? $result->get_error_code() : 'entitlement_grant_revoked' );
     }
 
     public static function create_rule() {
@@ -165,6 +201,15 @@ final class Token_Engine_Admin {
         <table class="widefat striped"><thead><tr><th>Projet</th><th>Administration et connecteur</th></tr></thead><tbody>
         <?php foreach ( $projects as $project ) : $connection = Token_Engine_Connector_Access::project_connection_status( $project ); ?><tr><td><code><?php echo esc_html( $project['project_key'] ); ?></code></td><td><div class="token-engine-project-row"><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="token-engine-project-row__settings"><input type="hidden" name="action" value="token_engine_update_project"><input type="hidden" name="project_id" value="<?php echo (int) $project['id']; ?>"><?php wp_nonce_field( 'token_engine_update_project', 'token_engine_nonce' ); ?><label>Nom <input name="name" maxlength="120" value="<?php echo esc_attr( $project['name'] ); ?>"></label><label><input name="active" type="checkbox" value="1" <?php checked( ! empty( $project['active'] ) ); ?>> Actif</label><button class="button" type="submit">Enregistrer</button></form><div class="token-engine-project-row__connector"><div class="token-engine-project-row__connection"><label for="token-engine-core-url-<?php echo (int) $project['id']; ?>">URL du site Core</label><div class="token-engine-project-row__copy"><input id="token-engine-core-url-<?php echo (int) $project['id']; ?>" class="regular-text code" readonly value="<?php echo esc_attr( Token_Engine_Connector_Access::core_site_url() ); ?>"><button class="button token-engine-copy" type="button" data-copy-target="token-engine-core-url-<?php echo (int) $project['id']; ?>">Copier</button></div><span>À renseigner telle quelle dans le Connector ; la forme REST est détectée automatiquement.</span><span>Identifiant client : <?php echo ! empty( $project['connector_client_id'] ) ? '<code>' . esc_html( $project['connector_client_id'] ) . '</code>' : 'à générer'; ?></span><span>État : <?php echo esc_html( self::connector_status_label( $connection['code'] ) ); ?></span></div><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="token-engine-project-row__permissions"><input type="hidden" name="action" value="token_engine_update_project_permissions"><input type="hidden" name="project_id" value="<?php echo (int) $project['id']; ?>"><?php wp_nonce_field( 'token_engine_update_project_permissions', 'token_engine_nonce' ); ?><label><input type="checkbox" name="permissions[]" value="wallet.read" <?php checked( in_array( Token_Engine_Connector_Access::PERMISSION_WALLET_READ, $connection['permissions'], true ) ); ?>> Autoriser <code>wallet.read</code></label><label><input type="checkbox" name="permissions[]" value="reward.claim" <?php checked( in_array( Token_Engine_Connector_Access::PERMISSION_REWARD_CLAIM, $connection['permissions'], true ) ); ?>> Autoriser <code>reward.claim</code></label><button class="button" type="submit">Enregistrer les permissions</button></form><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="token_engine_generate_project_credentials"><input type="hidden" name="project_id" value="<?php echo (int) $project['id']; ?>"><?php wp_nonce_field( 'token_engine_generate_project_credentials', 'token_engine_nonce' ); ?><button class="button" type="submit" <?php disabled( empty( $project['active'] ) ); ?>><?php echo ! empty( $project['connector_secret_hash'] ) ? 'Régénérer le secret' : 'Générer les identifiants'; ?></button></form></div></div></td></tr><?php endforeach; ?>
         <?php if ( ! $projects ) : ?><tr><td colspan="4">Aucun projet.</td></tr><?php endif; ?></tbody></table>
+        <section class="token-engine-entitlement-permissions" aria-labelledby="token-engine-entitlement-permissions-title">
+            <h3 id="token-engine-entitlement-permissions-title">Lecture des droits par connecteur</h3><p class="description">Autorisez <code>entitlements.read</code> seulement pour les surfaces qui doivent vérifier des thèmes verrouillables.</p>
+            <?php foreach ( $projects as $project ) : $connection = Token_Engine_Connector_Access::project_connection_status( $project ); ?>
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                    <input type="hidden" name="action" value="token_engine_update_project_entitlements_permission"><input type="hidden" name="project_id" value="<?php echo (int) $project['id']; ?>"><?php wp_nonce_field( 'token_engine_update_project_entitlements_permission', 'token_engine_nonce' ); ?>
+                    <label><input type="checkbox" name="entitlements_read" value="1" <?php checked( in_array( Token_Engine_Connector_Access::PERMISSION_ENTITLEMENTS_READ, $connection['permissions'], true ) ); ?>> Autoriser <code>entitlements.read</code></label><button class="button" type="submit"><?php echo esc_html( $project['name'] ); ?> — enregistrer</button>
+                </form>
+            <?php endforeach; ?>
+        </section>
         <?php
     }
 
@@ -213,6 +258,43 @@ final class Token_Engine_Admin {
         <table class="form-table" role="presentation"><tbody><tr><th><label for="token-engine-adjust-project">Projet</label></th><td><select id="token-engine-adjust-project" name="project_key" required><option value="">Choisir un projet</option><?php foreach ( $projects as $project ) : ?><option value="<?php echo esc_attr( $project['project_key'] ); ?>"><?php echo esc_html( $project['name'] ); ?></option><?php endforeach; ?></select></td></tr><tr><th><label for="token-engine-adjust-subject">Subject ID</label></th><td><input id="token-engine-adjust-subject" name="subject_id" maxlength="191" required class="regular-text"></td></tr><tr><th>Sens</th><td><label><input name="direction" type="radio" value="credit" checked> Crédit</label> <label><input name="direction" type="radio" value="debit"> Débit</label></td></tr><tr><th><label for="token-engine-adjust-amount">Montant</label></th><td><input id="token-engine-adjust-amount" name="amount" type="number" min="1" required></td></tr><tr><th><label for="token-engine-adjust-reference">Motif / référence</label></th><td><input id="token-engine-adjust-reference" name="source_reference" maxlength="191" class="regular-text"></td></tr></tbody></table><?php submit_button( 'Inscrire l’ajustement' ); ?></form><?php
     }
 
+    /** EC-02 has its own generic rights surface; grants never touch the ledger. */
+    private static function entitlements_page() {
+        $projects = Token_Engine_Service::active_projects();
+        $definitions = Token_Engine_Entitlements::definitions();
+        $history = Token_Engine_Entitlements::grant_history();
+        ?>
+        <h2>Droits</h2>
+        <p>Les droits sont centralisés ici. Ils ne représentent ni unité, ni prix, ni abonnement : chaque attribution vise un sujet opaque et une surface autorisée.</p>
+        <section class="token-engine-entitlements" aria-labelledby="token-engine-entitlement-definition-title">
+            <h3 id="token-engine-entitlement-definition-title">Créer un droit</h3>
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <input type="hidden" name="action" value="token_engine_create_entitlement_definition"><?php wp_nonce_field( 'token_engine_create_entitlement_definition', 'token_engine_nonce' ); ?>
+                <table class="form-table" role="presentation"><tbody>
+                    <tr><th><label for="token-engine-entitlement-code">Code stable</label></th><td><input id="token-engine-entitlement-code" name="entitlement_code" required maxlength="120" pattern="[a-z0-9][a-z0-9_.-]{1,119}"><p class="description">Lettres minuscules, chiffres, point, tiret ou souligné.</p></td></tr>
+                    <tr><th><label for="token-engine-entitlement-label">Libellé administrateur</label></th><td><input id="token-engine-entitlement-label" name="label" required maxlength="120" class="regular-text"></td></tr>
+                    <tr><th><label for="token-engine-entitlement-project">Projet / surface</label></th><td><select id="token-engine-entitlement-project" name="project_key" required><option value="">Choisir un projet</option><?php foreach ( $projects as $project ) : ?><option value="<?php echo esc_attr( $project['project_key'] ); ?>"><?php echo esc_html( $project['name'] . ' (' . $project['project_key'] . ')' ); ?></option><?php endforeach; ?></select></td></tr>
+                    <tr><th>Type</th><td><input type="hidden" name="entitlement_type" value="theme"><span>Thème</span></td></tr>
+                    <tr><th>État</th><td><label><input type="checkbox" name="active" value="1" checked> Actif</label></td></tr>
+                </tbody></table><?php submit_button( 'Créer le droit', 'secondary' ); ?>
+            </form>
+        </section>
+        <section aria-labelledby="token-engine-entitlement-list-title"><h3 id="token-engine-entitlement-list-title">Définitions</h3>
+            <table class="widefat striped"><thead><tr><th>Droit</th><th>Surface</th><th>Type</th><th>État</th><th>Modifier</th></tr></thead><tbody>
+            <?php foreach ( $definitions as $definition ) : ?><tr><td><code><?php echo esc_html( $definition['entitlement_code'] ); ?></code><br><?php echo esc_html( $definition['label'] ); ?></td><td><code><?php echo esc_html( $definition['project_key'] ); ?></code></td><td><?php echo esc_html( $definition['entitlement_type'] ); ?></td><td><?php echo 'active' === Token_Engine_Entitlements::definition_state( $definition ) ? 'Actif' : 'Inactif'; ?></td><td><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="token_engine_update_entitlement_definition"><input type="hidden" name="entitlement_definition_id" value="<?php echo (int) $definition['id']; ?>"><input type="hidden" name="entitlement_type" value="theme"><?php wp_nonce_field( 'token_engine_update_entitlement_definition', 'token_engine_nonce' ); ?><label>Libellé <input name="label" maxlength="120" value="<?php echo esc_attr( $definition['label'] ); ?>"></label><label>Projet <select name="project_key"><?php foreach ( $projects as $project ) : ?><option value="<?php echo esc_attr( $project['project_key'] ); ?>" <?php selected( $definition['project_key'], $project['project_key'] ); ?>><?php echo esc_html( $project['name'] ); ?></option><?php endforeach; ?></select></label><label><input name="active" type="checkbox" value="1" <?php checked( ! empty( $definition['active'] ) ); ?>> Actif</label><button class="button" type="submit">Enregistrer</button></form></td></tr><?php endforeach; ?>
+            <?php if ( ! $definitions ) : ?><tr><td colspan="5">Aucun droit défini.</td></tr><?php endif; ?></tbody></table>
+        </section>
+        <section aria-labelledby="token-engine-entitlement-grant-title"><h3 id="token-engine-entitlement-grant-title">Attribuer manuellement</h3>
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="token_engine_create_entitlement_grant"><input type="hidden" name="operation_reference" value="<?php echo esc_attr( wp_generate_uuid4() ); ?>"><?php wp_nonce_field( 'token_engine_create_entitlement_grant', 'token_engine_nonce' ); ?>
+                <table class="form-table" role="presentation"><tbody><tr><th><label for="token-engine-entitlement-subject">Subject ID</label></th><td><input id="token-engine-entitlement-subject" name="subject_id" required maxlength="191" class="regular-text"></td></tr><tr><th><label for="token-engine-entitlement-definition">Droit</label></th><td><select id="token-engine-entitlement-definition" name="entitlement_code" required><option value="">Choisir un droit actif</option><?php foreach ( $definitions as $definition ) : if ( empty( $definition['active'] ) ) { continue; } ?><option value="<?php echo esc_attr( $definition['entitlement_code'] ); ?>"><?php echo esc_html( $definition['label'] ); ?></option><?php endforeach; ?></select></td></tr><tr><th><label for="token-engine-entitlement-start">Début</label></th><td><input id="token-engine-entitlement-start" name="starts_at" type="datetime-local" value="<?php echo esc_attr( wp_date( 'Y-m-d\TH:i' ) ); ?>"></td></tr><tr><th><label for="token-engine-entitlement-end">Fin facultative</label></th><td><input id="token-engine-entitlement-end" name="ends_at" type="datetime-local"></td></tr></tbody></table><?php submit_button( 'Attribuer le droit' ); ?>
+            </form>
+        </section>
+        <section aria-labelledby="token-engine-entitlement-history-title"><h3 id="token-engine-entitlement-history-title">Historique minimal</h3><table class="widefat striped"><thead><tr><th>Date</th><th>Subject ID</th><th>Droit</th><th>État</th><th>Source</th><th>Action</th></tr></thead><tbody>
+            <?php foreach ( $history as $grant ) : ?><tr><td><?php echo esc_html( $grant['created_at'] ); ?></td><td><code><?php echo esc_html( $grant['subject_id'] ); ?></code></td><td><?php echo esc_html( $grant['label'] ); ?></td><td><?php echo esc_html( Token_Engine_Entitlements::grant_state( $grant ) ); ?></td><td><?php echo esc_html( $grant['source'] ); ?></td><td><?php if ( 'active' === Token_Engine_Entitlements::grant_state( $grant ) || 'scheduled' === Token_Engine_Entitlements::grant_state( $grant ) ) : ?><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="token_engine_revoke_entitlement_grant"><input type="hidden" name="entitlement_grant_id" value="<?php echo (int) $grant['id']; ?>"><?php wp_nonce_field( 'token_engine_revoke_entitlement_grant', 'token_engine_nonce' ); ?><label class="screen-reader-text">Motif de révocation</label><input name="revoke_reason" maxlength="191" placeholder="Motif facultatif"><button class="button-link-delete" type="submit">Révoquer</button></form><?php else : ?>—<?php endif; ?></td></tr><?php endforeach; ?>
+            <?php if ( ! $history ) : ?><tr><td colspan="6">Aucune attribution.</td></tr><?php endif; ?></tbody></table></section>
+        <?php
+    }
+
     private static function guard( $action ) {
         if ( ! current_user_can( self::CAPABILITY ) || ! isset( $_POST['token_engine_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['token_engine_nonce'] ) ), $action ) ) {
             wp_die( 'Accès refusé.' );
@@ -228,10 +310,10 @@ final class Token_Engine_Admin {
         );
         return $labels[ $status ] ?? 'État indisponible.';
     }
-    private static function tabs() { return array( 'configuration' => 'Configuration', 'projects' => 'Projets', 'rules' => 'Règles', 'ledger' => 'Ledger', 'adjustment' => 'Ajustement manuel' ); }
+    private static function tabs() { return array( 'configuration' => 'Configuration', 'projects' => 'Projets', 'rules' => 'Règles', 'ledger' => 'Ledger', 'adjustment' => 'Ajustement manuel', 'entitlements' => 'Droits' ); }
     private static function tab( $value ) { $value = sanitize_key( wp_unslash( $value ) ); return isset( self::tabs()[ $value ] ) ? $value : 'configuration'; }
     private static function url( $tab ) { return add_query_arg( array( 'page' => self::PAGE, 'tab' => $tab ), admin_url( 'admin.php' ) ); }
     private static function redirect( $tab, $notice ) { wp_safe_redirect( add_query_arg( 'token_engine_notice', sanitize_key( $notice ), self::url( $tab ) ) ); exit; }
     private static function adjustment_transient_key() { return 'token_engine_adjustment_' . get_current_user_id(); }
-    private static function notice() { $notice = sanitize_key( wp_unslash( $_GET['token_engine_notice'] ?? '' ) ); $messages = array( 'saved' => 'Configuration enregistrée.', 'project_created' => 'Projet créé.', 'project_saved' => 'Projet enregistré.', 'connector_permissions_saved' => 'Permission connecteur enregistrée.', 'rule_created' => 'Règle créée.', 'rule_saved' => 'Règle enregistrée.' ); if ( isset( $messages[ $notice ] ) ) { echo '<div class="notice notice-success"><p>' . esc_html( $messages[ $notice ] ) . '</p></div>'; } elseif ( '' !== $notice && 'adjusted' !== $notice ) { echo '<div class="notice notice-error"><p>' . esc_html( 'L’opération ne peut pas être enregistrée : ' . $notice ) . '</p></div>'; } }
+    private static function notice() { $notice = sanitize_key( wp_unslash( $_GET['token_engine_notice'] ?? '' ) ); $messages = array( 'saved' => 'Configuration enregistrée.', 'project_created' => 'Projet créé.', 'project_saved' => 'Projet enregistré.', 'connector_permissions_saved' => 'Permission connecteur enregistrée.', 'rule_created' => 'Règle créée.', 'rule_saved' => 'Règle enregistrée.', 'entitlement_definition_created' => 'Droit créé.', 'entitlement_definition_saved' => 'Droit enregistré.', 'entitlement_grant_created' => 'Droit attribué.', 'entitlement_grant_revoked' => 'Droit révoqué.' ); if ( isset( $messages[ $notice ] ) ) { echo '<div class="notice notice-success"><p>' . esc_html( $messages[ $notice ] ) . '</p></div>'; } elseif ( '' !== $notice && 'adjusted' !== $notice ) { echo '<div class="notice notice-error"><p>' . esc_html( 'L’opération ne peut pas être enregistrée : ' . $notice ) . '</p></div>'; } }
 }
