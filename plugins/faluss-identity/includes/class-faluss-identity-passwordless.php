@@ -444,6 +444,9 @@ final class Faluss_Identity_Passwordless {
             $identity = $user instanceof WP_User && ! self::is_privileged_user( $user )
                 ? Faluss_Identity_Registry::activate_for_wp_user( $user->ID )
                 : null;
+            if ( $user instanceof WP_User && null !== $identity ) {
+                Faluss_Identity_Front_Preferences::enforce_for_user( $user );
+            }
             if ( ! $user instanceof WP_User || null === $identity || false === $wpdb->query( 'COMMIT' ) ) {
                 $wpdb->query( 'ROLLBACK' );
                 return null;

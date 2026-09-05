@@ -7,6 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Faluss_Identity_Plugin {
 
     public static function boot() {
+        Faluss_Identity_Front_Preferences::boot();
         add_action( 'plugins_loaded', array( __CLASS__, 'load_textdomain' ) );
         add_action( 'init', array( 'Faluss_Identity_Passwordless', 'register' ) );
         add_action( 'init', array( 'Faluss_Identity_Public_Profile', 'register' ) );
@@ -23,6 +24,7 @@ final class Faluss_Identity_Plugin {
             add_action( 'admin_init', array( __CLASS__, 'migrate_fi02' ) );
             add_action( 'admin_init', array( __CLASS__, 'migrate_fi03' ) );
             add_action( 'admin_init', array( __CLASS__, 'migrate_fi04' ) );
+            add_action( 'admin_init', array( __CLASS__, 'migrate_fi06' ) );
             Faluss_Identity_SSO_Clients_Admin::register();
         }
     }
@@ -32,6 +34,7 @@ final class Faluss_Identity_Plugin {
         Faluss_Identity_Schema::migrate_fi02();
         Faluss_Identity_Schema::migrate_fi03();
         Faluss_Identity_Schema::migrate_fi04();
+        Faluss_Identity_Front_Preferences::migrate_fi06();
         Faluss_Identity_Public_Profile::register_rewrite_rule();
         Faluss_Identity_Authorization::register_rewrite_rules();
         flush_rewrite_rules();
@@ -59,6 +62,12 @@ final class Faluss_Identity_Plugin {
     public static function migrate_fi04() {
         if ( current_user_can( 'manage_options' ) ) {
             Faluss_Identity_Schema::migrate_fi04();
+        }
+    }
+
+    public static function migrate_fi06() {
+        if ( current_user_can( 'manage_options' ) ) {
+            Faluss_Identity_Front_Preferences::migrate_fi06();
         }
     }
 

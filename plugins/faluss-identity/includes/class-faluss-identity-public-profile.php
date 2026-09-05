@@ -162,7 +162,7 @@ final class Faluss_Identity_Public_Profile {
         show_admin_bar( false );
         ?>
         <!doctype html>
-        <html <?php language_attributes(); ?>><head><meta charset="<?php bloginfo( 'charset' ); ?>"><meta name="viewport" content="width=device-width, initial-scale=1"><?php wp_head(); ?></head>
+        <html <?php language_attributes(); ?>><head><meta charset="<?php bloginfo( 'charset' ); ?>"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><?php wp_head(); ?></head>
         <body <?php body_class( 'faluss-identity-public-shell faluss-identity-public-route' ); ?>><?php wp_body_open(); ?>
         <?php self::render_elementor_header(); ?>
         <?php if ( ! self::render_elementor_template( self::get_template_id() ) ) : ?>

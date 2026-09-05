@@ -63,3 +63,7 @@ Les routes de profils publics Faluss sont dynamiques : Faluss Link les exclut du
 Les ressources sociales utilisent l’original WordPress `full`, avec `srcset`, `sizes` et une version issue de la date de modification de la pièce jointe. Le Studio, le rendu public mobile et desktop consomment exactement cette même ressource et la même variante. La classe d’alignement de carte est également commune : en mode Centre, avatar, identité, réseaux, blocs et liens sont centrés dans l’aperçu comme sur le profil public.
 
 Sur une route publique, le shell Faluss Link place uniquement le conteneur Elementor de header au-dessus du hero, hors du flux. Il ne modifie ni son design ni ses réglages ; le hero commence donc au sommet du viewport, sans bande blanche, sur mobile comme sur desktop.
+
+## Safe areas immersives (FL-14)
+
+Les routes publiques Faluss utilisent le viewport enrichi `viewport-fit=cover`. Le hero conserve une image edge-to-edge derrière la zone système iPhone, tandis que le contenu interactif du header et le contenu de carte respectent `safe-area-inset-top`, `safe-area-inset-bottom` et les côtés. Le fond du document est sombre sur cette seule route afin qu’un premier rendu ou un rebond de défilement ne révèle jamais de bande crème ou blanche. Android et desktop conservent le même rendu, leurs safe areas valant zéro.

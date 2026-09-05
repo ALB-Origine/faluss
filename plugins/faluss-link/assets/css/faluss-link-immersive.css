@@ -15,6 +15,13 @@
 body.faluss-identity-public-route {
   margin: 0;
   padding: 0;
+  min-height: 100svh;
+  min-height: 100dvh;
+  background: var(--faluss-ink, #080808);
+}
+
+html:has(body.faluss-identity-public-route) {
+  background: var(--faluss-ink, #080808);
 }
 
 body.faluss-identity-public-route > .elementor-location-header {
@@ -24,6 +31,8 @@ body.faluss-identity-public-route > .elementor-location-header {
   right: 0;
   left: 0;
   width: 100%;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
   pointer-events: auto;
 }
 
@@ -35,10 +44,13 @@ body.faluss-identity-public-route > .faluss-identity-profile-page {
 /* The Elementor header owns its overlay treatment. The immersive route never outranks it. */
 body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
   z-index: 0;
+  min-height: 100svh;
+  min-height: 100dvh;
 }
 
 .faluss-link-card--presentation-immersive .faluss-link-card__cover {
   height: clamp(32rem, 92svh, 54rem);
+  height: clamp(32rem, 92dvh, 54rem);
   background: var(--fl-hero-transition-color, var(--fl-page));
 }
 
@@ -63,7 +75,11 @@ body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
 
 .faluss-link-card--presentation-immersive .faluss-link-card__body {
   margin-top: -21rem;
-  padding: 8rem clamp(1.25rem, 6vw, 4rem) 3rem;
+  padding:
+    max(8rem, calc(env(safe-area-inset-top, 0px) + 4.5rem))
+    max(clamp(1.25rem, 6vw, 4rem), env(safe-area-inset-right, 0px))
+    max(3rem, calc(env(safe-area-inset-bottom, 0px) + 2rem))
+    max(clamp(1.25rem, 6vw, 4rem), env(safe-area-inset-left, 0px));
   background: linear-gradient(180deg, transparent 0, var(--fl-page) 19rem);
   color: var(--fl-ink);
   transform: translate3d(0, var(--fl-immersive-panel-depth, 0px), 0);
@@ -98,8 +114,9 @@ body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
 
 .faluss-link-card--presentation-immersive.faluss-link-card--cover-no .faluss-link-card__body {
   min-height: 100svh;
+  min-height: 100dvh;
   margin-top: 0;
-  padding-top: clamp(7rem, 22vw, 13rem);
+  padding-top: max(clamp(7rem, 22vw, 13rem), calc(env(safe-area-inset-top, 0px) + 4.5rem));
   background: var(--fl-page);
 }
 
@@ -136,6 +153,7 @@ body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
 
   .faluss-link-card--presentation-immersive .faluss-link-card__cover {
     height: min(80svh, 54rem);
+    height: min(80dvh, 54rem);
   }
 }
 

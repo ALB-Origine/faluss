@@ -42,3 +42,9 @@ Le scope Date n'existe pas. Date ne reçoit jamais plus que les claims stricteme
 ## Erreurs et journalisation
 
 Les erreurs visibles restent génériques. Si et seulement si l'URI de retour a déjà été validée, le refus retourne `error` et le `state` au client. Les journaux d'audit utilisent un identifiant d'événement, `client_id`, type d'action et horodatage. Ils n'enregistrent jamais code, verifier PKCE, secret client, OTP, état ou e-mail brut.
+
+## Préférence front des membres Faluss (FI-06)
+
+Un utilisateur qui possède un profil Faluss Identity et dont l’unique rôle WordPress est `subscriber` reçoit la préférence WordPress `show_admin_bar_front=false`. Le filtre front applique la même règle à chaque affichage afin qu’une réactivation accidentelle de la préférence ne réintroduise pas la barre d’administration. Les rôles combinés ou différents — administrateur, éditeur, auteur, client WooCommerce ou tout autre rôle — ne sont jamais modifiés.
+
+La migration FI-06 est versionnée et idempotente. Elle parcourt exclusivement les `wp_user_id` de la table des profils Faluss Identity ; elle ne parcourt pas la liste globale des utilisateurs et ne crée aucune table ni meta Elementor.
