@@ -7,9 +7,10 @@ $access = file_get_contents( $root . '/plugins/token-engine/includes/class-token
 $admin = file_get_contents( $root . '/plugins/token-engine/includes/class-token-engine-admin.php' );
 $script = file_get_contents( $root . '/plugins/token-engine/assets/js/token-engine-admin.js' );
 
-foreach ( array( "rest_url( 'token-engine/v1/' )", 'rest_base_url', 'token-engine-core-url-', 'data-copy-target', 'token-engine-copy', 'wallet.read accordée' ) as $needle ) {
-    te021_assert( false !== strpos( $access . $admin, $needle ), 'TE-02.1 must expose the exact copyable Core REST URL and permission state: ' . $needle );
+foreach ( array( "rest_url( 'token-engine/v1/' )", "home_url( '/' )", 'core_site_url', 'token-engine-core-url-', 'URL du site Core', 'data-copy-target', 'token-engine-copy', 'wallet.read accordée' ) as $needle ) {
+    te021_assert( false !== strpos( $access . $admin, $needle ), 'TE-02.1 must expose the copyable canonical Core site URL and permission state: ' . $needle );
 }
+te021_assert( false === strpos( $admin, 'URL REST exacte du Core' ) && false === strpos( $admin, 'Token_Engine_Connector_Access::rest_base_url()' ), 'The Core administration must not ask Connector administrators to copy a REST base.' );
 te021_assert( false !== strpos( $script, 'navigator.clipboard' ) && false !== strpos( $script, 'document.execCommand' ), 'TE-02.1 must provide a functional non-sensitive copy control.' );
 foreach ( array( 'update_project_permissions', 'token_engine_update_project_permissions', 'normalise_permissions_allow_empty', 'connector_permissions' ) as $needle ) {
     te021_assert( false !== strpos( $access . $admin, $needle ), 'TE-02.1 must support explicit wallet.read permission management: ' . $needle );

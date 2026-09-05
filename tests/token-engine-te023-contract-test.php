@@ -10,8 +10,8 @@ $docs = file_get_contents( $root . '/docs/TOKEN_ENGINE.md' );
 foreach ( array( 'rest_contract', "rest_url( 'token-engine/v1/' )", "'namespace' => 'token-engine/v1'", "'protocol_version' => self::PROTOCOL_VERSION", "'/connector/token'", "'/connector/diagnostic'", "'/connector/balance'", "'method' => 'POST'", "'method' => 'GET'" ) as $needle ) {
     te023_assert( false !== strpos( $access, $needle ), 'TE-02.3 requires one canonical WordPress REST contract: ' . $needle );
 }
-foreach ( array( 'rest_base_url', 'Token_Engine_Connector_Access::rest_base_url()', 'protocol_version', "'engine' => 'token-engine'" ) as $needle ) {
-    te023_assert( false !== strpos( $access . $admin, $needle ), 'TE-02.3 must expose the canonical base and compatible protocol result: ' . $needle );
+foreach ( array( 'rest_base_url', 'core_site_url', 'Token_Engine_Connector_Access::core_site_url()', 'protocol_version', "'engine' => 'token-engine'" ) as $needle ) {
+    te023_assert( false !== strpos( $access . $admin, $needle ), 'TE-02.3 must expose a technical REST base, a copyable site URL and compatible protocol result: ' . $needle );
 }
 te023_assert( 3 === substr_count( $access, 'register_rest_route' ), 'TE-02.3 must retain exactly three private connector routes.' );
 te023_assert( 1 === substr_count( $access, '=> rest_url(' ), 'TE-02.3 must have one Core-owned WordPress REST base source.' );

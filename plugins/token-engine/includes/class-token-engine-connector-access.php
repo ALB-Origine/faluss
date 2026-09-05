@@ -36,6 +36,7 @@ final class Token_Engine_Connector_Access {
     /** One Core-owned REST contract for route registration, administration and integrations. */
     public static function rest_contract() {
         return array(
+            'site_url' => self::core_site_url(),
             'base_url' => rest_url( 'token-engine/v1/' ),
             'namespace' => 'token-engine/v1',
             'protocol_version' => self::PROTOCOL_VERSION,
@@ -47,7 +48,12 @@ final class Token_Engine_Connector_Access {
         );
     }
 
-    /** The exact, copyable base endpoint for an external connector. */
+    /** The canonical public site URL that an external Connector stores. */
+    public static function core_site_url() {
+        return untrailingslashit( home_url( '/' ) );
+    }
+
+    /** Technical REST base, derived by WordPress for diagnostics only. */
     public static function rest_base_url() {
         return self::rest_contract()['base_url'];
     }
