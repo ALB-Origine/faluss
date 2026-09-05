@@ -73,3 +73,7 @@ Les routes publiques Faluss utilisent le viewport enrichi `viewport-fit=cover`. 
 Le carrousel **Thèmes** dans `Studio Faluss > Style` lit `faluss-catalog` quand ce plugin est présent. Un thème définit une base structurée pour le fond, la transition du hero, la couleur du nom, l’alignement, les réseaux et les boutons ; il ne contient jamais de CSS, HTML ou JavaScript libre. Après avoir choisi un thème, les réglages individuels du Studio restent disponibles et prennent le dessus sur les seules propriétés que le membre modifie.
 
 Sans Catalogue Faluss, Faluss Link conserve son rendu **Faluss par défaut**, sans erreur ni dépendance obligatoire. Les surcharges Elementor explicitement renseignées gardent leur priorité locale sur les variables de carte.
+
+## Résolution fiable des thèmes (FL-15.1)
+
+La carte publique, l’hydratation du Studio, son aperçu et l’enregistrement passent par le même résolveur : base **Faluss par défaut**, thème Faluss Link actif et valide, surcharges personnelles bornées pour le fond, la transition, l’alignement, la couleur du nom, les réseaux et les boutons, puis CSS Elementor explicitement renseigné. Le choix de **Faluss par défaut** est un vrai nouveau thème de base : les six surcharges visuelles précédentes sont réinitialisées, et toute modification ultérieure est de nouveau conservée. Si un thème est désactivé ou supprimé, seule sa référence est remplacée par le défaut ; sa réactivation ultérieure ne le réapplique jamais silencieusement.

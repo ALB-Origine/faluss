@@ -16,7 +16,7 @@ function fc01_assert( $condition, $message ) { if ( ! $condition ) { fwrite( STD
 
 $root = dirname( __DIR__ );
 $source = file_get_contents( $root . '/plugins/faluss-catalog/includes/class-faluss-catalog-themes.php' );
-foreach ( array( 'Faluss par défaut', 'SYSTEM_SLUG', 'manage_options', 'faluss_catalog_nonce', 'wp_verify_nonce', 'wp_attachment_is_image', 'LINK_SCOPE', 'page_background', 'hero_transition_color', 'name_color', 'social_variant', 'link_style' ) as $needle ) { fc01_assert( false !== strpos( $source, $needle ), 'FC-01 catalogue invariant absent: ' . $needle ); }
+foreach ( array( 'Faluss par défaut', 'SYSTEM_SLUG', 'manage_options', 'faluss_catalog_nonce', 'wp_verify_nonce', 'wp_attachment_is_image', 'LINK_SCOPE', 'page_background', 'hero_transition_color', 'name_color', 'social_variant', 'link_style', 'get_active_theme' ) as $needle ) { fc01_assert( false !== strpos( $source, $needle ), 'FC-01 catalogue invariant absent: ' . $needle ); }
 fc01_assert( false === strpos( $source, 'wp_insert_post' ) && false === strpos( $source, 'register_post_type' ), 'FC-01 themes must remain structured records, not arbitrary posts or CSS payloads.' );
 
 require_once $root . '/plugins/faluss-catalog/includes/class-faluss-catalog-themes.php';
@@ -37,6 +37,6 @@ $all = Faluss_Catalog_Themes::all_for_scope();
 $active = Faluss_Catalog_Themes::active_for_scope();
 fc01_assert( isset( $all['faluss-default'], $all['editorial'], $all['archive'] ) && 'faluss-link' === $all['editorial']['scope'] && 'faluss-link' === $all['archive']['scope'], 'Every FC-01 record remains isolated to the Faluss Link scope.' );
 fc01_assert( isset( $active['faluss-default'], $active['editorial'] ) && ! isset( $active['archive'] ), 'Inactive themes remain stored but are not selectable.' );
-fc01_assert( is_array( Faluss_Catalog_Themes::get_theme( 'archive' ) ) && ! Faluss_Catalog_Themes::get_theme( 'missing' ), 'An inactive selected theme remains resolvable while an unknown slug is refused.' );
+fc01_assert( is_array( Faluss_Catalog_Themes::get_theme( 'archive' ) ) && ! Faluss_Catalog_Themes::get_active_theme( 'archive' ) && ! Faluss_Catalog_Themes::get_theme( 'missing' ), 'Archived records remain inspectable for targeted migration but are never active selections.' );
 
 echo "FC-01 catalog contract: OK\n";

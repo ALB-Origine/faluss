@@ -84,7 +84,7 @@ final class Faluss_Catalog_Themes {
         return $themes;
     }
 
-    /** Inactive themes remain resolvable for current members but are not selectable. */
+    /** Only active scoped themes may be selected or resolved by consuming plugins. */
     public static function active_for_scope( $scope = self::LINK_SCOPE ) {
         return array_filter(
             self::all_for_scope( $scope ),
@@ -102,6 +102,12 @@ final class Faluss_Catalog_Themes {
             }
         }
         return false;
+    }
+
+    /** Return an exact active theme, never an archived or out-of-scope record. */
+    public static function get_active_theme( $slug, $scope = self::LINK_SCOPE ) {
+        $theme = self::get_theme( $slug, $scope );
+        return is_array( $theme ) && ! empty( $theme['active'] ) ? $theme : false;
     }
 
     public static function menu() {
@@ -141,8 +147,13 @@ final class Faluss_Catalog_Themes {
         if ( ! $theme ) {
             self::redirect( 'invalid' );
         }
+        $was_active = ! empty( $themes[ $slug ]['active'] );
         $themes[ $slug ] = $theme;
         update_option( self::OPTION, $themes, false );
+        if ( $was_active && empty( $theme['active'] ) ) {
+            /** Consumers replace only references to this exact former active preset. */
+            do_action( 'faluss_catalog_theme_deactivated', $slug );
+        }
         self::redirect( 'updated' );
     }
 
@@ -153,6 +164,8 @@ final class Faluss_Catalog_Themes {
         if ( self::SYSTEM_SLUG !== $slug && isset( $themes[ $slug ] ) ) {
             unset( $themes[ $slug ] );
             update_option( self::OPTION, $themes, false );
+            /** A deleted preset is unavailable just like a deactivated preset. */
+            do_action( 'faluss_catalog_theme_deactivated', $slug );
             self::redirect( 'deleted' );
         }
         self::redirect( 'invalid' );

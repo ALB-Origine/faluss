@@ -32,6 +32,8 @@ final class Faluss_Link {
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ), 5 );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_public_profile_assets' ), 6 );
         add_action( 'template_redirect', array( __CLASS__, 'send_public_profile_no_cache_headers' ), 0 );
+        add_action( 'faluss_catalog_theme_deactivated', array( __CLASS__, 'migrate_deactivated_theme_references' ) );
+        add_action( 'admin_init', array( __CLASS__, 'migrate_inactive_catalog_theme_references' ), 1 );
         add_action( 'elementor/frontend/after_register_scripts', array( __CLASS__, 'assets' ), 5 );
         add_action( 'elementor/frontend/after_register_styles', array( __CLASS__, 'assets' ), 5 );
         add_action( 'elementor/widgets/register', array( __CLASS__, 'widgets' ) );
@@ -283,7 +285,8 @@ final class Faluss_Link {
 
     private static function theme_picker( $preferences ) {
         $themes = self::catalog_themes( true );
-        $reference = self::theme_reference( $preferences['theme_reference'] ?? $preferences['selected_theme'] ?? '' );
+        /* The editor always hydrates the same effective theme as the public card. */
+        $reference = self::theme_reference( $preferences['selected_theme'] ?? self::system_card_theme()['slug'] );
         ?>
         <fieldset class="faluss-link-theme-picker">
             <legend><?php esc_html_e( 'Thèmes', 'faluss-link' ); ?></legend>
@@ -387,7 +390,7 @@ final class Faluss_Link {
             $preferences['theme_reference'] = self::theme_reference( $payload['selected_theme'] ?? self::system_card_theme()['slug'] );
             $preferences['theme_overrides'] = $legacy ? self::theme_setting_keys() : self::theme_overrides( $payload['theme_overrides'] ?? array() );
         }
-        return self::resolve_theme_preferences( $preferences );
+        return self::resolve_card_presentation( $preferences );
     }
 
     private static function name_color( $value ) {
@@ -397,11 +400,10 @@ final class Faluss_Link {
 
     private static function social_variant( $value ) { return 'full' === $value ? 'full' : 'outline'; }
 
-    private static function resolve_card_styles( $preferences, $theme = array() ) {
-        $tokens = array( 'name_color' => '#000000' );
-        $member = array( 'name_color' => self::name_color( $preferences['name_color'] ?? $tokens['name_color'] ) );
-        $theme = is_array( $theme ) ? array( 'name_color' => self::name_color( $theme['name_color'] ?? $member['name_color'] ) ) : array();
-        return array_merge( $tokens, $member, $theme );
+    /** Compatibility adapter: the public name still reads the single presentation resolver. */
+    private static function resolve_card_styles( $preferences ) {
+        $presentation = self::resolve_card_presentation( $preferences );
+        return array( 'name_color' => $presentation['name_color'] );
     }
 
     /** The Link-owned fallback keeps cards working while the optional catalogue is absent. */
@@ -432,15 +434,24 @@ final class Faluss_Link {
         return $overrides;
     }
 
-    private static function resolve_theme_preferences( $preferences ) {
+    /**
+     * Single effective presentation resolver for storage hydration, Studio and
+     * public cards. Elementor's explicit CSS stays a final local CSS layer.
+     */
+    private static function resolve_card_presentation( $preferences ) {
         $reference = self::theme_reference( $preferences['theme_reference'] ?? $preferences['selected_theme'] ?? '' );
         $theme = self::catalog_theme( $reference ) ?: self::system_card_theme();
-        $preferences['theme_reference'] = $reference;
-        $preferences['selected_theme'] = self::selected_theme( $reference );
-        $preferences['theme_overrides'] = self::theme_overrides( $preferences['theme_overrides'] ?? array() );
+        $effective_theme = self::theme_reference( $theme['slug'] ?? self::system_card_theme()['slug'] );
+        $overrides = self::theme_overrides( $preferences['theme_overrides'] ?? array() );
+        $member_values = $preferences;
+        $preferences['theme_reference'] = $effective_theme;
+        $preferences['selected_theme'] = $effective_theme;
+        $preferences['theme_overrides'] = $overrides;
         foreach ( self::theme_setting_keys() as $key ) {
-            if ( ! in_array( $key, $preferences['theme_overrides'], true ) && isset( $theme[ $key ] ) ) {
+            if ( ! in_array( $key, $overrides, true ) && isset( $theme[ $key ] ) ) {
                 $preferences[ $key ] = $theme[ $key ];
+            } elseif ( array_key_exists( $key, $member_values ) ) {
+                $preferences[ $key ] = $member_values[ $key ];
             }
         }
         $preferences['alignment'] = self::align( $preferences['alignment'] );
@@ -459,8 +470,8 @@ final class Faluss_Link {
 
     private static function catalog_theme( $slug ) {
         $slug = self::theme_reference( $slug );
-        if ( class_exists( 'Faluss_Catalog_Themes' ) && method_exists( 'Faluss_Catalog_Themes', 'get_theme' ) ) {
-            $theme = Faluss_Catalog_Themes::get_theme( $slug, 'faluss-link' );
+        if ( class_exists( 'Faluss_Catalog_Themes' ) && method_exists( 'Faluss_Catalog_Themes', 'get_active_theme' ) ) {
+            $theme = Faluss_Catalog_Themes::get_active_theme( $slug, 'faluss-link' );
             if ( is_array( $theme ) ) {
                 return self::normalise_catalog_theme( $theme );
             }
@@ -492,6 +503,48 @@ final class Faluss_Link {
             $themes[] = $theme + array( 'preview_url' => $preview && wp_attachment_is_image( $preview ) ? (string) wp_get_attachment_image_url( $preview, 'medium' ) : '' );
         }
         return $themes;
+    }
+
+    /** Replace only exact stored references to a preset that just became unavailable. */
+    public static function migrate_deactivated_theme_references( $slug ) {
+        global $wpdb;
+        $slug = self::theme_reference( $slug );
+        if ( self::system_card_theme()['slug'] === $slug || ! isset( $wpdb ) || ! is_object( $wpdb ) ) {
+            return false;
+        }
+        $table = Faluss_Link_Schema::table();
+        if ( '' === $table || ! method_exists( $wpdb, 'get_results' ) || ! method_exists( $wpdb, 'update' ) ) {
+            return false;
+        }
+        $candidate = '%' . $slug . '%';
+        $rows = $wpdb->get_results( $wpdb->prepare( 'SELECT faluss_id,social_links FROM ' . $table . ' WHERE social_links LIKE %s', $candidate ), ARRAY_A );
+        $migrated = true;
+        foreach ( (array) $rows as $row ) {
+            $payload = json_decode( $row['social_links'] ?? '', true );
+            if ( ! is_array( $payload ) || $slug !== self::theme_reference( $payload['selected_theme'] ?? '' ) ) {
+                continue;
+            }
+            $payload['selected_theme'] = self::system_card_theme()['slug'];
+            $payload['theme_overrides'] = self::theme_overrides( $payload['theme_overrides'] ?? array() );
+            if ( false === $wpdb->update( $table, array( 'social_links' => wp_json_encode( $payload ), 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'faluss_id' => $row['faluss_id'] ) ) ) {
+                $migrated = false;
+            }
+        }
+        return $migrated;
+    }
+
+    /** Catch an inactive catalogue record from an earlier request without scanning unrelated data. */
+    public static function migrate_inactive_catalog_theme_references() {
+        if ( ! class_exists( 'Faluss_Catalog_Themes' ) || ! method_exists( 'Faluss_Catalog_Themes', 'all_for_scope' ) ) {
+            return false;
+        }
+        $migrated = true;
+        foreach ( (array) Faluss_Catalog_Themes::all_for_scope( 'faluss-link' ) as $theme ) {
+            if ( is_array( $theme ) && empty( $theme['system'] ) && empty( $theme['active'] ) ) {
+                $migrated = self::migrate_deactivated_theme_references( $theme['slug'] ?? '' ) && $migrated;
+            }
+        }
+        return $migrated;
     }
 
     private static function valid_hex( $value ) {
