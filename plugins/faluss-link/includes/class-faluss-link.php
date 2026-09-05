@@ -208,8 +208,8 @@ final class Faluss_Link {
                     <section id="faluss-studio-panel-profile" role="tabpanel" aria-labelledby="faluss-studio-tab-profile" data-fl-panel="profile"<?php echo 'profile' === $active_tab ? '' : ' hidden'; ?>><?php self::identity_fields( $profile ); ?><label class="faluss-link-studio__check"><input name="available" type="checkbox" value="1" <?php checked( $preferences['available'] ); ?>> <?php esc_html_e( 'Afficher Disponible', 'faluss-link' ); ?></label></section>
                     <section id="faluss-studio-panel-links" role="tabpanel" aria-labelledby="faluss-studio-tab-links" data-fl-panel="links"<?php echo 'links' === $active_tab ? '' : ' hidden'; ?>><?php self::content_composer( $blocks ); self::social_editor( $preferences ); ?><label for="faluss-studio-social-layout"><?php esc_html_e( 'Affichage des réseaux', 'faluss-link' ); ?></label><select id="faluss-studio-social-layout" name="social_layout"><?php self::options( self::LAYOUTS, $preferences['social_layout'] ); ?></select></section>
                     <section id="faluss-studio-panel-style" role="tabpanel" aria-labelledby="faluss-studio-tab-style" data-fl-panel="style"<?php echo 'style' === $active_tab ? '' : ' hidden'; ?>><?php self::theme_picker( $preferences ); self::page_background_field( $preferences, true ); self::name_color_field( $preferences ); self::preference_fields( $preferences, true ); ?></section>
-                    <aside class="faluss-link-studio__preview" aria-label="<?php esc_attr_e( 'Aperçu vivant de ma carte Faluss', 'faluss-link' ); ?>"><h2><?php esc_html_e( 'Aperçu', 'faluss-link' ); ?></h2><?php echo self::card_markup( $profile, $preferences, $preferences['alignment'], true, $blocks ); ?></aside>
-                </div><button class="faluss-link-action faluss-link-studio__submit" type="submit"><?php esc_html_e( 'Enregistrer le Studio', 'faluss-link' ); ?></button>
+                    <aside id="faluss-studio-preview" class="faluss-link-studio__preview" data-fl-preview aria-label="<?php esc_attr_e( 'Aperçu vivant de ma carte Faluss', 'faluss-link' ); ?>" tabindex="-1" hidden><h2><?php esc_html_e( 'Aperçu', 'faluss-link' ); ?></h2><?php echo self::card_markup( $profile, $preferences, $preferences['alignment'], true, $blocks ); ?></aside>
+                </div><div class="faluss-link-studio__actions"><button class="faluss-link-action faluss-link-studio__submit" type="submit"><?php esc_html_e( 'Mettre à jour', 'faluss-link' ); ?></button><button class="faluss-link-studio__preview-toggle" type="button" data-fl-preview-toggle aria-controls="faluss-studio-preview" aria-expanded="false"><?php esc_html_e( 'Aperçu', 'faluss-link' ); ?><span class="faluss-link-studio__dirty-count" data-fl-dirty-count hidden aria-live="polite">0</span></button></div>
             </form>
         </section>
         <?php return (string) ob_get_clean();
@@ -295,7 +295,8 @@ final class Faluss_Link {
     }
 
     private static function identity_fields( $profile ) {
-        ?><label for="faluss-studio-slug"><?php esc_html_e( 'Identifiant public', 'faluss-link' ); ?></label><input id="faluss-studio-slug" name="public_slug" type="text" value="<?php echo esc_attr( $profile['public_slug'] ); ?>" pattern="[a-z0-9][a-z0-9-]{1,39}" maxlength="40" <?php echo '' !== $profile['public_slug'] ? 'readonly' : ''; ?> required><p class="faluss-link-studio__hint"><?php esc_html_e( 'Il reste stable après sa création.', 'faluss-link' ); ?></p><label for="faluss-studio-name"><?php esc_html_e( 'Nom affiché', 'faluss-link' ); ?></label><input id="faluss-studio-name" name="display_name" type="text" maxlength="80" value="<?php echo esc_attr( $profile['display_name'] ); ?>" required><label for="faluss-studio-bio"><?php esc_html_e( 'Bio courte', 'faluss-link' ); ?></label><textarea id="faluss-studio-bio" name="bio" maxlength="280" rows="4"><?php echo esc_textarea( $profile['bio'] ); ?></textarea><label for="faluss-studio-avatar"><?php esc_html_e( 'Avatar', 'faluss-link' ); ?></label><input id="faluss-studio-avatar" name="faluss_identity_avatar" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><label class="faluss-link-studio__check"><input name="publication_status" type="checkbox" value="published" <?php checked( 'published' === $profile['publication_status'] ); ?>> <?php esc_html_e( 'Publier mon profil', 'faluss-link' ); ?></label><?php
+        $published = 'published' === $profile['publication_status'];
+        ?><label for="faluss-studio-slug"><?php esc_html_e( 'Identifiant public', 'faluss-link' ); ?></label><input id="faluss-studio-slug" name="public_slug" type="text" value="<?php echo esc_attr( $profile['public_slug'] ); ?>" pattern="[a-z0-9][a-z0-9-]{1,39}" maxlength="40" <?php echo '' !== $profile['public_slug'] ? 'readonly' : ''; ?> required><p class="faluss-link-studio__hint"><?php esc_html_e( 'Il reste stable après sa création.', 'faluss-link' ); ?></p><label for="faluss-studio-name"><?php esc_html_e( 'Nom affiché', 'faluss-link' ); ?></label><input id="faluss-studio-name" name="display_name" type="text" maxlength="80" value="<?php echo esc_attr( $profile['display_name'] ); ?>" required><label for="faluss-studio-bio"><?php esc_html_e( 'Bio courte', 'faluss-link' ); ?></label><textarea id="faluss-studio-bio" name="bio" maxlength="280" rows="4"><?php echo esc_textarea( $profile['bio'] ); ?></textarea><label for="faluss-studio-avatar"><?php esc_html_e( 'Avatar', 'faluss-link' ); ?></label><input id="faluss-studio-avatar" name="faluss_identity_avatar" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><fieldset class="faluss-link-publication"><legend><?php esc_html_e( 'Profil public', 'faluss-link' ); ?></legend><label class="faluss-link-publication__switch"><input name="publication_status" type="checkbox" value="published" role="switch" aria-describedby="faluss-studio-publication-help" aria-checked="<?php echo $published ? 'true' : 'false'; ?>" <?php checked( $published ); ?>><span class="faluss-link-publication__track" aria-hidden="true"><span></span></span><span class="faluss-link-publication__state" data-fl-publication-state><?php echo esc_html( $published ? __( 'Visible', 'faluss-link' ) : __( 'Masqué', 'faluss-link' ) ); ?></span></label><p id="faluss-studio-publication-help" class="faluss-link-publication__hint"><?php esc_html_e( 'Choisissez si votre carte peut être consultée publiquement.', 'faluss-link' ); ?></p></fieldset><?php
     }
 
     private static function preference_fields( $preferences, $studio = false ) {
@@ -321,8 +322,7 @@ final class Faluss_Link {
             <select id="<?php echo esc_attr( $prefix ); ?>announcement-variant" name="announcement_variant"><?php self::options( self::ANNOUNCEMENTS, $preferences['announcement_variant'] ); ?></select>
             <label for="<?php echo esc_attr( $prefix ); ?>alignment"><?php esc_html_e( 'Alignement du profil', 'faluss-link' ); ?></label>
             <select id="<?php echo esc_attr( $prefix ); ?>alignment" name="alignment"><option value="left" <?php selected( $preferences['alignment'], 'left' ); ?>><?php esc_html_e( 'Gauche', 'faluss-link' ); ?></option><option value="center" <?php selected( $preferences['alignment'], 'center' ); ?>><?php esc_html_e( 'Centre', 'faluss-link' ); ?></option></select>
-            <label for="<?php echo esc_attr( $prefix ); ?>transition-color"><?php esc_html_e( 'Couleur de transition de la couverture', 'faluss-link' ); ?></label>
-            <input id="<?php echo esc_attr( $prefix ); ?>transition-color" name="hero_transition_color" type="color" value="<?php echo esc_attr( $preferences['hero_transition_color'] ); ?>">
+            <div class="faluss-link-color-field"><label for="<?php echo esc_attr( $prefix ); ?>transition-color"><?php esc_html_e( 'Couleur de transition de la couverture', 'faluss-link' ); ?></label><div class="faluss-link-color-field__control"><input id="<?php echo esc_attr( $prefix ); ?>transition-color" name="hero_transition_color" type="color" value="<?php echo esc_attr( $preferences['hero_transition_color'] ); ?>"><output class="faluss-link-color-field__value" data-fl-color-value="hero_transition_color" for="<?php echo esc_attr( $prefix ); ?>transition-color"><?php echo esc_html( $preferences['hero_transition_color'] ); ?></output></div><p class="faluss-link-color-field__hint"><?php esc_html_e( 'Fondu entre la couverture et votre fond', 'faluss-link' ); ?></p></div>
             <label for="<?php echo esc_attr( $prefix ); ?>transition-intensity"><?php esc_html_e( 'Intensité de transition', 'faluss-link' ); ?></label>
             <input id="<?php echo esc_attr( $prefix ); ?>transition-intensity" name="hero_transition_intensity" type="range" min="0" max="100" value="<?php echo (int) $preferences['hero_transition_intensity']; ?>">
             <label for="<?php echo esc_attr( $prefix ); ?>transition-position"><?php esc_html_e( 'Position de transition', 'faluss-link' ); ?></label>
@@ -356,7 +356,7 @@ final class Faluss_Link {
             <input type="hidden" name="theme_overrides" value="<?php echo esc_attr( wp_json_encode( array_values( $preferences['theme_overrides'] ?? array() ) ) ); ?>">
             <div class="faluss-link-theme-picker__rail" aria-label="<?php esc_attr_e( 'Thèmes de carte disponibles', 'faluss-link' ); ?>">
                 <?php foreach ( $themes as $theme ) : ?>
-                    <?php $preview = (int) $theme['preview_attachment_id']; $locked = ! empty( $theme['locked'] ); $selected = ! $locked && $reference === $theme['slug']; ?>
+                    <?php $preview = (int) $theme['preview_attachment_id']; $locked = ! empty( $theme['locked'] ); $selected = $reference === $theme['slug']; ?>
                     <button class="faluss-link-theme-picker__theme<?php echo $locked ? ' is-locked' : ''; ?>" type="button" data-faluss-theme="<?php echo esc_attr( $theme['slug'] ); ?>" aria-pressed="<?php echo $selected ? 'true' : 'false'; ?>"<?php echo $locked ? ' disabled aria-disabled="true"' : ''; ?>>
                         <span class="faluss-link-theme-picker__image" style="--fl-theme-page:<?php echo esc_attr( $theme['page_background'] ); ?>;--fl-theme-hero:<?php echo esc_attr( $theme['hero_transition_color'] ); ?>;--fl-theme-name:<?php echo esc_attr( $theme['name_color'] ); ?>"><?php if ( $preview && wp_attachment_is_image( $preview ) ) { echo wp_get_attachment_image( $preview, 'medium', false, array( 'alt' => '' ) ); } else { ?><span aria-hidden="true"></span><?php } ?></span>
                         <span class="faluss-link-theme-picker__name"><?php echo esc_html( $theme['name'] ); ?></span>
@@ -371,7 +371,7 @@ final class Faluss_Link {
 
     private static function page_background_field( $preferences, $studio ) {
         $id = $studio ? 'faluss-studio-page-background' : 'faluss-link-editor-page-background';
-        ?><label for="<?php echo esc_attr( $id ); ?>"><?php esc_html_e( 'Fond de page', 'faluss-link' ); ?></label><input id="<?php echo esc_attr( $id ); ?>" name="page_background" type="color" value="<?php echo esc_attr( $preferences['page_background'] ); ?>"><?php
+        ?><div class="faluss-link-color-field"><label for="<?php echo esc_attr( $id ); ?>"><?php esc_html_e( 'Fond de page', 'faluss-link' ); ?></label><div class="faluss-link-color-field__control"><input id="<?php echo esc_attr( $id ); ?>" name="page_background" type="color" value="<?php echo esc_attr( $preferences['page_background'] ); ?>"><output class="faluss-link-color-field__value" data-fl-color-value="page_background" for="<?php echo esc_attr( $id ); ?>"><?php echo esc_html( $preferences['page_background'] ); ?></output></div><p class="faluss-link-color-field__hint"><?php esc_html_e( 'Couleur derrière votre carte', 'faluss-link' ); ?></p></div><?php
     }
 
     private static function name_color_field( $preferences ) {
@@ -518,15 +518,19 @@ final class Faluss_Link {
             $theme = self::system_card_theme();
         }
         $effective_theme = self::theme_reference( $theme['slug'] ?? self::system_card_theme()['slug'] );
-        $overrides = self::theme_overrides( $preferences['theme_overrides'] ?? array() );
-        if ( $locked ) {
-            $overrides = array();
-        }
+        /* A right can disappear without rewriting the card row. The system base
+         * replaces the unavailable theme, while the already explicit member
+         * overrides stay above it. */
+        $stored_overrides = self::theme_overrides( $preferences['theme_overrides'] ?? array() );
+        $overrides = $stored_overrides;
         $member_values = $preferences;
         $preferences['theme_reference'] = $reference;
         $preferences['selected_theme'] = $effective_theme;
         $preferences['theme_locked'] = $locked ? 1 : 0;
-        $preferences['theme_overrides'] = $overrides;
+        /* Keep the persisted override list intact: merely opening or saving a
+         * Studio while a right is absent must not convert a temporary visual
+         * fallback into a permanent override of the previously chosen theme. */
+        $preferences['theme_overrides'] = $stored_overrides;
         foreach ( self::theme_setting_keys() as $key ) {
             if ( ! in_array( $key, $overrides, true ) && isset( $theme[ $key ] ) ) {
                 $preferences[ $key ] = $theme[ $key ];
