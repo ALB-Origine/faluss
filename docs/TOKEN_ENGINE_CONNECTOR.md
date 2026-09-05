@@ -8,13 +8,15 @@ Dans l’écosystème Faluss, un connecteur pourra fournir le `faluss_id` comme 
 
 ## Configuration et lecture TE-02
 
-Un administrateur copie dans Connector l’URL REST HTTPS exacte affichée par le projet du Core, puis renseigne l’identifiant public, le secret et la clé de projet. Cette URL conserve un sous-répertoire WordPress éventuel et ne reçoit jamais un second `/wp-json`. Le secret est chiffré au repos avec les clés de l’instance, n’est jamais réaffiché, et sert seulement à obtenir un jeton court en mémoire. Après une régénération du secret sur le Core, l’administrateur doit remplacer manuellement le secret local.
+Un administrateur copie dans Connector l’URL REST HTTPS exacte affichée par le projet du Core, puis renseigne l’identifiant public, le secret et la clé de projet. Cette URL conserve un sous-répertoire WordPress éventuel et ne reçoit jamais un second `/wp-json`. Le secret est chiffré au repos avec une clé dérivée des salts WordPress et un chiffrement authentifié disponible (Sodium, sinon AES-256-GCM). Il n’est jamais réaffiché et sert seulement à obtenir un jeton court en mémoire.
+
+Après une sauvegarde, Connector vérifie immédiatement qu’il peut relire le secret protégé. L’écran indique uniquement **Secret enregistré** ou **Secret requis**. Une sauvegarde sans secret conserve une valeur déjà vérifiée ; si le stockage protégé n’est pas disponible ou ne peut pas être relu, la sauvegarde est refusée et la configuration précédente reste intacte. Après une régénération du secret sur le Core, l’administrateur doit remplacer manuellement le secret local.
 
 Le Core accepte seulement la permission `wallet.read` en TE-02. Le Connector échange les identifiants via HTTPS, appelle le diagnostic ou la lecture de solde avec un jeton `Bearer` dans l’en-tête, puis oublie ce jeton. Il ne possède aucune route front, shortcode, widget ou wallet. Son écran de diagnostic sépare strictement la connexion au Core (URL, redirections, route, projet, client, secret, permission et jeton) du diagnostic Faluss (Identity, profil actif et sujet). Les messages et leurs identifiants de diagnostic ne contiennent jamais le corps d’une réponse distante, un secret, un jeton, un en-tête ou la valeur du sujet.
 
 ## Sujet
 
-Le filtre documenté `token_engine_connector_subject_id` reçoit le sujet proposé et l’utilisateur WordPress courant. Sans valeur valide, le Connector n’effectue aucune requête de solde. Lorsqu’il détecte Faluss Identity, l’adaptateur optionnel récupère seulement un `faluss_id` déjà actif ; il ne crée ni profil, ni compte, ni session. Une autre application fournit son propre sujet stable via le filtre.
+Une fois les plugins WordPress complètement chargés, le connecteur utilise d’abord `Faluss_Identity_Registry::get_active_for_wp_user()` pour le compte WordPress courant. Si cette interface publique n’existe pas, son seul repli est une lecture stricte du schéma Faluss Identity : profil correspondant au `wp_user_id`, statut `active`, puis `faluss_id` valide. Il ne crée, n’active, ne modifie ni ne répare aucun profil. Le filtre documenté `token_engine_connector_subject_id` reçoit ensuite ce sujet proposé et l’utilisateur WordPress courant. Sans valeur valide, le Connector n’effectue aucune requête de solde ; il n’emploie jamais le `wp_user_id` comme sujet central.
 
 ## Façade PHP interne
 

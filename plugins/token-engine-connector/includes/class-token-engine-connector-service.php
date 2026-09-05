@@ -11,11 +11,13 @@ final class Token_Engine_Connector_Service {
 
     public static function configuration() {
         $stored = get_option( self::OPTION, array() );
+        $secret_state = self::secret_state( $stored );
         return array(
             'core_url' => self::core_url( $stored['core_url'] ?? '' ),
             'client_id' => self::client_id( $stored['client_id'] ?? '' ),
             'project_key' => self::project_key( $stored['project_key'] ?? '' ),
-            'secret_configured' => is_string( $stored['secret_protected'] ?? null ) && '' !== $stored['secret_protected'],
+            'secret_configured' => 'saved' === $secret_state,
+            'secret_state' => $secret_state,
         );
     }
 
@@ -26,6 +28,7 @@ final class Token_Engine_Connector_Service {
 
     public static function save_configuration( $values ) {
         $current = get_option( self::OPTION, array() );
+        $current = is_array( $current ) ? $current : array();
         $next = array(
             'core_url' => self::core_url( $values['core_url'] ?? '' ),
             'client_id' => self::client_id( $values['client_id'] ?? '' ),
@@ -35,14 +38,23 @@ final class Token_Engine_Connector_Service {
         $submitted_secret = isset( $values['client_secret'] ) ? trim( (string) wp_unslash( $values['client_secret'] ) ) : '';
         if ( '' !== $submitted_secret ) {
             $protected = Token_Engine_Connector_Crypto::encrypt( $submitted_secret );
-            if ( is_wp_error( $protected ) ) { return self::error( 'connector_secret_protection_failed' ); }
+            if ( is_wp_error( $protected ) ) { return self::error( 'connector_secret_protection_unavailable' ); }
+            $verified_secret = Token_Engine_Connector_Crypto::decrypt( $protected );
+            if ( is_wp_error( $verified_secret ) || ! is_string( $verified_secret ) || ! hash_equals( $submitted_secret, $verified_secret ) ) { return self::error( 'connector_secret_protection_unavailable' ); }
             $next['secret_protected'] = $protected;
         }
         if ( '' === $next['core_url'] ) { return self::error( 'connector_core_url_invalid' ); }
         if ( '' === $next['client_id'] ) { return self::error( 'connector_client_invalid' ); }
         if ( '' === $next['project_key'] ) { return self::error( 'connector_project_invalid' ); }
-        if ( '' === $next['secret_protected'] ) { return self::error( 'connector_secret_missing' ); }
+        if ( '' === $submitted_secret && 'saved' !== self::secret_state( $current ) ) { return self::error( 'connector_secret_required' ); }
+        if ( '' === $next['secret_protected'] ) { return self::error( 'connector_secret_required' ); }
         update_option( self::OPTION, $next, false );
+        $persisted = get_option( self::OPTION, array() );
+        $persisted_secret = Token_Engine_Connector_Crypto::decrypt( is_array( $persisted ) ? ( $persisted['secret_protected'] ?? '' ) : '' );
+        if ( is_wp_error( $persisted_secret ) || ! is_string( $persisted_secret ) || ( '' !== $submitted_secret && ! hash_equals( $submitted_secret, $persisted_secret ) ) ) {
+            update_option( self::OPTION, $current, false );
+            return self::error( 'connector_secret_persistence_failed' );
+        }
         return self::configuration();
     }
 
@@ -146,6 +158,7 @@ final class Token_Engine_Connector_Service {
     private static function project_key( $value ) { $value = is_string( $value ) ? strtolower( sanitize_text_field( wp_unslash( $value ) ) ) : ''; return 1 === preg_match( '/^[a-z0-9][a-z0-9_-]{1,63}$/', $value ) ? $value : ''; }
     private static function permissions( $permissions ) { return is_array( $permissions ) && in_array( 'wallet.read', $permissions, true ) ? array( 'wallet.read' ) : array(); }
     private static function diagnostic_from( $data, $fallback = array() ) { $id = is_array( $data ) ? (string) ( $data['diagnostic_id'] ?? ( $data['data']['diagnostic_id'] ?? '' ) ) : ''; if ( '' === $id && is_array( $fallback ) ) { $id = (string) ( $fallback['diagnostic_id'] ?? '' ); } return 1 === preg_match( '/^[a-f0-9-]{16,64}$/i', $id ) ? $id : wp_generate_uuid4(); }
-    private static function configuration_error_code() { $settings = self::configuration(); if ( '' === $settings['core_url'] ) { return 'connector_core_url_invalid'; } if ( '' === $settings['client_id'] ) { return 'connector_client_invalid'; } if ( '' === $settings['project_key'] ) { return 'connector_project_invalid'; } return 'connector_secret_missing'; }
+    private static function secret_state( $stored ) { if ( ! is_array( $stored ) || ! is_string( $stored['secret_protected'] ?? null ) || '' === $stored['secret_protected'] ) { return 'required'; } $secret = Token_Engine_Connector_Crypto::decrypt( $stored['secret_protected'] ); return is_wp_error( $secret ) || ! is_string( $secret ) || '' === $secret ? 'required' : 'saved'; }
+    private static function configuration_error_code() { $settings = self::configuration(); if ( '' === $settings['core_url'] ) { return 'connector_core_url_invalid'; } if ( '' === $settings['client_id'] ) { return 'connector_client_invalid'; } if ( '' === $settings['project_key'] ) { return 'connector_project_invalid'; } return 'connector_secret_required'; }
     private static function error( $code, $diagnostic_id = '' ) { return new WP_Error( $code, __( 'Le connecteur ne peut pas terminer cette opération.', 'token-engine-connector' ), array( 'diagnostic_id' => '' !== $diagnostic_id ? $diagnostic_id : wp_generate_uuid4() ) ); }
 }
