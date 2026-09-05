@@ -34,6 +34,8 @@ Les intégrations locales appellent `Token_Engine_Connector_Service`, jamais une
 
 ## Récompense quotidienne TE-03
 
+TE-03.2 ajoute la route privée `connector/reward/diagnostic`. Elle est non mutative : elle vérifie la connexion Core, la permission `reward.claim`, l’état de `daily_reward` et son acceptation comme règle globale sans projet propriétaire. Le Connector ajoute seulement, lorsqu’un membre est connecté, un indicateur local de disponibilité du sujet sans transmettre ni afficher sa valeur. Les résultats bornés sont `granted`, `already_claimed`, `rule_unavailable`, `permission_denied`, `subject_unavailable`, `configuration_invalid` et `transient_error` (avec `available` avant le gain). Aucun de ces états ne peut créer une écriture locale.
+
 Le Connector expose `daily_reward_offer()` pour un libellé anonyme : elle ne résout aucun sujet et ne peut pas écrire dans le ledger. Les méthodes `daily_reward_status_for_current_subject()` et `claim_daily_reward_for_current_subject()` résolvent exclusivement le sujet Faluss actif du visiteur courant, puis appellent les routes privées Core avec un jeton court. Aucune route front du Connector n’accepte un `subject_id`, une règle, un projet ou un montant depuis un navigateur ; le navigateur ne communique qu’avec le composant local qui vérifie sa session et son nonce.
 
 La permission `reward.claim` est distincte de `wallet.read`. Elle doit être accordée par un administrateur du Core au projet concerné, sans régénérer son client ou son secret. Le Connector ne stocke pas de ledger, de règle, de solde, de fenêtre quotidienne ou de clé d’idempotence de gain : le Core en est le seul propriétaire. Une indisponibilité du Core, une permission absente ou un sujet inactif ne devient jamais un gain local.

@@ -182,12 +182,14 @@ final class Token_Engine_Admin {
 
     private static function rule_form( $rule, $projects, $action, $submit ) {
         $is_update = 'token_engine_update_rule' === $action;
+        $scope = $rule['scope'] ?? 'global';
         ?>
-        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="token-engine-rule-form" data-token-engine-rule-form style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
             <input type="hidden" name="action" value="<?php echo esc_attr( $action ); ?>"><?php if ( $is_update ) : ?><input type="hidden" name="rule_id" value="<?php echo (int) $rule['id']; ?>"><?php endif; ?><?php wp_nonce_field( $action, 'token_engine_nonce' ); ?>
             <label>Clé<br><input name="rule_key" maxlength="96" required value="<?php echo esc_attr( $rule['rule_key'] ?? '' ); ?>" <?php echo $is_update ? 'readonly' : ''; ?>></label>
-            <label>Portée<br><select name="scope"><option value="global" <?php selected( $rule['scope'] ?? 'global', 'global' ); ?>>Globale</option><option value="project" <?php selected( $rule['scope'] ?? '', 'project' ); ?>>Projet</option></select></label>
-            <label>Projet<br><select name="project_id"><option value="0">Aucun</option><?php foreach ( $projects as $project ) : ?><option value="<?php echo (int) $project['id']; ?>" <?php selected( (int) ( $rule['project_id'] ?? 0 ), (int) $project['id'] ); ?>><?php echo esc_html( $project['name'] ); ?></option><?php endforeach; ?></select></label>
+            <label>Portée<br><select name="scope" data-token-engine-rule-scope><option value="global" <?php selected( $scope, 'global' ); ?>>Globale</option><option value="project" <?php selected( $scope, 'project' ); ?>>Projet</option></select></label>
+            <p class="description" data-token-engine-global-scope <?php echo 'global' === $scope ? '' : 'hidden'; ?>>Toutes les surfaces autorisées</p>
+            <label data-token-engine-rule-project <?php echo 'global' === $scope ? 'hidden' : ''; ?>>Projet<br><select name="project_id" data-token-engine-rule-project-select <?php echo 'global' === $scope ? 'disabled' : 'required'; ?>><option value="0">Choisir un projet</option><?php foreach ( $projects as $project ) : ?><option value="<?php echo (int) $project['id']; ?>" <?php selected( (int) ( $rule['project_id'] ?? 0 ), (int) $project['id'] ); ?>><?php echo esc_html( $project['name'] ); ?></option><?php endforeach; ?></select></label>
             <label>Déclencheur<br><select name="trigger_type"><option value="event" <?php selected( $rule['trigger_type'] ?? 'event', 'event' ); ?>>Événement</option><option value="claim" <?php selected( $rule['trigger_type'] ?? '', 'claim' ); ?>>Réclamation</option></select></label>
             <label>Périodicité<br><select name="periodicity"><option value="none" <?php selected( $rule['periodicity'] ?? 'none', 'none' ); ?>>Aucune</option><option value="once" <?php selected( $rule['periodicity'] ?? '', 'once' ); ?>>Une fois</option><option value="daily" <?php selected( $rule['periodicity'] ?? '', 'daily' ); ?>>Quotidienne</option><option value="cooldown" <?php selected( $rule['periodicity'] ?? '', 'cooldown' ); ?>>Cooldown</option></select></label>
             <label>Cooldown (s)<br><input name="cooldown_seconds" type="number" min="1" value="<?php echo (int) ( $rule['cooldown_seconds'] ?? 0 ); ?>"></label>

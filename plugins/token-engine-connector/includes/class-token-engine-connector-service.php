@@ -153,26 +153,16 @@ final class Token_Engine_Connector_Service {
      */
     public static function daily_reward_offer() {
         $token = self::daily_reward_token();
-        if ( is_wp_error( $token ) ) { return $token; }
+        if ( is_wp_error( $token ) ) { return self::daily_reward_error_result( $token ); }
         $response = self::route_request( 'reward_offer', 'POST', array(
             'timeout' => 10,
             'redirection' => 0,
             'sslverify' => true,
             'headers' => array( 'Authorization' => 'Bearer ' . $token['access_token'] ),
         ), $token['rest_mode'] );
-        if ( is_wp_error( $response ) ) { return $response; }
+        if ( is_wp_error( $response ) ) { return self::daily_reward_error_result( $response ); }
         $data = $response['data'];
-        if ( self::configuration()['project_key'] !== self::project_key( $data['project_key'] ?? '' ) ) {
-            return self::error( 'connector_reward_unavailable', self::diagnostic_from( $data, $token ), 'route' );
-        }
-        $state = is_string( $data['state'] ?? null ) ? $data['state'] : '';
-        if ( 'unavailable' === $state ) { return array( 'state' => 'unavailable' ); }
-        $amount = is_numeric( $data['amount'] ?? null ) ? (int) $data['amount'] : 0;
-        $unit = is_string( $data['unit'] ?? null ) ? sanitize_text_field( $data['unit'] ) : '';
-        if ( 'available' !== $state || $amount < 1 || '' === $unit ) {
-            return self::error( 'connector_reward_unavailable', self::diagnostic_from( $data, $token ), 'route' );
-        }
-        return array( 'state' => 'available', 'amount' => $amount, 'unit' => $unit );
+        return self::normalise_daily_reward_response( $data, false );
     }
 
     /** Claims only the active local subject's global daily reward through the Core. */
@@ -180,11 +170,56 @@ final class Token_Engine_Connector_Service {
         return self::daily_reward_request( 'reward_claim' );
     }
 
+    /**
+     * Non-mutating daily reward diagnostic for administrators. It deliberately
+     * reads rule readiness and the local subject availability separately, and
+     * never sends a subject or creates a ledger entry.
+     */
+    public static function daily_reward_diagnostic() {
+        $connection = self::core_connection_test();
+        $subject = self::faluss_subject_diagnostic();
+        $base = array(
+            'core_connected' => ! is_wp_error( $connection ),
+            'reward_claim_authorized' => ! is_wp_error( $connection ) && in_array( self::PERMISSION_REWARD_CLAIM, (array) ( $connection['permissions'] ?? array() ), true ),
+            'rule_state' => 'transient_error',
+            'global_scope_accepted' => false,
+            'subject_checked' => ! empty( $subject['signed_in'] ),
+            'subject_available' => ! empty( $subject['signed_in'] ) && ! empty( $subject['subject_available'] ),
+        );
+        if ( is_wp_error( $connection ) ) {
+            $base['rule_state'] = self::daily_reward_error_result( $connection )['state'];
+            return $base;
+        }
+        $token = self::access_token();
+        if ( is_wp_error( $token ) ) {
+            $base['rule_state'] = self::daily_reward_error_result( $token )['state'];
+            return $base;
+        }
+        $response = self::route_request( 'reward_diagnostic', 'POST', array(
+            'timeout' => 10,
+            'redirection' => 0,
+            'sslverify' => true,
+            'headers' => array( 'Authorization' => 'Bearer ' . $token['access_token'] ),
+        ), $token['rest_mode'] );
+        if ( is_wp_error( $response ) ) {
+            $base['rule_state'] = self::daily_reward_error_result( $response )['state'];
+            return $base;
+        }
+        $data = $response['data'];
+        if ( self::configuration()['project_key'] !== self::project_key( $data['project_key'] ?? '' ) ) {
+            return $base;
+        }
+        $base['reward_claim_authorized'] = ! empty( $data['reward_claim_authorized'] );
+        $base['rule_state'] = in_array( $data['state'] ?? '', array( 'ready', 'rule_unavailable', 'configuration_invalid' ), true ) ? $data['state'] : 'transient_error';
+        $base['global_scope_accepted'] = ! empty( $data['global_scope_accepted'] );
+        return $base;
+    }
+
     private static function daily_reward_request( $route ) {
         $subject = self::current_subject_id();
-        if ( '' === $subject ) { return self::error( 'connector_subject_unavailable', '', 'subject' ); }
+        if ( '' === $subject ) { return array( 'state' => 'subject_unavailable' ); }
         $token = self::daily_reward_token();
-        if ( is_wp_error( $token ) ) { return $token; }
+        if ( is_wp_error( $token ) ) { return self::daily_reward_error_result( $token ); }
         $response = self::route_request( $route, 'POST', array(
             'timeout' => 10,
             'redirection' => 0,
@@ -192,29 +227,9 @@ final class Token_Engine_Connector_Service {
             'headers' => array( 'Authorization' => 'Bearer ' . $token['access_token'] ),
             'body' => array( 'subject_id' => $subject ),
         ), $token['rest_mode'] );
-        if ( is_wp_error( $response ) ) { return $response; }
+        if ( is_wp_error( $response ) ) { return self::daily_reward_error_result( $response ); }
         $data = $response['data'];
-        if ( self::configuration()['project_key'] !== self::project_key( $data['project_key'] ?? '' ) ) {
-            return self::error( 'connector_reward_unavailable', self::diagnostic_from( $data, $token ), 'route' );
-        }
-        $state = is_string( $data['state'] ?? null ) ? $data['state'] : '';
-        if ( ! in_array( $state, array( 'eligible', 'claimed', 'unavailable' ), true ) ) {
-            return self::error( 'connector_reward_unavailable', self::diagnostic_from( $data, $token ), 'route' );
-        }
-        if ( 'unavailable' === $state ) { return array( 'state' => 'unavailable' ); }
-        $amount = is_numeric( $data['amount'] ?? null ) ? (int) $data['amount'] : 0;
-        $unit = is_string( $data['unit'] ?? null ) ? sanitize_text_field( $data['unit'] ) : '';
-        if ( $amount < 1 || '' === $unit || ! isset( $data['balance'] ) || ! is_numeric( $data['balance'] ) ) {
-            return self::error( 'connector_reward_unavailable', self::diagnostic_from( $data, $token ), 'route' );
-        }
-        return array(
-            'state' => $state,
-            'amount' => $amount,
-            'unit' => $unit,
-            'balance' => max( 0, (int) $data['balance'] ),
-            'next_available_at' => self::iso_datetime( $data['next_available_at'] ?? '' ),
-            'claimed_now' => ! empty( $data['claimed_now'] ),
-        );
+        return self::normalise_daily_reward_response( $data, true );
     }
 
     /** @return array<string,mixed>|WP_Error */
@@ -226,6 +241,48 @@ final class Token_Engine_Connector_Service {
             return self::error( 'connector_permission_reward_claim_missing', self::diagnostic_from( $token ), 'permission' );
         }
         return $token;
+    }
+
+    /** Accepts only the bounded Core outcomes, never a remote error body. */
+    private static function normalise_daily_reward_response( $data, $require_balance ) {
+        if ( ! is_array( $data ) || self::configuration()['project_key'] !== self::project_key( $data['project_key'] ?? '' ) ) {
+            return array( 'state' => 'transient_error' );
+        }
+        $state = is_string( $data['state'] ?? null ) ? $data['state'] : '';
+        $states = array( 'available', 'granted', 'already_claimed', 'rule_unavailable', 'permission_denied', 'subject_unavailable', 'configuration_invalid', 'transient_error' );
+        if ( ! in_array( $state, $states, true ) ) {
+            return array( 'state' => 'transient_error' );
+        }
+        if ( ! in_array( $state, array( 'available', 'granted', 'already_claimed' ), true ) ) {
+            return array( 'state' => $state );
+        }
+        $amount = is_numeric( $data['amount'] ?? null ) ? (int) $data['amount'] : 0;
+        $unit = is_string( $data['unit'] ?? null ) ? sanitize_text_field( $data['unit'] ) : '';
+        if ( $amount < 1 || '' === $unit || ( $require_balance && ( ! isset( $data['balance'] ) || ! is_numeric( $data['balance'] ) ) ) ) {
+            return array( 'state' => 'transient_error' );
+        }
+        $result = array( 'state' => $state, 'amount' => $amount, 'unit' => $unit );
+        if ( $require_balance ) {
+            $result['balance'] = max( 0, (int) $data['balance'] );
+            $result['next_available_at'] = self::iso_datetime( $data['next_available_at'] ?? '' );
+            $result['claimed_now'] = ! empty( $data['claimed_now'] );
+        }
+        return $result;
+    }
+
+    /** Converts transport/configuration errors to the same non-sensitive outcome contract. */
+    private static function daily_reward_error_result( $error ) {
+        $code = is_wp_error( $error ) ? (string) $error->get_error_code() : '';
+        if ( 'connector_permission_reward_claim_missing' === $code ) {
+            return array( 'state' => 'permission_denied' );
+        }
+        if ( 'connector_subject_unavailable' === $code ) {
+            return array( 'state' => 'subject_unavailable' );
+        }
+        if ( in_array( $code, array( 'connector_core_url_invalid', 'connector_client_invalid', 'connector_project_invalid', 'connector_secret_missing', 'connector_secret_required', 'connector_secret_unavailable', 'not_configured', 'schema_not_ready' ), true ) ) {
+            return array( 'state' => 'configuration_invalid' );
+        }
+        return array( 'state' => 'transient_error' );
     }
 
     private static function access_token() {
@@ -270,7 +327,7 @@ final class Token_Engine_Connector_Service {
 
     /** Builds route URLs from the canonical site URL without concatenating onto a query string. */
     private static function endpoint( $route, $rest_mode ) {
-        $routes = array( 'token' => 'connector/token', 'diagnostic' => 'connector/diagnostic', 'balance' => 'connector/balance', 'reward_offer' => 'connector/reward/offer', 'reward_status' => 'connector/reward/status', 'reward_claim' => 'connector/reward/claim' );
+        $routes = array( 'token' => 'connector/token', 'diagnostic' => 'connector/diagnostic', 'balance' => 'connector/balance', 'reward_offer' => 'connector/reward/offer', 'reward_diagnostic' => 'connector/reward/diagnostic', 'reward_status' => 'connector/reward/status', 'reward_claim' => 'connector/reward/claim' );
         $route_path = $routes[ $route ] ?? '';
         $site_url = self::configuration()['core_site_url'];
         if ( self::REST_MODE_QUERY === $rest_mode ) {

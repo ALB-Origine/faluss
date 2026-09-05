@@ -143,14 +143,14 @@ final class Token_Engine_Service {
     public static function daily_reward_status( $subject_id, $project_key ) {
         $subject_id = self::subject_id( $subject_id );
         if ( '' === $subject_id ) {
-            return self::error( 'invalid_subject', __( 'Le sujet est invalide.', 'token-engine' ) );
+            return array( 'state' => 'subject_unavailable' );
         }
         $context = self::daily_reward_context( $project_key );
         if ( is_wp_error( $context ) ) {
-            return $context;
+            return self::daily_reward_error_state( $context );
         }
         if ( ! $context ) {
-            return array( 'state' => 'unavailable' );
+            return array( 'state' => 'rule_unavailable' );
         }
         return self::daily_reward_state( $subject_id, $context, false );
     }
@@ -165,10 +165,10 @@ final class Token_Engine_Service {
     public static function daily_reward_offer( $project_key ) {
         $context = self::daily_reward_context( $project_key );
         if ( is_wp_error( $context ) ) {
-            return $context;
+            return self::daily_reward_error_state( $context );
         }
         if ( ! $context ) {
-            return array( 'state' => 'unavailable' );
+            return array( 'state' => 'rule_unavailable' );
         }
         return array(
             'state' => 'available',
@@ -186,31 +186,31 @@ final class Token_Engine_Service {
         global $wpdb;
         $subject_id = self::subject_id( $subject_id );
         if ( '' === $subject_id ) {
-            return self::error( 'invalid_subject', __( 'Le sujet est invalide.', 'token-engine' ) );
+            return array( 'state' => 'subject_unavailable' );
         }
         $context = self::daily_reward_context( $project_key );
         if ( is_wp_error( $context ) ) {
-            return $context;
+            return self::daily_reward_error_state( $context );
         }
         if ( ! $context ) {
-            return array( 'state' => 'unavailable' );
+            return array( 'state' => 'rule_unavailable' );
         }
 
         $lock = 'token_engine_reward_' . substr( hash( 'sha256', $subject_id . '|' . self::DAILY_REWARD_RULE_KEY ), 0, 32 );
         if ( 1 !== (int) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s,%d)', $lock, 10 ) ) ) {
-            return self::error( 'reward_busy', __( 'La réclamation est temporairement indisponible.', 'token-engine' ) );
+            return array( 'state' => 'transient_error' );
         }
         try {
             /* Re-evaluate after acquiring the global lock, not before it. */
             $context = self::daily_reward_context( $project_key );
             if ( is_wp_error( $context ) ) {
-                return $context;
+                return self::daily_reward_error_state( $context );
             }
             if ( ! $context ) {
-                return array( 'state' => 'unavailable' );
+                return array( 'state' => 'rule_unavailable' );
             }
             $state = self::daily_reward_state( $subject_id, $context, false );
-            if ( 'eligible' !== $state['state'] ) {
+            if ( 'available' !== $state['state'] ) {
                 return $state;
             }
             $entry = self::write_transaction( array(
@@ -224,10 +224,14 @@ final class Token_Engine_Service {
                 'metadata' => array( 'reward' => 'daily', 'emitter_project' => $context['project']['project_key'] ),
             ) );
             if ( is_wp_error( $entry ) ) {
-                return $entry;
+                return self::daily_reward_error_state( $entry );
             }
             $state = self::daily_reward_state( $subject_id, $context, true );
-            $state['claimed_now'] = empty( $entry['idempotent'] );
+            if ( ! empty( $entry['idempotent'] ) ) {
+                return $state;
+            }
+            $state['state'] = 'granted';
+            $state['claimed_now'] = true;
             return $state;
         } finally {
             $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock ) );
@@ -266,7 +270,7 @@ final class Token_Engine_Service {
                 $wpdb->query( 'ROLLBACK' );
                 return self::error( 'insufficient_balance', __( 'Le débit rendrait le solde négatif.', 'token-engine' ) );
             }
-            $inserted = $wpdb->insert( Token_Engine_Schema::ledger_table(), $transaction + array( 'created_at' => current_time( 'mysql', true ) ), array( '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s' ) );
+            $inserted = $wpdb->insert( Token_Engine_Schema::ledger_table(), $transaction + array( 'created_at' => current_time( 'mysql', true ) ), array( '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s' ) );
             if ( false === $inserted ) {
                 $wpdb->query( 'ROLLBACK' );
                 $existing = self::ledger_by_idempotency( $transaction['idempotency_key'], false );
@@ -288,6 +292,30 @@ final class Token_Engine_Service {
         return (array) $wpdb->get_results( 'SELECT * FROM ' . Token_Engine_Schema::ledger_table() . ' ORDER BY id DESC LIMIT ' . $limit, ARRAY_A );
     }
 
+    /**
+     * Non-mutating readiness check for the daily rule. A global rule has no
+     * owning project: the authenticated project identifies the authorized
+     * emitting surface only.
+     */
+    public static function daily_reward_diagnostic( $project_key ) {
+        if ( ! Token_Engine_Schema::is_ready() || ! self::configuration_is_valid() ) {
+            return array( 'state' => 'configuration_invalid', 'project_active' => false, 'rule_available' => false, 'global_scope_accepted' => false );
+        }
+        $project = self::find_project( $project_key, true );
+        if ( ! $project ) {
+            return array( 'state' => 'configuration_invalid', 'project_active' => false, 'rule_available' => false, 'global_scope_accepted' => false );
+        }
+        $rule = self::find_rule( self::DAILY_REWARD_RULE_KEY );
+        $rule_available = is_array( $rule ) && ! empty( $rule['active'] ) && 'claim' === $rule['trigger_type'] && 'daily' === $rule['periodicity'] && self::positive_integer( $rule['amount'] ?? 0 );
+        $global_scope_accepted = $rule_available && 'global' === $rule['scope'] && empty( $rule['project_id'] );
+        return array(
+            'state' => $global_scope_accepted ? 'ready' : 'rule_unavailable',
+            'project_active' => true,
+            'rule_available' => (bool) $rule_available,
+            'global_scope_accepted' => (bool) $global_scope_accepted,
+        );
+    }
+
     /** @return array<string,mixed>|WP_Error|null */
     private static function daily_reward_context( $project_key ) {
         if ( ! Token_Engine_Schema::is_ready() ) {
@@ -298,7 +326,7 @@ final class Token_Engine_Service {
         }
         $project = self::find_project( $project_key, true );
         $rule = self::find_rule( self::DAILY_REWARD_RULE_KEY );
-        if ( ! $project || ! $rule || empty( $rule['active'] ) || 'global' !== $rule['scope'] || 'claim' !== $rule['trigger_type'] || 'daily' !== $rule['periodicity'] || ! self::positive_integer( $rule['amount'] ?? 0 ) ) {
+        if ( ! $project || ! $rule || empty( $rule['active'] ) || 'global' !== $rule['scope'] || ! empty( $rule['project_id'] ) || 'claim' !== $rule['trigger_type'] || 'daily' !== $rule['periodicity'] || ! self::positive_integer( $rule['amount'] ?? 0 ) ) {
             return null;
         }
         try {
@@ -334,7 +362,7 @@ final class Token_Engine_Service {
         );
         $settings = self::configuration();
         $state = array(
-            'state' => is_array( $entry ) ? 'claimed' : 'eligible',
+            'state' => is_array( $entry ) ? 'already_claimed' : 'available',
             'amount' => (int) $context['rule']['amount'],
             'unit' => $settings['unit_code'],
             'next_available_at' => is_array( $entry ) ? $context['next_available_at'] : '',
@@ -342,6 +370,15 @@ final class Token_Engine_Service {
             'claimed_now' => (bool) $claimed_now,
         );
         return $state;
+    }
+
+    /** Maps Core infrastructure failures to the bounded reward outcome contract. */
+    private static function daily_reward_error_state( $error ) {
+        $code = is_wp_error( $error ) ? (string) $error->get_error_code() : '';
+        if ( in_array( $code, array( 'schema_not_ready', 'not_configured' ), true ) ) {
+            return array( 'state' => 'configuration_invalid' );
+        }
+        return array( 'state' => 'transient_error' );
     }
 
     private static function normalise_rule( $values ) {

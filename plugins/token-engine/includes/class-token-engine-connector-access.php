@@ -35,17 +35,22 @@ final class Token_Engine_Connector_Access {
         register_rest_route( $contract['namespace'], $contract['routes']['reward_offer']['path'], array(
             'methods' => $contract['routes']['reward_offer']['method'],
             'callback' => array( __CLASS__, 'daily_reward_offer_response' ),
-            'permission_callback' => array( __CLASS__, 'reward_claim_permission' ),
+            'permission_callback' => array( __CLASS__, 'wallet_read_permission' ),
+        ) );
+        register_rest_route( $contract['namespace'], $contract['routes']['reward_diagnostic']['path'], array(
+            'methods' => $contract['routes']['reward_diagnostic']['method'],
+            'callback' => array( __CLASS__, 'daily_reward_diagnostic_response' ),
+            'permission_callback' => array( __CLASS__, 'wallet_read_permission' ),
         ) );
         register_rest_route( $contract['namespace'], $contract['routes']['reward_status']['path'], array(
             'methods' => $contract['routes']['reward_status']['method'],
             'callback' => array( __CLASS__, 'daily_reward_status_response' ),
-            'permission_callback' => array( __CLASS__, 'reward_claim_permission' ),
+            'permission_callback' => array( __CLASS__, 'wallet_read_permission' ),
         ) );
         register_rest_route( $contract['namespace'], $contract['routes']['reward_claim']['path'], array(
             'methods' => $contract['routes']['reward_claim']['method'],
             'callback' => array( __CLASS__, 'daily_reward_claim_response' ),
-            'permission_callback' => array( __CLASS__, 'reward_claim_permission' ),
+            'permission_callback' => array( __CLASS__, 'wallet_read_permission' ),
         ) );
     }
 
@@ -61,6 +66,7 @@ final class Token_Engine_Connector_Access {
                 'diagnostic' => array( 'path' => '/connector/diagnostic', 'method' => 'GET' ),
                 'balance' => array( 'path' => '/connector/balance', 'method' => 'POST' ),
                 'reward_offer' => array( 'path' => '/connector/reward/offer', 'method' => 'POST' ),
+                'reward_diagnostic' => array( 'path' => '/connector/reward/diagnostic', 'method' => 'POST' ),
                 'reward_status' => array( 'path' => '/connector/reward/status', 'method' => 'POST' ),
                 'reward_claim' => array( 'path' => '/connector/reward/claim', 'method' => 'POST' ),
             ),
@@ -263,30 +269,46 @@ final class Token_Engine_Connector_Access {
 
     /** A safe public offer is still authenticated to the authorized Connector project. */
     public static function daily_reward_offer_response( $request ) {
-        $authorized = self::authorize( $request, self::PERMISSION_REWARD_CLAIM );
+        $authorized = self::authorize( $request );
         if ( is_wp_error( $authorized ) ) { return $authorized; }
+        if ( ! self::has_reward_claim_permission( $authorized ) ) {
+            return rest_ensure_response( self::daily_reward_payload( array( 'state' => 'permission_denied' ), $authorized['project_key'] ) );
+        }
         $result = Token_Engine_Service::daily_reward_offer( $authorized['project_key'] );
-        return is_wp_error( $result ) ? $result : rest_ensure_response( self::daily_reward_offer_payload( $result, $authorized['project_key'] ) );
+        return rest_ensure_response( self::daily_reward_offer_payload( $result, $authorized['project_key'] ) );
+    }
+
+    /** Inspects the configured daily rule only; it never resolves a subject or writes the ledger. */
+    public static function daily_reward_diagnostic_response( $request ) {
+        $authorized = self::authorize( $request );
+        if ( is_wp_error( $authorized ) ) { return $authorized; }
+        return rest_ensure_response( self::daily_reward_diagnostic_payload( Token_Engine_Service::daily_reward_diagnostic( $authorized['project_key'] ), $authorized['project_key'], self::has_reward_claim_permission( $authorized ) ) );
     }
 
     /** Status remains scoped to the authenticated project and Connector subject. */
     public static function daily_reward_status_response( $request ) {
-        $authorized = self::authorize( $request, self::PERMISSION_REWARD_CLAIM );
+        $authorized = self::authorize( $request );
         if ( is_wp_error( $authorized ) ) { return $authorized; }
+        if ( ! self::has_reward_claim_permission( $authorized ) ) {
+            return rest_ensure_response( self::daily_reward_payload( array( 'state' => 'permission_denied' ), $authorized['project_key'] ) );
+        }
         $subject = self::subject_id( $request->get_param( 'subject_id' ) );
-        if ( '' === $subject ) { return self::error( 'invalid_subject', 400 ); }
+        if ( '' === $subject ) { return rest_ensure_response( self::daily_reward_payload( array( 'state' => 'subject_unavailable' ), $authorized['project_key'] ) ); }
         $result = Token_Engine_Service::daily_reward_status( $subject, $authorized['project_key'] );
-        return is_wp_error( $result ) ? $result : rest_ensure_response( self::daily_reward_payload( $result, $authorized['project_key'] ) );
+        return rest_ensure_response( self::daily_reward_payload( $result, $authorized['project_key'] ) );
     }
 
     /** The Core alone validates eligibility and appends the immutable credit. */
     public static function daily_reward_claim_response( $request ) {
-        $authorized = self::authorize( $request, self::PERMISSION_REWARD_CLAIM );
+        $authorized = self::authorize( $request );
         if ( is_wp_error( $authorized ) ) { return $authorized; }
+        if ( ! self::has_reward_claim_permission( $authorized ) ) {
+            return rest_ensure_response( self::daily_reward_payload( array( 'state' => 'permission_denied' ), $authorized['project_key'] ) );
+        }
         $subject = self::subject_id( $request->get_param( 'subject_id' ) );
-        if ( '' === $subject ) { return self::error( 'invalid_subject', 400 ); }
+        if ( '' === $subject ) { return rest_ensure_response( self::daily_reward_payload( array( 'state' => 'subject_unavailable' ), $authorized['project_key'] ) ); }
         $result = Token_Engine_Service::claim_daily_reward( $subject, $authorized['project_key'] );
-        return is_wp_error( $result ) ? $result : rest_ensure_response( self::daily_reward_payload( $result, $authorized['project_key'] ) );
+        return rest_ensure_response( self::daily_reward_payload( $result, $authorized['project_key'] ) );
     }
 
     private static function project_by_id( $id ) {
@@ -310,6 +332,7 @@ final class Token_Engine_Connector_Access {
     private static function random_value( $bytes ) { return rtrim( strtr( base64_encode( random_bytes( $bytes ) ), '+/', '-_' ), '=' ); }
     private static function valid_client_id( $value ) { return is_string( $value ) && 1 === preg_match( '/^tec_[A-Za-z0-9_-]{20,60}$/', $value ); }
     private static function subject_id( $value ) { $value = is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : ''; return function_exists( 'mb_substr' ) ? mb_substr( trim( $value ), 0, 191 ) : substr( trim( $value ), 0, 191 ); }
+    private static function has_reward_claim_permission( $authorized ) { return is_array( $authorized ) && in_array( self::PERMISSION_REWARD_CLAIM, (array) ( $authorized['permissions'] ?? array() ), true ); }
     private static function stored_permissions( $value ) { return self::normalise_permissions_allow_empty( is_array( $value ) ? $value : json_decode( (string) $value, true ) ); }
     private static function valid_permissions( $value ) { return self::stored_permissions( $value ); }
     private static function normalise_permissions_allow_empty( $permissions ) {
@@ -322,11 +345,12 @@ final class Token_Engine_Connector_Access {
     }
     /** @return array<string,mixed> */
     private static function daily_reward_payload( $result, $project_key ) {
-        if ( ! is_array( $result ) || ! in_array( $result['state'] ?? '', array( 'eligible', 'claimed', 'unavailable' ), true ) ) {
-            return array( 'state' => 'unavailable', 'project_key' => $project_key );
+        $states = array( 'available', 'granted', 'already_claimed', 'rule_unavailable', 'permission_denied', 'subject_unavailable', 'configuration_invalid', 'transient_error' );
+        if ( ! is_array( $result ) || ! in_array( $result['state'] ?? '', $states, true ) ) {
+            return array( 'state' => 'transient_error', 'project_key' => $project_key );
         }
         $payload = array( 'state' => $result['state'], 'project_key' => $project_key );
-        if ( 'unavailable' !== $result['state'] ) {
+        if ( in_array( $result['state'], array( 'available', 'granted', 'already_claimed' ), true ) ) {
             $payload['amount'] = max( 0, (int) ( $result['amount'] ?? 0 ) );
             $payload['unit'] = sanitize_text_field( (string) ( $result['unit'] ?? '' ) );
             $payload['balance'] = max( 0, (int) ( $result['balance'] ?? 0 ) );
@@ -337,8 +361,9 @@ final class Token_Engine_Connector_Access {
     }
     /** @return array<string,mixed> */
     private static function daily_reward_offer_payload( $result, $project_key ) {
-        if ( ! is_array( $result ) || ! in_array( $result['state'] ?? '', array( 'available', 'unavailable' ), true ) ) {
-            return array( 'state' => 'unavailable', 'project_key' => $project_key );
+        $states = array( 'available', 'rule_unavailable', 'permission_denied', 'configuration_invalid', 'transient_error' );
+        if ( ! is_array( $result ) || ! in_array( $result['state'] ?? '', $states, true ) ) {
+            return array( 'state' => 'transient_error', 'project_key' => $project_key );
         }
         $payload = array( 'state' => $result['state'], 'project_key' => $project_key );
         if ( 'available' === $result['state'] ) {
@@ -346,6 +371,19 @@ final class Token_Engine_Connector_Access {
             $payload['unit'] = sanitize_text_field( (string) ( $result['unit'] ?? '' ) );
         }
         return $payload;
+    }
+    /** @return array<string,mixed> */
+    private static function daily_reward_diagnostic_payload( $result, $project_key, $reward_permission ) {
+        $states = array( 'ready', 'rule_unavailable', 'configuration_invalid' );
+        $state = is_array( $result ) && in_array( $result['state'] ?? '', $states, true ) ? $result['state'] : 'transient_error';
+        return array(
+            'state' => $state,
+            'project_key' => $project_key,
+            'reward_claim_authorized' => (bool) $reward_permission,
+            'project_active' => ! empty( $result['project_active'] ),
+            'rule_available' => ! empty( $result['rule_available'] ),
+            'global_scope_accepted' => ! empty( $result['global_scope_accepted'] ),
+        );
     }
     private static function diagnostic_id() { return wp_generate_uuid4(); }
     private static function error( $code, $status = 403 ) { return new WP_Error( $code, __( 'L’accès connecteur est refusé.', 'token-engine' ), array( 'status' => $status, 'diagnostic_id' => self::diagnostic_id() ) ); }

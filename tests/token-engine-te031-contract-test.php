@@ -16,7 +16,7 @@ te031_assert( false === strpos( $offer, 'subject_id' ) && false === strpos( $off
 foreach ( array( "'reward_offer' => array( 'path' => '/connector/reward/offer'", 'daily_reward_offer_response', 'daily_reward_offer_payload', 'reward_claim_permission', 'register_rest_route' ) as $needle ) {
     te031_assert( false !== strpos( $access, $needle ), 'TE-03.1 must expose the offer through the bounded private Core contract: ' . $needle );
 }
-te031_assert( 6 === substr_count( $access, 'register_rest_route' ), 'TE-03.1 must keep exactly six private, versioned Connector routes.' );
+te031_assert( 7 === substr_count( $access, 'register_rest_route' ), 'TE-03.2 adds one bounded private diagnostic route.' );
 te031_assert( false === strpos( $access, "'faluss_id' =>" ) && false === strpos( $access, '$result[\'access_token\']' ), 'TE-03.1 Core responses must not disclose a Faluss ID or access token.' );
 
 echo "TE-03.1 Core public-offer and atomic claim contract: OK\n";

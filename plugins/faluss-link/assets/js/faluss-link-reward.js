@@ -21,7 +21,7 @@
   }
 
   function setState(component, state) {
-    ['eligible', 'claimed', 'unavailable', 'error', 'loading'].forEach(function (name) {
+    ['available', 'granted', 'already_claimed', 'rule_unavailable', 'permission_denied', 'subject_unavailable', 'configuration_invalid', 'transient_error', 'error', 'loading'].forEach(function (name) {
       component.classList.remove('faluss-link-reward--' + name);
     });
     component.classList.add('faluss-link-reward--' + state);
@@ -43,20 +43,27 @@
   }
 
   function renderTerminalState(component, data) {
-    var state = data.state === 'claimed' ? 'claimed' : 'unavailable';
+    var state = data && data.state ? data.state : 'transient_error';
     setState(component, state);
     var actionNode = action(component);
     if (actionNode) actionNode.replaceChildren();
 
-    if (state === 'claimed') {
-      var message = data.claimed_now
+    if (state === 'granted' || state === 'already_claimed') {
+      var message = state === 'granted'
         ? 'Gain attribué : ' + formatAmount(data.amount) + ' ' + data.unit + '. Solde actualisé : ' + formatAmount(data.balance) + ' ' + data.unit + '.'
         : (component.dataset.falussRewardClaimedLabel || 'Récompense quotidienne déjà réclamée.') + (typeof data.balance === 'number' && data.unit ? ' Solde actuel : ' + formatAmount(data.balance) + ' ' + data.unit + '.' : '');
       setFeedback(component, message + nextAvailability(data.next_available_at), 'success');
       updateBalance(component, data);
       return;
     }
-    setFeedback(component, data.message || component.dataset.falussRewardUnavailableLabel || 'Récompense quotidienne indisponible.', 'unavailable');
+    var messages = {
+      rule_unavailable: 'La récompense quotidienne n’est pas disponible actuellement.',
+      permission_denied: 'La réclamation n’est pas disponible sur cette carte.',
+      subject_unavailable: 'Votre identité Faluss active est nécessaire pour réclamer cette récompense.',
+      configuration_invalid: 'La récompense quotidienne n’est pas encore configurée.',
+      transient_error: component.dataset.falussRewardErrorLabel || 'La récompense est temporairement indisponible. Réessayez plus tard.'
+    };
+    setFeedback(component, data.message || messages[state] || component.dataset.falussRewardUnavailableLabel || 'Récompense quotidienne indisponible.', 'unavailable');
   }
 
   function requestFailure(component, button, message) {
@@ -93,7 +100,8 @@
     }).then(function (result) {
       var response = result.payload;
       var data = response && response.data ? response.data : {};
-      if (!result.ok || !response || !response.success || (data.state !== 'claimed' && data.state !== 'unavailable')) {
+      var states = ['granted', 'already_claimed', 'rule_unavailable', 'permission_denied', 'subject_unavailable', 'configuration_invalid', 'transient_error'];
+      if (!response || !data || states.indexOf(data.state) === -1) {
         requestFailure(component, button, data.message || component.dataset.falussRewardErrorLabel);
         return;
       }

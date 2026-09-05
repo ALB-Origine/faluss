@@ -13,7 +13,7 @@ foreach ( array( 'rest_contract', "rest_url( 'token-engine/v1/' )", "'namespace'
 foreach ( array( 'rest_base_url', 'core_site_url', 'Token_Engine_Connector_Access::core_site_url()', 'protocol_version', "'engine' => 'token-engine'" ) as $needle ) {
     te023_assert( false !== strpos( $access . $admin, $needle ), 'TE-02.3 must expose a technical REST base, a copyable site URL and compatible protocol result: ' . $needle );
 }
-te023_assert( 6 === substr_count( $access, 'register_rest_route' ), 'TE-02.3 plus TE-03.1 must retain a bounded private connector route set.' );
+te023_assert( 7 === substr_count( $access, 'register_rest_route' ), 'TE-03.2 must retain a bounded private connector route set.' );
 te023_assert( 1 === substr_count( $access, '=> rest_url(' ), 'TE-02.3 must have one Core-owned WordPress REST base source.' );
 foreach ( array( '/access-token', "'/diagnostic'", "'/balance'", '/credit', '/debit', 'write_transaction' ) as $forbidden ) {
     te023_assert( false === strpos( $access, $forbidden ), 'TE-02.3 must not retain a divergent or ledger-writing route: ' . $forbidden );
