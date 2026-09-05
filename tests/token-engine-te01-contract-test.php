@@ -41,9 +41,10 @@ foreach ( array( "SUM(CASE WHEN direction=\\'credit\\' THEN amount ELSE -amount 
     te01_assert( false !== strpos( $service, $needle ), 'TE-01 ledger/idempotence invariant is missing: ' . $needle );
 }
 te01_assert( false === stripos( $service, 'balance`' ), 'TE-01 must not store a mutable balance field.' );
-foreach ( array( 'wp_schedule', 'wp_cron', 'cron', 'daily_reward', 'evaluate_eligibility' ) as $forbidden ) {
-    te01_assert( false === stripos( $service, $forbidden ), 'TE-01 must not execute future rules or rewards automatically: ' . $forbidden );
+foreach ( array( 'wp_schedule', 'wp_cron', 'cron', 'evaluate_eligibility' ) as $forbidden ) {
+    te01_assert( false === stripos( $service, $forbidden ), 'Token Engine must not execute rules automatically in the background: ' . $forbidden );
 }
+te01_assert( false !== strpos( $service, 'DAILY_REWARD_RULE_KEY' ) && false !== strpos( $service, 'claim_daily_reward' ), 'TE-03 may execute only the explicit, connector-authorized daily reward claim.' );
 
 foreach ( array( 'manage_options', 'token_engine_save_configuration', 'token_engine_create_project', 'token_engine_create_rule', 'token_engine_adjust', 'wp_nonce_field', 'wp_verify_nonce', 'wp_safe_redirect', "'operation_uuid'", "'idempotency_key' => wp_unslash( \$_POST['operation_uuid']", "'transaction_uuid' => wp_unslash( \$_POST['operation_uuid']", 'Solde projeté' ) as $needle ) {
     te01_assert( false !== strpos( $admin, $needle ), 'TE-01 native administration/manual idempotence invariant is missing: ' . $needle );

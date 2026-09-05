@@ -12,7 +12,7 @@ Un administrateur copie dans Connector uniquement l’**URL HTTPS du site Core**
 
 Après une sauvegarde, Connector vérifie immédiatement qu’il peut relire le secret protégé. L’écran indique uniquement **Secret enregistré** ou **Secret requis**. Une sauvegarde sans secret conserve une valeur déjà vérifiée ; si le stockage protégé n’est pas disponible ou ne peut pas être relu, la sauvegarde est refusée et la configuration précédente reste intacte. Après une régénération du secret sur le Core, l’administrateur doit remplacer manuellement le secret local.
 
-Le Core accepte seulement la permission `wallet.read` en TE-02. À partir de l’URL de site enregistrée, Connector tente les trois routes enfants — `connector/token`, `connector/diagnostic`, `connector/balance` — avec `/wp-json/`, puis utilise automatiquement `index.php?rest_route=` si la route réécrite est absente. La forme REST détectée est dérivée en mémoire, jamais saisie ni persistée comme une seconde URL. Il échange les identifiants via HTTPS, appelle le diagnostic ou la lecture de solde avec un jeton `Bearer` dans l’en-tête, puis oublie ce jeton. Il exige l’identité Core `token-engine` et la version de protocole `1` avant de valider la connexion. Il ne possède aucune route front, shortcode, widget ou wallet. Son écran de diagnostic distingue l’URL du site, le mécanisme REST détecté, la route, le Core/version, les credentials, la permission et le jeton court ; le diagnostic Faluss est disponible séparément seulement après une connexion Core validée. Les messages et leurs identifiants de diagnostic ne contiennent jamais le corps d’une réponse distante, un secret, un jeton, un en-tête ou la valeur du sujet.
+Le Core accepte `wallet.read` pour le diagnostic et la lecture de solde, ainsi que `reward.claim` lorsqu’il est explicitement accordé. À partir de l’URL de site enregistrée, Connector tente les routes enfants — `connector/token`, `connector/diagnostic`, `connector/balance`, `connector/reward/status` et `connector/reward/claim` — avec `/wp-json/`, puis utilise automatiquement `index.php?rest_route=` si la route réécrite est absente. La forme REST détectée est dérivée en mémoire, jamais saisie ni persistée comme une seconde URL. Il échange les identifiants via HTTPS, appelle le diagnostic, la lecture de solde ou la récompense avec un jeton `Bearer` dans l’en-tête, puis oublie ce jeton. Il exige l’identité Core `token-engine` et la version de protocole `1` avant de valider la connexion. Il ne possède aucune route front, shortcode, widget ou wallet. Son écran de diagnostic distingue l’URL du site, le mécanisme REST détecté, la route, le Core/version, les credentials, la permission et le jeton court ; le diagnostic Faluss est disponible séparément seulement après une connexion Core validée. Les messages et leurs identifiants de diagnostic ne contiennent jamais le corps d’une réponse distante, un secret, un jeton, un en-tête ou la valeur du sujet.
 
 ## Migration TE-02.4
 
@@ -32,6 +32,12 @@ Les intégrations locales appellent `Token_Engine_Connector_Service`, jamais une
 - `faluss_subject_diagnostic()` vérifie séparément la disponibilité d’un sujet et retourne seulement une empreinte tronquée non réversible pour le diagnostic d’administration ;
 - `balance_for_current_subject()` lit le solde central seulement si un sujet valide est disponible.
 
+## Récompense quotidienne TE-03
+
+Le Connector expose deux méthodes PHP locales, `daily_reward_status_for_current_subject()` et `claim_daily_reward_for_current_subject()`. Elles résolvent exclusivement le sujet Faluss actif du visiteur courant, puis appellent les routes privées Core avec un jeton court. Aucune route front du Connector n’accepte un `subject_id`, une règle, un projet ou un montant depuis un navigateur ; le navigateur ne communique qu’avec le composant local qui vérifie sa session et son nonce.
+
+La permission `reward.claim` est distincte de `wallet.read`. Elle doit être accordée par un administrateur du Core au projet concerné, sans régénérer son client ou son secret. Le Connector ne stocke pas de ledger, de règle, de solde, de fenêtre quotidienne ou de clé d’idempotence de gain : le Core en est le seul propriétaire. Une indisponibilité du Core, une permission absente ou un sujet inactif ne devient jamais un gain local.
+
 ## Règles d’intégration
 
 - Un connecteur ne lit ni n’écrit directement les tables `token_engine_*`.
@@ -41,4 +47,4 @@ Les intégrations locales appellent `Token_Engine_Connector_Service`, jamais une
 
 ## Suite prévue
 
-**TE-03** pourra afficher une récompense quotidienne dans Faluss Link. Cette interface demandera une décision au moteur commun ; elle ne possédera ni solde, ni règle, ni logique de réclamation concurrente. Les gains, règles, paiements, tokens et entitlements continuent d’appartenir aux moteurs communs de l’écosystème.
+TE-03 fournit la récompense quotidienne Faluss Link par décision du moteur commun, sans solde, règle ou logique de réclamation concurrente locale. Les gains, règles, paiements, tokens et entitlements continuent d’appartenir aux moteurs communs de l’écosystème.

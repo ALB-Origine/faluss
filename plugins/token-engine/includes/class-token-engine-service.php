@@ -11,6 +11,7 @@ final class Token_Engine_Service {
     const SCOPES = array( 'global', 'project' );
     const TRIGGERS = array( 'event', 'claim' );
     const PERIODICITIES = array( 'none', 'once', 'daily', 'cooldown' );
+    const DAILY_REWARD_RULE_KEY = 'daily_reward';
 
     public static function configuration() {
         $stored = get_option( self::SETTINGS_OPTION, array() );
@@ -136,6 +137,82 @@ final class Token_Engine_Service {
     }
 
     /**
+     * Returns only the current subject's safe daily-reward projection. The
+     * global rule, calendar and ledger stay exclusively in the Core.
+     */
+    public static function daily_reward_status( $subject_id, $project_key ) {
+        $subject_id = self::subject_id( $subject_id );
+        if ( '' === $subject_id ) {
+            return self::error( 'invalid_subject', __( 'Le sujet est invalide.', 'token-engine' ) );
+        }
+        $context = self::daily_reward_context( $project_key );
+        if ( is_wp_error( $context ) ) {
+            return $context;
+        }
+        if ( ! $context ) {
+            return array( 'state' => 'unavailable' );
+        }
+        return self::daily_reward_state( $subject_id, $context, false );
+    }
+
+    /**
+     * Atomically claims the configured global daily_reward for one subject.
+     * The lock intentionally excludes the emitter project: the same global
+     * rule cannot be claimed through two authorized surfaces concurrently.
+     */
+    public static function claim_daily_reward( $subject_id, $project_key ) {
+        global $wpdb;
+        $subject_id = self::subject_id( $subject_id );
+        if ( '' === $subject_id ) {
+            return self::error( 'invalid_subject', __( 'Le sujet est invalide.', 'token-engine' ) );
+        }
+        $context = self::daily_reward_context( $project_key );
+        if ( is_wp_error( $context ) ) {
+            return $context;
+        }
+        if ( ! $context ) {
+            return array( 'state' => 'unavailable' );
+        }
+
+        $lock = 'token_engine_reward_' . substr( hash( 'sha256', $subject_id . '|' . self::DAILY_REWARD_RULE_KEY ), 0, 32 );
+        if ( 1 !== (int) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s,%d)', $lock, 10 ) ) ) {
+            return self::error( 'reward_busy', __( 'La réclamation est temporairement indisponible.', 'token-engine' ) );
+        }
+        try {
+            /* Re-evaluate after acquiring the global lock, not before it. */
+            $context = self::daily_reward_context( $project_key );
+            if ( is_wp_error( $context ) ) {
+                return $context;
+            }
+            if ( ! $context ) {
+                return array( 'state' => 'unavailable' );
+            }
+            $state = self::daily_reward_state( $subject_id, $context, false );
+            if ( 'eligible' !== $state['state'] ) {
+                return $state;
+            }
+            $entry = self::write_transaction( array(
+                'subject_id' => $subject_id,
+                'project_key' => $context['project']['project_key'],
+                'rule_key' => self::DAILY_REWARD_RULE_KEY,
+                'direction' => 'credit',
+                'amount' => (int) $context['rule']['amount'],
+                'idempotency_key' => 'reward.daily.' . substr( hash( 'sha256', $subject_id . '|' . self::DAILY_REWARD_RULE_KEY . '|' . $context['day_key'] ), 0, 48 ),
+                'source_reference' => 'connector_daily_reward',
+                'metadata' => array( 'reward' => 'daily', 'emitter_project' => $context['project']['project_key'] ),
+            ) );
+            if ( is_wp_error( $entry ) ) {
+                return $entry;
+            }
+            $state = self::daily_reward_state( $subject_id, $context, true );
+            $state['claimed_now'] = empty( $entry['idempotent'] );
+            return $state;
+        } finally {
+            $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock ) );
+        }
+    }
+
+    /**
      * Atomically records one credit/debit. A repeated idempotency key returns
      * its existing entry; a debit is rejected before it could make a projection negative.
      */
@@ -187,6 +264,62 @@ final class Token_Engine_Service {
         global $wpdb;
         $limit = min( 200, max( 1, absint( $limit ) ) );
         return (array) $wpdb->get_results( 'SELECT * FROM ' . Token_Engine_Schema::ledger_table() . ' ORDER BY id DESC LIMIT ' . $limit, ARRAY_A );
+    }
+
+    /** @return array<string,mixed>|WP_Error|null */
+    private static function daily_reward_context( $project_key ) {
+        if ( ! Token_Engine_Schema::is_ready() ) {
+            return self::error( 'schema_not_ready', __( 'Le schéma du moteur n’est pas prêt.', 'token-engine' ) );
+        }
+        if ( ! self::configuration_is_valid() ) {
+            return null;
+        }
+        $project = self::find_project( $project_key, true );
+        $rule = self::find_rule( self::DAILY_REWARD_RULE_KEY );
+        if ( ! $project || ! $rule || empty( $rule['active'] ) || 'global' !== $rule['scope'] || 'claim' !== $rule['trigger_type'] || 'daily' !== $rule['periodicity'] || ! self::positive_integer( $rule['amount'] ?? 0 ) ) {
+            return null;
+        }
+        try {
+            $timezone = new DateTimeZone( self::configuration()['reference_timezone'] );
+            $now = new DateTimeImmutable( 'now', $timezone );
+            $start = $now->setTime( 0, 0, 0 );
+            $next = $start->modify( '+1 day' );
+        } catch ( Exception $exception ) {
+            return null;
+        }
+        return array(
+            'project' => $project,
+            'rule' => $rule,
+            'timezone' => $timezone,
+            'window_start_utc' => $start->setTimezone( new DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' ),
+            'next_available_at' => $next->setTimezone( new DateTimeZone( 'UTC' ) )->format( DATE_ATOM ),
+            'day_key' => $start->format( 'Y-m-d' ),
+        );
+    }
+
+    /** @return array<string,mixed> */
+    private static function daily_reward_state( $subject_id, $context, $claimed_now ) {
+        global $wpdb;
+        $entry = $wpdb->get_row(
+            $wpdb->prepare(
+                'SELECT id FROM ' . Token_Engine_Schema::ledger_table() . ' WHERE subject_id=%s AND rule_key=%s AND direction=%s AND created_at >= %s ORDER BY created_at DESC,id DESC LIMIT 1',
+                $subject_id,
+                self::DAILY_REWARD_RULE_KEY,
+                'credit',
+                $context['window_start_utc']
+            ),
+            ARRAY_A
+        );
+        $settings = self::configuration();
+        $state = array(
+            'state' => is_array( $entry ) ? 'claimed' : 'eligible',
+            'amount' => (int) $context['rule']['amount'],
+            'unit' => $settings['unit_code'],
+            'next_available_at' => is_array( $entry ) ? $context['next_available_at'] : '',
+            'balance' => self::balance( $subject_id, $context['project']['project_key'] ),
+            'claimed_now' => (bool) $claimed_now,
+        );
+        return $state;
     }
 
     private static function normalise_rule( $values ) {

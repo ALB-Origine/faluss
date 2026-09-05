@@ -14,9 +14,9 @@ foreach ( array( 'connector_client_id', 'connector_secret_hash', 'connector_secr
 foreach ( array( 'wp_hash_password', 'wp_check_password', 'random_bytes', 'TOKEN_TTL_SECONDS = 300', 'secret_version', 'hash_equals', "'wallet.read'", 'connector_project_inactive', 'is_ssl()', 'nocache_headers', 'Bearer ', 'token-engine/v1', '/connector/token', '/connector/diagnostic', '/connector/balance' ) as $needle ) {
     te02_assert( false !== strpos( $access, $needle ), 'TE-02 connector access invariant is missing: ' . $needle );
 }
-te02_assert( 3 === substr_count( $access, 'register_rest_route' ), 'TE-02 exposes exactly the three private, versioned connector routes.' );
-foreach ( array( '__return_true', 'write_transaction', '/credit', '/debit', '/rules', '/adjust' ) as $forbidden ) {
-    te02_assert( false === strpos( $access, $forbidden ), 'TE-02 must not expose a public or remote ledger-writing route: ' . $forbidden );
+te02_assert( 5 === substr_count( $access, 'register_rest_route' ), 'TE-02.3 plus TE-03 expose only the five private, versioned connector routes.' );
+foreach ( array( '__return_true', '/credit', '/debit', '/rules', '/adjust' ) as $forbidden ) {
+    te02_assert( false === strpos( $access, $forbidden ), 'The connector Core must not expose a generic public ledger-writing route: ' . $forbidden );
 }
 te02_assert( false !== strpos( $access, 'project_has_credentials' ) && false !== strpos( $access, 'empty( $project[\'active\'] )' ) && false !== strpos( $access, 'valid_permissions' ), 'Inactive or uncredentialed projects must be refused.' );
 te02_assert( false !== strpos( $access, 'connector_secret_version' ) && false !== strpos( $access, "\$entry['secret_version']" ), 'Secret regeneration must invalidate previously issued access tokens.' );

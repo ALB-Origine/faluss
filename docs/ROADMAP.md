@@ -46,4 +46,4 @@ Fournir le transport privé HTTPS, les identifiants de projet, le jeton court bo
 
 ## TE-03 — Daily reward Faluss Link
 
-Présenter une récompense quotidienne uniquement après que TE-02 puisse demander sa décision au moteur commun. Faluss Link restera une surface et ne portera ni solde ni logique concurrente de récompense.
+Le Core exécute désormais la règle globale configurable `daily_reward` pour un Connector explicitement autorisé par `reward.claim`. Faluss Link reste une surface : elle ne porte ni solde, ni règle, ni logique concurrente de récompense.

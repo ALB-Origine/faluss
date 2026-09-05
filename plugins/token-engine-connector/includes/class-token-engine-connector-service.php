@@ -4,7 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-/** PHP-only connector facade: a canonical Core site URL and read-only remote access. */
+/** PHP-only connector facade: a canonical Core site URL and narrow remote actions. */
 final class Token_Engine_Connector_Service {
     const OPTION = 'token_engine_connector_settings';
     const PROTOCOL_VERSION = '1';
@@ -12,6 +12,8 @@ final class Token_Engine_Connector_Service {
     const REST_MODE_REWRITE = 'rewrite';
     const REST_MODE_QUERY = 'query';
     const REST_NAMESPACE = 'token-engine/v1';
+    const PERMISSION_WALLET_READ = 'wallet.read';
+    const PERMISSION_REWARD_CLAIM = 'reward.claim';
 
     public static function configuration() {
         $stored = get_option( self::OPTION, array() );
@@ -140,6 +142,57 @@ final class Token_Engine_Connector_Service {
         return array( 'project_key' => self::project_key( $data['project_key'] ?? '' ), 'balance' => max( 0, (int) $data['balance'] ) );
     }
 
+    /** Reads only the active local subject's global daily-reward status. */
+    public static function daily_reward_status_for_current_subject() {
+        return self::daily_reward_request( 'reward_status' );
+    }
+
+    /** Claims only the active local subject's global daily reward through the Core. */
+    public static function claim_daily_reward_for_current_subject() {
+        return self::daily_reward_request( 'reward_claim' );
+    }
+
+    private static function daily_reward_request( $route ) {
+        $subject = self::current_subject_id();
+        if ( '' === $subject ) { return self::error( 'connector_subject_unavailable', '', 'subject' ); }
+        $token = self::access_token();
+        if ( is_wp_error( $token ) ) { return $token; }
+        $permissions = self::permissions( $token['permissions'] ?? array() );
+        if ( ! in_array( self::PERMISSION_REWARD_CLAIM, $permissions, true ) ) {
+            return self::error( 'connector_permission_reward_claim_missing', self::diagnostic_from( $token ), 'permission' );
+        }
+        $response = self::route_request( $route, 'POST', array(
+            'timeout' => 10,
+            'redirection' => 0,
+            'sslverify' => true,
+            'headers' => array( 'Authorization' => 'Bearer ' . $token['access_token'] ),
+            'body' => array( 'subject_id' => $subject ),
+        ), $token['rest_mode'] );
+        if ( is_wp_error( $response ) ) { return $response; }
+        $data = $response['data'];
+        if ( self::configuration()['project_key'] !== self::project_key( $data['project_key'] ?? '' ) ) {
+            return self::error( 'connector_reward_unavailable', self::diagnostic_from( $data, $token ), 'route' );
+        }
+        $state = is_string( $data['state'] ?? null ) ? $data['state'] : '';
+        if ( ! in_array( $state, array( 'eligible', 'claimed', 'unavailable' ), true ) ) {
+            return self::error( 'connector_reward_unavailable', self::diagnostic_from( $data, $token ), 'route' );
+        }
+        if ( 'unavailable' === $state ) { return array( 'state' => 'unavailable' ); }
+        $amount = is_numeric( $data['amount'] ?? null ) ? (int) $data['amount'] : 0;
+        $unit = is_string( $data['unit'] ?? null ) ? sanitize_text_field( $data['unit'] ) : '';
+        if ( $amount < 1 || '' === $unit ) {
+            return self::error( 'connector_reward_unavailable', self::diagnostic_from( $data, $token ), 'route' );
+        }
+        return array(
+            'state' => $state,
+            'amount' => $amount,
+            'unit' => $unit,
+            'balance' => max( 0, (int) ( $data['balance'] ?? 0 ) ),
+            'next_available_at' => self::iso_datetime( $data['next_available_at'] ?? '' ),
+            'claimed_now' => ! empty( $data['claimed_now'] ),
+        );
+    }
+
     private static function access_token() {
         if ( ! self::is_configured() ) { return self::error( self::configuration_error_code(), '', self::configuration_stage() ); }
         $stored = get_option( self::OPTION, array() );
@@ -156,7 +209,7 @@ final class Token_Engine_Connector_Service {
         $data = $token['data'];
         if ( self::PROTOCOL_VERSION !== (string) ( $data['protocol_version'] ?? '' ) ) { return self::error( 'connector_protocol_incompatible', self::diagnostic_from( $data ), 'protocol' ); }
         if ( ! is_string( $data['access_token'] ?? null ) || '' === $data['access_token'] ) { return self::error( 'connector_token_rejected', self::diagnostic_from( $data ), 'token' ); }
-        return array( 'access_token' => $data['access_token'], 'rest_mode' => $token['rest_mode'], 'diagnostic_id' => self::diagnostic_from( $data ) );
+        return array( 'access_token' => $data['access_token'], 'permissions' => self::permissions( $data['permissions'] ?? array() ), 'rest_mode' => $token['rest_mode'], 'diagnostic_id' => self::diagnostic_from( $data ) );
     }
 
     /** Tries the pretty REST route first and falls back when it is absent or not a REST response. */
@@ -182,7 +235,7 @@ final class Token_Engine_Connector_Service {
 
     /** Builds route URLs from the canonical site URL without concatenating onto a query string. */
     private static function endpoint( $route, $rest_mode ) {
-        $routes = array( 'token' => 'connector/token', 'diagnostic' => 'connector/diagnostic', 'balance' => 'connector/balance' );
+        $routes = array( 'token' => 'connector/token', 'diagnostic' => 'connector/diagnostic', 'balance' => 'connector/balance', 'reward_status' => 'connector/reward/status', 'reward_claim' => 'connector/reward/claim' );
         $route_path = $routes[ $route ] ?? '';
         $site_url = self::configuration()['core_site_url'];
         if ( self::REST_MODE_QUERY === $rest_mode ) {
@@ -207,7 +260,7 @@ final class Token_Engine_Connector_Service {
         if ( 404 === $status || ( is_array( $data ) && 'rest_no_route' === ( $data['code'] ?? '' ) ) ) { return self::error( 'connector_route_missing', self::diagnostic_from( $data ), 'route' ); }
         if ( 200 > $status || 299 < $status ) {
             $code = is_array( $data ) ? (string) ( $data['code'] ?? '' ) : '';
-            $safe = array( 'https_required', 'connector_project_inactive', 'connector_client_rejected', 'connector_secret_rejected', 'connector_permission_wallet_read_missing', 'connector_token_rejected', 'connector_credentials_missing', 'schema_not_ready' );
+            $safe = array( 'https_required', 'connector_project_inactive', 'connector_client_rejected', 'connector_secret_rejected', 'connector_permissions_missing', 'connector_permission_wallet_read_missing', 'connector_permission_reward_claim_missing', 'connector_token_rejected', 'connector_credentials_missing', 'schema_not_ready', 'reward_busy' );
             $code = in_array( $code, $safe, true ) ? $code : 'connector_core_rejected';
             return self::error( $code, self::diagnostic_from( $data ), self::stage_for_code( $code, $default_stage ) );
         }
@@ -241,10 +294,18 @@ final class Token_Engine_Connector_Service {
 
     private static function client_id( $value ) { $value = is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : ''; return 1 === preg_match( '/^tec_[A-Za-z0-9_-]{20,60}$/', $value ) ? $value : ''; }
     private static function project_key( $value ) { $value = is_string( $value ) ? strtolower( sanitize_text_field( wp_unslash( $value ) ) ) : ''; return 1 === preg_match( '/^[a-z0-9][a-z0-9_-]{1,63}$/', $value ) ? $value : ''; }
-    private static function permissions( $permissions ) { return is_array( $permissions ) && in_array( 'wallet.read', $permissions, true ) ? array( 'wallet.read' ) : array(); }
+    private static function permissions( $permissions ) {
+        if ( ! is_array( $permissions ) ) { return array(); }
+        $normalised = array();
+        foreach ( array( self::PERMISSION_WALLET_READ, self::PERMISSION_REWARD_CLAIM ) as $permission ) {
+            if ( in_array( $permission, $permissions, true ) ) { $normalised[] = $permission; }
+        }
+        return $normalised;
+    }
     private static function rest_mode_label( $rest_mode ) { return self::REST_MODE_QUERY === $rest_mode ? 'rest_route' : 'wp-json'; }
     private static function successful_steps( $rest_mode ) { return array( 'url' => 'valid', 'rest' => self::rest_mode_label( $rest_mode ), 'route' => 'reachable', 'core' => 'identified', 'protocol' => 'compatible', 'credentials' => 'accepted', 'permission' => 'wallet.read', 'token' => 'received' ); }
-    private static function stage_for_code( $code, $fallback ) { $stages = array( 'connector_client_rejected' => 'credentials', 'connector_secret_rejected' => 'credentials', 'connector_credentials_missing' => 'credentials', 'connector_project_inactive' => 'credentials', 'connector_permission_wallet_read_missing' => 'permission', 'connector_token_rejected' => 'token' ); return $stages[ $code ] ?? $fallback; }
+    private static function stage_for_code( $code, $fallback ) { $stages = array( 'connector_client_rejected' => 'credentials', 'connector_secret_rejected' => 'credentials', 'connector_credentials_missing' => 'credentials', 'connector_project_inactive' => 'credentials', 'connector_permissions_missing' => 'permission', 'connector_permission_wallet_read_missing' => 'permission', 'connector_permission_reward_claim_missing' => 'permission', 'connector_token_rejected' => 'token' ); return $stages[ $code ] ?? $fallback; }
+    private static function iso_datetime( $value ) { $value = is_string( $value ) ? trim( $value ) : ''; return '' !== $value && false !== strtotime( $value ) ? $value : ''; }
     private static function diagnostic_from( $data, $fallback = array() ) { $id = is_array( $data ) ? (string) ( $data['diagnostic_id'] ?? ( $data['data']['diagnostic_id'] ?? '' ) ) : ''; if ( '' === $id && is_array( $fallback ) ) { $id = (string) ( $fallback['diagnostic_id'] ?? '' ); } return 1 === preg_match( '/^[a-f0-9-]{16,64}$/i', $id ) ? $id : wp_generate_uuid4(); }
     private static function secret_state( $stored ) { if ( ! is_array( $stored ) || ! is_string( $stored['secret_protected'] ?? null ) || '' === $stored['secret_protected'] ) { return 'required'; } $secret = Token_Engine_Connector_Crypto::decrypt( $stored['secret_protected'] ); return is_wp_error( $secret ) || ! is_string( $secret ) || '' === $secret ? 'required' : 'saved'; }
     private static function configuration_error_code() { $settings = self::configuration(); if ( '' === $settings['core_site_url'] ) { return 'connector_core_url_invalid'; } if ( '' === $settings['client_id'] ) { return 'connector_client_invalid'; } if ( '' === $settings['project_key'] ) { return 'connector_project_invalid'; } return 'connector_secret_required'; }

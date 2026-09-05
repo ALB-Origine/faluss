@@ -2,7 +2,7 @@
 
 Faluss Link est une surface de carte publique : elle lit l’identité, le profil, l’avatar et les liens existants depuis Faluss Identity et conserve uniquement des préférences de carte liées au `faluss_id`.
 
-FL-01 ne contient ni abonnement, ni ALB, ni inventaire cosmétique, ni shop, onglet, contenu verrouillé ou récompense. Ces moteurs pourront ultérieurement fournir des états à la carte par contrats dédiés ; les objets acquis restent possédés et les avantages d’abonnement restent temporaires.
+La carte Faluss ne contient ni abonnement, ni ALB local, ni inventaire cosmétique, ni shop, onglet ou contenu verrouillé. La récompense quotidienne TE-03, lorsqu’elle est configurée, reste une décision du moteur commun par contrat dédié ; les objets acquis restent possédés et les avantages d’abonnement restent temporaires.
 
 ## Recette Elementor du profil public
 
@@ -67,6 +67,14 @@ Sur une route publique, le shell Faluss Link place uniquement le conteneur Eleme
 ## Safe areas immersives (FL-14)
 
 Les routes publiques Faluss utilisent le viewport enrichi `viewport-fit=cover`. Le hero conserve une image edge-to-edge derrière la zone système iPhone, tandis que le contenu interactif du header et le contenu de carte respectent `safe-area-inset-top`, `safe-area-inset-bottom` et les côtés. Le fond du document est sombre sur cette seule route afin qu’un premier rendu ou un rebond de défilement ne révèle jamais de bande crème ou blanche. Android et desktop conservent le même rendu, leurs safe areas valant zéro.
+
+## Récompense quotidienne Faluss (TE-03)
+
+Le widget Elementor **Récompense quotidienne Faluss** et le shortcode `[faluss_link_daily_reward]` sont prévus pour le modèle public `/modele-profile`. Ils n’acceptent ni identifiant de membre, ni montant, ni règle : le visiteur connecté réclame seulement pour son identité Faluss active. Un visiteur anonyme reçoit un lien local vers `/login` puis revient sur la carte en cours après la preuve passwordless ; aucune URL externe n’est ouverte.
+
+Le widget demande son état puis une éventuelle réclamation au Connector local avec une requête WordPress protégée. Faluss Link ne possède ni table de ledger, ni solde, ni règle, ni idempotence de gain. Le Core Token Engine reste l’unique autorité pour la règle globale `daily_reward`, son fuseau horaire, le cooldown quotidien, le ledger et le refus des doubles réclamations, y compris entre plusieurs cartes ou applications.
+
+Dans Elementor, choisissez l’alignement, le contexte compact ou immersif, l’affichage du solde et le masquage discret de l’état indisponible ; les styles de surface et de bouton restent limités au widget et héritent des tokens Faluss Theme. Aucun shop, paiement, entitlement, Premium, cosmétique, streak, gain automatique ou wallet complet n’est ajouté par cette surface.
 
 ## Catalogue central de thèmes (FL-15)
 

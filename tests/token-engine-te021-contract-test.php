@@ -21,9 +21,9 @@ foreach ( array( 'connector_permission_wallet_read_missing', 'connector_client_r
     te021_assert( false !== strpos( $access, $needle ), 'TE-02.1 requires a precise, correlatable Core refusal: ' . $needle );
 }
 te021_assert( false === strpos( $access, "'connector_permissions' => wp_json_encode( array( self::PERMISSION_WALLET_READ ) )" ), 'Regeneration must not overwrite a revoked permission.' );
-te021_assert( 3 === substr_count( $access, 'register_rest_route' ), 'TE-02.1 must keep exactly the three read-only Core routes.' );
-foreach ( array( '/credit', '/debit', 'write_transaction', 'register_rest_field' ) as $forbidden ) {
-    te021_assert( false === strpos( $access, $forbidden ), 'TE-02.1 must not add remote ledger mutation: ' . $forbidden );
+te021_assert( 5 === substr_count( $access, 'register_rest_route' ), 'TE-02.1 plus TE-03 must keep a bounded private route set.' );
+foreach ( array( '/credit', '/debit', 'register_rest_field' ) as $forbidden ) {
+    te021_assert( false === strpos( $access, $forbidden ), 'The Core must not add generic remote ledger mutation: ' . $forbidden );
 }
 te021_assert( false !== strpos( $admin, 'without modifying the permissions' ) || false !== strpos( $admin, 'sans modifier les permissions' ), 'The one-time secret response must explain that rotation preserves permissions.' );
 

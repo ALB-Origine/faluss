@@ -8,6 +8,8 @@ final class Faluss_Link {
     const SCRIPT = 'faluss-link-editor';
     const CARD_SCRIPT = 'faluss-link-card';
     const IMMERSIVE_SCRIPT = 'faluss-link-immersive';
+    const REWARD_STYLE = 'faluss-link-reward';
+    const REWARD_SCRIPT = 'faluss-link-reward';
     const NETWORKS = array( 'instagram', 'tiktok', 'youtube', 'x', 'linkedin', 'github' );
     const ANNOUNCEMENTS = array( 'accent' => 'Accent / ink', 'ink' => 'Ink / white' );
     const NAME_TREATMENTS = array( 'editorial' => 'Éditorial', 'strong' => 'Fort' );
@@ -24,10 +26,12 @@ final class Faluss_Link {
         add_shortcode( 'faluss_link_card', array( __CLASS__, 'card_shortcode' ) );
         add_shortcode( 'faluss_link_appearance', array( __CLASS__, 'appearance_shortcode' ) );
         add_shortcode( 'faluss_link_studio', array( __CLASS__, 'studio_shortcode' ) );
+        add_shortcode( 'faluss_link_daily_reward', array( __CLASS__, 'daily_reward_shortcode' ) );
         add_action( 'admin_post_faluss_link_save', array( __CLASS__, 'save' ) );
         add_action( 'admin_post_faluss_link_save_studio', array( __CLASS__, 'save_studio' ) );
         add_action( 'wp_ajax_faluss_link_upload_cover', array( __CLASS__, 'upload_cover' ) );
         add_action( 'wp_ajax_faluss_link_upload_teaser', array( __CLASS__, 'upload_teaser' ) );
+        add_action( 'wp_ajax_faluss_link_daily_reward_claim', array( __CLASS__, 'claim_daily_reward' ) );
         add_action( 'parse_request', array( __CLASS__, 'exclude_public_profile_from_cache' ), 1 );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ), 5 );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_public_profile_assets' ), 6 );
@@ -43,15 +47,19 @@ final class Faluss_Link {
     public static function card_shortcode( $attributes = array() ) { return self::render_card( (array) $attributes ); }
     public static function appearance_shortcode() { return self::render_editor(); }
     public static function studio_shortcode() { return self::render_studio(); }
+    public static function daily_reward_shortcode( $attributes = array() ) { return self::render_daily_reward( (array) $attributes ); }
 
     public static function assets() {
         wp_register_style( self::STYLE, plugins_url( 'assets/css/faluss-link.css', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION );
         wp_register_style( self::IMMERSIVE_STYLE, plugins_url( 'assets/css/faluss-link-immersive.css', FALUSS_LINK_FILE ), array( self::STYLE ), FALUSS_LINK_VERSION );
         wp_register_style( self::STUDIO_STYLE, plugins_url( 'assets/css/faluss-link-studio.css', FALUSS_LINK_FILE ), array( self::STYLE, self::IMMERSIVE_STYLE ), FALUSS_LINK_VERSION );
+        wp_register_style( self::REWARD_STYLE, plugins_url( 'assets/css/faluss-link-reward.css', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION );
         wp_register_script( self::CARD_SCRIPT, plugins_url( 'assets/js/faluss-link-card.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
         wp_register_script( self::SCRIPT, plugins_url( 'assets/js/faluss-link-editor.js', FALUSS_LINK_FILE ), array( 'jquery', self::CARD_SCRIPT ), FALUSS_LINK_VERSION, true );
         wp_register_script( self::IMMERSIVE_SCRIPT, plugins_url( 'assets/js/faluss-link-immersive.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
+        wp_register_script( self::REWARD_SCRIPT, plugins_url( 'assets/js/faluss-link-reward.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
         wp_localize_script( self::SCRIPT, 'falussLinkCover', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_upload_cover' ), 'teaserNonce' => wp_create_nonce( 'faluss_link_upload_teaser' ), 'networks' => self::network_catalog_for_client(), 'themes' => self::catalog_themes_for_client() ) );
+        wp_localize_script( self::REWARD_SCRIPT, 'falussLinkReward', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_daily_reward_claim' ) ) );
     }
 
     /**
@@ -124,6 +132,45 @@ final class Faluss_Link {
         return $markup;
     }
 
+    /** Public, viewer-scoped reward component. It never accepts a profile owner or subject attribute. */
+    public static function render_daily_reward( $attributes = array() ) {
+        $attributes = wp_parse_args( $attributes, array(
+            'align' => 'left',
+            'presentation' => 'immersive',
+            'show_balance' => 'no',
+            'hide_unavailable' => 'yes',
+            'login_label' => __( 'Se connecter pour réclamer', 'faluss-link' ),
+            'claim_label' => __( 'Réclamer %1$s %2$s', 'faluss-link' ),
+            'claimed_label' => __( 'Récompense quotidienne déjà réclamée.', 'faluss-link' ),
+            'unavailable_label' => __( 'Récompense quotidienne indisponible.', 'faluss-link' ),
+        ) );
+        $attributes['align'] = in_array( $attributes['align'], array( 'left', 'center', 'right' ), true ) ? $attributes['align'] : 'left';
+        $attributes['presentation'] = 'compact' === $attributes['presentation'] ? 'compact' : 'immersive';
+        $attributes['show_balance'] = in_array( $attributes['show_balance'], array( true, 1, '1', 'yes' ), true );
+        $attributes['hide_unavailable'] = in_array( $attributes['hide_unavailable'], array( true, 1, '1', 'yes' ), true );
+        foreach ( array( 'login_label', 'claim_label', 'claimed_label', 'unavailable_label' ) as $label ) {
+            $attributes[ $label ] = sanitize_text_field( (string) $attributes[ $label ] );
+        }
+        self::reward_assets();
+        if ( ! is_user_logged_in() ) {
+            return self::daily_reward_markup( array( 'state' => 'login' ), $attributes );
+        }
+        $result = class_exists( 'Token_Engine_Connector_Service' ) ? Token_Engine_Connector_Service::daily_reward_status_for_current_subject() : array( 'state' => 'unavailable' );
+        return self::daily_reward_markup( is_wp_error( $result ) ? array( 'state' => 'unavailable' ) : $result, $attributes );
+    }
+
+    /** WordPress AJAX protection is local; all eligibility and credits remain on the Core. */
+    public static function claim_daily_reward() {
+        if ( ! is_user_logged_in() || ! check_ajax_referer( 'faluss_link_daily_reward_claim', 'nonce', false ) || ! class_exists( 'Token_Engine_Connector_Service' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Récompense indisponible.', 'faluss-link' ) ), 403 );
+        }
+        $result = Token_Engine_Connector_Service::claim_daily_reward_for_current_subject();
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( array( 'message' => __( 'Récompense indisponible.', 'faluss-link' ) ), 503 );
+        }
+        wp_send_json_success( self::daily_reward_response_payload( $result ) );
+    }
+
     public static function render_editor() {
         if ( ! is_user_logged_in() || ! self::identity_ready() ) { return self::empty_card( __( 'Connectez-vous pour personnaliser votre carte.', 'faluss-link' ) ); }
         $faluss_id = Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() );
@@ -194,7 +241,7 @@ final class Faluss_Link {
     public static function widgets( $manager ) {
         if ( ! class_exists( 'Elementor\\Widget_Base' ) || ! is_object( $manager ) || ! method_exists( $manager, 'register' ) ) { return; }
         require_once FALUSS_LINK_DIR . 'includes/class-faluss-link-widgets.php';
-        $manager->register( new Faluss_Link_Card_Widget() ); $manager->register( new Faluss_Link_Appearance_Widget() ); $manager->register( new Faluss_Link_Studio_Widget() );
+        $manager->register( new Faluss_Link_Card_Widget() ); $manager->register( new Faluss_Link_Appearance_Widget() ); $manager->register( new Faluss_Link_Studio_Widget() ); $manager->register( new Faluss_Link_Daily_Reward_Widget() );
     }
 
     public static function socials( $value ) {
@@ -639,9 +686,63 @@ final class Faluss_Link {
     private static function notice( $key ) { $value = isset( $_GET[ $key ] ) ? sanitize_key( wp_unslash( $_GET[ $key ] ) ) : ''; $messages = array( 'saved' => __( 'Studio enregistré.', 'faluss-link' ), 'taken' => __( 'Cet identifiant public n’est pas disponible.', 'faluss-link' ), 'invalid' => __( 'Nous ne pouvons pas enregistrer le Studio.', 'faluss-link' ) ); return isset( $messages[ $value ] ) ? '<p class="faluss-link-notice">' . esc_html( $messages[ $value ] ) . '</p>' : ''; }
     private static function options( $options, $selected ) { foreach ( $options as $key => $label ) { ?><option value="<?php echo esc_attr( $key ); ?>" <?php selected( $selected, $key ); ?>><?php echo esc_html( $label ); ?></option><?php } }
     private static function align( $value ) { return in_array( $value, array( 'left', 'center', 'right' ), true ) ? $value : 'left'; }
+    /** @param array<string,mixed> $state @param array<string,mixed> $attributes */
+    private static function daily_reward_markup( $state, $attributes ) {
+        $state_name = is_array( $state ) && in_array( $state['state'] ?? '', array( 'login', 'eligible', 'claimed', 'unavailable' ), true ) ? $state['state'] : 'unavailable';
+        if ( 'unavailable' === $state_name && $attributes['hide_unavailable'] ) { return ''; }
+        $amount = max( 0, (int) ( $state['amount'] ?? 0 ) );
+        $unit = sanitize_text_field( (string) ( $state['unit'] ?? '' ) );
+        $classes = 'faluss-link-reward faluss-link-reward--' . $state_name . ' faluss-link-reward--align-' . $attributes['align'] . ' faluss-link-reward--presentation-' . $attributes['presentation'];
+        ob_start();
+        ?>
+        <section class="<?php echo esc_attr( $classes ); ?>" data-faluss-link-reward data-faluss-reward-claimed-label="<?php echo esc_attr( $attributes['claimed_label'] ); ?>" data-faluss-reward-unavailable-label="<?php echo esc_attr( $attributes['unavailable_label'] ); ?>" aria-live="polite">
+            <div class="faluss-link-reward__status">
+                <?php if ( 'login' === $state_name ) : ?><a class="faluss-link-reward__button" href="<?php echo esc_url( self::daily_reward_login_url() ); ?>"><?php echo esc_html( $attributes['login_label'] ); ?></a><?php endif; ?>
+                <?php if ( 'eligible' === $state_name ) : ?><button class="faluss-link-reward__button" type="button" data-faluss-reward-claim><?php echo esc_html( self::daily_reward_label( $attributes['claim_label'], $amount, $unit ) ); ?></button><?php endif; ?>
+                <?php if ( 'claimed' === $state_name ) : ?><p class="faluss-link-reward__message"><?php echo esc_html( ! empty( $state['claimed_now'] ) ? __( 'Récompense obtenue.', 'faluss-link' ) : $attributes['claimed_label'] ); ?><?php echo self::daily_reward_next_markup( $state['next_available_at'] ?? '' ); ?></p><?php endif; ?>
+                <?php if ( 'unavailable' === $state_name ) : ?><p class="faluss-link-reward__message"><?php echo esc_html( $attributes['unavailable_label'] ); ?></p><?php endif; ?>
+            </div>
+            <?php if ( $attributes['show_balance'] && in_array( $state_name, array( 'eligible', 'claimed' ), true ) ) : ?><p class="faluss-link-reward__balance"><?php echo esc_html( sprintf( __( 'Solde : %1$s %2$s', 'faluss-link' ), number_format_i18n( max( 0, (int) ( $state['balance'] ?? 0 ) ) ), $unit ) ); ?></p><?php endif; ?>
+        </section>
+        <?php
+        return (string) ob_get_clean();
+    }
+    /** @return array<string,mixed> */
+    private static function daily_reward_response_payload( $state ) {
+        if ( ! is_array( $state ) || ! in_array( $state['state'] ?? '', array( 'eligible', 'claimed', 'unavailable' ), true ) ) { return array( 'state' => 'unavailable' ); }
+        $payload = array( 'state' => $state['state'] );
+        if ( 'unavailable' !== $state['state'] ) {
+            $payload['amount'] = max( 0, (int) ( $state['amount'] ?? 0 ) );
+            $payload['unit'] = sanitize_text_field( (string) ( $state['unit'] ?? '' ) );
+            $payload['balance'] = max( 0, (int) ( $state['balance'] ?? 0 ) );
+            $payload['next_available_at'] = is_string( $state['next_available_at'] ?? null ) ? $state['next_available_at'] : '';
+            $payload['claimed_now'] = ! empty( $state['claimed_now'] );
+        }
+        return $payload;
+    }
+    private static function daily_reward_label( $template, $amount, $unit ) {
+        $label = str_replace( array( '%1$s', '%2$s' ), array( number_format_i18n( $amount ), $unit ), $template );
+        return '' === trim( $label ) ? sprintf( __( 'Réclamer %1$s %2$s', 'faluss-link' ), number_format_i18n( $amount ), $unit ) : $label;
+    }
+    private static function daily_reward_next_markup( $value ) {
+        $timestamp = is_string( $value ) ? strtotime( $value ) : false;
+        if ( ! $timestamp ) { return ''; }
+        $label = function_exists( 'wp_date' ) ? wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $timestamp ) : gmdate( 'Y-m-d H:i', $timestamp );
+        return ' <time datetime="' . esc_attr( gmdate( DATE_ATOM, $timestamp ) ) . '">' . esc_html( sprintf( __( 'Disponible à nouveau le %s.', 'faluss-link' ), $label ) ) . '</time>';
+    }
+    /** Login receives only a local profile path; central identity proof validates it again. */
+    private static function daily_reward_login_url() {
+        $request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
+        $parts = is_string( $request_uri ) ? wp_parse_url( $request_uri ) : array();
+        $path = is_array( $parts ) ? (string) ( $parts['path'] ?? '/' ) : '/';
+        if ( '' === $path || '/' !== substr( $path, 0, 1 ) || 0 === strpos( $path, '//' ) ) { $path = '/'; }
+        $return = wp_validate_redirect( home_url( $path ), home_url( '/' ) );
+        return add_query_arg( 'redirect_to', $return, home_url( '/login/' ) );
+    }
     private static function identity_ready() { return class_exists( 'Faluss_Identity_Schema' ) && class_exists( 'Faluss_Identity_Registry' ) && ! empty( Faluss_Identity_Schema::get_status()['ready'] ); }
     private static function enqueue_assets() { if ( ! wp_style_is( self::STYLE, 'registered' ) ) { self::assets(); } wp_enqueue_style( self::STYLE ); wp_enqueue_style( self::IMMERSIVE_STYLE ); wp_enqueue_style( self::STUDIO_STYLE ); wp_enqueue_script( self::CARD_SCRIPT ); }
     private static function editor_assets() { self::enqueue_assets(); wp_enqueue_script( self::SCRIPT ); }
+    private static function reward_assets() { if ( ! wp_style_is( self::REWARD_STYLE, 'registered' ) ) { self::assets(); } wp_enqueue_style( self::REWARD_STYLE ); wp_enqueue_script( self::REWARD_SCRIPT ); }
     private static function owned_image( $attachment_id, $user_id ) { $attachment = get_post( (int) $attachment_id ); return $attachment instanceof WP_Post && (int) $attachment->post_author === (int) $user_id && 0 === strpos( (string) $attachment->post_mime_type, 'image/' ); }
     private static function empty_card( $message ) { return '<div class="faluss-link-card faluss-link-card--empty" role="status">' . esc_html( $message ) . '</div>'; }
     private static function network_catalog() { return class_exists( 'Faluss_Link_Admin' ) ? Faluss_Link_Admin::catalog() : array_combine( self::NETWORKS, array_map( static function( $network ) { return array( 'label' => ucfirst( $network ), 'active' => 1, 'outline_icon' => 0, 'full_logo' => 0 ); }, self::NETWORKS ) ); }
