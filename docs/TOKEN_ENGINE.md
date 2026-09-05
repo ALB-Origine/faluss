@@ -35,9 +35,11 @@ Les intégrations doivent appeler `Token_Engine_Service`, jamais écrire directe
 
 ## Accès connecteur TE-02
 
-Un projet actif peut désormais générer un identifiant client public et un secret aléatoire. Le secret est affiché seulement dans la réponse d’administration qui le crée ou le régénère ; le Core conserve uniquement son empreinte vérifiable et une version de secret. La régénération invalide les jetons courts déjà émis.
+Un projet actif peut désormais générer un identifiant client public et un secret aléatoire. Le secret est affiché seulement dans la réponse d’administration qui le crée ou le régénère ; le Core conserve uniquement son empreinte vérifiable et une version de secret. La régénération invalide les jetons courts déjà émis et ne réactive jamais une permission révoquée.
 
-Le Core expose exclusivement trois routes REST privées et versionnées sous `token-engine/v1` : demande de jeton, diagnostic et lecture de solde. Elles exigent HTTPS, un projet actif et la permission minimale `wallet.read`. Les jetons sont opaques, bornés au projet, expirent après cinq minutes et ne sont jamais placés dans une URL. Aucune route connecteur ne crée une transaction, une règle ou un ajustement.
+Chaque projet affiche l’URL REST exacte à copier dans le Connector, son client public et l’état de la seule permission TE-02, `wallet.read`. La première génération l’accorde par défaut ; un administrateur peut ensuite la révoquer explicitement. Un client historique sans cette permission reste refusé avec un diagnostic précis jusqu’à ce qu’elle soit accordée.
+
+Le Core expose exclusivement trois routes REST privées et versionnées sous `token-engine/v1` : demande de jeton, diagnostic et lecture de solde. Elles exigent HTTPS, un projet actif et la permission minimale `wallet.read`. Les jetons sont opaques, bornés au projet, expirent après cinq minutes et ne sont jamais placés dans une URL. Aucune route connecteur ne crée une transaction, une règle ou un ajustement. Les réponses de diagnostic portent un identifiant non sensible pour rapprocher les erreurs d’administration sans exposer un secret, un jeton ou un en-tête HTTP.
 
 ## Limites TE-02
 

@@ -8,9 +8,9 @@ Dans l’écosystème Faluss, un connecteur pourra fournir le `faluss_id` comme 
 
 ## Configuration et lecture TE-02
 
-Un administrateur configure dans Connector l’URL HTTPS exacte du Core, l’identifiant public, le secret et la clé de projet. Le secret est chiffré au repos avec les clés de l’instance, n’est jamais réaffiché, et sert seulement à obtenir un jeton court en mémoire. Le test de connexion donne un diagnostic non sensible ; ni secret, ni jeton, ni valeur de sujet n’y apparaissent.
+Un administrateur copie dans Connector l’URL REST HTTPS exacte affichée par le projet du Core, puis renseigne l’identifiant public, le secret et la clé de projet. Cette URL conserve un sous-répertoire WordPress éventuel et ne reçoit jamais un second `/wp-json`. Le secret est chiffré au repos avec les clés de l’instance, n’est jamais réaffiché, et sert seulement à obtenir un jeton court en mémoire. Après une régénération du secret sur le Core, l’administrateur doit remplacer manuellement le secret local.
 
-Le Core accepte seulement la permission `wallet.read` en TE-02. Le Connector échange les identifiants via HTTPS, appelle le diagnostic ou la lecture de solde avec un jeton `Bearer` dans l’en-tête, puis oublie ce jeton. Il ne possède aucune route front, shortcode, widget ou wallet.
+Le Core accepte seulement la permission `wallet.read` en TE-02. Le Connector échange les identifiants via HTTPS, appelle le diagnostic ou la lecture de solde avec un jeton `Bearer` dans l’en-tête, puis oublie ce jeton. Il ne possède aucune route front, shortcode, widget ou wallet. Son écran de diagnostic sépare strictement la connexion au Core (URL, redirections, route, projet, client, secret, permission et jeton) du diagnostic Faluss (Identity, profil actif et sujet). Les messages et leurs identifiants de diagnostic ne contiennent jamais le corps d’une réponse distante, un secret, un jeton, un en-tête ou la valeur du sujet.
 
 ## Sujet
 
@@ -22,7 +22,8 @@ Les intégrations locales appellent `Token_Engine_Connector_Service`, jamais une
 
 - `is_configured()` vérifie la configuration protégée ;
 - `current_subject_id()` résout le sujet courant sans utiliser un `wp_user_id` comme solde central ;
-- `test_connection()` effectue le diagnostic non sensible ;
+- `core_connection_test()` (ou l’alias historique `test_connection()`) effectue le diagnostic Core non sensible et indépendant du sujet ;
+- `faluss_subject_diagnostic()` vérifie séparément la disponibilité d’un sujet et retourne seulement une empreinte tronquée non réversible pour le diagnostic d’administration ;
 - `balance_for_current_subject()` lit le solde central seulement si un sujet valide est disponible.
 
 ## Règles d’intégration

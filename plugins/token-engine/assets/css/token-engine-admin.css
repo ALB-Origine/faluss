@@ -35,7 +35,14 @@
 .token-engine-admin__panel .widefat th { color: var(--te-muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
 .token-engine-project-row { display: grid; gap: 12px; }
 .token-engine-project-row__settings, .token-engine-project-row__connector { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
-.token-engine-project-row__connector { border-top: 1px solid var(--te-border); color: var(--te-muted); padding-top: 12px; }
+.token-engine-project-row__connector { align-items: stretch; border-top: 1px solid var(--te-border); color: var(--te-muted); display: grid; gap: 12px; padding-top: 12px; }
+.token-engine-project-row__connection { display: grid; gap: 7px; max-width: 680px; }
+.token-engine-project-row__connection label { color: var(--te-ink); font-weight: 600; }
+.token-engine-project-row__connection span { font-size: 13px; }
+.token-engine-project-row__copy, .token-engine-project-row__permissions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.token-engine-project-row__copy input { flex: 1 1 360px; min-width: 0; }
+.token-engine-project-row__permissions { padding: 8px 0; }
+.token-engine-project-row__permissions label { color: var(--te-ink); }
 .token-engine-admin__secret { display: grid; gap: 14px; max-width: 680px; }
 .token-engine-admin__secret input { font-size: 14px; padding: 12px; }
 
