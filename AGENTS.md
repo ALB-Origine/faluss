@@ -26,6 +26,8 @@ Construire un SSO passwordless WordPress pour l'écosystème Faluss sans casser 
 
 Avant de modifier : lire les documents concernés, les appelants et les tests. Écrire les scénarios positif et négatif.
 
+Avant toute création ou refonte d’une administration Faluss : lire `docs/FALUSS_PLUGIN_UI.md`.
+
 Après modification : exécuter `php -l` sur chaque PHP modifié, les tests de contrat concernés, un scan de secrets ciblé et `git diff --check`. Ne déclarer aucune recette WordPress réelle sans preuve.
 
 ## Compatibilité Altlab

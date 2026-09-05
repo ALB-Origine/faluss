@@ -4,16 +4,16 @@
 
 ```text
 faluss.me
-  └── Faluss Identity (autorité d'identité) + profil public
+  └── Faluss Identity (autorité d'identité) + profil public + Token Engine Connector
 
 faluss.com
   └── Faluss Hub (compte, facturation et vues transverses) + Token Engine (ledger économique central)
 
 pro.faluss.com
-  └── Altlab Platform + Faluss Identity Client
+  └── Altlab Platform + Faluss Identity Client + Token Engine Connector (futur usage)
 
 date.faluss.com
-  └── Date + Faluss Identity Client
+  └── Date + Faluss Identity Client + Token Engine Connector (futur usage)
 ```
 
 Les installations WordPress, leurs tables `users`, leurs sessions et leurs bases de données restent séparées. Les sites peuvent être sur le même serveur, mais ne se font pas confiance par défaut.
@@ -44,4 +44,4 @@ Faluss Identity ne porte ni abonnement, ni portefeuille ALB ni cosmétique. Falu
 
 ## Économie partagée
 
-Token Engine, installé une seule fois sur l’instance économique, est le détenteur générique du ledger, des règles, de l’idempotence et des projections de solde. Il reçoit un `subject_id` opaque ; un connecteur futur lui fournira le `faluss_id` sans répliquer l’identité. Les sites dérivés n’installeront pas le cœur : leurs connecteurs futurs enverront des événements validés. Faluss Link rendra uniquement des droits déjà résolus et ne modifiera jamais un ledger. Le contrat TE-01 est documenté dans `TOKEN_ENGINE.md` et sa frontière de connecteur dans `TOKEN_ENGINE_CONNECTOR.md`.
+Token Engine, installé une seule fois sur l’instance économique, est le détenteur générique du ledger, des règles, de l’idempotence et des projections de solde. Il reçoit un `subject_id` opaque ; le Connector TE-02 peut lui fournir le `faluss_id` déjà actif sans répliquer l’identité. Les sites dérivés n’installent jamais le cœur. TE-02 limite ce transport privé à un jeton court et à la lecture de solde ; il n’existe aucune écriture distante. Faluss Link rendra uniquement des droits déjà résolus et ne modifiera jamais un ledger. Les contrats sont documentés dans `TOKEN_ENGINE.md` et `TOKEN_ENGINE_CONNECTOR.md`.

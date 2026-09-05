@@ -33,6 +33,12 @@ Les intégrations doivent appeler `Token_Engine_Service`, jamais écrire directe
 
 `write_transaction()` attend notamment `subject_id`, `project_key`, `direction`, `amount` et `idempotency_key`; `transaction_uuid`, `rule_key`, `source_reference` et un objet de métadonnées borné restent optionnels. La façade ne fait aucune évaluation future de règle ou d’éligibilité.
 
-## Limites TE-01
+## Accès connecteur TE-02
 
-TE-01 ne fournit ni connecteur distant, endpoint réseau, authentification, interface membre, wallet public, boutique, paiement, entitlement, récompense automatique, progression ni cosmétique. Il ne dépend pas de WooCommerce, Elementor, Faluss Identity ou d’un autre plugin Faluss.
+Un projet actif peut désormais générer un identifiant client public et un secret aléatoire. Le secret est affiché seulement dans la réponse d’administration qui le crée ou le régénère ; le Core conserve uniquement son empreinte vérifiable et une version de secret. La régénération invalide les jetons courts déjà émis.
+
+Le Core expose exclusivement trois routes REST privées et versionnées sous `token-engine/v1` : demande de jeton, diagnostic et lecture de solde. Elles exigent HTTPS, un projet actif et la permission minimale `wallet.read`. Les jetons sont opaques, bornés au projet, expirent après cinq minutes et ne sont jamais placés dans une URL. Aucune route connecteur ne crée une transaction, une règle ou un ajustement.
+
+## Limites TE-02
+
+TE-02 ne fournit ni attribution automatique, récompense quotidienne, wallet ou interface membre publique, boutique, paiement, entitlement, Premium, cosmétique, progression ou écriture distante dans le ledger. Il ne dépend pas de WooCommerce, Elementor, Faluss Identity ou d’un autre plugin Faluss pour son cœur métier.

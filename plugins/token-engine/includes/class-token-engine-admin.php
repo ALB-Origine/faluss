@@ -11,12 +11,21 @@ final class Token_Engine_Admin {
 
     public static function boot() {
         add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
+        add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
         add_action( 'admin_post_token_engine_save_configuration', array( __CLASS__, 'save_configuration' ) );
         add_action( 'admin_post_token_engine_create_project', array( __CLASS__, 'create_project' ) );
         add_action( 'admin_post_token_engine_update_project', array( __CLASS__, 'update_project' ) );
         add_action( 'admin_post_token_engine_create_rule', array( __CLASS__, 'create_rule' ) );
         add_action( 'admin_post_token_engine_update_rule', array( __CLASS__, 'update_rule' ) );
         add_action( 'admin_post_token_engine_adjust', array( __CLASS__, 'adjust' ) );
+        add_action( 'admin_post_token_engine_generate_project_credentials', array( __CLASS__, 'generate_project_credentials' ) );
+    }
+
+    public static function enqueue_assets( $hook = '' ) {
+        if ( '' !== $hook && 'toplevel_page_' . self::PAGE !== $hook ) {
+            return;
+        }
+        wp_enqueue_style( 'token-engine-admin', plugins_url( 'assets/css/token-engine-admin.css', TOKEN_ENGINE_FILE ), array(), TOKEN_ENGINE_VERSION );
     }
 
     public static function menu() {
@@ -30,17 +39,25 @@ final class Token_Engine_Admin {
         $tab = self::tab( $_GET['tab'] ?? '' );
         ?>
         <div class="wrap token-engine-admin">
-            <h1>Token Engine</h1>
-            <p>Core générique : les écritures sont immuables et les soldes sont des projections du ledger.</p>
-            <nav class="nav-tab-wrapper" aria-label="Token Engine">
-                <?php foreach ( self::tabs() as $key => $label ) : ?><a class="nav-tab <?php echo $tab === $key ? 'nav-tab-active' : ''; ?>" href="<?php echo esc_url( self::url( $key ) ); ?>"><?php echo esc_html( $label ); ?></a><?php endforeach; ?>
-            </nav>
-            <?php self::notice(); ?>
-            <?php if ( 'configuration' === $tab ) { self::configuration_page(); } ?>
-            <?php if ( 'projects' === $tab ) { self::projects_page(); } ?>
-            <?php if ( 'rules' === $tab ) { self::rules_page(); } ?>
-            <?php if ( 'ledger' === $tab ) { self::ledger_page(); } ?>
-            <?php if ( 'adjustment' === $tab ) { self::adjustment_page(); } ?>
+            <div class="token-engine-admin__shell">
+                <aside class="token-engine-admin__sidebar" aria-label="Navigation Token Engine">
+                    <div class="token-engine-admin__brand"><strong>Faluss</strong><span>by Alternative LAB</span></div>
+                    <nav class="token-engine-admin__nav" aria-label="Token Engine">
+                        <?php foreach ( self::tabs() as $key => $label ) : ?><a class="<?php echo $tab === $key ? 'is-active' : ''; ?>" href="<?php echo esc_url( self::url( $key ) ); ?>" <?php echo $tab === $key ? 'aria-current="page"' : ''; ?>><?php echo esc_html( $label ); ?></a><?php endforeach; ?>
+                    </nav>
+                </aside>
+                <section class="token-engine-admin__workspace" aria-labelledby="token-engine-admin-title">
+                    <header class="token-engine-admin__header"><p>Token Engine</p><h1 id="token-engine-admin-title"><?php echo esc_html( self::tabs()[ $tab ] ); ?></h1><span>Ledger central et administration des connecteurs.</span></header>
+                    <div class="token-engine-admin__panel">
+                        <?php self::notice(); ?>
+                        <?php if ( 'configuration' === $tab ) { self::configuration_page(); } ?>
+                        <?php if ( 'projects' === $tab ) { self::projects_page(); } ?>
+                        <?php if ( 'rules' === $tab ) { self::rules_page(); } ?>
+                        <?php if ( 'ledger' === $tab ) { self::ledger_page(); } ?>
+                        <?php if ( 'adjustment' === $tab ) { self::adjustment_page(); } ?>
+                    </div>
+                </section>
+            </div>
         </div>
         <?php
     }
@@ -94,6 +111,21 @@ final class Token_Engine_Admin {
         self::redirect( 'adjustment', 'adjusted' );
     }
 
+    public static function generate_project_credentials() {
+        self::guard( 'token_engine_generate_project_credentials' );
+        $result = Token_Engine_Connector_Access::generate_credentials( $_POST['project_id'] ?? 0 );
+        if ( is_wp_error( $result ) ) {
+            self::redirect( 'projects', $result->get_error_code() );
+        }
+        self::enqueue_assets();
+        require_once ABSPATH . 'wp-admin/admin-header.php';
+        ?>
+        <div class="wrap token-engine-admin"><div class="token-engine-admin__shell"><aside class="token-engine-admin__sidebar" aria-label="Navigation Token Engine"><div class="token-engine-admin__brand"><strong>Faluss</strong><span>by Alternative LAB</span></div><nav class="token-engine-admin__nav" aria-label="Token Engine"><?php foreach ( self::tabs() as $key => $label ) : ?><a class="<?php echo 'projects' === $key ? 'is-active' : ''; ?>" href="<?php echo esc_url( self::url( $key ) ); ?>" <?php echo 'projects' === $key ? 'aria-current="page"' : ''; ?>><?php echo esc_html( $label ); ?></a><?php endforeach; ?></nav></aside><section class="token-engine-admin__workspace" aria-labelledby="token-engine-secret-title"><header class="token-engine-admin__header"><p>Token Engine</p><h1 id="token-engine-secret-title">Identifiants connecteur</h1><span>Le secret ci-dessous ne sera plus affiché après cette page.</span></header><div class="token-engine-admin__panel"><div class="token-engine-admin__secret"><p><strong>Projet :</strong> <?php echo esc_html( $result['project_key'] ); ?></p><p><strong>Identifiant client :</strong> <code><?php echo esc_html( $result['client_id'] ); ?></code></p><label for="token-engine-one-time-secret"><strong>Secret confidentiel — copiez-le maintenant</strong></label><input id="token-engine-one-time-secret" class="large-text code" readonly value="<?php echo esc_attr( $result['secret'] ); ?>"><p class="description">Seule une empreinte vérifiable est conservée. Régénérer le secret invalide immédiatement les jetons précédents.</p><p><a class="button button-primary" href="<?php echo esc_url( self::url( 'projects' ) ); ?>">Retour aux projets</a></p></div></div></section></div></div>
+        <?php
+        require_once ABSPATH . 'wp-admin/admin-footer.php';
+        exit;
+    }
+
     private static function configuration_page() {
         $settings = Token_Engine_Service::configuration();
         ?>
@@ -122,8 +154,8 @@ final class Token_Engine_Admin {
             <input type="hidden" name="action" value="token_engine_create_project"><?php wp_nonce_field( 'token_engine_create_project', 'token_engine_nonce' ); ?>
             <table class="form-table" role="presentation"><tbody><tr><th><label for="token-engine-project-key">Clé stable</label></th><td><input id="token-engine-project-key" name="project_key" required maxlength="64" pattern="[a-z0-9][a-z0-9_-]{1,63}"></td></tr><tr><th><label for="token-engine-project-name">Nom</label></th><td><input id="token-engine-project-name" name="name" required maxlength="120" class="regular-text"></td></tr><tr><th>État</th><td><label><input name="active" type="checkbox" value="1" checked> Actif</label></td></tr></tbody></table><?php submit_button( 'Créer le projet', 'secondary' ); ?>
         </form>
-        <table class="widefat striped"><thead><tr><th>Clé</th><th>Nom</th><th>État</th><th>Enregistrer</th></tr></thead><tbody>
-        <?php foreach ( $projects as $project ) : ?><tr><td colspan="4"><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code><?php echo esc_html( $project['project_key'] ); ?></code><input type="hidden" name="action" value="token_engine_update_project"><input type="hidden" name="project_id" value="<?php echo (int) $project['id']; ?>"><?php wp_nonce_field( 'token_engine_update_project', 'token_engine_nonce' ); ?><label>Nom <input name="name" maxlength="120" value="<?php echo esc_attr( $project['name'] ); ?>"></label><label><input name="active" type="checkbox" value="1" <?php checked( ! empty( $project['active'] ) ); ?>> Actif</label><button class="button" type="submit">Enregistrer</button></form></td></tr><?php endforeach; ?>
+        <table class="widefat striped"><thead><tr><th>Projet</th><th>Administration et connecteur</th></tr></thead><tbody>
+        <?php foreach ( $projects as $project ) : ?><tr><td><code><?php echo esc_html( $project['project_key'] ); ?></code></td><td><div class="token-engine-project-row"><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="token-engine-project-row__settings"><input type="hidden" name="action" value="token_engine_update_project"><input type="hidden" name="project_id" value="<?php echo (int) $project['id']; ?>"><?php wp_nonce_field( 'token_engine_update_project', 'token_engine_nonce' ); ?><label>Nom <input name="name" maxlength="120" value="<?php echo esc_attr( $project['name'] ); ?>"></label><label><input name="active" type="checkbox" value="1" <?php checked( ! empty( $project['active'] ) ); ?>> Actif</label><button class="button" type="submit">Enregistrer</button></form><div class="token-engine-project-row__connector"><?php if ( Token_Engine_Connector_Access::project_has_credentials( $project ) ) : ?><span>Client public : <code><?php echo esc_html( $project['connector_client_id'] ); ?></code></span><?php else : ?><span>Aucun identifiant connecteur actif.</span><?php endif; ?><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="token_engine_generate_project_credentials"><input type="hidden" name="project_id" value="<?php echo (int) $project['id']; ?>"><?php wp_nonce_field( 'token_engine_generate_project_credentials', 'token_engine_nonce' ); ?><button class="button" type="submit" <?php disabled( empty( $project['active'] ) ); ?>><?php echo Token_Engine_Connector_Access::project_has_credentials( $project ) ? 'Régénérer le secret' : 'Générer les identifiants'; ?></button></form></div></div></td></tr><?php endforeach; ?>
         <?php if ( ! $projects ) : ?><tr><td colspan="4">Aucun projet.</td></tr><?php endif; ?></tbody></table>
         <?php
     }

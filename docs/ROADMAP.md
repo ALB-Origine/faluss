@@ -42,7 +42,7 @@ Créer le cœur WordPress générique : configuration explicite d’unité, proj
 
 ## TE-02 — Connecteur WordPress Faluss
 
-Définir le transport protégé entre une application et le cœur, avec authentification d’un sujet Faluss, autorisations et reprise idempotente. Aucun site consommateur ne devra écrire les tables du cœur.
+Fournir le transport privé HTTPS, les identifiants de projet, le jeton court borné à `wallet.read`, le diagnostic et la lecture de solde. Le Connector résout un sujet Faluss actif ou un sujet générique par filtre. Aucun site consommateur ne peut écrire les tables du cœur.
 
 ## TE-03 — Daily reward Faluss Link
 
