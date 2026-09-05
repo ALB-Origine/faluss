@@ -67,3 +67,9 @@ Sur une route publique, le shell Faluss Link place uniquement le conteneur Eleme
 ## Safe areas immersives (FL-14)
 
 Les routes publiques Faluss utilisent le viewport enrichi `viewport-fit=cover`. Le hero conserve une image edge-to-edge derrière la zone système iPhone, tandis que le contenu interactif du header et le contenu de carte respectent `safe-area-inset-top`, `safe-area-inset-bottom` et les côtés. Le fond du document est sombre sur cette seule route afin qu’un premier rendu ou un rebond de défilement ne révèle jamais de bande crème ou blanche. Android et desktop conservent le même rendu, leurs safe areas valant zéro.
+
+## Catalogue central de thèmes (FL-15)
+
+Le carrousel **Thèmes** dans `Studio Faluss > Style` lit `faluss-catalog` quand ce plugin est présent. Un thème définit une base structurée pour le fond, la transition du hero, la couleur du nom, l’alignement, les réseaux et les boutons ; il ne contient jamais de CSS, HTML ou JavaScript libre. Après avoir choisi un thème, les réglages individuels du Studio restent disponibles et prennent le dessus sur les seules propriétés que le membre modifie.
+
+Sans Catalogue Faluss, Faluss Link conserve son rendu **Faluss par défaut**, sans erreur ni dépendance obligatoire. Les surcharges Elementor explicitement renseignées gardent leur priorité locale sur les variables de carte.
