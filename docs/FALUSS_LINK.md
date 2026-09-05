@@ -14,7 +14,7 @@ Utilisez **Carte compacte** seulement pour intégrer volontairement une carte da
 
 Sur la page mon-faluss, utilisez seulement le widget **Studio Faluss**. Ses onglets **Profil**, **Liens** et **Style** enregistrent dans un seul parcours : le profil et ses liens publics restent dans Faluss Identity ; les préférences visuelles et les réseaux restent dans Faluss Link.
 
-Dans **Réglages > Réseaux Faluss Link**, un administrateur peut activer les réseaux proposés, ajuster leur libellé et, si nécessaire, choisir une icône image depuis la médiathèque. Les icônes SVG intégrées restent le repli par défaut. Les membres ajoutent ensuite un réseau avec un sélecteur et une URL HTTPS : aucune syntaxe technique n’est à saisir.
+Dans **Réglages > Réseaux Faluss Link**, un administrateur peut activer les réseaux proposés, ajuster leur libellé et choisir leurs ressources image depuis la médiathèque. Les membres ajoutent ensuite un réseau avec un sélecteur et une URL HTTPS : aucune syntaxe technique n’est à saisir.
 
 La couverture s’envoie depuis le Studio avec une action explicite du membre. L’aperçu est vivant et la carte publique reprend l’alignement, le fondu de couverture, les réseaux et les boutons choisis après enregistrement.
 
@@ -40,10 +40,18 @@ Le teaser est une fondation visuelle publique. Lorsqu’un moteur commun Faluss 
 
 Le Studio et la carte publique lisent une même composition normalisée : chaque **Titre de section**, **Texte**, **Lien** ou **Teaser média** conserve son identifiant stable et son ordre. Les éléments invalides ou dupliqués sont écartés, sans ligne fantôme. Le Studio reprend après enregistrement l’onglet **Profil**, **Liens** ou **Style** qui était actif, avec un paramètre local limité à cet onglet.
 
-Dans **Style**, l’apparence des réseaux peut être automatique, noire, blanche, calée sur la couleur du nom, officielle ou en logos complets. Les logos complets utilisent uniquement l’image éventuellement réglée par un administrateur dans **Réglages > Réseaux Faluss Link** ; le SVG reconnu reste le repli. Le contraste est calculé sur la surface effective de la carte : les titres conservent la couleur membre ou Elementor lorsqu’elle est lisible, les textes secondaires conservent leur ton atténué lorsqu’il l’est, puis le rendu choisit noir ou blanc. Les futurs thèmes de carte pourront fournir leurs valeurs avant les préférences membre et les tokens Faluss Theme, sans changer les règles de validation de contenu.
+Le contraste est calculé sur la surface effective de chaque élément : les titres conservent la couleur membre ou Elementor lorsqu’elle est lisible, les textes secondaires conservent leur ton atténué lorsqu’il l’est, puis le rendu choisit noir ou blanc. Les futurs thèmes de carte pourront fournir leurs valeurs avant les préférences membre et les tokens Faluss Theme, sans changer les règles de validation de contenu.
 
 ## Surfaces éditoriales et teaser média (FL-11)
 
 Chaque surface éditoriale résout désormais son propre contraste : un teaser clair garde un titre noir et un gris de lecture lisible, même si la carte utilise un fond plus sombre. La couleur choisie pour le nom reste prioritaire tant qu’elle est lisible sur sa surface ; seuls les cas insuffisamment contrastés basculent vers noir ou blanc. Le réglage **Apparence des réseaux** est conservé après l’enregistrement et s’applique de la même manière dans l’aperçu, en bulles ou en ligne, sur mobile comme sur desktop.
 
-Un **Teaser média** sans titre ni texte affiche uniquement son image, sans panneau vide. Avec du contenu, son panneau éditorial adopte les contrastes de sa propre surface. Le membre choisit un format **Paysage**, **Portrait** ou **Carré** ; le format est conservé lors de la réhydratation, du déplacement et de l’édition. Le teaser reste public et visuel : un futur moteur commun de contenus pourra lui apporter une politique d’accès réelle, sans que Faluss Link ne gère un droit, un paiement, un token ou un abonnement.
+Un **Teaser média** sans titre ni texte affiche uniquement son image, sans panneau vide. Le membre choisit un format **Paysage**, **Portrait** ou **Carré** ; le format est conservé lors de la réhydratation, du déplacement et de l’édition. Le teaser reste public et visuel : un futur moteur commun de contenus pourra lui apporter une politique d’accès réelle, sans que Faluss Link ne gère un droit, un paiement, un token ou un abonnement.
+
+## Ressources sociales et teaser éditorial (FL-12)
+
+Dans **Réglages > Réseaux Faluss Link**, l’administrateur fournit indépendamment une **Icône contour** et un **Logo plein** pour chaque réseau. L’ancienne ressource unique est migrée sans perte comme icône contour ; les URLs déjà choisies par les membres restent intactes. Lorsqu’aucune ressource n’est disponible pour la variante demandée, Faluss Link emploie l’autre ressource si elle existe, sinon masque uniquement ce réseau : aucune image cassée ni pictogramme forcé n’est affiché.
+
+Dans **Studio Faluss > Style**, le membre choisit explicitement **Icônes contour** ou **Logos pleins**. Le choix est conservé dans ses préférences et appliqué au même rendu public, mobile, en bulles, en ligne et dans l’aperçu vivant. Les images restent les ressources administrées : Faluss Link ne les recolorise pas par CSS.
+
+Le gris éditorial `#6F6A63` reste la préférence de la bio, du handle et des textes de section lorsqu’il est lisible sur leur propre surface, y compris un fond noir. Les titres résolvent séparément noir ou blanc. Les légendes d’un teaser sont elles-mêmes une exception volontaire : elles sont posées à gauche sur l’image, dans un dégradé noir fixe vers le bas, avec un texte toujours blanc. Sans légende, le teaser reste strictement une image arrondie, sans panneau ajouté.

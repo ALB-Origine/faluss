@@ -1,7 +1,8 @@
 (function () {
     'use strict';
 
-    var threshold = 4.5;
+    var titleThreshold = 4.5;
+    var editorialThreshold = 3;
 
     function rgb(value) {
         var hex = String(value || '').trim();
@@ -32,26 +33,17 @@
         return effectiveSurface(card);
     }
     function bestContrastColor(surface) { return contrastRatio('#000000', surface) >= contrastRatio('#FFFFFF', surface) ? '#000000' : '#FFFFFF'; }
-    function readable(node, property, surface) {
+    function readable(node, property, surface, threshold) {
         node.style.removeProperty(property + '-resolved');
         var preferred = window.getComputedStyle(node).color;
         var resolved = contrastRatio(preferred, surface) >= threshold ? preferred : bestContrastColor(surface);
         node.style.setProperty(property + '-resolved', resolved);
     }
-    function socialMode(card, surface) {
-        var social = card.querySelector('.faluss-link-card__social');
-        if (!social) { return; }
-        var mode = social.getAttribute('data-faluss-social-appearance') || 'automatic';
-        social.classList.remove('faluss-link-card__social--automatic-light', 'faluss-link-card__social--automatic-dark');
-        if (mode === 'automatic') { social.classList.add(contrastRatio('#000000', surface) >= contrastRatio('#FFFFFF', surface) ? 'faluss-link-card__social--automatic-light' : 'faluss-link-card__social--automatic-dark'); }
-        if (mode === 'name') { social.style.setProperty('--fl-social-name-ink', bestContrastColor(window.getComputedStyle(card).getPropertyValue('--fl-title-color-resolved') || window.getComputedStyle(card).getPropertyValue('--fl-name-color'))); }
-    }
     function refresh(card) {
         if (!card || !card.classList || !card.classList.contains('faluss-link-card')) { return; }
-        card.querySelectorAll('.faluss-link-card__name,.faluss-link-card__section-title,.faluss-link-card__media-teaser-copy h3').forEach(function (node) { readable(node, '--fl-title-color', surfaceFor(node, card)); });
-        card.querySelectorAll('.faluss-link-card__handle,.faluss-link-card__bio,.faluss-link-card__content-text,.faluss-link-card__media-teaser-copy p').forEach(function (node) { readable(node, '--fl-secondary-color', surfaceFor(node, card)); });
-        card.querySelectorAll('.faluss-link-card__link').forEach(function (node) { readable(node, '--fl-link-text', surfaceFor(node, card)); });
-        socialMode(card, effectiveSurface(card));
+        card.querySelectorAll('.faluss-link-card__name,.faluss-link-card__section-title').forEach(function (node) { readable(node, '--fl-title-color', surfaceFor(node, card), titleThreshold); });
+        card.querySelectorAll('.faluss-link-card__handle,.faluss-link-card__bio,.faluss-link-card__content-text').forEach(function (node) { readable(node, '--fl-secondary-color', surfaceFor(node, card), editorialThreshold); });
+        card.querySelectorAll('.faluss-link-card__link').forEach(function (node) { readable(node, '--fl-link-text', surfaceFor(node, card), titleThreshold); });
     }
     function initialize(root) { var scope = root && root.jquery ? root[0] : (root || document); if (!scope.querySelectorAll) { return; } scope.querySelectorAll('.faluss-link-card').forEach(refresh); }
 

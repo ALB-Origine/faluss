@@ -40,15 +40,10 @@ $card_script = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss
 $css = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link.css' ) . file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-immersive.css' );
 $docs = file_get_contents( $root . '/docs/FALUSS_LINK.md' );
 
-foreach ( array( 'surfaceFor', 'opaqueCssColor', 'contrastRatio(preferred, surface) >= threshold', '.faluss-link-card__media-teaser-copy h3', '.faluss-link-card__media-teaser-copy p', '--fl-title-color-resolved', '--fl-secondary-color-resolved' ) as $needle ) {
+foreach ( array( 'surfaceFor', 'opaqueCssColor', 'contrastRatio(preferred, surface) >= threshold', 'titleThreshold = 4.5', 'editorialThreshold = 3', '--fl-title-color-resolved', '--fl-secondary-color-resolved' ) as $needle ) {
     fl11_assert( false !== strpos( $card_script . $css, $needle ), 'Contrast must be resolved on each editorial surface: ' . $needle );
 }
 fl11_assert( false === strpos( $card_script, "readable(node, '--fl-secondary-color', effectiveSurface(card))" ), 'Secondary editorial text must not be forced from the card-wide surface.' );
-
-foreach ( array( "'automatic' => 'Automatique'", "'black' => 'Noir'", "'white' => 'Blanc'", "'name' => 'Couleur du nom'", "'official' => 'Couleurs officielles'", "'full' => 'Logos complets'", "'social_appearance' => \$social_appearance", "data-faluss-social-appearance", 'faluss-link-card__social--appearance-' ) as $needle ) {
-    fl11_assert( false !== strpos( $link . $editor . $css, $needle ), 'A persisted social appearance mode is incomplete: ' . $needle );
-}
-fl11_assert( false !== strpos( $editor, 'function updateSocials' ) && false !== strpos( $editor, "studio.find('[name=\"social_appearance\"]')" ), 'Studio must apply the selected social appearance immediately to its live preview.' );
 
 foreach ( array( "'landscape' => 'Paysage'", "'portrait' => 'Portrait'", "'square' => 'Carré'", 'teaser_format', 'media-teaser--image-only', 'media-teaser--format-', 'teaserFormatField', 'ensureTeaserFormats' ) as $needle ) {
     fl11_assert( false !== strpos( $link . $editor . $css, $needle ), 'The media teaser format or image-only state is missing: ' . $needle );
@@ -75,16 +70,4 @@ fl11_assert( false !== strpos( $markup, 'faluss-link-card__media-teaser--format-
 fl11_assert( 0 === substr_count( $markup, 'faluss-link-card__media-teaser-copy' ) || false !== strpos( $markup, '>Portrait<' ), 'Only authored teaser copy may create an editorial teaser surface.' );
 foreach ( array( 'media-teaser--format-portrait', 'media-teaser--format-square' ) as $needle ) { fl11_assert( false !== strpos( $markup, $needle ), 'The public teaser must expose its selected image geometry: ' . $needle ); }
 
-$appearance = new ReflectionMethod( 'Faluss_Link', 'social_appearance' );
-foreach ( array( 'automatic', 'black', 'white', 'name', 'official', 'full' ) as $mode ) {
-    fl11_assert( $mode === $appearance->invoke( null, $mode ), 'The saved social mode must be allowlisted: ' . $mode );
-    $wpdb->card = array( 'faluss_id' => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'social_links' => json_encode( array( 'networks' => array(), 'social_appearance' => $mode ) ) );
-    $prefs = ( new ReflectionMethod( 'Faluss_Link', 'prefs' ) )->invoke( null, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' );
-    fl11_assert( $mode === $prefs['social_appearance'], 'The saved social mode must survive preference reloading: ' . $mode );
-    $prefs['social_links'] = json_encode( array( 'networks' => array( array( 'network' => 'instagram', 'url' => 'https://instagram.com/faluss' ) ) ) );
-    $profile = array( 'avatar_attachment_id' => 0, 'display_name' => 'Faluss', 'public_slug' => 'faluss', 'bio' => 'Une bio' );
-    $card = ( new ReflectionMethod( 'Faluss_Link', 'card_markup' ) )->invoke( null, $profile, $prefs, 'left', false, array() );
-    fl11_assert( false !== strpos( $card, 'faluss-link-card__social--appearance-' . $mode ) && false !== strpos( $card, 'data-faluss-social-appearance="' . $mode . '"' ), 'The public card must emit the saved social mode: ' . $mode );
-}
-fl11_assert( 'automatic' === $appearance->invoke( null, 'untrusted' ), 'Unknown social appearance modes must fail closed.' );
 echo "FL-11 contract: OK\n";

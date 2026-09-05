@@ -3,25 +3,22 @@
 .faluss-link-card__content-blocks{margin-top:20px}.faluss-link-card__section-title{margin:20px 0 2px;padding-top:20px;border-top:1px solid var(--fl-border);color:var(--fl-ink);font-size:1.05rem;letter-spacing:-.02em}.faluss-link-card__content-text{margin:0;color:var(--fl-muted);line-height:1.6;white-space:pre-line}.faluss-link-card--align-center .faluss-link-card__content-text,.faluss-link-card--align-center .faluss-link-card__section-title{text-align:center}
 .faluss-link-card__media-teaser{overflow:hidden;margin:18px 0 2px;border:1px solid var(--fl-border);border-radius:var(--faluss-card-radius,24px);background:var(--fl-surface);box-shadow:var(--faluss-shadow,0 12px 30px rgba(8,8,8,.06))}.faluss-link-card__media-teaser>img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover}.faluss-link-card__media-teaser-copy{display:grid;gap:6px;padding:16px}.faluss-link-card__media-teaser-copy h3,.faluss-link-card__media-teaser-copy p{margin:0;overflow-wrap:anywhere}.faluss-link-card__media-teaser-copy h3{color:var(--fl-ink);font-size:1.05rem;letter-spacing:-.02em}.faluss-link-card__media-teaser-copy p{color:var(--fl-muted);line-height:1.55;white-space:pre-line}.faluss-link-card--align-center .faluss-link-card__media-teaser-copy{text-align:center}
 
-/* FL-10: resolved against the actual card surface; local Elementor values remain candidates. */
+/* FL-12: every editorial surface resolves itself; networks are administrator-provided images. */
 .faluss-link-card__name{color:var(--fl-title-color-resolved,var(--fl-name-color,var(--fl-ink)))}
-.faluss-link-card__section-title,.faluss-link-card__media-teaser-copy h3{color:var(--fl-title-color-resolved,var(--fl-ink))}
-.faluss-link-card__handle,.faluss-link-card__bio,.faluss-link-card__content-text,.faluss-link-card__media-teaser-copy p{color:var(--fl-secondary-color-resolved,var(--fl-muted))}
-.faluss-link-card__social a{background:var(--fl-social-background,var(--fl-surface));color:var(--fl-social-color,var(--fl-ink));border-color:var(--fl-social-border,var(--fl-border));opacity:1;visibility:visible}
-.faluss-link-card__social--inline a{background:transparent}
-.faluss-link-card__social--appearance-black{--fl-social-background:#000;--fl-social-color:#fff;--fl-social-border:#000}.faluss-link-card__social--appearance-white{--fl-social-background:#fff;--fl-social-color:#000;--fl-social-border:rgba(8,8,8,.16)}.faluss-link-card__social--appearance-name{--fl-social-background:var(--fl-title-color-resolved,var(--fl-name-color,var(--fl-ink)));--fl-social-color:var(--fl-social-name-ink,#fff);--fl-social-border:var(--fl-title-color-resolved,var(--fl-name-color,var(--fl-ink)))}
-.faluss-link-card__social--automatic-light{--fl-social-background:#000;--fl-social-color:#fff;--fl-social-border:#000}.faluss-link-card__social--automatic-dark{--fl-social-background:#fff;--fl-social-color:#000;--fl-social-border:rgba(255,255,255,.5)}
-.faluss-link-card__social--appearance-official a[data-faluss-network=instagram]{--fl-social-background:#e4405f;--fl-social-color:#fff;--fl-social-border:#e4405f}.faluss-link-card__social--appearance-official a[data-faluss-network=tiktok]{--fl-social-background:#010101;--fl-social-color:#fff;--fl-social-border:#010101}.faluss-link-card__social--appearance-official a[data-faluss-network=youtube]{--fl-social-background:#f00;--fl-social-color:#fff;--fl-social-border:#f00}.faluss-link-card__social--appearance-official a[data-faluss-network=x]{--fl-social-background:#000;--fl-social-color:#fff;--fl-social-border:#000}.faluss-link-card__social--appearance-official a[data-faluss-network=linkedin]{--fl-social-background:#0a66c2;--fl-social-color:#fff;--fl-social-border:#0a66c2}.faluss-link-card__social--appearance-official a[data-faluss-network=github]{--fl-social-background:#24292f;--fl-social-color:#fff;--fl-social-border:#24292f}
-.faluss-link-card__social--appearance-full a{display:grid;place-items:center;background:var(--fl-surface);color:var(--fl-ink)}.faluss-link-card__social--appearance-full .faluss-link-card__network-icon{width:24px;height:24px;max-width:24px;max-height:24px;object-fit:contain}.faluss-link-card__social a:focus-visible{outline:2px solid var(--fl-accent);outline-offset:3px}
-
-/* FL-11: each editorial surface resolves its own readable text and media geometry. */
+.faluss-link-card__section-title{color:var(--fl-title-color-resolved,var(--fl-ink))}
+.faluss-link-card__handle,.faluss-link-card__bio,.faluss-link-card__content-text{color:var(--fl-secondary-color-resolved,var(--fl-muted))}
 .faluss-link-card__link{color:var(--fl-link-text-resolved,var(--fl-action-text))}
-.faluss-link-card__media-teaser{background:var(--fl-surface)}
+.faluss-link-card__social a{background:var(--fl-surface);border-color:var(--fl-border);opacity:1;visibility:visible}
+.faluss-link-card__social[hidden]{display:none}
+.faluss-link-card__social--inline a{background:transparent}
+.faluss-link-card__network-asset{display:block;width:24px;height:24px;max-width:24px;max-height:24px;object-fit:contain}
+.faluss-link-card__social a:focus-visible{outline:2px solid var(--fl-accent);outline-offset:3px}
+.faluss-link-card__media-teaser{position:relative;background:transparent}
 .faluss-link-card__media-teaser--image-only{background:transparent}
 .faluss-link-card__media-teaser--image-only>img{border-radius:inherit}
 .faluss-link-card__media-teaser--format-landscape>img{aspect-ratio:16/9}
 .faluss-link-card__media-teaser--format-portrait>img{aspect-ratio:4/5}
 .faluss-link-card__media-teaser--format-square>img{aspect-ratio:1/1}
-.faluss-link-card__media-teaser-copy{background:var(--fl-surface)}
-.faluss-link-card__media-teaser-copy h3{color:var(--fl-title-color-resolved,var(--fl-ink))}
-.faluss-link-card__media-teaser-copy p{color:var(--fl-secondary-color-resolved,var(--fl-muted))}
+.faluss-link-card__media-teaser-copy{position:absolute;right:0;bottom:0;left:0;display:grid;align-content:end;gap:5px;min-height:38%;padding:16px;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.9) 100%);border-radius:0 0 var(--faluss-card-radius,24px) var(--faluss-card-radius,24px);pointer-events:none;text-align:left}
+.faluss-link-card__media-teaser-copy h3,.faluss-link-card__media-teaser-copy p{color:#FFF}
+.faluss-link-card--align-center .faluss-link-card__media-teaser-copy{text-align:left}
