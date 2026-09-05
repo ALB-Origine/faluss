@@ -54,8 +54,9 @@ final class Faluss_Link_Daily_Reward_Widget extends \Elementor\Widget_Base {
         $this->add_control( 'presentation', array( 'label' => 'Présentation', 'type' => \Elementor\Controls_Manager::SELECT, 'default' => 'immersive', 'options' => array( 'immersive' => 'Page immersive', 'compact' => 'Carte compacte' ) ) );
         $this->add_responsive_control( 'align', array( 'label' => 'Alignement', 'type' => \Elementor\Controls_Manager::CHOOSE, 'default' => 'left', 'options' => array( 'left' => array( 'title' => 'Gauche', 'icon' => 'eicon-text-align-left' ), 'center' => array( 'title' => 'Centre', 'icon' => 'eicon-text-align-center' ), 'right' => array( 'title' => 'Droite', 'icon' => 'eicon-text-align-right' ) ) ) );
         $this->add_control( 'show_balance', array( 'label' => 'Afficher le solde', 'type' => \Elementor\Controls_Manager::SWITCHER, 'return_value' => 'yes', 'default' => '' ) );
-        $this->add_control( 'hide_unavailable', array( 'label' => 'Masquer si indisponible', 'type' => \Elementor\Controls_Manager::SWITCHER, 'return_value' => 'yes', 'default' => 'yes' ) );
-        $this->add_control( 'login_label', array( 'label' => 'Libellé non connecté', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'Se connecter pour réclamer' ) );
+        $this->add_control( 'hide_unavailable', array( 'label' => 'Masquer si indisponible', 'type' => \Elementor\Controls_Manager::SWITCHER, 'return_value' => 'yes', 'default' => '' ) );
+        $this->add_control( 'login_label', array( 'label' => 'Libellé non connecté', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'Réclamer mes %1$s %2$s', 'description' => 'Utilisez %1$s pour le montant et %2$s pour le code de l’unité.' ) );
+        $this->add_control( 'login_microcopy', array( 'label' => 'Microcopie non connecté', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'et débloquer le teaser gratuitement', 'description' => 'Cette microcopie accompagne la connexion ; elle ne transforme pas les tokens en droit d’accès.' ) );
         $this->add_control( 'claim_label', array( 'label' => 'Libellé éligible', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'Réclamer %1$s %2$s', 'description' => 'Utilisez %1$s pour le montant et %2$s pour le code de l’unité.' ) );
         $this->add_control( 'claimed_label', array( 'label' => 'Libellé déjà réclamé', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'Récompense quotidienne déjà réclamée.' ) );
         $this->add_control( 'unavailable_label', array( 'label' => 'Libellé indisponible', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'Récompense quotidienne indisponible.' ) );
@@ -87,8 +88,9 @@ final class Faluss_Link_Daily_Reward_Widget extends \Elementor\Widget_Base {
             'presentation' => $settings['presentation'] ?? 'immersive',
             'align' => $settings['align'] ?? 'left',
             'show_balance' => $settings['show_balance'] ?? '',
-            'hide_unavailable' => $settings['hide_unavailable'] ?? 'yes',
+            'hide_unavailable' => $settings['hide_unavailable'] ?? '',
             'login_label' => $settings['login_label'] ?? '',
+            'login_microcopy' => $settings['login_microcopy'] ?? '',
             'claim_label' => $settings['claim_label'] ?? '',
             'claimed_label' => $settings['claimed_label'] ?? '',
             'unavailable_label' => $settings['unavailable_label'] ?? '',

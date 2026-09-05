@@ -32,6 +32,11 @@ final class Token_Engine_Connector_Access {
             'callback' => array( __CLASS__, 'balance_response' ),
             'permission_callback' => array( __CLASS__, 'wallet_read_permission' ),
         ) );
+        register_rest_route( $contract['namespace'], $contract['routes']['reward_offer']['path'], array(
+            'methods' => $contract['routes']['reward_offer']['method'],
+            'callback' => array( __CLASS__, 'daily_reward_offer_response' ),
+            'permission_callback' => array( __CLASS__, 'reward_claim_permission' ),
+        ) );
         register_rest_route( $contract['namespace'], $contract['routes']['reward_status']['path'], array(
             'methods' => $contract['routes']['reward_status']['method'],
             'callback' => array( __CLASS__, 'daily_reward_status_response' ),
@@ -55,6 +60,7 @@ final class Token_Engine_Connector_Access {
                 'token' => array( 'path' => '/connector/token', 'method' => 'POST' ),
                 'diagnostic' => array( 'path' => '/connector/diagnostic', 'method' => 'GET' ),
                 'balance' => array( 'path' => '/connector/balance', 'method' => 'POST' ),
+                'reward_offer' => array( 'path' => '/connector/reward/offer', 'method' => 'POST' ),
                 'reward_status' => array( 'path' => '/connector/reward/status', 'method' => 'POST' ),
                 'reward_claim' => array( 'path' => '/connector/reward/claim', 'method' => 'POST' ),
             ),
@@ -255,6 +261,14 @@ final class Token_Engine_Connector_Access {
         return rest_ensure_response( array( 'project_key' => $authorized['project_key'], 'balance' => Token_Engine_Service::balance( $subject, $authorized['project_key'] ) ) );
     }
 
+    /** A safe public offer is still authenticated to the authorized Connector project. */
+    public static function daily_reward_offer_response( $request ) {
+        $authorized = self::authorize( $request, self::PERMISSION_REWARD_CLAIM );
+        if ( is_wp_error( $authorized ) ) { return $authorized; }
+        $result = Token_Engine_Service::daily_reward_offer( $authorized['project_key'] );
+        return is_wp_error( $result ) ? $result : rest_ensure_response( self::daily_reward_offer_payload( $result, $authorized['project_key'] ) );
+    }
+
     /** Status remains scoped to the authenticated project and Connector subject. */
     public static function daily_reward_status_response( $request ) {
         $authorized = self::authorize( $request, self::PERMISSION_REWARD_CLAIM );
@@ -318,6 +332,18 @@ final class Token_Engine_Connector_Access {
             $payload['balance'] = max( 0, (int) ( $result['balance'] ?? 0 ) );
             $payload['next_available_at'] = is_string( $result['next_available_at'] ?? null ) ? $result['next_available_at'] : '';
             $payload['claimed_now'] = ! empty( $result['claimed_now'] );
+        }
+        return $payload;
+    }
+    /** @return array<string,mixed> */
+    private static function daily_reward_offer_payload( $result, $project_key ) {
+        if ( ! is_array( $result ) || ! in_array( $result['state'] ?? '', array( 'available', 'unavailable' ), true ) ) {
+            return array( 'state' => 'unavailable', 'project_key' => $project_key );
+        }
+        $payload = array( 'state' => $result['state'], 'project_key' => $project_key );
+        if ( 'available' === $result['state'] ) {
+            $payload['amount'] = max( 0, (int) ( $result['amount'] ?? 0 ) );
+            $payload['unit'] = sanitize_text_field( (string) ( $result['unit'] ?? '' ) );
         }
         return $payload;
     }

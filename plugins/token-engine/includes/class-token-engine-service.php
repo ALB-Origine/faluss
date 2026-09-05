@@ -156,6 +156,28 @@ final class Token_Engine_Service {
     }
 
     /**
+     * Returns the configured public offer without accepting or resolving a
+     * subject. This lets a local presentation invite an anonymous visitor to
+     * authenticate while keeping every eligibility decision in the Core.
+     *
+     * @return array<string,mixed>|WP_Error
+     */
+    public static function daily_reward_offer( $project_key ) {
+        $context = self::daily_reward_context( $project_key );
+        if ( is_wp_error( $context ) ) {
+            return $context;
+        }
+        if ( ! $context ) {
+            return array( 'state' => 'unavailable' );
+        }
+        return array(
+            'state' => 'available',
+            'amount' => (int) $context['rule']['amount'],
+            'unit' => self::configuration()['unit_code'],
+        );
+    }
+
+    /**
      * Atomically claims the configured global daily_reward for one subject.
      * The lock intentionally excludes the emitter project: the same global
      * rule cannot be claimed through two authorized surfaces concurrently.
@@ -272,7 +294,7 @@ final class Token_Engine_Service {
             return self::error( 'schema_not_ready', __( 'Le schéma du moteur n’est pas prêt.', 'token-engine' ) );
         }
         if ( ! self::configuration_is_valid() ) {
-            return null;
+            return self::error( 'not_configured', __( 'Configurez d’abord l’unité de cette instance.', 'token-engine' ) );
         }
         $project = self::find_project( $project_key, true );
         $rule = self::find_rule( self::DAILY_REWARD_RULE_KEY );

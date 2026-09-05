@@ -138,8 +138,9 @@ final class Faluss_Link {
             'align' => 'left',
             'presentation' => 'immersive',
             'show_balance' => 'no',
-            'hide_unavailable' => 'yes',
-            'login_label' => __( 'Se connecter pour réclamer', 'faluss-link' ),
+            'hide_unavailable' => 'no',
+            'login_label' => __( 'Réclamer mes %1$s %2$s', 'faluss-link' ),
+            'login_microcopy' => __( 'et débloquer le teaser gratuitement', 'faluss-link' ),
             'claim_label' => __( 'Réclamer %1$s %2$s', 'faluss-link' ),
             'claimed_label' => __( 'Récompense quotidienne déjà réclamée.', 'faluss-link' ),
             'unavailable_label' => __( 'Récompense quotidienne indisponible.', 'faluss-link' ),
@@ -148,25 +149,38 @@ final class Faluss_Link {
         $attributes['presentation'] = 'compact' === $attributes['presentation'] ? 'compact' : 'immersive';
         $attributes['show_balance'] = in_array( $attributes['show_balance'], array( true, 1, '1', 'yes' ), true );
         $attributes['hide_unavailable'] = in_array( $attributes['hide_unavailable'], array( true, 1, '1', 'yes' ), true );
-        foreach ( array( 'login_label', 'claim_label', 'claimed_label', 'unavailable_label' ) as $label ) {
+        foreach ( array( 'login_label', 'login_microcopy', 'claim_label', 'claimed_label', 'unavailable_label' ) as $label ) {
             $attributes[ $label ] = sanitize_text_field( (string) $attributes[ $label ] );
         }
         self::reward_assets();
         if ( ! is_user_logged_in() ) {
-            return self::daily_reward_markup( array( 'state' => 'login' ), $attributes );
+            $offer = class_exists( 'Token_Engine_Connector_Service' ) ? Token_Engine_Connector_Service::daily_reward_offer() : new WP_Error( 'connector_unavailable' );
+            if ( is_wp_error( $offer ) ) {
+                return self::daily_reward_markup( self::daily_reward_error_state( $offer ), $attributes );
+            }
+            if ( 'available' !== ( $offer['state'] ?? '' ) ) {
+                return self::daily_reward_markup( array( 'state' => 'unavailable' ), $attributes );
+            }
+            return self::daily_reward_markup( array( 'state' => 'login', 'amount' => $offer['amount'], 'unit' => $offer['unit'] ), $attributes );
         }
-        $result = class_exists( 'Token_Engine_Connector_Service' ) ? Token_Engine_Connector_Service::daily_reward_status_for_current_subject() : array( 'state' => 'unavailable' );
-        return self::daily_reward_markup( is_wp_error( $result ) ? array( 'state' => 'unavailable' ) : $result, $attributes );
+        $result = class_exists( 'Token_Engine_Connector_Service' ) ? Token_Engine_Connector_Service::daily_reward_status_for_current_subject() : new WP_Error( 'connector_unavailable' );
+        return self::daily_reward_markup( is_wp_error( $result ) ? self::daily_reward_error_state( $result ) : $result, $attributes );
     }
 
     /** WordPress AJAX protection is local; all eligibility and credits remain on the Core. */
     public static function claim_daily_reward() {
-        if ( ! is_user_logged_in() || ! check_ajax_referer( 'faluss_link_daily_reward_claim', 'nonce', false ) || ! class_exists( 'Token_Engine_Connector_Service' ) ) {
-            wp_send_json_error( array( 'message' => __( 'Récompense indisponible.', 'faluss-link' ) ), 403 );
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( array( 'message' => __( 'Connectez-vous pour réclamer cette récompense.', 'faluss-link' ) ), 403 );
+        }
+        if ( ! check_ajax_referer( 'faluss_link_daily_reward_claim', 'nonce', false ) ) {
+            wp_send_json_error( array( 'message' => __( 'Votre session a expiré. Rechargez la page avant de réessayer.', 'faluss-link' ) ), 403 );
+        }
+        if ( ! class_exists( 'Token_Engine_Connector_Service' ) ) {
+            wp_send_json_error( array( 'message' => __( 'La connexion au Core est indisponible.', 'faluss-link' ) ), 503 );
         }
         $result = Token_Engine_Connector_Service::claim_daily_reward_for_current_subject();
         if ( is_wp_error( $result ) ) {
-            wp_send_json_error( array( 'message' => __( 'Récompense indisponible.', 'faluss-link' ) ), 503 );
+            wp_send_json_error( self::daily_reward_error_payload( $result ), 503 );
         }
         wp_send_json_success( self::daily_reward_response_payload( $result ) );
     }
@@ -689,18 +703,20 @@ final class Faluss_Link {
     /** @param array<string,mixed> $state @param array<string,mixed> $attributes */
     private static function daily_reward_markup( $state, $attributes ) {
         $state_name = is_array( $state ) && in_array( $state['state'] ?? '', array( 'login', 'eligible', 'claimed', 'unavailable' ), true ) ? $state['state'] : 'unavailable';
-        if ( 'unavailable' === $state_name && $attributes['hide_unavailable'] ) { return ''; }
+        if ( 'unavailable' === $state_name && $attributes['hide_unavailable'] && empty( $state['visible'] ) ) { return ''; }
         $amount = max( 0, (int) ( $state['amount'] ?? 0 ) );
         $unit = sanitize_text_field( (string) ( $state['unit'] ?? '' ) );
         $classes = 'faluss-link-reward faluss-link-reward--' . $state_name . ' faluss-link-reward--align-' . $attributes['align'] . ' faluss-link-reward--presentation-' . $attributes['presentation'];
         ob_start();
         ?>
-        <section class="<?php echo esc_attr( $classes ); ?>" data-faluss-link-reward data-faluss-reward-claimed-label="<?php echo esc_attr( $attributes['claimed_label'] ); ?>" data-faluss-reward-unavailable-label="<?php echo esc_attr( $attributes['unavailable_label'] ); ?>" aria-live="polite">
+        <section class="<?php echo esc_attr( $classes ); ?>" data-faluss-link-reward data-faluss-reward-ajax-url="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>" data-faluss-reward-nonce="<?php echo esc_attr( wp_create_nonce( 'faluss_link_daily_reward_claim' ) ); ?>" data-faluss-reward-claimed-label="<?php echo esc_attr( $attributes['claimed_label'] ); ?>" data-faluss-reward-unavailable-label="<?php echo esc_attr( $attributes['unavailable_label'] ); ?>" data-faluss-reward-loading-label="<?php echo esc_attr__( 'Réclamation en cours…', 'faluss-link' ); ?>" data-faluss-reward-error-label="<?php echo esc_attr__( 'La récompense est temporairement indisponible. Réessayez plus tard.', 'faluss-link' ); ?>" aria-live="polite">
             <div class="faluss-link-reward__status">
-                <?php if ( 'login' === $state_name ) : ?><a class="faluss-link-reward__button" href="<?php echo esc_url( self::daily_reward_login_url() ); ?>"><?php echo esc_html( $attributes['login_label'] ); ?></a><?php endif; ?>
-                <?php if ( 'eligible' === $state_name ) : ?><button class="faluss-link-reward__button" type="button" data-faluss-reward-claim><?php echo esc_html( self::daily_reward_label( $attributes['claim_label'], $amount, $unit ) ); ?></button><?php endif; ?>
-                <?php if ( 'claimed' === $state_name ) : ?><p class="faluss-link-reward__message"><?php echo esc_html( ! empty( $state['claimed_now'] ) ? __( 'Récompense obtenue.', 'faluss-link' ) : $attributes['claimed_label'] ); ?><?php echo self::daily_reward_next_markup( $state['next_available_at'] ?? '' ); ?></p><?php endif; ?>
-                <?php if ( 'unavailable' === $state_name ) : ?><p class="faluss-link-reward__message"><?php echo esc_html( $attributes['unavailable_label'] ); ?></p><?php endif; ?>
+                <div class="faluss-link-reward__action">
+                    <?php if ( 'login' === $state_name ) : ?><a class="faluss-link-reward__button" href="<?php echo esc_url( self::daily_reward_login_url() ); ?>"><?php echo esc_html( self::daily_reward_label( $attributes['login_label'], $amount, $unit, __( 'Réclamer mes récompenses', 'faluss-link' ) ) ); ?></a><?php endif; ?>
+                    <?php if ( 'eligible' === $state_name ) : ?><button class="faluss-link-reward__button" type="button" data-faluss-reward-claim><?php echo esc_html( self::daily_reward_label( $attributes['claim_label'], $amount, $unit ) ); ?></button><?php endif; ?>
+                </div>
+                <?php if ( 'login' === $state_name && '' !== $attributes['login_microcopy'] ) : ?><p class="faluss-link-reward__microcopy"><?php echo esc_html( $attributes['login_microcopy'] ); ?></p><?php endif; ?>
+                <p class="faluss-link-reward__feedback" role="status"<?php if ( 'claimed' !== $state_name && 'unavailable' !== $state_name ) : ?> hidden<?php endif; ?>><?php if ( 'claimed' === $state_name ) { echo esc_html( ! empty( $state['claimed_now'] ) ? __( 'Récompense obtenue.', 'faluss-link' ) : $attributes['claimed_label'] ); echo self::daily_reward_next_markup( $state['next_available_at'] ?? '' ); } elseif ( 'unavailable' === $state_name ) { echo esc_html( sanitize_text_field( (string) ( $state['message'] ?? $attributes['unavailable_label'] ) ) ); } ?></p>
             </div>
             <?php if ( $attributes['show_balance'] && in_array( $state_name, array( 'eligible', 'claimed' ), true ) ) : ?><p class="faluss-link-reward__balance"><?php echo esc_html( sprintf( __( 'Solde : %1$s %2$s', 'faluss-link' ), number_format_i18n( max( 0, (int) ( $state['balance'] ?? 0 ) ) ), $unit ) ); ?></p><?php endif; ?>
         </section>
@@ -720,7 +736,27 @@ final class Faluss_Link {
         }
         return $payload;
     }
-    private static function daily_reward_label( $template, $amount, $unit ) {
+    /** @return array<string,mixed> */
+    private static function daily_reward_error_state( $error ) {
+        $payload = self::daily_reward_error_payload( $error );
+        return array( 'state' => 'unavailable', 'visible' => true, 'message' => $payload['message'] );
+    }
+    /** @return array<string,string> */
+    private static function daily_reward_error_payload( $error ) {
+        $code = is_wp_error( $error ) ? (string) $error->get_error_code() : '';
+        if ( 'connector_permission_reward_claim_missing' === $code ) {
+            return array( 'message' => __( 'La réclamation est indisponible : autorisez reward.claim dans le projet Core.', 'faluss-link' ) );
+        }
+        if ( 'connector_subject_unavailable' === $code ) {
+            return array( 'message' => __( 'Votre identité Faluss active est nécessaire pour réclamer cette récompense.', 'faluss-link' ) );
+        }
+        if ( in_array( $code, array( 'connector_core_url_invalid', 'connector_client_invalid', 'connector_project_invalid', 'connector_secret_missing', 'connector_secret_required', 'connector_secret_unavailable', 'connector_unavailable', 'not_configured', 'schema_not_ready' ), true ) ) {
+            return array( 'message' => __( 'La connexion au Core doit être finalisée par un administrateur.', 'faluss-link' ) );
+        }
+        return array( 'message' => __( 'La récompense est temporairement indisponible. Réessayez plus tard.', 'faluss-link' ) );
+    }
+    private static function daily_reward_label( $template, $amount, $unit, $fallback = '' ) {
+        if ( $amount < 1 || '' === $unit ) { return '' === $fallback ? __( 'Réclamer la récompense', 'faluss-link' ) : $fallback; }
         $label = str_replace( array( '%1$s', '%2$s' ), array( number_format_i18n( $amount ), $unit ), $template );
         return '' === trim( $label ) ? sprintf( __( 'Réclamer %1$s %2$s', 'faluss-link' ), number_format_i18n( $amount ), $unit ) : $label;
     }
