@@ -17,6 +17,7 @@ final class Faluss_Link {
     const SOCIAL_VARIANTS = array( 'outline' => 'Icônes contour', 'full' => 'Logos pleins' );
     const BLOCK_TYPES = array( 'section_title' => 'Titre de section', 'text' => 'Texte', 'link' => 'Lien', 'media_teaser' => 'Teaser média' );
     const TEASER_FORMATS = array( 'landscape' => 'Paysage', 'portrait' => 'Portrait', 'square' => 'Carré' );
+    private static $public_profile_request = false;
 
     public static function boot() {
         add_action( 'plugins_loaded', array( 'Faluss_Link_Schema', 'maybe_install' ), 1 );
@@ -27,7 +28,10 @@ final class Faluss_Link {
         add_action( 'admin_post_faluss_link_save_studio', array( __CLASS__, 'save_studio' ) );
         add_action( 'wp_ajax_faluss_link_upload_cover', array( __CLASS__, 'upload_cover' ) );
         add_action( 'wp_ajax_faluss_link_upload_teaser', array( __CLASS__, 'upload_teaser' ) );
+        add_action( 'parse_request', array( __CLASS__, 'exclude_public_profile_from_cache' ), 1 );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ), 5 );
+        add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_public_profile_assets' ), 6 );
+        add_action( 'template_redirect', array( __CLASS__, 'send_public_profile_no_cache_headers' ), 0 );
         add_action( 'elementor/frontend/after_register_scripts', array( __CLASS__, 'assets' ), 5 );
         add_action( 'elementor/frontend/after_register_styles', array( __CLASS__, 'assets' ), 5 );
         add_action( 'elementor/widgets/register', array( __CLASS__, 'widgets' ) );
@@ -46,6 +50,58 @@ final class Faluss_Link {
         wp_register_script( self::SCRIPT, plugins_url( 'assets/js/faluss-link-editor.js', FALUSS_LINK_FILE ), array( 'jquery', self::CARD_SCRIPT ), FALUSS_LINK_VERSION, true );
         wp_register_script( self::IMMERSIVE_SCRIPT, plugins_url( 'assets/js/faluss-link-immersive.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
         wp_localize_script( self::SCRIPT, 'falussLinkCover', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_upload_cover' ), 'teaserNonce' => wp_create_nonce( 'faluss_link_upload_teaser' ), 'networks' => self::network_catalog_for_client() ) );
+    }
+
+    /**
+     * Public Faluss profile routes render mutable member preferences. Mark only
+     * those rewritten routes as dynamic before WordPress emits its headers.
+     */
+    public static function exclude_public_profile_from_cache( $request ) {
+        if ( is_admin() || ! self::is_public_profile_request( $request ) ) {
+            return;
+        }
+        self::$public_profile_request = true;
+        if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+            define( 'DONOTCACHEPAGE', true );
+        }
+        add_filter( 'wp_headers', array( __CLASS__, 'public_profile_no_cache_headers' ), 99 );
+        do_action( 'litespeed_control_set_nocache' );
+    }
+
+    /** @param array<string, string> $headers @return array<string, string> */
+    public static function public_profile_no_cache_headers( $headers ) {
+        if ( ! self::$public_profile_request ) {
+            return $headers;
+        }
+        return array_merge( (array) $headers, array(
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+            'Expires' => 'Wed, 11 Jan 1984 05:00:00 GMT',
+            'X-LiteSpeed-Cache-Control' => 'no-cache',
+        ) );
+    }
+
+    public static function send_public_profile_no_cache_headers() {
+        if ( ! self::$public_profile_request && ! self::is_public_profile_request() ) {
+            return;
+        }
+        self::$public_profile_request = true;
+        if ( function_exists( 'nocache_headers' ) ) {
+            nocache_headers();
+        }
+        do_action( 'litespeed_control_set_nocache' );
+    }
+
+    /** Enqueue the isolated public shell CSS before the manual route shell prints wp_head(). */
+    public static function enqueue_public_profile_assets() {
+        if ( ! self::$public_profile_request && ! self::is_public_profile_request() ) {
+            return;
+        }
+        if ( ! wp_style_is( self::STYLE, 'registered' ) ) {
+            self::assets();
+        }
+        wp_enqueue_style( self::STYLE );
+        wp_enqueue_style( self::IMMERSIVE_STYLE );
     }
 
     public static function render_card( $attributes = array() ) {
@@ -398,10 +454,70 @@ final class Faluss_Link {
     private static function owned_image( $attachment_id, $user_id ) { $attachment = get_post( (int) $attachment_id ); return $attachment instanceof WP_Post && (int) $attachment->post_author === (int) $user_id && 0 === strpos( (string) $attachment->post_mime_type, 'image/' ); }
     private static function empty_card( $message ) { return '<div class="faluss-link-card faluss-link-card--empty" role="status">' . esc_html( $message ) . '</div>'; }
     private static function network_catalog() { return class_exists( 'Faluss_Link_Admin' ) ? Faluss_Link_Admin::catalog() : array_combine( self::NETWORKS, array_map( static function( $network ) { return array( 'label' => ucfirst( $network ), 'active' => 1, 'outline_icon' => 0, 'full_logo' => 0 ); }, self::NETWORKS ) ); }
-    private static function network_catalog_for_client() { $catalog = self::network_catalog(); foreach ( $catalog as $network => $settings ) { $catalog[ $network ]['outline'] = self::network_asset_url( $settings['outline_icon'] ?? 0 ); $catalog[ $network ]['full'] = self::network_asset_url( $settings['full_logo'] ?? 0 ); } return $catalog; }
+    private static function network_catalog_for_client() { $catalog = self::network_catalog(); foreach ( $catalog as $network => $settings ) { $catalog[ $network ]['outline'] = self::network_asset_data( $settings['outline_icon'] ?? 0 ); $catalog[ $network ]['full'] = self::network_asset_data( $settings['full_logo'] ?? 0 ); } return $catalog; }
     private static function active_network_catalog() { return class_exists( 'Faluss_Link_Admin' ) ? Faluss_Link_Admin::active_catalog() : self::network_catalog(); }
     private static function network_label( $network ) { $catalog = self::network_catalog(); return sanitize_text_field( $catalog[ $network ]['label'] ?? ucfirst( $network ) ); }
-    private static function network_asset_url( $attachment_id ) { $attachment_id = (int) $attachment_id; return $attachment_id && wp_attachment_is_image( $attachment_id ) ? (string) wp_get_attachment_image_url( $attachment_id, 'thumbnail' ) : ''; }
+    /** @return array{src: string, srcset: string, sizes: string} */
+    private static function network_asset_data( $attachment_id ) {
+        $attachment_id = (int) $attachment_id;
+        if ( ! $attachment_id || ! wp_attachment_is_image( $attachment_id ) ) {
+            return array( 'src' => '', 'srcset' => '', 'sizes' => '' );
+        }
+        $src = wp_get_attachment_image_url( $attachment_id, 'full' );
+        if ( ! is_string( $src ) || '' === $src ) {
+            return array( 'src' => '', 'srcset' => '', 'sizes' => '' );
+        }
+        $srcset = function_exists( 'wp_get_attachment_image_srcset' ) ? (string) wp_get_attachment_image_srcset( $attachment_id, 'full' ) : '';
+        $sizes = function_exists( 'wp_get_attachment_image_sizes' ) ? (string) wp_get_attachment_image_sizes( $attachment_id, 'full' ) : '';
+        return array(
+            'src' => self::versioned_attachment_url( $src, $attachment_id ),
+            'srcset' => self::versioned_attachment_srcset( $srcset, $attachment_id ),
+            'sizes' => $sizes,
+        );
+    }
+
+    private static function versioned_attachment_url( $url, $attachment_id ) {
+        if ( '' === (string) $url ) {
+            return '';
+        }
+        $version = self::attachment_version( $attachment_id );
+        if ( function_exists( 'add_query_arg' ) ) {
+            return (string) add_query_arg( 'ver', $version, $url );
+        }
+        return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . 'ver=' . rawurlencode( $version );
+    }
+
+    private static function versioned_attachment_srcset( $srcset, $attachment_id ) {
+        if ( '' === trim( (string) $srcset ) ) {
+            return '';
+        }
+        $candidates = array();
+        foreach ( explode( ',', $srcset ) as $candidate ) {
+            $parts = preg_split( '/\s+/', trim( $candidate ), 2 );
+            if ( empty( $parts[0] ) ) {
+                continue;
+            }
+            $candidates[] = self::versioned_attachment_url( $parts[0], $attachment_id ) . ( isset( $parts[1] ) ? ' ' . $parts[1] : '' );
+        }
+        return implode( ', ', $candidates );
+    }
+
+    private static function attachment_version( $attachment_id ) {
+        $modified = function_exists( 'get_post_modified_time' ) ? (int) get_post_modified_time( 'U', true, (int) $attachment_id ) : 0;
+        return $modified > 0 ? (string) $modified : (string) (int) $attachment_id;
+    }
     private static function social_markup( $links, $variant ) { $markup = ''; foreach ( self::socials( $links ) as $social ) { $asset = self::social_asset_markup( $social['network'], $variant ); if ( '' !== $asset ) { $markup .= '<a href="' . esc_url( $social['url'] ) . '" target="_blank" rel="noopener noreferrer nofollow" aria-label="' . esc_attr( self::network_label( $social['network'] ) ) . '" data-faluss-network="' . esc_attr( $social['network'] ) . '">' . $asset . '</a>'; } } return $markup; }
-    private static function social_asset_markup( $network, $variant ) { $catalog = self::network_catalog(); $settings = $catalog[ $network ] ?? array(); $fields = 'full' === self::social_variant( $variant ) ? array( 'full_logo', 'outline_icon' ) : array( 'outline_icon', 'full_logo' ); foreach ( $fields as $field ) { $attachment_id = (int) ( $settings[ $field ] ?? 0 ); if ( $attachment_id && wp_attachment_is_image( $attachment_id ) ) { return wp_get_attachment_image( $attachment_id, 'thumbnail', false, array( 'alt' => self::network_label( $network ), 'class' => 'faluss-link-card__network-asset', 'loading' => 'lazy' ) ); } } return ''; }
+    private static function social_asset_markup( $network, $variant ) { $catalog = self::network_catalog(); $settings = $catalog[ $network ] ?? array(); $fields = 'full' === self::social_variant( $variant ) ? array( 'full_logo', 'outline_icon' ) : array( 'outline_icon', 'full_logo' ); foreach ( $fields as $field ) { $asset = self::network_asset_data( $settings[ $field ] ?? 0 ); if ( '' !== $asset['src'] ) { return self::social_image_markup( $asset, self::network_label( $network ) ); } } return ''; }
+    /** @param array{src: string, srcset: string, sizes: string} $asset */
+    private static function social_image_markup( $asset, $label ) { $attributes = ' class="faluss-link-card__network-asset" src="' . esc_url( $asset['src'] ) . '" alt="' . esc_attr( $label ) . '" loading="lazy"'; if ( '' !== $asset['srcset'] ) { $attributes .= ' srcset="' . esc_attr( $asset['srcset'] ) . '"'; } if ( '' !== $asset['sizes'] ) { $attributes .= ' sizes="' . esc_attr( $asset['sizes'] ) . '"'; } return '<img' . $attributes . '>'; }
+
+    private static function is_public_profile_request( $request = null ) {
+        $slug = '';
+        if ( is_object( $request ) && isset( $request->query_vars ) && is_array( $request->query_vars ) ) {
+            $slug = $request->query_vars['faluss_public_profile'] ?? '';
+        } elseif ( function_exists( 'get_query_var' ) ) {
+            $slug = get_query_var( 'faluss_public_profile' );
+        }
+        return '' !== sanitize_title( (string) $slug );
+    }
 }

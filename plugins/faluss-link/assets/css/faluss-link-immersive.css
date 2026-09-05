@@ -10,6 +10,28 @@
   background: var(--fl-page);
 }
 
+/* The route shell is known: Elementor's header is the direct body sibling of
+   the generated profile main. Keep that designer-owned header out of flow. */
+body.faluss-identity-public-route {
+  margin: 0;
+  padding: 0;
+}
+
+body.faluss-identity-public-route > .elementor-location-header {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  right: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: auto;
+}
+
+body.faluss-identity-public-route > .faluss-identity-profile-page {
+  margin: 0;
+  padding: 0;
+}
+
 /* The Elementor header owns its overlay treatment. The immersive route never outranks it. */
 body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
   z-index: 0;
@@ -87,11 +109,6 @@ body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
 
 .faluss-link-card--presentation-immersive.faluss-link-card--cover-no.faluss-link-card--avatar-yes .faluss-link-card__avatar {
   margin-bottom: 1.25rem;
-}
-
-.faluss-link-card--presentation-immersive.faluss-link-card--align-center .faluss-link-card__avatar {
-  margin-right: auto;
-  margin-left: auto;
 }
 
 .faluss-link-card--presentation-immersive.faluss-link-card--align-center .faluss-link-card__availability {

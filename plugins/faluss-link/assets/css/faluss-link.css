@@ -22,3 +22,5 @@
 .faluss-link-card__media-teaser-copy{position:absolute;right:0;bottom:0;left:0;display:grid;align-content:end;gap:5px;min-height:38%;padding:16px;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.9) 100%);border-radius:0 0 var(--faluss-card-radius,24px) var(--faluss-card-radius,24px);pointer-events:none;text-align:left}
 .faluss-link-card__media-teaser-copy h3,.faluss-link-card__media-teaser-copy p{color:#FFF}
 .faluss-link-card--align-center .faluss-link-card__media-teaser-copy{text-align:left}
+.faluss-link-card__network-asset{display:block;width:24px;height:24px;max-width:100%;max-height:100%;object-fit:contain}
+.faluss-link-card--align-center .faluss-link-card__avatar{margin-right:auto;margin-left:auto}

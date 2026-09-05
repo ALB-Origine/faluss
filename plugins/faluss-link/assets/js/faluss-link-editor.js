@@ -5,10 +5,11 @@
 
     function card(studio) { return studio.find('.faluss-link-studio__preview .faluss-link-card'); }
     function safeURL(value) { try { var url = new URL($.trim(value || '')); return url.protocol === 'https:' && !!url.hostname && !url.username && !url.password; } catch (error) { return false; } }
-    function catalog() { var source = (window.falussLinkCover && falussLinkCover.networks) || {}; return Object.keys(source).filter(function (key) { return source[key] && source[key].active; }).map(function (key) { return { key: key, label: source[key].label || key, outline: source[key].outline || '', full: source[key].full || '' }; }); }
+    function catalog() { var source = (window.falussLinkCover && falussLinkCover.networks) || {}; return Object.keys(source).filter(function (key) { return source[key] && source[key].active; }).map(function (key) { return { key: key, label: source[key].label || key, outline: source[key].outline || null, full: source[key].full || null }; }); }
     function network(key) { return catalog().filter(function (item) { return item.key === key; })[0] || null; }
-    function networkAsset(item, variant) { if (!item) { return ''; } return variant === 'full' ? (item.full || item.outline || '') : (item.outline || item.full || ''); }
-    function networkIcon(key, variant) { var item = network(key), asset = networkAsset(item, variant); return asset ? $('<img>', { 'class': 'faluss-link-card__network-asset', src: asset, alt: item.label }) : null; }
+    function validAsset(asset) { return asset && typeof asset.src === 'string' && asset.src !== ''; }
+    function networkAsset(item, variant) { if (!item) { return null; } var primary = variant === 'full' ? item.full : item.outline, alternate = variant === 'full' ? item.outline : item.full; return validAsset(primary) ? primary : (validAsset(alternate) ? alternate : null); }
+    function networkIcon(key, variant) { var item = network(key), asset = networkAsset(item, variant), image; if (!item || !asset) { return null; } image = $('<img>', { 'class': 'faluss-link-card__network-asset', src: asset.src, alt: item.label, loading: 'lazy' }); if (asset.srcset) { image.attr('srcset', asset.srcset); } if (asset.sizes) { image.attr('sizes', asset.sizes); } return image; }
 
     function updateCursor(studio) { var tabs = studio.find('.faluss-link-studio__tabs'), active = tabs.find('[aria-selected="true"]'); if (!active.length || !tabs.length) { return; } tabs[0].style.setProperty('--faluss-link-tab-left', active[0].offsetLeft + 'px'); tabs[0].style.setProperty('--faluss-link-tab-width', active.outerWidth() + 'px'); }
     function activeTab(studio) { var tab = studio.find('[data-fl-tab][aria-selected="true"]').data('fl-tab'); return /^(profile|links|style)$/.test(tab || '') ? tab : 'profile'; }

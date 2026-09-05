@@ -55,3 +55,11 @@ Dans **Réglages > Réseaux Faluss Link**, l’administrateur fournit indépenda
 Dans **Studio Faluss > Style**, le membre choisit explicitement **Icônes contour** ou **Logos pleins**. Le choix est conservé dans ses préférences et appliqué au même rendu public, mobile, en bulles, en ligne et dans l’aperçu vivant. Les images restent les ressources administrées : Faluss Link ne les recolorise pas par CSS.
 
 Le gris éditorial `#6F6A63` reste la préférence de la bio, du handle et des textes de section lorsqu’il est lisible sur leur propre surface, y compris un fond noir. Les titres résolvent séparément noir ou blanc. Les légendes d’un teaser sont elles-mêmes une exception volontaire : elles sont posées à gauche sur l’image, dans un dégradé noir fixe vers le bas, avec un texte toujours blanc. Sans légende, le teaser reste strictement une image arrondie, sans panneau ajouté.
+
+## Cohérence publique et ressources sociales (FL-13)
+
+Les routes de profils publics Faluss sont dynamiques : Faluss Link les exclut du cache de page WordPress et LiteSpeed, sans toucher aux autres pages. Les modifications enregistrées dans Studio — variante sociale, alignement et contenu — sont donc visibles à la prochaine recharge, y compris pour un visiteur anonyme sur mobile, sans purge manuelle.
+
+Les ressources sociales utilisent l’original WordPress `full`, avec `srcset`, `sizes` et une version issue de la date de modification de la pièce jointe. Le Studio, le rendu public mobile et desktop consomment exactement cette même ressource et la même variante. La classe d’alignement de carte est également commune : en mode Centre, avatar, identité, réseaux, blocs et liens sont centrés dans l’aperçu comme sur le profil public.
+
+Sur une route publique, le shell Faluss Link place uniquement le conteneur Elementor de header au-dessus du hero, hors du flux. Il ne modifie ni son design ni ses réglages ; le hero commence donc au sommet du viewport, sans bande blanche, sur mobile comme sur desktop.
