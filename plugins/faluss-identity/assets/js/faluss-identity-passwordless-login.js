@@ -8,12 +8,23 @@
         notice.hidden = !message;
     }
 
-    function replaceWithOtp(form, markup) {
+    function replaceStage(form, markup, expectedStage) {
+        if (typeof markup !== 'string') { return false; }
         var current = form.closest('.faluss-identity-login__otp-stage') || form;
         var wrapper = document.createElement('div');
         wrapper.innerHTML = markup;
         var stage = wrapper.firstElementChild;
-        if (stage) { current.replaceWith(stage); }
+        if (!stage || stage.getAttribute('data-faluss-login-stage') !== expectedStage) { return false; }
+        current.replaceWith(stage);
+        return true;
+    }
+
+    function replaceWithOtp(form, markup) {
+        return replaceStage(form, markup, 'otp');
+    }
+
+    function replaceWithEmail(form, markup) {
+        return replaceStage(form, markup, 'email');
     }
 
     document.addEventListener('submit', function (event) {
@@ -31,6 +42,9 @@
             .then(function (response) { return response.json(); })
             .then(function (result) {
                 if (!result || !result.success) {
+                    if (action.value === 'faluss_identity_verify_code' && result && result.data && result.data.reset_to_email) {
+                        replaceWithEmail(form, result.data.email_html);
+                    }
                     setNotice(component, result && result.data ? result.data.notice : 'Nous ne pouvons pas poursuivre cette vérification.');
                     return;
                 }

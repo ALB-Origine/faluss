@@ -12,6 +12,10 @@ function home_url( $path = '/' ) {
 function wp_parse_url( $url ) { return parse_url( $url ); }
 function wp_validate_redirect( $url, $fallback = '' ) { return $url ?: $fallback; }
 function add_query_arg( $key, $value, $url ) { return $url . '?' . rawurlencode( $key ) . '=' . rawurlencode( $value ); }
+function admin_url( $path = '' ) { return 'https://faluss.me/wp-admin/' . ltrim( $path, '/' ); }
+function esc_url( $value ) { return $value; }
+function wp_nonce_field( $action, $name ) { echo '<input type="hidden" name="' . $name . '" value="fixture">'; }
+function esc_html_e( $value ) { echo $value; }
 
 require_once dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-passwordless.php';
 
@@ -34,12 +38,19 @@ fi02_passwordless_assert( fi02_passwordless_private( 'is_valid_otp', '004281' ),
 $encoded = fi02_passwordless_private( 'base64url_encode', random_bytes( 64 ) );
 fi02_passwordless_assert( is_array( fi02_passwordless_private( 'read_cookie_state' ) ) === false, 'No cookie never creates an implicit ceremony.' );
 fi02_passwordless_assert( 64 === strlen( fi02_passwordless_private( 'base64url_decode', $encoded ) ), 'The cookie payload preserves both 256-bit secrets.' );
+fi02_passwordless_assert( 'otp' === fi02_passwordless_private( 'login_stage_for_challenge_email', 'member@example.test' ), 'Only a server-confirmed valid challenge e-mail can select the OTP stage.' );
+fi02_passwordless_assert( 'email' === fi02_passwordless_private( 'login_stage_for_challenge_email', null ), 'A fresh visit has no implicit OTP stage.' );
+$initial_markup = fi02_passwordless_private( 'render_email_stage', 'https://faluss.me/mon-faluss/', 'https://faluss.me/login/' );
+fi02_passwordless_assert( false !== strpos( $initial_markup, 'name="email"' ) && false === strpos( $initial_markup, 'name="otp"' ), 'The initial login stage renders an e-mail field, never an OTP field.' );
+$otp_markup = fi02_passwordless_private( 'render_otp_stage', 'https://faluss.me/mon-faluss/', 'https://faluss.me/login/' );
+fi02_passwordless_assert( false !== strpos( $otp_markup, 'name="otp"' ) && false === strpos( $otp_markup, 'name="email"' ), 'The OTP markup is isolated from the fresh e-mail stage.' );
 
 // Negative scenarios: malformed values cannot broaden proof, correlate buckets, or decode a cookie.
 fi02_passwordless_assert( null === fi02_passwordless_private( 'normalize_email', 'not-an-email' ), 'Invalid email is rejected.' );
 fi02_passwordless_assert( ! fi02_passwordless_private( 'is_valid_otp', '4281' ) && ! fi02_passwordless_private( 'is_valid_otp', '4281ab' ), 'Only exact numeric OTPs are accepted.' );
 fi02_passwordless_assert( null === fi02_passwordless_private( 'base64url_decode', 'not/a-cookie' ), 'Cookie decoding rejects non-base64url input.' );
 fi02_passwordless_assert( fi02_passwordless_private( 'secret_hash', 'same-value', 'email' ) !== fi02_passwordless_private( 'secret_hash', 'same-value', 'ip' ), 'Rate-limit buckets are domain separated.' );
+fi02_passwordless_assert( 'email' === fi02_passwordless_private( 'login_stage_for_challenge_email', 'not-an-email' ), 'An incomplete or incoherent local state returns to the e-mail stage.' );
 
 // FI-02 corrections: new users always receive the least-privileged role and
 // each post retains an exact local redirect, never an external URL.
@@ -62,11 +73,23 @@ fi02_passwordless_assert( 3 === substr_count( $source, 'name="return_to"' ), 'Ev
 foreach ( array( 'handle_request_code_ajax', 'handle_verify_code_ajax', 'request_code_result', 'verify_code_result', 'login_return_url', "home_url( '/mon-faluss/' )", 'wp_send_json_success' ) as $required ) {
     fi02_passwordless_assert( false !== strpos( $source, $required ), 'Missing FI-06 in-place passwordless invariant: ' . $required );
 }
+foreach ( array( 'has_active_challenge', 'email_for_current_challenge', 'render_email_stage', "if ( 'sent' !== \$notice )", "return 'unavailable'", "! self::issue_challenge( \$email, self::client_ip() )", "'reset_to_email'", "'email_html'", 'wp_set_auth_cookie', 'self::posted_redirect()' ) as $required ) {
+    fi02_passwordless_assert( false !== strpos( $source, $required ), 'The FI-02 stage or successful-session transition is incomplete: ' . $required );
+}
+fi02_passwordless_assert( false === strpos( $source, '$has_challenge = self::read_cookie_state() !== null;' ), 'A decodable cookie alone must never select the OTP stage.' );
 fi02_passwordless_assert( false === strpos( $source, 'Faluss_Identity_Authorization' ), 'Ordinary passwordless login remains separate from the FI-04 authorization flow.' );
 $login_js = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/assets/js/faluss-identity-passwordless-login.js' );
 foreach ( array( 'fetch(', "action.value + '_ajax'", 'replaceWithOtp', 'window.location.assign' ) as $required ) {
     fi02_passwordless_assert( false !== strpos( $login_js, $required ), 'Missing FI-06 in-place login client behavior: ' . $required );
 }
+foreach ( array( 'replaceStage', 'replaceWithEmail', "'otp'", "'email'", 'reset_to_email', 'email_html' ) as $required ) {
+    fi02_passwordless_assert( false !== strpos( $login_js, $required ), 'The client must apply only the server-confirmed login stage: ' . $required );
+}
+fi02_passwordless_assert( false === strpos( $login_js, 'sessionStorage' ) && false === strpos( $login_js, 'localStorage' ), 'No residual browser storage can select the OTP stage.' );
+$bootstrap = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/faluss-identity.php' );
+fi02_passwordless_assert( false !== strpos( $bootstrap, "FALUSS_IDENTITY_VERSION', '0.4.7" ) && false !== strpos( $source, 'FALUSS_IDENTITY_VERSION' ), 'The corrected frontend asset is versioned from the plugin source.' );
+$navigation = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-navigation.php' );
+fi02_passwordless_assert( false === strpos( $source . $login_js, 'Faluss_Identity_Navigation' ) && false !== strpos( $navigation, 'current_local_return_url' ), 'FI-02 does not alter FI-07 Navigation Faluss.' );
 foreach ( array( '#FFFDF5', '#FFFFFF', '#000000', '#FF3D16', 'Outfit', '--faluss-pill-radius' ) as $required ) {
     fi02_passwordless_assert( false !== strpos( $source . file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/assets/css/faluss-identity-passwordless.css' ), $required ), 'Missing Faluss.me design token: ' . $required );
 }

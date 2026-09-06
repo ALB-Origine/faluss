@@ -92,7 +92,10 @@ final class Faluss_Identity_Passwordless {
         wp_localize_script( self::SCRIPT_HANDLE, 'falussIdentityLogin', array( 'url' => admin_url( 'admin-ajax.php' ) ) );
 
         $notice = isset( $_GET[ self::NOTICE_KEY ] ) ? sanitize_key( wp_unslash( $_GET[ self::NOTICE_KEY ] ) ) : '';
-        $has_challenge = self::read_cookie_state() !== null;
+        // A decodable browser cookie is not proof of a usable ceremony. The
+        // server row must still be pending, unexpired, and associated with a
+        // valid e-mail before the OTP form can be rendered.
+        $has_challenge = self::has_active_challenge();
 
         ob_start();
         ?>
@@ -108,18 +111,26 @@ final class Faluss_Identity_Passwordless {
                 <?php elseif ( $has_challenge ) : ?>
                     <?php echo self::render_otp_stage( $redirect_to, $return_to ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- server-rendered safe form. ?>
                 <?php else : ?>
-                    <form class="faluss-identity-login__form" data-faluss-login-stage="email" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-                        <input type="hidden" name="action" value="faluss_identity_request_code">
-                        <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
-                        <input type="hidden" name="return_to" value="<?php echo esc_url( $return_to ); ?>">
-                        <?php wp_nonce_field( 'faluss_identity_request_code', 'faluss_identity_nonce' ); ?>
-                        <label for="faluss-identity-email"><?php esc_html_e( 'Adresse e-mail', 'faluss-identity' ); ?></label>
-                        <input id="faluss-identity-email" name="email" type="email" autocomplete="email" maxlength="320" required>
-                        <button type="submit"><?php esc_html_e( 'Recevoir mon code', 'faluss-identity' ); ?></button>
-                    </form>
+                    <?php echo self::render_email_stage( $redirect_to, $return_to ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- server-rendered safe form. ?>
                 <?php endif; ?>
             </div>
         </section>
+        <?php
+        return (string) ob_get_clean();
+    }
+
+    private static function render_email_stage( $redirect_to, $return_to ) {
+        ob_start();
+        ?>
+        <form class="faluss-identity-login__form" data-faluss-login-stage="email" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+            <input type="hidden" name="action" value="faluss_identity_request_code">
+            <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
+            <input type="hidden" name="return_to" value="<?php echo esc_url( $return_to ); ?>">
+            <?php wp_nonce_field( 'faluss_identity_request_code', 'faluss_identity_nonce' ); ?>
+            <label for="faluss-identity-email"><?php esc_html_e( 'Adresse e-mail', 'faluss-identity' ); ?></label>
+            <input id="faluss-identity-email" name="email" type="email" autocomplete="email" maxlength="320" required>
+            <button type="submit"><?php esc_html_e( 'Recevoir mon code', 'faluss-identity' ); ?></button>
+        </form>
         <?php
         return (string) ob_get_clean();
     }
@@ -165,7 +176,7 @@ final class Faluss_Identity_Passwordless {
 
     public static function handle_request_code_ajax() {
         $notice = self::request_code_result();
-        if ( 'invalid' === $notice ) {
+        if ( 'sent' !== $notice ) {
             wp_send_json_error( array( 'notice' => self::notice_message( $notice ) ), 400 );
         }
         wp_send_json_success( array( 'notice' => self::notice_message( $notice ), 'otp_html' => self::render_otp_stage( self::posted_redirect(), self::posted_return() ) ) );
@@ -174,7 +185,12 @@ final class Faluss_Identity_Passwordless {
     public static function handle_verify_code_ajax() {
         $user = self::verify_code_result();
         if ( ! $user instanceof WP_User ) {
-            wp_send_json_error( array( 'notice' => self::notice_message( 'invalid' ) ), 400 );
+            $response = array( 'notice' => self::notice_message( 'invalid' ) );
+            if ( ! self::has_active_challenge() ) {
+                $response['reset_to_email'] = true;
+                $response['email_html'] = self::render_email_stage( self::posted_redirect(), self::posted_return() );
+            }
+            wp_send_json_error( $response, 400 );
         }
         self::open_session( $user );
         wp_send_json_success( array( 'redirect' => self::posted_redirect() ) );
@@ -184,15 +200,17 @@ final class Faluss_Identity_Passwordless {
         if ( ! self::valid_nonce( 'faluss_identity_request_code' ) ) {
             return 'invalid';
         }
-        $email = isset( $_POST['email'] ) ? self::normalize_email( wp_unslash( $_POST['email'] ) ) : null;
-        if ( null === $email ) {
-            $email = self::email_for_current_challenge();
-        }
+        $has_submitted_email = array_key_exists( 'email', $_POST );
+        $email = $has_submitted_email && is_string( $_POST['email'] ) ? self::normalize_email( wp_unslash( $_POST['email'] ) ) : null;
+        if ( ! $has_submitted_email ) { $email = self::email_for_current_challenge(); }
         if ( null === $email || ! Faluss_Identity_Schema::get_status()['ready'] ) {
-            if ( null === $email ) { self::clear_cookie(); }
-            return 'sent';
+            self::clear_cookie();
+            return 'unavailable';
         }
-        self::issue_challenge( $email, self::client_ip() );
+        if ( ! self::issue_challenge( $email, self::client_ip() ) ) {
+            self::clear_cookie();
+            return 'unavailable';
+        }
         return 'sent';
     }
 
@@ -485,6 +503,26 @@ final class Faluss_Identity_Passwordless {
         return array( 'challenge' => substr( $decoded, 0, 32 ), 'browser_secret' => substr( $decoded, 32, 32 ) );
     }
 
+    /**
+     * The OTP stage is server-confirmed only. A stale, incomplete, replaced,
+     * failed, or expired browser cookie is discarded instead of selecting it.
+     */
+    private static function has_active_challenge() {
+        if ( null === self::read_cookie_state() ) {
+            return false;
+        }
+        if ( 'otp' === self::login_stage_for_challenge_email( self::email_for_current_challenge() ) ) {
+            return true;
+        }
+        self::clear_cookie();
+        return false;
+    }
+
+    /** @return 'email'|'otp' */
+    private static function login_stage_for_challenge_email( $email ) {
+        return null === self::normalize_email( $email ) ? 'email' : 'otp';
+    }
+
     /** Returns no data to the browser; used only to rotate a live ceremony. */
     private static function email_for_current_challenge() {
         global $wpdb;
@@ -659,6 +697,7 @@ final class Faluss_Identity_Passwordless {
         $messages = array(
             'sent'          => __( 'Si cette adresse peut recevoir un code, celui-ci vient d’être envoyé. Vérifiez aussi vos indésirables.', 'faluss-identity' ),
             'invalid'       => __( 'Nous ne pouvons pas valider ce code. Demandez-en un nouveau et réessayez.', 'faluss-identity' ),
+            'unavailable'   => __( 'Nous ne pouvons pas envoyer de code pour le moment. Vérifiez votre adresse et réessayez.', 'faluss-identity' ),
             'authenticated' => __( 'Votre identité a été vérifiée.', 'faluss-identity' ),
         );
         return isset( $messages[ $notice ] ) ? $messages[ $notice ] : '';
