@@ -38,7 +38,7 @@ final class Faluss_Identity_Public_Profile {
 
     public static function register_rewrite_rule() {
         // Static exclusions protect core endpoints before the dynamic root slug.
-        add_rewrite_rule( '^(?!(?:wp-admin|wp-json|wp-login\\.php|login|logout|api|assets|wp-content|wp-includes|wp-cron\\.php|xmlrpc\\.php|feed|search|author|category|tag|embed|index\\.php)(?:/|$))([a-z0-9][a-z0-9-]{1,39})/?$', 'index.php?' . self::QUERY_VAR . '=$matches[1]', 'top' );
+        add_rewrite_rule( '^(?!(?:wp-admin|wp-json|wp-login\\.php|login|logout|commencer|mon-faluss|mes-decouvertes|list|oauth|api|assets|wp-content|wp-includes|wp-cron\\.php|xmlrpc\\.php|feed|search|author|category|tag|embed|index\\.php)(?:/|$))([a-z0-9][a-z0-9-]{1,39})/?$', 'index.php?' . self::QUERY_VAR . '=$matches[1]', 'top' );
     }
 
     public static function register_query_var( $query_vars ) {
@@ -307,6 +307,97 @@ final class Faluss_Identity_Public_Profile {
         ) : $profile;
     }
 
+    /**
+     * Answers only whether the existing FI-03 registry contains a profile for
+     * this identity. It never exposes the technical identifier in markup.
+     */
+    public static function has_profile_for_faluss_id( $faluss_id ) {
+        return null !== self::find_by_faluss_id( $faluss_id );
+    }
+
+    /**
+     * Checks the same route, reserved-word and registry constraints as final
+     * reservation. The response reveals availability, never the current owner.
+     */
+    public static function public_slug_availability( $slug, $faluss_id = null ) {
+        global $wpdb;
+        $slug = self::normalize_slug( $slug );
+        $table = Faluss_Identity_Schema::get_public_profiles_table();
+        if ( '' === $slug || self::is_reserved_slug( $slug ) || '' === $table || ! self::schema_ready() ) {
+            return 'invalid';
+        }
+        $owner = $wpdb->get_var( $wpdb->prepare( 'SELECT faluss_id FROM ' . self::quote_identifier( $table ) . ' WHERE public_slug = %s', $slug ) );
+        if ( ! is_string( $owner ) || '' === $owner ) {
+            return 'available';
+        }
+        return is_string( $faluss_id ) && hash_equals( $owner, $faluss_id ) ? 'claimed' : 'taken';
+    }
+
+    /**
+     * Atomically reserves a permanent public slug by inserting the minimal
+     * draft FI-03 record. Its content remains owned by the normal profile/
+     * Studio save path and is never duplicated into onboarding state.
+     *
+     * @return string claimed|taken|invalid|immutable
+     */
+    public static function reserve_public_slug( $faluss_id, $slug ) {
+        global $wpdb;
+        $slug = self::normalize_slug( $slug );
+        $table = Faluss_Identity_Schema::get_public_profiles_table();
+        if ( ! Faluss_Identity_Registry::is_valid_faluss_id( $faluss_id ) || '' === $slug || self::is_reserved_slug( $slug ) || '' === $table || ! self::schema_ready() || false === $wpdb->query( 'START TRANSACTION' ) ) {
+            return 'invalid';
+        }
+        try {
+            $existing = $wpdb->get_row( $wpdb->prepare( 'SELECT faluss_id, public_slug FROM ' . self::quote_identifier( $table ) . ' WHERE faluss_id = %s FOR UPDATE', $faluss_id ), ARRAY_A );
+            if ( is_array( $existing ) ) {
+                $wpdb->query( 'COMMIT' );
+                return hash_equals( (string) $existing['public_slug'], $slug ) ? 'claimed' : 'immutable';
+            }
+            $owner = $wpdb->get_var( $wpdb->prepare( 'SELECT faluss_id FROM ' . self::quote_identifier( $table ) . ' WHERE public_slug = %s FOR UPDATE', $slug ) );
+            if ( is_string( $owner ) && '' !== $owner ) {
+                $wpdb->query( 'ROLLBACK' );
+                return 'taken';
+            }
+            $now = current_time( 'mysql', true );
+            $saved = $wpdb->query( $wpdb->prepare( 'INSERT INTO ' . self::quote_identifier( $table ) . ' (faluss_id, public_slug, display_name, bio, avatar_attachment_id, publication_status, external_links, created_at, updated_at, published_at) VALUES (%s, %s, %s, %s, %d, %s, %s, %s, %s, %s)', $faluss_id, $slug, '', '', 0, 'draft', '[]', $now, $now, null ) );
+            if ( 1 !== $saved || false === $wpdb->query( 'COMMIT' ) ) {
+                $wpdb->query( 'ROLLBACK' );
+                return 'invalid';
+            }
+            return 'claimed';
+        } catch ( Exception $exception ) {
+            $wpdb->query( 'ROLLBACK' );
+            return 'invalid';
+        }
+    }
+
+    /**
+     * A member can never change a claimed slug. This narrow primitive is kept
+     * for a future privileged support screen and requires manage_options.
+     */
+    public static function admin_override_public_slug( $faluss_id, $slug ) {
+        global $wpdb;
+        $slug = self::normalize_slug( $slug );
+        $table = Faluss_Identity_Schema::get_public_profiles_table();
+        if ( ! current_user_can( 'manage_options' ) || ! Faluss_Identity_Registry::is_valid_faluss_id( $faluss_id ) || '' === $slug || self::is_reserved_slug( $slug ) || '' === $table || ! self::schema_ready() || false === $wpdb->query( 'START TRANSACTION' ) ) {
+            return 'invalid';
+        }
+        try {
+            $profile = $wpdb->get_row( $wpdb->prepare( 'SELECT faluss_id FROM ' . self::quote_identifier( $table ) . ' WHERE faluss_id = %s FOR UPDATE', $faluss_id ), ARRAY_A );
+            $owner = $wpdb->get_var( $wpdb->prepare( 'SELECT faluss_id FROM ' . self::quote_identifier( $table ) . ' WHERE public_slug = %s FOR UPDATE', $slug ) );
+            if ( ! is_array( $profile ) || ( is_string( $owner ) && '' !== $owner && ! hash_equals( $owner, $faluss_id ) ) ) {
+                $wpdb->query( 'ROLLBACK' );
+                return 'taken';
+            }
+            $updated = $wpdb->query( $wpdb->prepare( 'UPDATE ' . self::quote_identifier( $table ) . ' SET public_slug = %s, updated_at = %s WHERE faluss_id = %s', $slug, current_time( 'mysql', true ), $faluss_id ) );
+            if ( false === $updated || false === $wpdb->query( 'COMMIT' ) ) { $wpdb->query( 'ROLLBACK' ); return 'invalid'; }
+            return 'claimed';
+        } catch ( Exception $exception ) {
+            $wpdb->query( 'ROLLBACK' );
+            return 'invalid';
+        }
+    }
+
     /** @return string saved|taken|invalid */
     public static function save_studio_profile( $faluss_id, $post, $files ) {
         return self::save_profile( $faluss_id, $post, $files );
@@ -495,7 +586,7 @@ final class Faluss_Identity_Public_Profile {
     }
 
     private static function is_reserved_slug( $slug ) {
-        static $reserved = array( 'admin', 'api', 'assets', 'author', 'category', 'embed', 'feed', 'index', 'index.php', 'login', 'logout', 'profile', 'profiles', 'search', 'tag', 'wp-admin', 'wp-content', 'wp-includes', 'wp-json', 'wp-login.php', 'wp-cron.php', 'xmlrpc.php' );
+        static $reserved = array( 'admin', 'api', 'assets', 'author', 'category', 'commencer', 'embed', 'feed', 'index', 'index.php', 'list', 'login', 'logout', 'mes-decouvertes', 'mon-faluss', 'oauth', 'profile', 'profiles', 'search', 'tag', 'wp-admin', 'wp-content', 'wp-includes', 'wp-json', 'wp-login.php', 'wp-cron.php', 'xmlrpc.php' );
         return in_array( $slug, $reserved, true ) || self::existing_wordpress_post( $slug ) instanceof WP_Post;
     }
 

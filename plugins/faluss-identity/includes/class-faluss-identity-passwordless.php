@@ -128,8 +128,10 @@ final class Faluss_Identity_Passwordless {
             esc_attr( self::sanitize_hex_color( $settings['border_color'], $defaults['border_color'] ) ),
             max( 0, min( 48, (int) $settings['radius'] ) )
         );
-        $redirect_to = self::local_redirect( isset( $_GET['redirect_to'] ) ? wp_unslash( $_GET['redirect_to'] ) : $settings['redirect_url'] );
-        $return_to = self::login_return_url( $redirect_to );
+        $flow = self::posted_flow();
+        $flow_context = self::onboarding_flow_context( $flow );
+        $redirect_to = null !== $flow_context ? $flow_context['return_to'] : self::local_redirect( isset( $_GET['redirect_to'] ) ? wp_unslash( $_GET['redirect_to'] ) : $settings['redirect_url'] );
+        $return_to = self::login_return_url( $redirect_to, $flow );
         wp_localize_script( self::SCRIPT_HANDLE, 'falussIdentityLogin', array( 'url' => admin_url( 'admin-ajax.php' ) ) );
 
         $notice = isset( $_GET[ self::NOTICE_KEY ] ) ? sanitize_key( wp_unslash( $_GET[ self::NOTICE_KEY ] ) ) : '';
@@ -150,9 +152,9 @@ final class Faluss_Identity_Passwordless {
                 <?php if ( is_user_logged_in() ) : ?>
                     <p class="faluss-identity-login__notice faluss-identity-login__notice--success"><?php esc_html_e( 'Votre session Faluss est active.', 'faluss-identity' ); ?></p>
                 <?php elseif ( $has_challenge ) : ?>
-                    <?php echo self::render_otp_stage( $redirect_to, $return_to ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- server-rendered safe form. ?>
+                    <?php echo self::render_otp_stage( $redirect_to, $return_to, $flow ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- server-rendered safe form. ?>
                 <?php else : ?>
-                    <?php echo self::render_email_stage( $redirect_to, $return_to ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- server-rendered safe form. ?>
+                    <?php echo self::render_email_stage( $redirect_to, $return_to, $flow ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- server-rendered safe form. ?>
                 <?php endif; ?>
             </div>
         </section>
@@ -160,13 +162,14 @@ final class Faluss_Identity_Passwordless {
         return (string) ob_get_clean();
     }
 
-    private static function render_email_stage( $redirect_to, $return_to ) {
+    private static function render_email_stage( $redirect_to, $return_to, $flow = '' ) {
         ob_start();
         ?>
         <form class="faluss-identity-login__form" data-faluss-login-stage="email" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
             <input type="hidden" name="action" value="faluss_identity_request_code">
             <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
             <input type="hidden" name="return_to" value="<?php echo esc_url( $return_to ); ?>">
+            <?php self::render_flow_field( $flow ); ?>
             <?php wp_nonce_field( 'faluss_identity_request_code', 'faluss_identity_nonce' ); ?>
             <label for="faluss-identity-email"><?php esc_html_e( 'Adresse e-mail', 'faluss-identity' ); ?></label>
             <input id="faluss-identity-email" name="email" type="email" autocomplete="email" maxlength="320" required>
@@ -176,7 +179,7 @@ final class Faluss_Identity_Passwordless {
         return (string) ob_get_clean();
     }
 
-    private static function render_otp_stage( $redirect_to, $return_to ) {
+    private static function render_otp_stage( $redirect_to, $return_to, $flow = '' ) {
         ob_start();
         ?>
         <div class="faluss-identity-login__otp-stage" data-faluss-login-stage="otp">
@@ -184,6 +187,7 @@ final class Faluss_Identity_Passwordless {
             <input type="hidden" name="action" value="faluss_identity_verify_code">
             <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
             <input type="hidden" name="return_to" value="<?php echo esc_url( $return_to ); ?>">
+            <?php self::render_flow_field( $flow ); ?>
             <?php wp_nonce_field( 'faluss_identity_verify_code', 'faluss_identity_nonce' ); ?>
             <label for="faluss-identity-otp"><?php esc_html_e( 'Code à 6 chiffres', 'faluss-identity' ); ?></label>
             <input id="faluss-identity-otp" name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
@@ -193,6 +197,7 @@ final class Faluss_Identity_Passwordless {
             <input type="hidden" name="action" value="faluss_identity_request_code">
             <input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
             <input type="hidden" name="return_to" value="<?php echo esc_url( $return_to ); ?>">
+            <?php self::render_flow_field( $flow ); ?>
             <?php wp_nonce_field( 'faluss_identity_request_code', 'faluss_identity_nonce' ); ?>
             <button type="submit" class="faluss-identity-login__link"><?php esc_html_e( 'Recevoir un nouveau code', 'faluss-identity' ); ?></button>
         </form>
@@ -212,7 +217,7 @@ final class Faluss_Identity_Passwordless {
             self::redirect_with_notice( 'invalid', self::posted_return() );
         }
         self::open_session( $user );
-        self::redirect_with_notice( 'authenticated', $redirect_to );
+        self::redirect_with_notice( 'authenticated', self::post_authentication_redirect( $redirect_to ) );
     }
 
     public static function handle_request_code_ajax() {
@@ -220,7 +225,7 @@ final class Faluss_Identity_Passwordless {
         if ( 'sent' !== $notice ) {
             wp_send_json_error( array( 'notice' => self::notice_message( $notice ) ), 400 );
         }
-        wp_send_json_success( array( 'notice' => self::notice_message( $notice ), 'otp_html' => self::render_otp_stage( self::posted_redirect(), self::posted_return() ) ) );
+        wp_send_json_success( array( 'notice' => self::notice_message( $notice ), 'otp_html' => self::render_otp_stage( self::posted_redirect(), self::posted_return(), self::posted_flow() ) ) );
     }
 
     public static function handle_verify_code_ajax() {
@@ -229,12 +234,12 @@ final class Faluss_Identity_Passwordless {
             $response = array( 'notice' => self::notice_message( 'invalid' ) );
             if ( ! self::has_active_challenge() ) {
                 $response['reset_to_email'] = true;
-                $response['email_html'] = self::render_email_stage( self::posted_redirect(), self::posted_return() );
+                $response['email_html'] = self::render_email_stage( self::posted_redirect(), self::posted_return(), self::posted_flow() );
             }
             wp_send_json_error( $response, 400 );
         }
         self::open_session( $user );
-        wp_send_json_success( array( 'redirect' => self::posted_redirect() ) );
+        wp_send_json_success( array( 'redirect' => self::post_authentication_redirect( self::posted_redirect() ) ) );
     }
 
     private static function request_code_result() {
@@ -680,18 +685,56 @@ final class Faluss_Identity_Passwordless {
     }
 
     private static function posted_redirect() {
+        $flow_context = self::onboarding_flow_context( self::posted_flow() );
+        if ( null !== $flow_context ) {
+            return $flow_context['return_to'];
+        }
         $redirect_to = isset( $_POST['redirect_to'] ) && is_string( $_POST['redirect_to'] ) ? wp_unslash( $_POST['redirect_to'] ) : null;
         return self::local_redirect( $redirect_to );
     }
 
     private static function posted_return() {
-        return self::login_return_url( self::posted_redirect() );
+        return self::login_return_url( self::posted_redirect(), self::posted_flow() );
     }
 
-    private static function login_return_url( $redirect_to ) {
+    private static function login_return_url( $redirect_to, $flow = '' ) {
         $login = home_url( '/login/' );
         $default = home_url( '/mon-faluss/' );
-        return self::local_redirect( $redirect_to ) === $default ? $login : add_query_arg( 'redirect_to', self::local_redirect( $redirect_to ), $login );
+        $return = self::local_redirect( $redirect_to ) === $default ? $login : add_query_arg( 'redirect_to', self::local_redirect( $redirect_to ), $login );
+        return '' !== $flow && class_exists( 'Faluss_Identity_Onboarding' ) ? add_query_arg( Faluss_Identity_Onboarding::FLOW_FIELD, $flow, $return ) : $return;
+    }
+
+    private static function posted_flow() {
+        return class_exists( 'Faluss_Identity_Onboarding' ) ? Faluss_Identity_Onboarding::request_flow() : '';
+    }
+
+    /** @return array<string, string>|null */
+    private static function onboarding_flow_context( $flow ) {
+        return class_exists( 'Faluss_Identity_Onboarding' ) ? Faluss_Identity_Onboarding::login_flow_context( $flow ) : null;
+    }
+
+    private static function render_flow_field( $flow ) {
+        if ( is_string( $flow ) && '' !== $flow && class_exists( 'Faluss_Identity_Onboarding' ) ) {
+            echo '<input type="hidden" name="' . esc_attr( Faluss_Identity_Onboarding::FLOW_FIELD ) . '" value="' . esc_attr( $flow ) . '">';
+        }
+    }
+
+    /**
+     * SSO's local authorize route is deliberately resolved before a generic
+     * onboarding intent. No external redirect is ever accepted here.
+     */
+    private static function post_authentication_redirect( $fallback ) {
+        $fallback = self::local_redirect( $fallback );
+        if ( self::is_authorization_return( $fallback ) ) {
+            return $fallback;
+        }
+        return class_exists( 'Faluss_Identity_Onboarding' ) ? Faluss_Identity_Onboarding::after_passwordless_authentication( self::posted_flow(), $fallback ) : $fallback;
+    }
+
+    private static function is_authorization_return( $url ) {
+        $path = wp_parse_url( self::local_redirect( $url ), PHP_URL_PATH );
+        $authorize_path = wp_parse_url( home_url( '/oauth/authorize/' ), PHP_URL_PATH );
+        return is_string( $path ) && is_string( $authorize_path ) && untrailingslashit( $path ) === untrailingslashit( $authorize_path );
     }
 
     /**

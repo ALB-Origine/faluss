@@ -76,12 +76,13 @@ final class Faluss_Identity_Navigation {
         );
         $labels = wp_parse_args( is_array( $labels ) ? $labels : array(), $defaults );
         $logged = is_user_logged_in();
+        $my_faluss_url = self::my_faluss_url( $logged );
 
         return array(
             array(
                 'key'   => 'my_faluss',
                 'label' => (string) $labels['my_faluss'],
-                'url'   => home_url( '/mon-faluss/' ),
+                'url'   => $my_faluss_url,
             ),
             array(
                 'key'   => 'my_list',
@@ -94,5 +95,17 @@ final class Faluss_Identity_Navigation {
                 'url'   => $logged ? wp_logout_url( self::current_local_return_url() ) : self::login_url(),
             ),
         );
+    }
+
+    /** A member without a claimed public profile starts the explicit ONB flow. */
+    private static function my_faluss_url( $logged ) {
+        if ( ! $logged || ! class_exists( 'Faluss_Identity_Registry' ) || ! class_exists( 'Faluss_Identity_Public_Profile' ) || ! class_exists( 'Faluss_Identity_Onboarding' ) ) {
+            return home_url( '/mon-faluss/' );
+        }
+        $faluss_id = Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() );
+        if ( null === $faluss_id || Faluss_Identity_Public_Profile::has_profile_for_faluss_id( $faluss_id ) ) {
+            return home_url( '/mon-faluss/' );
+        }
+        return Faluss_Identity_Onboarding::onboarding_url();
     }
 }

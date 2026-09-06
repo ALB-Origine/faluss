@@ -22,6 +22,12 @@ Les installations WordPress, leurs tables `users`, leurs sessions et leurs bases
 
 Un administrateur peut sélectionner une page Elementor déjà publiée dans **Réglages → Profil public Faluss**. Les routes `faluss.me/identifiant` rendent alors cette page ; le widget **Profil public Faluss**, sans identifiant renseigné, reçoit l’identifiant de la route. Le plugin ne crée aucune page. Si aucun modèle valide n’est sélectionné ou qu’Elementor est indisponible, le rendu autonome du profil est conservé.
 
+## Onboarding de carte (ONB-01)
+
+La preuve passwordless crée ou active seulement l’identité opaque. La création facultative de carte est ensuite un flux distinct sur `/commencer`, rendu par le widget **Onboarding Faluss** ou son shortcode. L’administrateur peut sélectionner une page Elementor déjà publiée dans **Réglages → Onboarding Faluss** ; aucune page n’est créée automatiquement et le rendu de secours reste disponible.
+
+Le navigateur ne transporte qu’une poignée opaque, courte et expirante dont le serveur conserve l’intention autorisée et le retour local validé. La priorité de retour est : consentement SSO local, retour exact d’un teaser ou d’une récompense, ouverture de l’onboarding pour une intention de carte, puis comportement générique. `faluss_id` reste entièrement serveur. La réservation finale insère atomiquement le slug dans le registre public FI-03 sous forme de brouillon minimal ; elle n’écrit aucune préférence Faluss Link.
+
 ## Identifiants
 
 | Élément | Portée | Usage |

@@ -12,7 +12,7 @@ $fi02_option = '2'; $v2 = Faluss_Identity_Schema::get_expected_schema(); fi02_as
 fi02_assert( ! isset( $v2['public_profiles'] ), 'v2 has no implicit FI-03 table.' );
 // A new installation creates the coherent FI-04 superset in one atomic plan.
 $fi02_option = ''; $v4 = Faluss_Identity_Schema::get_expected_schema(); fi02_assert( 'varchar(255)' === $v4['challenges']['columns']['otp_hash']['type'] && isset( $v4['public_profiles'], $v4['authorization_requests'] ), 'new installation FI-04 contract' );
-fi02_assert( '4' === Faluss_Identity_Schema::VERSION, 'FI-04 becomes the current schema version.' );
+fi02_assert( '5' === Faluss_Identity_Schema::VERSION, 'The additive ONB-01 schema becomes current without changing FI-02 primitives.' );
 // A failed or unverified migration must retain v1; version promotion is performed only after verification.
 $fi02_option = '1'; fi02_assert( '1' === get_option( Faluss_Identity_Schema::OPTION_VERSION ), 'failed migration retains v1' );
 echo 'FI-02 schema contract: OK' . PHP_EOL;

@@ -6,10 +6,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Faluss_Identity_Schema {
 
-    const VERSION = '4';
+    const VERSION = '5';
     const FI02_VERSION = '2';
     const FI03_VERSION = '3';
     const FI04_VERSION = '4';
+    const ONB01_VERSION = '5';
     const OPTION_VERSION = 'faluss_identity_schema_version';
     const OPTION_DIAGNOSTIC = 'faluss_identity_schema_diagnostic';
     const INSTALL_LOCK_TIMEOUT = 10;
@@ -202,6 +203,23 @@ final class Faluss_Identity_Schema {
         return $schema;
     }
 
+    /**
+     * ONB-01 keeps a resumable flow state on the existing Identity profile.
+     * It deliberately creates neither a second identity registry nor a copy of
+     * the public profile/card: the public slug remains in FI-03.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function get_onb01_schema() {
+        $schema = self::get_fi04_schema();
+        $schema['profiles']['columns']['onboarding_choice'] = array( 'type' => 'varchar(20)', 'null' => true );
+        $schema['profiles']['columns']['onboarding_slug_status'] = array( 'type' => 'varchar(20)', 'null' => true );
+        $schema['profiles']['columns']['onboarding_next_step'] = array( 'type' => 'varchar(32)', 'null' => true );
+        $schema['profiles']['columns']['onboarding_flow_version'] = array( 'type' => 'tinyint(3) unsigned', 'null' => true );
+        $schema['profiles']['columns']['onboarding_updated_at'] = array( 'type' => 'datetime', 'null' => true );
+        return $schema;
+    }
+
     public static function get_expected_schema() {
         $version = function_exists( 'get_option' ) ? (string) get_option( self::OPTION_VERSION, '' ) : '';
         if ( '1' === $version ) {
@@ -213,7 +231,10 @@ final class Faluss_Identity_Schema {
         if ( self::FI03_VERSION === $version ) {
             return self::get_fi03_schema();
         }
-        return self::get_fi04_schema();
+        if ( self::FI04_VERSION === $version ) {
+            return self::get_fi04_schema();
+        }
+        return self::get_onb01_schema();
     }
 
     /**
@@ -253,7 +274,7 @@ final class Faluss_Identity_Schema {
     public static function migrate_fi02() {
         global $wpdb;
         if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) ) { return false; }
-        if ( in_array( (string) get_option( self::OPTION_VERSION, '' ), array( self::FI02_VERSION, self::FI03_VERSION, self::FI04_VERSION ), true ) ) { return self::verify_fi02(); }
+        if ( in_array( (string) get_option( self::OPTION_VERSION, '' ), array( self::FI02_VERSION, self::FI03_VERSION, self::FI04_VERSION, self::ONB01_VERSION ), true ) ) { return self::verify_fi02(); }
         if ( 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_fi02_source_invalid' ); return false; }
         $tables = self::get_table_names();
         $sql = 'ALTER TABLE ' . self::quote_identifier( $tables['challenges'] ) . ' MODIFY otp_hash varchar(255) NULL, ADD email varchar(320) NULL, ADD email_hash char(64) NULL';
@@ -269,7 +290,7 @@ final class Faluss_Identity_Schema {
         global $wpdb;
         if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) || ! method_exists( $wpdb, 'get_charset_collate' ) ) { return false; }
         $version = (string) get_option( self::OPTION_VERSION, '' );
-        if ( in_array( $version, array( self::FI03_VERSION, self::FI04_VERSION ), true ) ) { return 'fi_schema_ready' === self::get_status()['code']; }
+        if ( in_array( $version, array( self::FI03_VERSION, self::FI04_VERSION, self::ONB01_VERSION ), true ) ) { return 'fi_schema_ready' === self::get_status()['code']; }
         if ( self::FI02_VERSION !== $version || 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_fi03_source_invalid' ); return false; }
 
         $table = self::get_public_profiles_table();
@@ -292,7 +313,7 @@ final class Faluss_Identity_Schema {
         global $wpdb;
         if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) || ! method_exists( $wpdb, 'get_charset_collate' ) ) { return false; }
         $version = (string) get_option( self::OPTION_VERSION, '' );
-        if ( self::FI04_VERSION === $version ) { return 'fi_schema_ready' === self::get_status()['code']; }
+        if ( in_array( $version, array( self::FI04_VERSION, self::ONB01_VERSION ), true ) ) { return 'fi_schema_ready' === self::get_status()['code']; }
         if ( self::FI03_VERSION !== $version || 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_fi04_source_invalid' ); return false; }
 
         $table = self::get_authorization_requests_table();
@@ -302,6 +323,31 @@ final class Faluss_Identity_Schema {
         if ( ! is_string( $query ) || false === $wpdb->query( $query ) || null !== self::verify_table( $table, $definition ) ) { self::store_diagnostic( 'fi_schema_fi04_failed' ); return false; }
 
         update_option( self::OPTION_VERSION, self::FI04_VERSION, false );
+        $status = self::get_status();
+        self::store_diagnostic( $status['code'] );
+        return ! empty( $status['ready'] );
+    }
+
+    /**
+     * Adds only resumable onboarding markers to the existing Faluss-ID
+     * profile table. No identity, public profile or card data is copied.
+     */
+    public static function migrate_onb01() {
+        global $wpdb;
+        if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) ) { return false; }
+        $version = (string) get_option( self::OPTION_VERSION, '' );
+        if ( self::ONB01_VERSION === $version ) { return 'fi_schema_ready' === self::get_status()['code']; }
+        if ( self::FI04_VERSION !== $version || 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_onb01_source_invalid' ); return false; }
+        $tables = self::get_table_names();
+        if ( empty( $tables['profiles'] ) ) { self::store_diagnostic( 'fi_schema_prefix_invalid' ); return false; }
+        $sql = 'ALTER TABLE ' . self::quote_identifier( $tables['profiles'] )
+            . ' ADD onboarding_choice varchar(20) NULL'
+            . ', ADD onboarding_slug_status varchar(20) NULL'
+            . ', ADD onboarding_next_step varchar(32) NULL'
+            . ', ADD onboarding_flow_version tinyint(3) unsigned NULL'
+            . ', ADD onboarding_updated_at datetime NULL';
+        if ( false === $wpdb->query( $sql ) ) { self::store_diagnostic( 'fi_schema_onb01_failed' ); return false; }
+        update_option( self::OPTION_VERSION, self::ONB01_VERSION, false );
         $status = self::get_status();
         self::store_diagnostic( $status['code'] );
         return ! empty( $status['ready'] );

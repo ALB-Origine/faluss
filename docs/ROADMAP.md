@@ -63,3 +63,7 @@ Faluss Link ajoute une présentation Public, Membre Faluss ou Droit requis aux t
 ## FI-07.2 — Retour du déclencheur de navigation
 
 Après fermeture pointer de la navigation portaled, le déclencheur retourne immédiatement à ses couleurs Normal configurées. Une fermeture clavier conserve le focus visible et les interactions existantes, sans règle globale sur le header, les cartes ou les popups tiers.
+
+## ONB-01 — Fondation de l’onboarding de carte
+
+Après une identité passwordless active, un membre choisit explicitement de créer son Faluss ou de continuer sans carte. Le flux `/commencer` garde un état minimal reprenable sur le profil Identity, réserve atomiquement l’identifiant public FI-03 et renvoie ensuite vers le Studio existant. Les préférences Faluss Link, les entitlements, les contenus et les paiements restent hors de ce lot ; ONB-02 les complétera seulement après une réservation réussie.

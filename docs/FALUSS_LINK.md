@@ -44,6 +44,10 @@ La décision est systématiquement prise au rendu PHP depuis l’identité local
 
 Cette couche ne protège pas encore le fichier média : elle prépare uniquement une expérience de présentation. La livraison réellement protégée, la vente, les tokens, les abonnements et tout entitlement de contenu relèveront plus tard d’un moteur de contenu commun, jamais de Faluss Link.
 
+## Retour passwordless des teasers (ONB-01)
+
+Lorsqu’un teaser membre demande une connexion, Faluss Link transmet une intention serveur `unlock_teaser` et le retour local exact vers la carte. Après preuve passwordless, cette intention revient prioritairement à la carte, sans imposer la création d’un Faluss. La même séparation s’applique à `claim_reward` ; Faluss Link ne crée, ne réserve ni ne modifie jamais un identifiant public.
+
 ## Composition et lisibilité (FL-10)
 
 Le Studio et la carte publique lisent une même composition normalisée : chaque **Titre de section**, **Texte**, **Lien** ou **Teaser média** conserve son identifiant stable et son ordre. Les éléments invalides ou dupliqués sont écartés, sans ligne fantôme. Le Studio reprend après enregistrement l’onglet **Profil**, **Liens** ou **Style** qui était actif, avec un paramètre local limité à cet onglet.

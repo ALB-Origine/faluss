@@ -1109,17 +1109,20 @@ final class Faluss_Link {
         $label = function_exists( 'wp_date' ) ? wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $timestamp ) : gmdate( 'Y-m-d H:i', $timestamp );
         return ' <time datetime="' . esc_attr( gmdate( DATE_ATOM, $timestamp ) ) . '">' . esc_html( sprintf( __( 'Disponible à nouveau le %s.', 'faluss-link' ), $label ) ) . '</time>';
     }
-    /** Login receives only a local profile path; central identity proof validates it again. */
-    private static function local_card_login_url() {
+    /** Login receives only a server-backed intent and one validated local profile path. */
+    private static function local_card_login_url( $intent = 'generic_login' ) {
         $request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
         $parts = is_string( $request_uri ) ? wp_parse_url( $request_uri ) : array();
         $path = is_array( $parts ) ? (string) ( $parts['path'] ?? '/' ) : '/';
         if ( '' === $path || '/' !== substr( $path, 0, 1 ) || 0 === strpos( $path, '//' ) ) { $path = '/'; }
         $return = wp_validate_redirect( home_url( $path ), home_url( '/' ) );
+        if ( class_exists( 'Faluss_Identity_Onboarding' ) ) {
+            return Faluss_Identity_Onboarding::login_url( $intent, $return );
+        }
         return add_query_arg( 'redirect_to', $return, home_url( '/login/' ) );
     }
-    private static function daily_reward_login_url() { return self::local_card_login_url(); }
-    private static function teaser_login_url() { return self::local_card_login_url(); }
+    private static function daily_reward_login_url() { return self::local_card_login_url( 'claim_reward' ); }
+    private static function teaser_login_url() { return self::local_card_login_url( 'unlock_teaser' ); }
     private static function identity_ready() { return class_exists( 'Faluss_Identity_Schema' ) && class_exists( 'Faluss_Identity_Registry' ) && ! empty( Faluss_Identity_Schema::get_status()['ready'] ); }
     private static function enqueue_assets() { if ( ! wp_style_is( self::STYLE, 'registered' ) ) { self::assets(); } wp_enqueue_style( self::STYLE ); wp_enqueue_style( self::IMMERSIVE_STYLE ); wp_enqueue_style( self::STUDIO_STYLE ); wp_enqueue_script( self::CARD_SCRIPT ); }
     private static function editor_assets() { self::enqueue_assets(); wp_localize_script( self::SCRIPT, 'falussLinkCover', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_upload_cover' ), 'teaserNonce' => wp_create_nonce( 'faluss_link_upload_teaser' ), 'networks' => self::network_catalog_for_client(), 'themes' => self::catalog_themes_for_client( self::current_faluss_id() ), 'teaserRights' => self::teaser_entitlement_choices() ) ); wp_enqueue_script( self::SCRIPT ); }

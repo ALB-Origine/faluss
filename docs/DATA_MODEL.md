@@ -6,7 +6,7 @@ Les noms réels utilisent le préfixe WordPress actif.
 
 | Table | Clés / contenu |
 |---|---|
-| `faluss_identity_profiles` | `faluss_id` unique, `wp_user_id` unique, statut, dates, version de consentement |
+| `faluss_identity_profiles` | `faluss_id` unique, `wp_user_id` unique, statut, dates, version de consentement ; état ONB-01 minimal (choix, statut de réservation, prochaine étape, version de flow) |
 | `faluss_identity_public_profiles` | `faluss_id` unique, identifiant public unique, contenu public, ordre des liens et statut de publication |
 | `faluss_identity_challenges` | challenge haché, OTP haché, empreinte cookie navigateur, tentatives, statut, expiration |
 | `faluss_identity_rate_limits` | bucket haché, compteur, fenêtre et expiration ; InnoDB |
@@ -16,6 +16,8 @@ Les noms réels utilisent le préfixe WordPress actif.
 | `faluss_identity_audit` | événement minimal et non sensible, conservation bornée |
 
 Les codes, OTP, secrets navigateur et secrets client ne sont jamais conservés en clair. Les migrations valident moteur InnoDB, index, unicité et ordre d'index avant de déclarer le schéma utilisable.
+
+L’état ONB-01 est ajouté aux lignes Identity existantes : il ne crée ni table de profils concurrente, ni copie de slug, de carte, d’e-mail ou de préférence visuelle. Le slug public permanent reste l’unique clé dans `faluss_identity_public_profiles`.
 
 ## Client
 
