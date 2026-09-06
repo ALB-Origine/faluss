@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Faluss Identity
  * Description: Autorité d'identité passwordless et SSO de l'écosystème Faluss.
- * Version: 0.4.2
+ * Version: 0.4.3
  * Requires at least: 7.0
  * Requires PHP: 8.2
  * Text Domain: faluss-identity
@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'FALUSS_IDENTITY_VERSION', '0.4.2' );
+define( 'FALUSS_IDENTITY_VERSION', '0.4.3' );
 define( 'FALUSS_IDENTITY_FILE', __FILE__ );
 define( 'FALUSS_IDENTITY_DIR', plugin_dir_path( __FILE__ ) );
 

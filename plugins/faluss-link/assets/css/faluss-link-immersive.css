@@ -11,10 +11,10 @@
   background: var(--fl-page);
 }
 
-/* The route shell owns only the layer relationship. Elementor still owns its
-   header design and its menu implementation. The real header wrapper and the
-   profile are sibling planes: both keep their native hit testing, while an
-   off-canvas header panel can extend above the profile without reserving space. */
+/* The route shell owns only the layout relationship. The real Elementor header
+   is emitted after the profile in DOM order, still out of flow: The Plus can
+   therefore keep its own popup and overlay stack without a Faluss context
+   trapping the off-canvas panel below the card. */
 body.faluss-identity-public-route {
   margin: 0;
   padding: 0;
@@ -30,31 +30,26 @@ html:has(body.faluss-identity-public-route) {
 body.faluss-identity-public-route > .faluss-identity-public-header-layer,
 body.faluss-identity-public-route > .elementor-location-header {
   position: absolute;
-  z-index: 1;
   top: 0;
   right: 0;
   left: 0;
   width: 100%;
   box-sizing: border-box;
   overflow: visible;
-  isolation: isolate;
 }
 
 /* Elementor Theme Builder normally emits header.elementor-location-header.
-   Accept its direct header and location variants so the whole real wrapper,
-   not just the menu button, establishes the interactive header sub-plane. */
+   Accept its direct header and location variants while preserving their own
+   positioning and stacking choices. No Faluss layer may clip their panel. */
 body.faluss-identity-public-route > .faluss-identity-public-header-layer > header,
 body.faluss-identity-public-route > .faluss-identity-public-header-layer > .elementor-location-header,
 body.faluss-identity-public-route > .faluss-identity-public-header-layer > [class*="elementor-location-header"] {
-  position: relative;
-  z-index: 1;
   overflow: visible;
   padding-top: env(safe-area-inset-top, 0px);
 }
 
 body.faluss-identity-public-route > .faluss-identity-profile-page {
   position: relative;
-  z-index: 0;
   overflow: visible;
   margin: 0;
   padding: 0;
@@ -62,7 +57,6 @@ body.faluss-identity-public-route > .faluss-identity-profile-page {
 
 /* The Elementor header owns its overlay treatment. The immersive route never outranks it. */
 body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
-  z-index: 0;
   min-height: 100vh;
   min-height: 100svh;
 }
@@ -155,8 +149,11 @@ body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
 }
 
 @media (max-width: 799px) {
-  body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
-    z-index: 0;
+  /* Keep the real header wrapper unclipped while The Plus opens its mobile
+     off-canvas content. This adds no stacking context or event interception. */
+  body.faluss-identity-public-route > .faluss-identity-public-header-layer,
+  body.faluss-identity-public-route > .elementor-location-header {
+    overflow: visible;
   }
 
   .faluss-link-card--presentation-immersive .faluss-link-card__social a,

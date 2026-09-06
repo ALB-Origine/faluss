@@ -98,9 +98,9 @@ $faluss_css = preg_replace( '/\s+/', '', strtolower( $identity_css . $link_css )
 foreach ( array( 'header{display:none', 'footer{display:none', '.elementor-location-header{display:none' ) as $forbidden ) {
     fi03_assert( false === strpos( $faluss_css, $forbidden ), 'Faluss route CSS must not hide Elementor or theme chrome: ' . $forbidden );
 }
-fi03_assert( false !== strpos( $link_css, 'body.faluss-identity-public-route .faluss-link-card--presentation-immersive' ) && false !== strpos( $link_css, 'z-index: 0;' ), 'The immersive profile is explicitly below a designer-owned header.');
-fi03_assert( false !== strpos( $link_css, '@media (max-width: 799px)' ) && 2 <= substr_count( $link_css, 'body.faluss-identity-public-route .faluss-link-card--presentation-immersive' ), 'The header collision guard is explicit on mobile too.');
-fi03_assert( false === strpos( $link_css, 'pointer-events:' ) && false !== strpos( $link_css, 'isolation: isolate;' ), 'The route-only header shell keeps native Elementor hit testing inside a bounded header stacking context.' );
+fi03_assert( false !== strpos( $link_css, 'body.faluss-identity-public-route .faluss-link-card--presentation-immersive' ) && false !== strpos( $link_css, 'position: absolute;' ), 'The immersive profile remains under an out-of-flow designer-owned header.');
+fi03_assert( false !== strpos( $link_css, '@media (max-width: 799px)' ) && 2 <= substr_count( $link_css, 'body.faluss-identity-public-route > .faluss-identity-public-header-layer' ), 'The header collision guard is explicit on mobile too.');
+fi03_assert( false === strpos( $link_css, 'pointer-events:' ) && false === strpos( $link_css, 'body.faluss-identity-public-route > .faluss-identity-public-header-layer {\n  isolation:' ), 'The route-only header shell keeps native Elementor hit testing without trapping an external popup layer.' );
 fi03_assert( false === strpos( $source, 'user_email' ), 'Public profiles never store or render e-mail data.' );
 
 echo 'FI-03 public-profile contract: OK' . PHP_EOL;

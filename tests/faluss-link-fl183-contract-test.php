@@ -10,23 +10,27 @@ $studio = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-lin
 $discoveries = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-discoveries.css' );
 
 fl183_assert( false !== strpos( $identity, '<div class="faluss-identity-public-header-layer">' ) && false !== strpos( $identity, 'self::render_elementor_header();' ) && false !== strpos( $identity, '<main class="faluss-identity-profile-page' ), 'The public route must keep the actual Elementor header wrapper and immersive profile as sibling shell planes.' );
+fl183_assert( strpos( $identity, '<div class="faluss-identity-public-header-layer">' ) > strpos( $identity, 'self::render_elementor_template( self::get_template_id() )' ), 'The out-of-flow header wrapper must follow the immersive profile in DOM order.' );
 foreach ( array(
     'body.faluss-identity-public-route > .faluss-identity-public-header-layer,',
     'body.faluss-identity-public-route > .elementor-location-header {',
     'body.faluss-identity-public-route > .faluss-identity-public-header-layer > header,',
     'body.faluss-identity-public-route > .faluss-identity-public-header-layer > .elementor-location-header,',
     'body.faluss-identity-public-route > .faluss-identity-public-header-layer > [class*="elementor-location-header"] {',
-    'isolation: isolate;',
     'overflow: visible;',
-    'z-index: 1;',
 ) as $needle ) {
-    fl183_assert( false !== strpos( $immersive, $needle ), 'The real Elementor header wrapper must be an interactive upper plane: ' . $needle );
+    fl183_assert( false !== strpos( $immersive, $needle ), 'The real Elementor header wrapper must remain above and unclipped: ' . $needle );
 }
+
+$header_start = strpos( $immersive, 'body.faluss-identity-public-route > .faluss-identity-public-header-layer,' );
+$header_end = strpos( $immersive, '}', $header_start );
+$header = substr( $immersive, $header_start, $header_end - $header_start + 1 );
+fl183_assert( false === strpos( $header, 'z-index:' ) && false === strpos( $header, 'isolation:' ) && false === strpos( $header, 'pointer-events:' ), 'The Faluss header shell must not trap a third-party off-canvas stack or disable its trigger.' );
 
 $profile_start = strpos( $immersive, 'body.faluss-identity-public-route > .faluss-identity-profile-page {' );
 $profile_end = strpos( $immersive, '}', $profile_start );
 $profile = substr( $immersive, $profile_start, $profile_end - $profile_start + 1 );
-fl183_assert( false !== strpos( $profile, 'position: relative;' ) && false !== strpos( $profile, 'z-index: 0;' ) && false !== strpos( $profile, 'overflow: visible;' ), 'The immersive profile shell must remain in its lower unclipped plane.' );
+fl183_assert( false !== strpos( $profile, 'position: relative;' ) && false !== strpos( $profile, 'overflow: visible;' ) && false === strpos( $profile, 'z-index:' ) && false === strpos( $profile, 'isolation:' ), 'The immersive profile shell must remain in a low, unclipped local plane.' );
 fl183_assert( false === strpos( $immersive, 'pointer-events:' ), 'No route shell, card, or Elementor header container may suppress pointer interaction.' );
 fl183_assert( false === strpos( $immersive, 'z-index: 9999' ) && false === strpos( $immersive, 'header{') && false === strpos( $immersive, 'footer{'), 'The fix must remain route-scoped and must not restyle global Elementor chrome.' );
 fl183_assert( false === strpos( $studio, 'faluss-identity-public-header-layer' ) && false === strpos( $discoveries, 'faluss-identity-public-header-layer' ), 'Studio and Mes découvertes must not receive public-header stacking rules.' );
