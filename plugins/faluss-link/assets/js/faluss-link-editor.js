@@ -2,6 +2,7 @@
     'use strict';
 
     var teaserFormats = { landscape: 'Paysage', portrait: 'Portrait', square: 'Carré' };
+    var teaserAccessModes = { public: 'Public', member: 'Membre Faluss', entitlement: 'Droit requis' };
     var styleFields = /^(page_background|hero_transition_color|name_color|alignment|social_variant|link_style)$/;
 
     function card(studio) { return studio.find('.faluss-link-studio__preview .faluss-link-card'); }
@@ -129,11 +130,41 @@
         });
         return $('<label>', { text: 'Format image' }).append(select);
     }
+    function teaserRights() {
+        return (window.falussLinkCover && Array.isArray(falussLinkCover.teaserRights)) ? falussLinkCover.teaserRights.filter(function (right) {
+            return right && typeof right.code === 'string' && right.code && typeof right.label === 'string' && right.label;
+        }) : [];
+    }
+    function teaserAccessFields(mode, code) {
+        var rights = teaserRights(), fieldset = $('<fieldset>', { 'class': 'faluss-link-content-block__access' });
+        fieldset.append($('<legend>', { text: 'Accès au teaser' }));
+        var access = $('<select>', { 'data-fl-block-field': 'access_mode', 'aria-label': 'Visibilité du teaser' });
+        Object.keys(teaserAccessModes).forEach(function (key) {
+            access.append($('<option>', { value: key, text: teaserAccessModes[key], selected: (mode || 'public') === key }));
+        });
+        fieldset.append($('<label>', { text: 'Visibilité' }).append(access));
+        if (rights.length) {
+            var entitlement = $('<select>', { 'data-fl-block-field': 'entitlement_code', 'aria-label': 'Droit requis', disabled: (mode || 'public') !== 'entitlement' });
+            entitlement.append($('<option>', { value: '', text: 'Choisir un droit' }));
+            rights.forEach(function (right) { entitlement.append($('<option>', { value: right.code, text: right.label, selected: code === right.code })); });
+            fieldset.append($('<label>', { text: 'Droit requis' }).append(entitlement));
+        } else {
+            fieldset.append($('<p>', { 'class': 'faluss-link-content-block__access-hint', 'data-fl-entitlement-unavailable': '', text: 'Aucun droit lisible : vérifiez le Connector et la permission entitlements.read avant d’utiliser « Droit requis ».' }));
+        }
+        fieldset.append($('<p>', { 'class': 'faluss-link-content-block__access-state', 'data-fl-access-state': '', text: teaserAccessModes[mode] || teaserAccessModes.public }));
+        return fieldset;
+    }
+    function syncTeaserAccess(block) {
+        var mode = block.find('[data-fl-block-field="access_mode"]').val() || 'public';
+        block.find('[data-fl-block-field="entitlement_code"]').prop('disabled', mode !== 'entitlement');
+        block.find('[data-fl-access-state]').text(teaserAccessModes[mode] || teaserAccessModes.public);
+    }
     function ensureTeaserFormats(studio) {
         studio.find('.faluss-link-content-block[data-block-type="media_teaser"]').each(function () {
             var block = $(this), source = block.next('.faluss-link-content-block__format-source'), format = source.val() || 'landscape';
             source.remove();
             if (!block.find('[data-fl-block-field="format"]').length) { block.find('.faluss-link-content-block__media').after(teaserFormatField(format)); }
+            syncTeaserAccess(block);
         });
     }
     function contentBlock(type) {
@@ -161,6 +192,7 @@
             block.append(teaserFormatField('landscape'));
             block.append($('<label>', { text: 'Titre facultatif' }).append($('<input>', { type: 'text', maxlength: 80, 'data-fl-block-field': 'title' })));
             block.append($('<label>', { text: 'Texte facultatif' }).append($('<textarea>', { maxlength: 240, rows: 3, 'data-fl-block-field': 'text' })));
+            block.append(teaserAccessFields('public', ''));
         } else {
             block.append($('<label>', { text: 'Texte' }).append($('<textarea>', { maxlength: 480, rows: 3, 'data-fl-block-field': 'value' })));
         }
@@ -426,6 +458,10 @@
         .on('click.falussLink', '.faluss-link-content-block__remove-teaser', function () {
             var block = $(this).closest('.faluss-link-content-block');
             block.find('[data-fl-block-field="attachment_id"]').val(''); block.find('.faluss-link-content-block__media-preview').empty(); update(block.closest('.faluss-link-studio'));
+        })
+        .on('change.falussLink', '.faluss-link-content-block [data-fl-block-field="access_mode"]', function () {
+            var block = $(this).closest('.faluss-link-content-block');
+            syncTeaserAccess(block); update(block.closest('.faluss-link-studio'));
         })
         .on('click.falussLink', '.faluss-link-studio__remove-row', function () {
             var studio = $(this).closest('.faluss-link-studio');

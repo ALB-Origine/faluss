@@ -71,6 +71,14 @@ foreach ( array( 'dialog.faluss-identity-navigation-portal', '100dvh', 'position
 foreach ( array( 'document.body.appendChild(portal)', 'portal.showModal()', "portal.addEventListener('cancel'", "querySelector('[data-faluss-navigation-close]')", "querySelector('[data-faluss-navigation-sidebar]')", 'trigger.focus', 'WeakSet', 'elementor/frontend/init', 'frontend/element_ready/faluss_identity_navigation.default' ) as $required ) {
     fi07_assert( false !== strpos( $script, $required ), 'The body portal, accessibility lifecycle, and idempotent Elementor initialization are present: ' . $required );
 }
+// FI-07.2: mouse close returns to normal colors while keyboard close keeps a visible focus path.
+foreach ( array( "var returnFocusMode = 'pointer'", "returnFocusMode = 'keyboard'", "root.dataset.falussNavigationReturnMode = returnFocusMode", "trigger.addEventListener('pointerdown'", "trigger.addEventListener('keydown'" ) as $required ) {
+    fi07_assert( false !== strpos( $script, $required ), 'FI-07.2 retains an explicit pointer/keyboard return-focus distinction: ' . $required );
+}
+foreach ( array( '[data-faluss-navigation-return-mode="pointer"]', '[aria-expanded="false"]:focus:not(:hover):not(:active)', '--faluss-navigation-trigger-background-normal', '--faluss-navigation-trigger-icon-normal' ) as $required ) {
+    fi07_assert( false !== strpos( $css, $required ), 'FI-07.2 restores only the configured normal trigger colors after a pointer close: ' . $required );
+}
+fi07_assert( false !== strpos( $css, ':focus-visible' ) && false === strpos( $css, 'body.faluss-identity-navigation' ), 'FI-07.2 preserves a local keyboard focus indicator without styling the global header.' );
 fi07_assert( false === strpos( $public_profile, 'Faluss_Identity_Navigation' ), 'FI-07 does not alter the public-profile shell or take ownership of existing headers.' );
 
 // FI-07.1: visual controls are rendered through the portaled component rather than inherited from the theme.

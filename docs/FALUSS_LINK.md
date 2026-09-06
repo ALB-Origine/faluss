@@ -36,6 +36,14 @@ Le compositeur **Liens** ajoute le bloc **Teaser média** : une image déposée 
 
 Le teaser est une fondation visuelle publique. Lorsqu’un moteur commun Faluss de contenus et d’entitlements existera, il pourra lui associer des règles d’accès réelles, une vente en euros ou en ALB. Faluss Link ne possédera jamais ces règles d’accès, de paiement, de token ou d’abonnement.
 
+## Accès visuel des teasers (FL-19)
+
+Chaque **Teaser média** peut désormais rester **Public**, être réservé aux **Membres Faluss** connectés avec une identité active, ou demander un **Droit requis**. Le Studio ne propose que les droits actifs lisibles via Token Engine Connector et sa permission `entitlements.read` : aucun code de droit ne peut être saisi à la main. Si le Core ou le Connector est indisponible, un teaser qui demande un droit reste verrouillé visuellement ; les teasers historiques restent Public par défaut.
+
+La décision est systématiquement prise au rendu PHP depuis l’identité locale active et, pour un droit, depuis la décision centrale du Connector. Elle n’est jamais fournie par le navigateur. Un visiteur anonyme reçoit une carte floutée avec un retour local sûr vers `/login/`; un membre sans droit, révoqué ou expiré voit seulement « Contenu réservé ». Le propriétaire conserve un aperçu éditable et non verrouillé dans Studio.
+
+Cette couche ne protège pas encore le fichier média : elle prépare uniquement une expérience de présentation. La livraison réellement protégée, la vente, les tokens, les abonnements et tout entitlement de contenu relèveront plus tard d’un moteur de contenu commun, jamais de Faluss Link.
+
 ## Composition et lisibilité (FL-10)
 
 Le Studio et la carte publique lisent une même composition normalisée : chaque **Titre de section**, **Texte**, **Lien** ou **Teaser média** conserve son identifiant stable et son ordre. Les éléments invalides ou dupliqués sont écartés, sans ligne fantôme. Le Studio reprend après enregistrement l’onglet **Profil**, **Liens** ou **Style** qui était actif, avec un paramètre local limité à cet onglet.

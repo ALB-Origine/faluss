@@ -61,6 +61,15 @@
   transform: translateY(1px);
 }
 
+/* A pointer-initiated close returns focus for continuity, but it is not a
+   keyboard focus cue. Reset only this local trigger to its configured Normal
+   colors once the dialog has closed; keyboard closes keep :focus-visible. */
+.faluss-identity-navigation[data-faluss-navigation-return-mode="pointer"] .faluss-identity-navigation__trigger[aria-expanded="false"]:focus:not(:hover):not(:active) {
+  background-color: color-mix(in srgb, var(--faluss-navigation-trigger-background-normal, #080808) var(--faluss-navigation-trigger-background-opacity-normal, 100%), transparent);
+  color: var(--faluss-navigation-trigger-icon-normal, #fff);
+  transform: none;
+}
+
 .faluss-identity-navigation__trigger:focus-visible,
 .faluss-identity-navigation-portal__link:focus-visible {
   outline: 3px solid #ff3d16;

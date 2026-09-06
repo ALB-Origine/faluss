@@ -19,6 +19,15 @@
 .faluss-link-card__media-teaser--format-landscape>img{aspect-ratio:16/9}
 .faluss-link-card__media-teaser--format-portrait>img{aspect-ratio:4/5}
 .faluss-link-card__media-teaser--format-square>img{aspect-ratio:1/1}
+.faluss-link-card__media-teaser--locked>img{filter:blur(12px);transform:scale(1.06)}
+.faluss-link-card__media-teaser-lock{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:8px;padding:clamp(1rem,5vw,1.5rem);background:linear-gradient(180deg,rgba(8,8,8,.14) 0%,rgba(8,8,8,.9) 100%);color:#fff;text-align:left}
+.faluss-link-card__media-teaser-lock p{margin:0;color:#fff;font-size:1.05rem;font-weight:700;letter-spacing:-.02em}
+.faluss-link-card__media-teaser-unlock{display:inline-flex;min-height:44px;align-items:center;color:#fff;font-weight:700;text-underline-offset:4px}
+.faluss-link-card__media-teaser-unlock:hover{color:#fff;text-decoration-thickness:2px}
+.faluss-link-card__media-teaser-unlock:focus-visible{outline:2px solid #fff;outline-offset:4px}
+.faluss-link-card--align-center .faluss-link-card__media-teaser-lock{align-items:center;text-align:center}
+.faluss-link-content-block__access{display:grid;gap:8px;margin:0;padding:12px;border:1px solid var(--fl-border);border-radius:var(--faluss-control-radius,8px);background:var(--fl-surface)}
+.faluss-link-content-block__access legend{padding:0 4px;font-weight:700}.faluss-link-content-block__access-hint,.faluss-link-content-block__access-state{margin:0;color:var(--fl-muted);font-size:.9rem}
 .faluss-link-card__media-teaser-copy{position:absolute;right:0;bottom:0;left:0;display:grid;align-content:end;gap:5px;min-height:38%;padding:16px;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.9) 100%);border-radius:0 0 var(--faluss-card-radius,24px) var(--faluss-card-radius,24px);pointer-events:none;text-align:left}
 .faluss-link-card__media-teaser-copy h3,.faluss-link-card__media-teaser-copy p{color:#FFF}
 .faluss-link-card--align-center .faluss-link-card__media-teaser-copy{text-align:left}

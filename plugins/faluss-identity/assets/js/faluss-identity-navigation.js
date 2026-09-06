@@ -126,6 +126,7 @@
     var portal = null;
     var closeTimer = null;
     var resizeHandler = null;
+    var returnFocusMode = 'pointer';
 
     function teardown() {
       if (!portal) {
@@ -138,6 +139,7 @@
       portal.remove();
       portal = null;
       trigger.setAttribute('aria-expanded', 'false');
+      root.dataset.falussNavigationReturnMode = returnFocusMode;
       unlockScroll();
       if (document.contains(trigger)) {
         trigger.focus({ preventScroll: true });
@@ -191,13 +193,18 @@
       });
       portal.addEventListener('cancel', function (event) {
         event.preventDefault();
+        returnFocusMode = 'keyboard';
         close();
       });
       var closeTarget = portal.querySelector('[data-faluss-navigation-close]');
-      closeTarget.addEventListener('click', close);
+      closeTarget.addEventListener('click', function () {
+        returnFocusMode = 'pointer';
+        close();
+      });
       closeTarget.addEventListener('keydown', function (event) {
         if ('Enter' === event.key || ' ' === event.key) {
           event.preventDefault();
+          returnFocusMode = 'keyboard';
           close();
         }
       });
@@ -220,6 +227,16 @@
       });
     }
 
+    trigger.addEventListener('pointerdown', function () {
+      returnFocusMode = 'pointer';
+      delete root.dataset.falussNavigationReturnMode;
+    });
+    trigger.addEventListener('keydown', function (event) {
+      if ('Enter' === event.key || ' ' === event.key) {
+        returnFocusMode = 'keyboard';
+        delete root.dataset.falussNavigationReturnMode;
+      }
+    });
     trigger.addEventListener('click', open);
   }
 

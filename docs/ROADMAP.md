@@ -55,3 +55,11 @@ Le Core porte les définitions et attributions historisées de droits de thème.
 ## FL-18 — Mes découvertes Faluss
 
 Ajouter à Faluss Link une bibliothèque privée locale à `faluss.me` : un membre actif peut retrouver les cartes publiques d’autres membres qu’il a consultées. L’entrée est enregistrée côté serveur, est bornée par membre, reste invisible aux créateurs et ne contient aucune donnée de navigation ni snapshot de profil. Le widget et shortcode résident sur une page membre créée manuellement, jamais dans Studio. Un futur produit d’analytics créateur reste explicitement séparé et ne doit pas convertir cette bibliothèque en suivi de visiteurs.
+
+## FL-19 — Teasers visuellement réservés
+
+Faluss Link ajoute une présentation Public, Membre Faluss ou Droit requis aux teasers média. Le Connector relit la décision EC-02 côté serveur et tout échec ferme l’affichage visuel. Aucun fichier média n’est encore protégé, aucun achat, token, abonnement, paiement ou entitlement local n’est créé : la livraison réellement protégée reste un lot de moteur de contenu futur.
+
+## FI-07.2 — Retour du déclencheur de navigation
+
+Après fermeture pointer de la navigation portaled, le déclencheur retourne immédiatement à ses couleurs Normal configurées. Une fermeture clavier conserve le focus visible et les interactions existantes, sans règle globale sur le header, les cartes ou les popups tiers.
