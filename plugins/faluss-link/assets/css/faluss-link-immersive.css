@@ -12,8 +12,9 @@
 }
 
 /* The route shell owns only the layer relationship. Elementor still owns its
-   header design and its menu implementation. A named header plane keeps
-   fixed/off-canvas descendants above the profile without reserving space. */
+   header design and its menu implementation. The header and profile are
+   sibling planes: both keep their native hit testing, while an off-canvas
+   header panel can extend above the profile without reserving space. */
 body.faluss-identity-public-route {
   margin: 0;
   padding: 0;
@@ -38,30 +39,18 @@ body.faluss-identity-public-route > .elementor-location-header {
   overflow: visible;
 }
 
-/* The wrapper never intercepts the card, while every real header control and
-   its off-canvas panel remains a live hit target above the profile plane. */
-body.faluss-identity-public-route > .faluss-identity-public-header-layer {
-  isolation: isolate;
-  pointer-events: none;
-}
-
-body.faluss-identity-public-route > .faluss-identity-public-header-layer > * {
-  pointer-events: auto;
-}
-
-body.faluss-identity-public-route > .faluss-identity-public-header-layer > .elementor-location-header,
-body.faluss-identity-public-route > .elementor-location-header {
+/* This selector remains within the named header plane. Do not suppress pointer
+   events here: Elementor controls and its sidebar must keep their own native
+   interactions on every viewport. */
+body.faluss-identity-public-route > .faluss-identity-public-header-layer > .elementor-location-header {
   position: relative;
-  z-index: 0;
   overflow: visible;
   padding-top: env(safe-area-inset-top, 0px);
-  pointer-events: auto;
 }
 
 body.faluss-identity-public-route > .faluss-identity-profile-page {
   position: relative;
   z-index: 0;
-  isolation: isolate;
   overflow: visible;
   margin: 0;
   padding: 0;
@@ -72,14 +61,6 @@ body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
   z-index: 0;
   min-height: 100vh;
   min-height: 100svh;
-}
-
-/* The hero is visual-only. Its image and gradient cannot create a transparent
-   interaction shield over the separate Elementor header plane. */
-body.faluss-identity-public-route .faluss-link-card--presentation-immersive .faluss-link-card__cover,
-body.faluss-identity-public-route .faluss-link-card--presentation-immersive .faluss-link-card__cover img,
-body.faluss-identity-public-route .faluss-link-card--presentation-immersive .faluss-link-card__cover::after {
-  pointer-events: none;
 }
 
 .faluss-link-card--presentation-immersive .faluss-link-card__cover {

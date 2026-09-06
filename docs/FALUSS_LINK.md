@@ -62,7 +62,7 @@ Les routes de profils publics Faluss sont dynamiques : Faluss Link les exclut du
 
 Les ressources sociales utilisent l’original WordPress `full`, avec `srcset`, `sizes` et une version issue de la date de modification de la pièce jointe. Le Studio, le rendu public mobile et desktop consomment exactement cette même ressource et la même variante. La classe d’alignement de carte est également commune : en mode Centre, avatar, identité, réseaux, blocs et liens sont centrés dans l’aperçu comme sur le profil public.
 
-Sur une route publique, le shell Faluss place uniquement une couche de conteneur autour du header Elementor au-dessus du hero, hors du flux. Il ne modifie ni son design ni ses réglages : le hero commence au sommet du viewport, sans bande blanche, sur mobile comme sur desktop. Cette couche laisse le menu, ses liens et son panneau latéral déborder et recevoir leurs interactions au-dessus de la carte immersive ; la couverture et son dégradé restent purement visuels.
+Sur une route publique, le shell Faluss place uniquement une couche de conteneur autour du header Elementor au-dessus du hero, hors du flux. Il ne modifie ni son design ni ses réglages : le hero commence au sommet du viewport, sans bande blanche, sur mobile comme sur desktop. Le header et la carte immersive sont deux plans frères, tous deux interactifs ; aucun conteneur de page, de Studio, de découvertes ou de carte ne neutralise les interactions. Le menu, ses liens et son panneau latéral peuvent déborder au-dessus de la carte sans être coupés ; seules les pseudo-couches décoratives de la couverture restent non interactives.
 
 ## Safe areas immersives (FL-14)
 

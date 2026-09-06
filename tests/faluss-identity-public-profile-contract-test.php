@@ -91,7 +91,7 @@ foreach ( array( 'render_public_shell', 'wp_head();', 'wp_body_open();', 'wp_foo
     fi03_assert( false !== strpos( $source, $required ), 'Missing FI-06 public-shell invariant: ' . $required );
 }
 fi03_assert( false === strpos( $source, 'get_header();' ) && false === strpos( $source, 'get_footer();' ), 'Public profile routes do not render the theme header or footer.');
-foreach ( array( 'faluss-identity-public-route', 'render_elementor_header', "elementor_theme_do_location( 'header' )" ) as $required ) {
+foreach ( array( 'faluss-identity-public-route', 'render_elementor_header', "elementor_theme_do_location( 'header' )", 'faluss-identity-public-header-layer' ) as $required ) {
     fi03_assert( false !== strpos( $source, $required ), 'Public routes expose the Elementor header location and its dedicated body class: ' . $required );
 }
 $faluss_css = preg_replace( '/\s+/', '', strtolower( $identity_css . $link_css ) );
@@ -100,6 +100,7 @@ foreach ( array( 'header{display:none', 'footer{display:none', '.elementor-locat
 }
 fi03_assert( false !== strpos( $link_css, 'body.faluss-identity-public-route .faluss-link-card--presentation-immersive' ) && false !== strpos( $link_css, 'z-index: 0;' ), 'The immersive profile is explicitly below a designer-owned header.');
 fi03_assert( false !== strpos( $link_css, '@media (max-width: 799px)' ) && 2 <= substr_count( $link_css, 'body.faluss-identity-public-route .faluss-link-card--presentation-immersive' ), 'The header collision guard is explicit on mobile too.');
+fi03_assert( false === strpos( $link_css, "faluss-identity-public-header-layer {\n  isolation: isolate;" ) && false === strpos( $link_css, "faluss-identity-public-header-layer {\n  pointer-events:" ), 'The route-only header shell keeps native Elementor hit testing instead of disabling a parent interaction plane.' );
 fi03_assert( false === strpos( $source, 'user_email' ), 'Public profiles never store or render e-mail data.' );
 
 echo 'FI-03 public-profile contract: OK' . PHP_EOL;
