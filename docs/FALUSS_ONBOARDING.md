@@ -36,4 +36,8 @@ L’avatar est facultatif. Son envoi est une action explicite, protégée par no
 
 Les réseaux sont choisis dans le catalogue Faluss actif puis validés comme URL HTTPS (ou comme identifiant converti vers l’URL HTTPS connue du réseau). Les liens libres utilisent exclusivement HTTPS. Un brouillon ne devient jamais public. L’action finale publie explicitement le profil Identity, marque l’état ONB-01 terminé de façon idempotente, puis renvoie vers `/mon-faluss/`.
 
-Le rendu d’aperçu utilise le même résolveur et le même markup de carte Faluss Link que la carte publique. Aucune table, copie d’identité, donnée métier, entitlement, abonnement, paiement, token ou règle économique n’est ajouté par ONB-02.
+ONB-02.2 fait passer le brouillon courant par une façade d’aperçu commune au Studio et au wizard, puis par le rendu canonique de la carte publique. Le nom, l’avatar, la bordure, la police autorisée, le fond, les boutons, les réseaux et les liens saisis sont normalisés côté serveur avant de revenir dans l’aperçu ; cet appel ne persiste et ne publie rien. Les changements de fond, de typographie et de boutons reçoivent en plus un retour immédiat local pendant cette actualisation courte.
+
+Les étapes En-tête et Style montrent la carte en pleine hauteur derrière un panneau de contrôles superposé sur mobile. Le résumé final emploie exactement la même carte à une taille lisible. Tant qu’aucun lien réel n’existe, trois actions squelettes illustrent uniquement la forme et le contraste des boutons : elles sont marquées comme aperçu, ne traversent aucun chemin d’enregistrement et sont absentes du rendu public. La sauvegarde réussie reste implicite ; seul un statut réservé aux lecteurs d’écran est annoncé, tandis qu’une erreur visible apparaît dans le formulaire et peut être corrigée.
+
+Aucune table, copie d’identité, donnée métier, entitlement, abonnement, paiement, token ou règle économique n’est ajouté par ONB-02.

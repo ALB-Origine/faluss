@@ -2,6 +2,7 @@
     'use strict';
 
     var initialized = new WeakSet();
+    var previewRequests = new WeakMap();
     var order = ['name', 'avatar', 'header', 'style', 'socials', 'links', 'finish'];
     var transitionDuration = 230;
 
@@ -18,12 +19,16 @@
             return response.json().catch(function () { return { success: false }; });
         });
     }
-    function notice(root, message, error) {
-        var target = root.querySelector('.faluss-link-onboarding__notice');
+    function announce(root, message) {
+        var target = root.querySelector('.faluss-link-onboarding__status');
+        if (!target) { return; }
+        target.textContent = message || '';
+    }
+    function showError(root, message) {
+        var target = root.querySelector('.faluss-link-onboarding__error');
         if (!target) { return; }
         target.textContent = message || '';
         target.hidden = !message;
-        target.dataset.state = error ? 'error' : 'success';
     }
     function setPending(root, value) {
         root.querySelectorAll('[data-onboarding-next],[data-onboarding-back],[data-onboarding-skip],[data-onboarding-finish]').forEach(function (button) {
@@ -106,10 +111,11 @@
         var card = root.querySelector('[data-onboarding-preview] .faluss-link-card');
         if (!card) { return; }
         var name = root.querySelector('[name="display_name"]'), background = root.querySelector('[name="page_background"]:checked,[name="page_background"]');
-        var treatment = root.querySelector('[name="name_treatment"]'), avatarBorder = root.querySelector('[name="avatar_border"]:checked'), linkStyle = root.querySelector('[name="link_style"]:checked');
+        var treatment = root.querySelector('[name="name_treatment"]'), nameFont = root.querySelector('[name="name_font"]'), avatarBorder = root.querySelector('[name="avatar_border"]:checked'), linkStyle = root.querySelector('[name="link_style"]:checked');
         var nameTarget = card.querySelector('.faluss-link-card__name');
         if (nameTarget && name && name.value.trim()) { nameTarget.textContent = name.value.trim(); }
         if (background && /^#[0-9a-f]{6}$/i.test(background.value || '')) { card.style.setProperty('--fl-page-background', background.value); }
+        if (nameFont && nameFont.selectedOptions && nameFont.selectedOptions[0]) { card.style.setProperty('--fl-name-font', nameFont.selectedOptions[0].dataset.fontStack || 'Outfit, ui-sans-serif, system-ui, sans-serif'); }
         if (nameTarget && treatment) {
             nameTarget.classList.remove('faluss-link-card__name--strong', 'faluss-link-card__name--editorial');
             nameTarget.classList.add('faluss-link-card__name--' + treatment.value);
@@ -120,12 +126,44 @@
             card.classList.remove('faluss-link-card--links-solid', 'faluss-link-card--links-outline', 'faluss-link-card--links-light');
             card.classList.add('faluss-link-card--links-' + linkStyle.value);
         }
+        if (window.FalussLinkCard) { window.FalussLinkCard.refresh(card); }
     }
     function replacePreview(root, markup) {
         var target = root.querySelector('[data-onboarding-preview]');
         if (!target || !markup) { return; }
         target.querySelectorAll('.faluss-link-card').forEach(function (card) { card.remove(); });
         target.insertAdjacentHTML('beforeend', markup);
+        if (window.FalussLinkCard) { window.FalussLinkCard.initialize(target); }
+    }
+    function cancelSharedPreview(root) {
+        var state = previewRequests.get(root);
+        if (!state) { return; }
+        if (state.timer) { window.clearTimeout(state.timer); }
+        if (state.controller) { state.controller.abort(); }
+        previewRequests.delete(root);
+    }
+    function scheduleSharedPreview(root) {
+        preview(root);
+        var previous = previewRequests.get(root) || {};
+        if (previous.timer) { window.clearTimeout(previous.timer); }
+        if (previous.controller) { previous.controller.abort(); }
+        var state = { timer: 0, controller: null };
+        state.timer = window.setTimeout(function () {
+            var form = root.querySelector('form'), data = form ? new FormData(form) : null;
+            if (!data) { return; }
+            var controller = typeof AbortController === 'function' ? new AbortController() : null;
+            state.controller = controller;
+            data.set('action', 'faluss_link_onboarding_preview');
+            data.set('nonce', config().nonce || '');
+            fetch(config().url || '', { method: 'POST', credentials: 'same-origin', body: data, signal: controller ? controller.signal : undefined }).then(function (response) {
+                return response.json().catch(function () { return { success: false }; });
+            }).then(function (result) {
+                if (result && result.success && result.data && result.data.preview) { replacePreview(root, result.data.preview); preview(root); }
+            }).catch(function (error) {
+                if (!error || error.name !== 'AbortError') { announce(root, 'L’aperçu sera actualisé à la prochaine étape.'); }
+            });
+        }, 140);
+        previewRequests.set(root, state);
     }
     function selectedNetworks(root) {
         return Array.prototype.slice.call(root.querySelectorAll('[name="social_selected[]"]:checked')).map(function (input) { return input.value; });
@@ -147,37 +185,38 @@
     function linkRow() {
         var row = document.createElement('div'), id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (value) { var random = Math.random() * 16 | 0; return (value === 'x' ? random : (random & 3 | 8)).toString(16); });
         row.className = 'faluss-link-onboarding__free-link';
-        row.innerHTML = '<input name="wizard_links[][block_id]" type="hidden" value="' + id + '"><label>Libellé<input name="wizard_links[][label]" type="text" maxlength="80"></label><label>URL HTTPS<input name="wizard_links[][url]" type="url" maxlength="2048" placeholder="https://"></label><button type="button" class="faluss-link-onboarding__remove-link" aria-label="Supprimer ce lien">×</button>';
+        row.innerHTML = '<input name="wizard_links[' + id + '][block_id]" type="hidden" value="' + id + '"><label>Libellé<input name="wizard_links[' + id + '][label]" type="text" maxlength="80"></label><label>URL HTTPS<input name="wizard_links[' + id + '][url]" type="url" maxlength="2048" placeholder="https://"></label><button type="button" class="faluss-link-onboarding__remove-link" aria-label="Supprimer ce lien">×</button>';
         return row;
     }
     function uploadAvatar(root, file) {
-        if (!file || !/^image\//.test(file.type || '')) { notice(root, 'Choisissez une image valide.', true); return; }
+        if (!file || !/^image\//.test(file.type || '')) { showError(root, 'Choisissez une image valide.'); return; }
+        cancelSharedPreview(root);
         var form = root.querySelector('form'), data = new FormData(form);
         data.set('action', 'faluss_link_onboarding_upload_avatar'); data.set('nonce', config().avatarNonce || ''); data.set('avatar', file);
         setPending(root, true);
+        showError(root, ''); announce(root, 'Ajout de la photo en cours.');
         fetch(config().url || '', { method: 'POST', credentials: 'same-origin', body: data }).then(function (response) { return response.json(); }).then(function (result) {
             if (!result || !result.success || !result.data || !result.data.id) { throw new Error('avatar'); }
             var input = form.querySelector('[name="faluss_identity_avatar_id"]'), previewTarget = root.querySelector('[data-onboarding-avatar-preview]'), cardAvatar = root.querySelector('[data-onboarding-preview] .faluss-link-card__avatar');
             if (input) { input.value = result.data.id; }
             if (previewTarget) { previewTarget.innerHTML = ''; var image = document.createElement('img'); image.src = result.data.url; image.alt = ''; previewTarget.append(image); }
             if (cardAvatar) { cardAvatar.hidden = false; cardAvatar.innerHTML = ''; var cardImage = document.createElement('img'); cardImage.src = result.data.url; cardImage.alt = ''; cardAvatar.append(cardImage); }
-            notice(root, 'Photo ajoutée.', false);
-        }).catch(function () { notice(root, 'L’image n’a pas pu être ajoutée.', true); }).finally(function () { setPending(root, false); });
+            scheduleSharedPreview(root); announce(root, 'Photo ajoutée.');
+        }).catch(function () { showError(root, 'L’image n’a pas pu être ajoutée. Vous pouvez réessayer ou passer cette étape.'); announce(root, 'Échec de l’ajout de la photo.'); }).finally(function () { setPending(root, false); });
     }
     function saveCurrent(root, direction) {
         var current = stepName(root.dataset.currentStep), form = root.querySelector('form');
         if (current === 'name') {
             var name = form.querySelector('[name="display_name"]');
-            if (!name || !name.value.trim()) { notice(root, 'Ajoutez un nom affiché.', true); if (name) { name.focus(); } return; }
+            if (!name || !name.value.trim()) { showError(root, 'Ajoutez un nom affiché pour continuer.'); if (name) { name.focus(); } return; }
         }
-        setPending(root, true);
+        cancelSharedPreview(root); setPending(root, true); showError(root, ''); announce(root, 'Enregistrement en cours.');
         request(root, 'faluss_link_onboarding_save', form, { step: current, direction: direction === 'backward' ? 'backward' : 'forward' }).then(function (result) {
             if (!result || !result.success || !result.data) { throw new Error('save'); }
             var next = String(result.data.step || '').replace(/^wizard_/, '');
             replacePreview(root, result.data.preview || '');
-            notice(root, 'Étape enregistrée.', false);
-            return transition(root, next, direction).then(function () { preview(root); });
-        }).catch(function () { notice(root, 'Nous ne pouvons pas enregistrer cette étape. Vérifiez vos informations.', true); }).finally(function () { setPending(root, false); });
+            return transition(root, next, direction).then(function () { preview(root); announce(root, 'Étape enregistrée.'); });
+        }).catch(function () { showError(root, 'Cette étape n’a pas pu être enregistrée. Vérifiez les informations puis réessayez.'); announce(root, 'Échec de l’enregistrement.'); }).finally(function () { setPending(root, false); });
     }
     function init(root) {
         if (!(root instanceof HTMLElement) || initialized.has(root)) { return; }
@@ -188,19 +227,19 @@
             var target = event.target.closest('button'); if (!target || !root.contains(target)) { return; }
             if (target.matches('[data-onboarding-skip]')) { event.preventDefault(); saveCurrent(root, 'forward'); }
             if (target.matches('[data-onboarding-back]')) { event.preventDefault(); saveCurrent(root, 'backward'); }
-            if (target.matches('[data-onboarding-add-link]')) { event.preventDefault(); var wrap = root.querySelector('[data-onboarding-free-links]'); if (wrap) { wrap.append(linkRow()); } }
-            if (target.matches('.faluss-link-onboarding__remove-link')) { event.preventDefault(); target.closest('.faluss-link-onboarding__free-link').remove(); }
+            if (target.matches('[data-onboarding-add-link]')) { event.preventDefault(); var wrap = root.querySelector('[data-onboarding-free-links]'); if (wrap) { wrap.append(linkRow()); scheduleSharedPreview(root); } }
+            if (target.matches('.faluss-link-onboarding__remove-link')) { event.preventDefault(); target.closest('.faluss-link-onboarding__free-link').remove(); scheduleSharedPreview(root); }
             if (target.matches('[data-onboarding-avatar-select]')) { event.preventDefault(); var input = document.createElement('input'); input.type = 'file'; input.accept = 'image/jpeg,image/png,image/webp,image/gif'; input.addEventListener('change', function () { uploadAvatar(root, input.files && input.files[0]); }); input.click(); }
             if (target.matches('[data-onboarding-finish]')) {
-                event.preventDefault(); setPending(root, true);
+                event.preventDefault(); cancelSharedPreview(root); setPending(root, true); showError(root, ''); announce(root, 'Publication en cours.');
                 request(root, 'faluss_link_onboarding_finish', root.querySelector('form'), {}).then(function (result) {
                     if (!result || !result.success || !result.data || !result.data.redirect) { throw new Error('finish'); }
                     window.location.assign(result.data.redirect);
-                }).catch(function () { notice(root, 'La publication n’a pas pu être terminée. Réessayez.', true); }).finally(function () { setPending(root, false); });
+                }).catch(function () { showError(root, 'La publication n’a pas pu être terminée. Vérifiez votre connexion puis réessayez.'); announce(root, 'Échec de la publication.'); }).finally(function () { setPending(root, false); });
             }
         });
-        root.addEventListener('change', function (event) { if (event.target && event.target.matches('[name="social_selected[]"]')) { socialInputs(root); } preview(root); });
-        root.addEventListener('input', function () { preview(root); });
+        root.addEventListener('change', function (event) { if (event.target && event.target.matches('[name="social_selected[]"]')) { socialInputs(root); } scheduleSharedPreview(root); });
+        root.addEventListener('input', function () { scheduleSharedPreview(root); });
     }
     function boot(scope) { (scope || document).querySelectorAll('[data-faluss-link-onboarding]').forEach(init); }
     if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', function () { boot(document); }, { once: true }); } else { boot(document); }
