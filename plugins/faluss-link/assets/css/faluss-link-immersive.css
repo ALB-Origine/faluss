@@ -12,9 +12,9 @@
 }
 
 /* The route shell owns only the layer relationship. Elementor still owns its
-   header design and its menu implementation. The header and profile are
-   sibling planes: both keep their native hit testing, while an off-canvas
-   header panel can extend above the profile without reserving space. */
+   header design and its menu implementation. The real header wrapper and the
+   profile are sibling planes: both keep their native hit testing, while an
+   off-canvas header panel can extend above the profile without reserving space. */
 body.faluss-identity-public-route {
   margin: 0;
   padding: 0;
@@ -37,13 +37,17 @@ body.faluss-identity-public-route > .elementor-location-header {
   width: 100%;
   box-sizing: border-box;
   overflow: visible;
+  isolation: isolate;
 }
 
-/* This selector remains within the named header plane. Do not suppress pointer
-   events here: Elementor controls and its sidebar must keep their own native
-   interactions on every viewport. */
-body.faluss-identity-public-route > .faluss-identity-public-header-layer > .elementor-location-header {
+/* Elementor Theme Builder normally emits header.elementor-location-header.
+   Accept its direct header and location variants so the whole real wrapper,
+   not just the menu button, establishes the interactive header sub-plane. */
+body.faluss-identity-public-route > .faluss-identity-public-header-layer > header,
+body.faluss-identity-public-route > .faluss-identity-public-header-layer > .elementor-location-header,
+body.faluss-identity-public-route > .faluss-identity-public-header-layer > [class*="elementor-location-header"] {
   position: relative;
+  z-index: 1;
   overflow: visible;
   padding-top: env(safe-area-inset-top, 0px);
 }

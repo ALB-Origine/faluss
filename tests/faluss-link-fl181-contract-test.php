@@ -19,16 +19,16 @@ foreach ( array(
     fl181_assert( false !== strpos( $immersive, $needle ), 'FL-18.1 must retain the scoped public header/card planes: ' . $needle );
 }
 
-$header_plane_start = strpos( $immersive, 'body.faluss-identity-public-route > .faluss-identity-public-header-layer {' );
+$header_plane_start = strpos( $immersive, 'body.faluss-identity-public-route > .faluss-identity-public-header-layer,' );
 $header_plane_end = strpos( $immersive, '}', $header_plane_start );
 $header_plane = substr( $immersive, $header_plane_start, $header_plane_end - $header_plane_start + 1 );
-fl181_assert( false === strpos( $header_plane, 'pointer-events:' ) && false === strpos( $header_plane, 'isolation:' ), 'The transparent header wrapper must remain a native interactive plane, not an interaction shield.' );
+fl181_assert( false === strpos( $header_plane, 'pointer-events:' ) && false !== strpos( $header_plane, 'isolation: isolate;' ), 'The transparent header wrapper must remain a native interactive plane with its own bounded stacking context.' );
 fl181_assert( false === strpos( $immersive, 'faluss-identity-public-header-layer > *' ), 'The public shell must not use a child pointer-events recovery rule.' );
 
-$header_content_start = strpos( $immersive, 'body.faluss-identity-public-route > .faluss-identity-public-header-layer > .elementor-location-header' );
+$header_content_start = strpos( $immersive, 'body.faluss-identity-public-route > .faluss-identity-public-header-layer > header,' );
 $header_content_end = strpos( $immersive, '}', $header_content_start );
 $header_content = substr( $immersive, $header_content_start, $header_content_end - $header_content_start + 1 );
-fl181_assert( false !== strpos( $header_content, 'overflow: visible;' ) && false === strpos( $header_content, 'pointer-events:' ), 'Elementor header controls and their sidebar must remain native interactive content and unclipped.' );
+fl181_assert( false !== strpos( $header_content, 'z-index: 1;' ) && false !== strpos( $header_content, 'overflow: visible;' ) && false === strpos( $header_content, 'pointer-events:' ), 'Elementor header controls and their sidebar must remain native interactive content and unclipped.' );
 
 $profile_plane_start = strpos( $immersive, 'body.faluss-identity-public-route > .faluss-identity-profile-page {' );
 $profile_plane_end = strpos( $immersive, '}', $profile_plane_start );
