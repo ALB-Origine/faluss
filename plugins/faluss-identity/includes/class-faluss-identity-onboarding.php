@@ -68,8 +68,18 @@ final class Faluss_Identity_Onboarding {
         return self::render( (array) $attributes );
     }
 
-    /** @return string Local onboarding route. */
+    /**
+     * Returns the canonical member-facing onboarding surface. A selected
+     * Elementor page is deliberately the source of truth; the legacy route is
+     * only the reliable fallback when no such page is configured.
+     *
+     * @return string Local onboarding URL.
+     */
     public static function onboarding_url() {
+        $configured_url = self::configured_onboarding_url();
+        if ( '' !== $configured_url ) {
+            return $configured_url;
+        }
         return home_url( '/' . self::ROUTE . '/' );
     }
 
@@ -110,20 +120,8 @@ final class Faluss_Identity_Onboarding {
         $context = self::login_flow_context( $flow );
         if ( null !== $context ) {
             self::consume_login_flow( $flow );
-            if ( in_array( $context['intent'], array( 'unlock_teaser', 'claim_reward' ), true ) ) {
-                return $context['return_to'];
-            }
-            if ( 'create_card' === $context['intent'] ) {
-                return self::onboarding_url();
-            }
         }
-
-        // A generic default login guides only a member who still has no public
-        // identifier. Explicit local returns always keep their original route.
-        if ( self::is_default_member_destination( $fallback ) && ! self::current_member_has_public_profile() && 'no_card' !== self::current_member_onboarding_state()['choice'] ) {
-            return self::onboarding_url();
-        }
-        return $fallback;
+        return self::resolve_authenticated_destination( $context, $fallback, self::current_member_requires_onboarding() );
     }
 
     /** @return string Safe local URL only. */
@@ -216,7 +214,7 @@ final class Faluss_Identity_Onboarding {
     }
 
     public static function render_route() {
-        if ( ! self::is_onboarding_request() ) {
+        if ( ! self::is_onboarding_route() ) {
             return;
         }
         status_header( 200 );
@@ -364,10 +362,6 @@ final class Faluss_Identity_Onboarding {
         return is_string( $intent ) && in_array( $intent, self::INTENTS, true );
     }
 
-    private static function is_default_member_destination( $url ) {
-        return untrailingslashit( self::safe_local_return( $url ) ) === untrailingslashit( home_url( '/mon-faluss/' ) );
-    }
-
     private static function active_faluss_id() {
         if ( ! is_user_logged_in() || ! class_exists( 'Faluss_Identity_Registry' ) ) {
             return null;
@@ -378,6 +372,40 @@ final class Faluss_Identity_Onboarding {
     private static function current_member_has_public_profile() {
         $faluss_id = self::active_faluss_id();
         return null !== $faluss_id && class_exists( 'Faluss_Identity_Public_Profile' ) && Faluss_Identity_Public_Profile::has_profile_for_faluss_id( $faluss_id );
+    }
+
+    /**
+     * A generic navigation return is intentionally secondary to an unfinished
+     * onboarding decision. A completed public profile or an explicit no-card
+     * choice ends that requirement.
+     */
+    private static function current_member_requires_onboarding() {
+        return self::requires_onboarding( self::current_member_has_public_profile(), self::current_member_onboarding_state() );
+    }
+
+    /** @param array<string, mixed> $state */
+    private static function requires_onboarding( $has_public_profile, $state ) {
+        return ! $has_public_profile && ( ! is_array( $state ) || ! isset( $state['choice'] ) || 'no_card' !== $state['choice'] );
+    }
+
+    /**
+     * Resolves only already-validated local values. Passwordless resolves the
+     * SSO authorization callback before calling this method. Typed business
+     * intents therefore remain ahead of the generic Navigation return.
+     *
+     * @param array<string, string>|null $context
+     * @return string
+     */
+    private static function resolve_authenticated_destination( $context, $fallback, $requires_onboarding ) {
+        if ( is_array( $context ) ) {
+            if ( in_array( $context['intent'], array( 'unlock_teaser', 'claim_reward' ), true ) ) {
+                return $context['return_to'];
+            }
+            if ( 'create_card' === $context['intent'] ) {
+                return self::onboarding_url();
+            }
+        }
+        return $requires_onboarding ? self::onboarding_url() : $fallback;
     }
 
     /** @return array{choice: string, slug_status: string, next_step: string, flow_version: int} */
@@ -447,6 +475,11 @@ final class Faluss_Identity_Onboarding {
 
     /** @param mixed $request */
     private static function is_onboarding_request( $request = null ) {
+        return self::is_onboarding_route( $request ) || self::is_selected_onboarding_request();
+    }
+
+    /** @param mixed $request */
+    private static function is_onboarding_route( $request = null ) {
         if ( is_object( $request ) && isset( $request->query_vars[ self::QUERY_VAR ] ) ) {
             return '1' === (string) $request->query_vars[ self::QUERY_VAR ];
         }
@@ -454,9 +487,35 @@ final class Faluss_Identity_Onboarding {
             return true;
         }
         $request_uri = isset( $_SERVER['REQUEST_URI'] ) && is_string( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+        return self::request_matches_url( $request_uri, home_url( '/' . self::ROUTE . '/' ) );
+    }
+
+    private static function is_selected_onboarding_request() {
+        $configured_url = self::configured_onboarding_url();
+        if ( '' === $configured_url ) {
+            return false;
+        }
+        $request_uri = isset( $_SERVER['REQUEST_URI'] ) && is_string( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+        return self::request_matches_url( $request_uri, $configured_url );
+    }
+
+    private static function request_matches_url( $request_uri, $url ) {
         $path = wp_parse_url( $request_uri, PHP_URL_PATH );
-        $route = wp_parse_url( self::onboarding_url(), PHP_URL_PATH );
+        $route = wp_parse_url( $url, PHP_URL_PATH );
         return is_string( $path ) && is_string( $route ) && untrailingslashit( $path ) === untrailingslashit( $route );
+    }
+
+    /** @return string Empty when no valid selected page is available. */
+    private static function configured_onboarding_url() {
+        $template_id = self::get_template_id();
+        if ( $template_id < 1 || ! function_exists( 'get_permalink' ) ) {
+            return '';
+        }
+        $url = get_permalink( $template_id );
+        if ( ! is_string( $url ) || '' === trim( $url ) ) {
+            return '';
+        }
+        return self::safe_local_return( $url ) === $url ? $url : '';
     }
 
     private static function get_template_id() {

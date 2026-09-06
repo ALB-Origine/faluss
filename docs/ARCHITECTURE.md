@@ -24,9 +24,9 @@ Un administrateur peut sélectionner une page Elementor déjà publiée dans **R
 
 ## Onboarding de carte (ONB-01)
 
-La preuve passwordless crée ou active seulement l’identité opaque. La création facultative de carte est ensuite un flux distinct sur `/commencer`, rendu par le widget **Onboarding Faluss** ou son shortcode. L’administrateur peut sélectionner une page Elementor déjà publiée dans **Réglages → Onboarding Faluss** ; aucune page n’est créée automatiquement et le rendu de secours reste disponible.
+La preuve passwordless crée ou active seulement l’identité opaque. La création facultative de carte est ensuite un flux distinct rendu par le widget **Onboarding Faluss** ou son shortcode. L’administrateur peut sélectionner une page Elementor déjà publiée dans **Réglages → Onboarding Faluss** : son URL réelle est la destination canonique, sans dépendre d’un slug imposé. Aucune page n’est créée automatiquement et `/commencer` reste le rendu de secours sans page sélectionnée.
 
-Le navigateur ne transporte qu’une poignée opaque, courte et expirante dont le serveur conserve l’intention autorisée et le retour local validé. La priorité de retour est : consentement SSO local, retour exact d’un teaser ou d’une récompense, ouverture de l’onboarding pour une intention de carte, puis comportement générique. `faluss_id` reste entièrement serveur. La réservation finale insère atomiquement le slug dans le registre public FI-03 sous forme de brouillon minimal ; elle n’écrit aucune préférence Faluss Link.
+Le navigateur ne transporte qu’une poignée opaque, courte et expirante dont le serveur conserve l’intention autorisée et le retour local validé. La priorité de retour est : consentement SSO local, retour exact d’un teaser ou d’une récompense, ouverture de l’onboarding pour une intention de carte, ouverture de l’onboarding pour une décision encore requise, puis retour générique. `faluss_id` reste entièrement serveur. La réservation finale insère atomiquement le slug dans le registre public FI-03 sous forme de brouillon minimal ; elle n’écrit aucune préférence Faluss Link.
 
 ## Identifiants
 

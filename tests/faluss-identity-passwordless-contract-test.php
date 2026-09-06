@@ -99,7 +99,7 @@ foreach ( array( 'replaceStage', 'replaceWithEmail', "'otp'", "'email'", 'reset_
 }
 fi02_passwordless_assert( false === strpos( $login_js, 'sessionStorage' ) && false === strpos( $login_js, 'localStorage' ), 'No residual browser storage can select the OTP stage.' );
 $bootstrap = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/faluss-identity.php' );
-fi02_passwordless_assert( false !== strpos( $bootstrap, "FALUSS_IDENTITY_VERSION', '0.4.9" ) && false !== strpos( $source, 'FALUSS_IDENTITY_VERSION' ), 'The corrected frontend asset is versioned from the plugin source.' );
+fi02_passwordless_assert( false !== strpos( $bootstrap, "FALUSS_IDENTITY_VERSION', '0.4.10" ) && false !== strpos( $source, 'FALUSS_IDENTITY_VERSION' ), 'The corrected frontend asset is versioned from the plugin source.' );
 $navigation = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-navigation.php' );
 fi02_passwordless_assert( false === strpos( $source . $login_js, 'Faluss_Identity_Navigation' ) && false !== strpos( $navigation, 'current_local_return_url' ), 'FI-02 does not alter FI-07 Navigation Faluss.' );
 foreach ( array( 'exclude_login_from_cache', 'send_login_no_cache_headers', 'login_no_cache_headers', 'DONOTCACHEPAGE', 'litespeed_control_set_nocache', 'X-LiteSpeed-Cache-Control', 'no-store, no-cache' ) as $required ) {
