@@ -1,13 +1,27 @@
 .faluss-identity-navigation {
   --faluss-navigation-trigger-align: flex-end;
   --faluss-navigation-sidebar-width: 65vw;
-  --faluss-navigation-duration: 220ms;
+  --faluss-navigation-duration: 320ms;
   --faluss-navigation-sidebar-align: flex-start;
   --faluss-navigation-sidebar-gap: 10px;
-  --faluss-navigation-trigger-background-opacity: 100%;
+  --faluss-navigation-trigger-icon-size: 18px;
+  --faluss-navigation-trigger-icon-normal: #fff;
+  --faluss-navigation-trigger-icon-hover: #fff;
+  --faluss-navigation-trigger-icon-active: #fff;
+  --faluss-navigation-trigger-background-normal: #080808;
+  --faluss-navigation-trigger-background-hover: #28231f;
+  --faluss-navigation-trigger-background-active: #000;
+  --faluss-navigation-trigger-background-opacity-normal: 100%;
+  --faluss-navigation-trigger-background-opacity-hover: 100%;
+  --faluss-navigation-trigger-background-opacity-active: 100%;
+  --faluss-navigation-trigger-blur: 0px;
   --faluss-navigation-sidebar-background-opacity: 100%;
-  --faluss-navigation-backdrop: #080808;
-  --faluss-navigation-backdrop-opacity: 34%;
+  --faluss-navigation-backdrop-normal-color: #080808;
+  --faluss-navigation-backdrop-hover-color: #080808;
+  --faluss-navigation-backdrop-normal-opacity: 34%;
+  --faluss-navigation-backdrop-hover-opacity: 40%;
+  --faluss-navigation-backdrop-normal-transition: 160ms;
+  --faluss-navigation-backdrop-hover-transition: 160ms;
   align-items: center;
   display: flex;
   justify-content: var(--faluss-navigation-trigger-align);
@@ -15,31 +29,35 @@
 
 .faluss-identity-navigation__trigger {
   align-items: center;
-  background: #080808;
-  background-color: color-mix(in srgb, #080808 var(--faluss-navigation-trigger-background-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--faluss-navigation-trigger-blur));
+  backdrop-filter: blur(var(--faluss-navigation-trigger-blur));
+  background-color: #080808;
+  background-color: color-mix(in srgb, var(--faluss-navigation-trigger-background-normal, #080808) var(--faluss-navigation-trigger-background-opacity-normal, 100%), transparent);
   border: 1px solid rgba(8, 8, 8, .12);
   border-radius: 999px;
+  block-size: 46px;
+  box-sizing: content-box;
   box-shadow: 0 8px 20px rgba(8, 8, 8, .1);
-  color: #fff;
+  color: var(--faluss-navigation-trigger-icon-normal, #fff);
   cursor: pointer;
   display: inline-flex;
   inline-size: 46px;
   justify-content: center;
-  min-block-size: 44px;
-  min-inline-size: 44px;
   padding: 10px;
   transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
 .faluss-identity-navigation__trigger:hover,
 .faluss-identity-navigation__trigger:focus-visible {
-  background-color: #28231f;
+  background-color: color-mix(in srgb, var(--faluss-navigation-trigger-background-hover, #28231f) var(--faluss-navigation-trigger-background-opacity-hover, 100%), transparent);
   border-color: #28231f;
   box-shadow: 0 12px 30px rgba(8, 8, 8, .14);
+  color: var(--faluss-navigation-trigger-icon-hover, #fff);
 }
 
 .faluss-identity-navigation__trigger:active {
-  background-color: #000;
+  background-color: color-mix(in srgb, var(--faluss-navigation-trigger-background-active, #000) var(--faluss-navigation-trigger-background-opacity-active, 100%), transparent);
+  color: var(--faluss-navigation-trigger-icon-active, #fff);
   transform: translateY(1px);
 }
 
@@ -49,13 +67,26 @@
   outline-offset: 3px;
 }
 
-.faluss-identity-navigation__trigger svg,
-.faluss-identity-navigation__trigger i,
-.faluss-identity-navigation__trigger span {
-  block-size: 1em;
+.faluss-identity-navigation__trigger > svg,
+.faluss-identity-navigation__trigger > .e-font-icon-svg,
+.faluss-identity-navigation__trigger > i,
+.faluss-identity-navigation__trigger > span {
+  block-size: var(--faluss-navigation-trigger-icon-size, 18px);
   display: block;
-  inline-size: 1em;
+  font-size: var(--faluss-navigation-trigger-icon-size, 18px);
+  inline-size: var(--faluss-navigation-trigger-icon-size, 18px);
   line-height: 1;
+}
+
+.faluss-identity-navigation__trigger svg,
+.faluss-identity-navigation__trigger svg *,
+.faluss-identity-navigation__trigger .e-font-icon-svg,
+.faluss-identity-navigation__trigger .e-font-icon-svg *,
+.faluss-identity-navigation__trigger i,
+.faluss-identity-navigation__trigger i::before {
+  color: currentColor;
+  fill: currentColor;
+  stroke: currentColor;
 }
 
 .faluss-identity-navigation__style-source {
@@ -171,15 +202,29 @@ dialog.faluss-identity-navigation-portal::backdrop {
 }
 
 .faluss-identity-navigation-portal__backdrop {
-  background: color-mix(in srgb, var(--faluss-navigation-backdrop, #080808) var(--faluss-navigation-backdrop-opacity, 34%), transparent);
+  all: initial;
+  background-color: color-mix(in srgb, var(--faluss-navigation-backdrop-normal-color, #080808) var(--faluss-navigation-backdrop-normal-opacity, 34%), transparent);
   border: 0;
+  box-sizing: border-box;
   cursor: pointer;
+  display: block;
   inset: 0;
   margin: 0;
   padding: 0;
   position: fixed;
-  transition: opacity var(--faluss-navigation-duration, 220ms) ease;
+  transition: background-color var(--faluss-navigation-backdrop-normal-transition, 160ms) ease, opacity var(--faluss-navigation-duration, 320ms) ease;
   width: 100%;
+}
+
+.faluss-identity-navigation-portal__backdrop:hover,
+.faluss-identity-navigation-portal__backdrop:focus-visible {
+  background-color: color-mix(in srgb, var(--faluss-navigation-backdrop-hover-color, #080808) var(--faluss-navigation-backdrop-hover-opacity, 40%), transparent);
+  transition-duration: var(--faluss-navigation-backdrop-hover-transition, 160ms), var(--faluss-navigation-duration, 320ms);
+}
+
+.faluss-identity-navigation-portal__backdrop:focus-visible {
+  outline: 3px solid #ff3d16;
+  outline-offset: -6px;
 }
 
 .faluss-identity-navigation-portal__sidebar {
@@ -203,7 +248,7 @@ dialog.faluss-identity-navigation-portal::backdrop {
   padding: max(50px, env(safe-area-inset-top)) 24px max(50px, env(safe-area-inset-bottom));
   position: fixed;
   transform: translateX(100%);
-  transition: opacity var(--faluss-navigation-duration, 220ms) ease, transform var(--faluss-navigation-duration, 220ms) cubic-bezier(.2, .75, .25, 1);
+  transition: opacity var(--faluss-navigation-duration, 320ms) ease, transform var(--faluss-navigation-duration, 320ms) cubic-bezier(.2, .75, .25, 1);
   width: min(var(--faluss-navigation-sidebar-width, 65vw), 32rem);
 }
 

@@ -2,7 +2,7 @@
 
 define( 'ABSPATH', __DIR__ . '/' );
 define( 'FALUSS_IDENTITY_FILE', dirname( __DIR__ ) . '/plugins/faluss-identity/faluss-identity.php' );
-define( 'FALUSS_IDENTITY_VERSION', '0.4.4' );
+define( 'FALUSS_IDENTITY_VERSION', '0.4.5' );
 
 $fi07_logged_in = false;
 $fi07_registered = array();
@@ -72,5 +72,24 @@ foreach ( array( 'document.body.appendChild(portal)', 'portal.showModal()', "por
     fi07_assert( false !== strpos( $script, $required ), 'The body portal, accessibility lifecycle, and idempotent Elementor initialization are present: ' . $required );
 }
 fi07_assert( false === strpos( $public_profile, 'Faluss_Identity_Navigation' ), 'FI-07 does not alter the public-profile shell or take ownership of existing headers.' );
+
+// FI-07.1: visual controls are rendered through the portaled component rather than inherited from the theme.
+foreach ( array( 'register_backdrop_style_controls', "array( 'normal' => __( 'Normal'", "'backdrop_' . \$state . '_color'", "'backdrop_' . \$state . '_opacity'", "'backdrop_' . \$state . '_transition'", 'trigger_width', 'trigger_height', 'trigger_icon_size', 'trigger_backdrop_blur', 'Durée de transition', "'max' => 1200" ) as $required ) {
+    fi07_assert( false !== strpos( $widget, $required ), 'FI-07.1 exposes the required real Elementor control: ' . $required );
+}
+fi07_assert( false !== strpos( $widget, '<div class="faluss-identity-navigation-portal__backdrop" role="button"' ) && false === strpos( $widget, '<button class="faluss-identity-navigation-portal__backdrop"' ), 'The full-screen backdrop is a neutral accessible element, not a theme-styled button.' );
+foreach ( array( 'all: initial;', '--faluss-navigation-backdrop-normal-color', '--faluss-navigation-backdrop-hover-color', 'background-color: color-mix', '.faluss-identity-navigation-portal__backdrop:hover', '.faluss-identity-navigation-portal__backdrop:focus-visible' ) as $required ) {
+    fi07_assert( false !== strpos( $css, $required ), 'Backdrop normal/hover rendering is locally reset and controlled: ' . $required );
+}
+foreach ( array( '--faluss-navigation-trigger-icon-size', 'fill: currentColor;', 'stroke: currentColor;', '-webkit-backdrop-filter', 'backdrop-filter', 'box-sizing: content-box;' ) as $required ) {
+    fi07_assert( false !== strpos( $css, $required ), 'Trigger icon color, independent size, blur, and padding behavior are explicit: ' . $required );
+}
+$trigger_css = '';
+if ( preg_match( '/\\.faluss-identity-navigation__trigger\\s*\\{(.*?)\\}/s', $css, $trigger_match ) ) {
+    $trigger_css = $trigger_match[1];
+}
+fi07_assert( '' !== $trigger_css && false === strpos( $trigger_css, 'min-block-size' ) && false === strpos( $trigger_css, 'min-inline-size' ), 'The trigger has no hidden 44px minimum and can render below 44px.' );
+fi07_assert( false !== strpos( $script, 'window.scrollTo(snapshot.x, snapshot.y)') && false !== strpos( $script, 'scrollLockSnapshot') && false !== strpos( $script, 'if (isNaN(duration))') && false === strpos( $script, '.style.transform' ) && false === strpos( $script, '.style.zoom' ), 'Scroll is restored exactly without document transform, scale, or zoom manipulation, including a true zero-duration setting.' );
+fi07_assert( ! preg_match( '/(?:^|\\n)(?:html|body|#page|\\.elementor)[^{]*\\{[^}]*?(?:transform|scale|zoom)/s', $css ), 'Only the local panel and its backdrop animate; the document is never scaled.' );
 
 echo 'FI-07 Navigation Faluss contract: OK' . PHP_EOL;

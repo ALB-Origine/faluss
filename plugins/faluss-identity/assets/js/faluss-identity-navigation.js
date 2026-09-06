@@ -13,10 +13,14 @@
     if (0 === scrollLockCount) {
       scrollLockSnapshot = {
         body: document.body.style.overflow,
-        html: document.documentElement.style.overflow
+        html: document.documentElement.style.overflow,
+        overscroll: document.documentElement.style.overscrollBehavior,
+        x: window.scrollX || window.pageXOffset || 0,
+        y: window.scrollY || window.pageYOffset || 0
       };
       document.body.style.overflow = 'hidden';
       document.documentElement.style.overflow = 'hidden';
+      document.documentElement.style.overscrollBehavior = 'none';
     }
     scrollLockCount += 1;
   }
@@ -27,9 +31,14 @@
     }
     scrollLockCount -= 1;
     if (0 === scrollLockCount && scrollLockSnapshot) {
+      var snapshot = scrollLockSnapshot;
       document.body.style.overflow = scrollLockSnapshot.body;
       document.documentElement.style.overflow = scrollLockSnapshot.html;
+      document.documentElement.style.overscrollBehavior = scrollLockSnapshot.overscroll;
       scrollLockSnapshot = null;
+      window.requestAnimationFrame(function () {
+        window.scrollTo(snapshot.x, snapshot.y);
+      });
     }
   }
 
@@ -70,14 +79,12 @@
   function applyPortalStyles(root, portal) {
     copyCustomProperties(root, portal);
     var sidebar = portal.querySelector('[data-faluss-navigation-sidebar]');
-    var backdrop = portal.querySelector('.faluss-identity-navigation-portal__backdrop');
     copyStyles(root.querySelector('.faluss-identity-navigation__style-source--sidebar'), sidebar);
     var sidebarSource = root.querySelector('.faluss-identity-navigation__style-source--sidebar');
     if (sidebarSource && sidebar) {
       sidebar.style.setProperty('--faluss-navigation-sidebar-surface', window.getComputedStyle(sidebarSource).getPropertyValue('background'));
       sidebar.style.setProperty('background', 'transparent');
     }
-    copyStyles(root.querySelector('.faluss-identity-navigation__style-source--backdrop'), backdrop);
     [ 'nav', 'smart' ].forEach(function (kind) {
       var links = portal.querySelectorAll(kind === 'smart' ? '.faluss-identity-navigation-portal__link--smart' : '.faluss-identity-navigation-portal__link:not(.faluss-identity-navigation-portal__link--smart)');
       [ 'normal', 'hover', 'active' ].forEach(function (state) {
@@ -152,7 +159,10 @@
         finishClose();
         return;
       }
-      var duration = parseFloat(window.getComputedStyle(portal).getPropertyValue('--faluss-navigation-duration')) || 220;
+      var duration = parseFloat(window.getComputedStyle(portal).getPropertyValue('--faluss-navigation-duration'));
+      if (isNaN(duration)) {
+        duration = 320;
+      }
       closeTimer = window.setTimeout(finishClose, duration + 40);
     }
 
@@ -183,7 +193,14 @@
         event.preventDefault();
         close();
       });
-      portal.querySelector('[data-faluss-navigation-close]').addEventListener('click', close);
+      var closeTarget = portal.querySelector('[data-faluss-navigation-close]');
+      closeTarget.addEventListener('click', close);
+      closeTarget.addEventListener('keydown', function (event) {
+        if ('Enter' === event.key || ' ' === event.key) {
+          event.preventDefault();
+          close();
+        }
+      });
       portal.showModal();
       portal.dataset.falussNavigationState = 'opening';
       trigger.setAttribute('aria-expanded', 'true');

@@ -55,11 +55,12 @@ final class Faluss_Identity_Navigation_Elementor_Widget extends \Elementor\Widge
             'selectors'  => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-sidebar-width: {{SIZE}}{{UNIT}};' ),
         ) );
         $this->add_control( 'open_animation', array( 'label' => __( 'Animation d’ouverture', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SELECT, 'default' => 'slide', 'options' => array( 'slide' => __( 'Glissement', 'faluss-identity' ), 'fade' => __( 'Fondu', 'faluss-identity' ), 'none' => __( 'Aucune', 'faluss-identity' ) ) ) );
-        $this->add_control( 'animation_duration', array( 'label' => __( 'Durée de l’animation', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'size_units' => array( 'ms' ), 'default' => array( 'size' => 220, 'unit' => 'ms' ), 'range' => array( 'ms' => array( 'min' => 0, 'max' => 600 ) ), 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-duration: {{SIZE}}ms;' ) ) );
+        $this->add_control( 'animation_duration', array( 'label' => __( 'Durée de transition', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'size_units' => array( 'ms' ), 'default' => array( 'size' => 320, 'unit' => 'ms' ), 'range' => array( 'ms' => array( 'min' => 0, 'max' => 1200 ) ), 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-duration: {{SIZE}}ms;' ) ) );
         $this->end_controls_section();
 
         $this->register_trigger_style_controls();
         $this->register_sidebar_style_controls();
+        $this->register_backdrop_style_controls();
         $this->register_link_style_controls( 'nav', __( 'Liens de navigation', 'faluss-identity' ), '.faluss-identity-navigation__style-source--nav' );
         $this->register_link_style_controls( 'smart', __( 'Action intelligente', 'faluss-identity' ), '.faluss-identity-navigation__style-source--smart' );
     }
@@ -68,7 +69,9 @@ final class Faluss_Identity_Navigation_Elementor_Widget extends \Elementor\Widge
         $selector = '{{WRAPPER}} .faluss-identity-navigation__trigger';
         $this->start_controls_section( 'style_trigger', array( 'label' => __( 'Bulle du déclencheur', 'faluss-identity' ), 'tab' => \Elementor\Controls_Manager::TAB_STYLE ) );
         $this->add_responsive_control( 'trigger_alignment', array( 'label' => __( 'Alignement', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::CHOOSE, 'options' => array( 'flex-start' => array( 'title' => __( 'Gauche', 'faluss-identity' ), 'icon' => 'eicon-h-align-left' ), 'center' => array( 'title' => __( 'Centre', 'faluss-identity' ), 'icon' => 'eicon-h-align-center' ), 'flex-end' => array( 'title' => __( 'Droite', 'faluss-identity' ), 'icon' => 'eicon-h-align-right' ) ), 'default' => 'flex-end', 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-trigger-align: {{VALUE}};' ) ) );
-        $this->add_responsive_control( 'trigger_size', array( 'label' => __( 'Taille', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'size_units' => array( 'px', 'rem' ), 'default' => array( 'size' => 46, 'unit' => 'px' ), 'selectors' => array( $selector => 'inline-size: {{SIZE}}{{UNIT}}; block-size: {{SIZE}}{{UNIT}};' ) ) );
+        $this->add_responsive_control( 'trigger_width', array( 'label' => __( 'Largeur', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'size_units' => array( 'px', 'rem' ), 'default' => array( 'size' => 46, 'unit' => 'px' ), 'range' => array( 'px' => array( 'min' => 20, 'max' => 200 ), 'rem' => array( 'min' => 1, 'max' => 12 ) ), 'selectors' => array( $selector => 'inline-size: {{SIZE}}{{UNIT}};' ) ) );
+        $this->add_responsive_control( 'trigger_height', array( 'label' => __( 'Hauteur', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'size_units' => array( 'px', 'rem' ), 'default' => array( 'size' => 46, 'unit' => 'px' ), 'range' => array( 'px' => array( 'min' => 20, 'max' => 200 ), 'rem' => array( 'min' => 1, 'max' => 12 ) ), 'selectors' => array( $selector => 'block-size: {{SIZE}}{{UNIT}};' ) ) );
+        $this->add_responsive_control( 'trigger_icon_size', array( 'label' => __( 'Taille de l’icône', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'size_units' => array( 'px', 'em', 'rem' ), 'default' => array( 'size' => 18, 'unit' => 'px' ), 'range' => array( 'px' => array( 'min' => 8, 'max' => 96 ), 'em' => array( 'min' => .5, 'max' => 6 ), 'rem' => array( 'min' => .5, 'max' => 6 ) ), 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-trigger-icon-size: {{SIZE}}{{UNIT}};' ) ) );
         $this->add_responsive_control( 'trigger_padding', array( 'label' => __( 'Espacement interne', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::DIMENSIONS, 'size_units' => array( 'px', 'em', 'rem', '%' ), 'selectors' => array( $selector => 'padding: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};' ) ) );
         $this->add_responsive_control( 'trigger_margin', array( 'label' => __( 'Marge', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::DIMENSIONS, 'size_units' => array( 'px', 'em', 'rem', '%' ), 'selectors' => array( $selector => 'margin: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};' ) ) );
         $this->start_controls_tabs( 'trigger_state_tabs' );
@@ -76,17 +79,16 @@ final class Faluss_Identity_Navigation_Elementor_Widget extends \Elementor\Widge
             $this->start_controls_tab( 'trigger_' . $state, array( 'label' => $label ) );
             $suffix = 'normal' === $state ? '' : ':' . ( 'hover' === $state ? 'hover, ' . $selector . ':focus-visible' : 'active' );
             $state_selector = 'normal' === $state ? $selector : $selector . $suffix;
-            $this->add_control( 'trigger_' . $state . '_icon', array( 'label' => __( 'Couleur de l’icône', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::COLOR, 'default' => 'normal' === $state ? '#FFFFFF' : '', 'selectors' => array( $state_selector => 'color: {{VALUE}};' ) ) );
-            $this->add_control( 'trigger_' . $state . '_background', array( 'label' => __( 'Fond', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::COLOR, 'default' => 'normal' === $state ? '#080808' : '', 'selectors' => array( $state_selector => 'background-color: {{VALUE}};' ) ) );
-            if ( 'normal' === $state ) {
-                $this->add_control( 'trigger_background_opacity', array( 'label' => __( 'Opacité du fond', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'default' => array( 'size' => 100 ), 'range' => array( 'px' => array( 'min' => 0, 'max' => 100 ) ), 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-trigger-background-opacity: {{SIZE}}%;' ) ) );
-            }
+            $this->add_control( 'trigger_' . $state . '_icon', array( 'label' => __( 'Couleur de l’icône', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::COLOR, 'default' => 'normal' === $state ? '#FFFFFF' : '', 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-trigger-icon-' . $state . ': {{VALUE}};' ) ) );
+            $this->add_control( 'trigger_' . $state . '_background', array( 'label' => __( 'Fond', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::COLOR, 'default' => 'normal' === $state ? '#080808' : '', 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-trigger-background-' . $state . ': {{VALUE}};' ) ) );
+            $this->add_control( 'trigger_' . $state . '_background_opacity', array( 'label' => __( 'Opacité du fond', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'default' => array( 'size' => 100 ), 'range' => array( 'px' => array( 'min' => 0, 'max' => 100 ) ), 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-trigger-background-opacity-' . $state . ': {{SIZE}}%;' ) ) );
             $this->add_group_control( \Elementor\Group_Control_Border::get_type(), array( 'name' => 'trigger_' . $state . '_border', 'selector' => $state_selector ) );
             $this->add_responsive_control( 'trigger_' . $state . '_radius', array( 'label' => __( 'Arrondi', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::DIMENSIONS, 'size_units' => array( 'px', '%' ), 'selectors' => array( $state_selector => 'border-radius: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};' ) ) );
             $this->add_group_control( \Elementor\Group_Control_Box_Shadow::get_type(), array( 'name' => 'trigger_' . $state . '_shadow', 'selector' => $state_selector ) );
             $this->end_controls_tab();
         }
         $this->end_controls_tabs();
+        $this->add_responsive_control( 'trigger_backdrop_blur', array( 'label' => __( 'Flou d’arrière-plan', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'size_units' => array( 'px' ), 'default' => array( 'size' => 0, 'unit' => 'px' ), 'range' => array( 'px' => array( 'min' => 0, 'max' => 30 ) ), 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-trigger-blur: {{SIZE}}px;' ) ) );
         $this->end_controls_section();
     }
 
@@ -102,8 +104,20 @@ final class Faluss_Identity_Navigation_Elementor_Widget extends \Elementor\Widge
         $this->add_group_control( \Elementor\Group_Control_Box_Shadow::get_type(), array( 'name' => 'sidebar_shadow', 'selector' => $source ) );
         $this->add_responsive_control( 'sidebar_alignment', array( 'label' => __( 'Alignement Flexbox', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::CHOOSE, 'options' => array( 'flex-start' => array( 'title' => __( 'Gauche', 'faluss-identity' ), 'icon' => 'eicon-h-align-left' ), 'center' => array( 'title' => __( 'Centre', 'faluss-identity' ), 'icon' => 'eicon-h-align-center' ), 'flex-end' => array( 'title' => __( 'Droite', 'faluss-identity' ), 'icon' => 'eicon-h-align-right' ) ), 'default' => 'flex-start', 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-sidebar-align: {{VALUE}};' ) ) );
         $this->add_responsive_control( 'sidebar_spacing', array( 'label' => __( 'Espacement entre les liens', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'size_units' => array( 'px', 'rem' ), 'default' => array( 'size' => 10, 'unit' => 'px' ), 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-sidebar-gap: {{SIZE}}{{UNIT}};' ) ) );
-        $this->add_control( 'backdrop_color', array( 'label' => __( 'Couleur du fond derrière le panneau', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#080808', 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-backdrop: {{VALUE}};' ) ) );
-        $this->add_control( 'backdrop_opacity', array( 'label' => __( 'Opacité du fond derrière le panneau', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'default' => array( 'size' => 34 ), 'range' => array( 'px' => array( 'min' => 0, 'max' => 100 ) ), 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-backdrop-opacity: {{SIZE}}%;' ) ) );
+        $this->end_controls_section();
+    }
+
+    private function register_backdrop_style_controls() {
+        $this->start_controls_section( 'style_backdrop', array( 'label' => __( 'Fond derrière le panneau', 'faluss-identity' ), 'tab' => \Elementor\Controls_Manager::TAB_STYLE ) );
+        $this->start_controls_tabs( 'backdrop_state_tabs' );
+        foreach ( array( 'normal' => __( 'Normal', 'faluss-identity' ), 'hover' => __( 'Survol', 'faluss-identity' ) ) as $state => $label ) {
+            $this->start_controls_tab( 'backdrop_' . $state, array( 'label' => $label ) );
+            $this->add_control( 'backdrop_' . $state . '_color', array( 'label' => __( 'Couleur', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::COLOR, 'default' => 'normal' === $state ? '#080808' : '', 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-backdrop-' . $state . '-color: {{VALUE}};' ) ) );
+            $this->add_control( 'backdrop_' . $state . '_opacity', array( 'label' => __( 'Opacité', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'default' => array( 'size' => 'normal' === $state ? 34 : 40 ), 'range' => array( 'px' => array( 'min' => 0, 'max' => 100 ) ), 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-backdrop-' . $state . '-opacity: {{SIZE}}%;' ) ) );
+            $this->add_control( 'backdrop_' . $state . '_transition', array( 'label' => __( 'Transition', 'faluss-identity' ), 'type' => \Elementor\Controls_Manager::SLIDER, 'size_units' => array( 'ms' ), 'default' => array( 'size' => 160, 'unit' => 'ms' ), 'range' => array( 'ms' => array( 'min' => 0, 'max' => 1200 ) ), 'selectors' => array( '{{WRAPPER}} .faluss-identity-navigation' => '--faluss-navigation-backdrop-' . $state . '-transition: {{SIZE}}ms;' ) ) );
+            $this->end_controls_tab();
+        }
+        $this->end_controls_tabs();
         $this->end_controls_section();
     }
 
@@ -155,7 +169,7 @@ final class Faluss_Identity_Navigation_Elementor_Widget extends \Elementor\Widge
             <?php endforeach; ?>
             <template data-faluss-navigation-template>
                 <dialog class="faluss-identity-navigation-portal" id="<?php echo esc_attr( $dialog_id ); ?>" aria-modal="true" aria-labelledby="<?php echo esc_attr( $title_id ); ?>" data-faluss-navigation-portal>
-                    <button class="faluss-identity-navigation-portal__backdrop" type="button" aria-label="<?php esc_attr_e( 'Fermer la navigation', 'faluss-identity' ); ?>" data-faluss-navigation-close></button>
+                    <div class="faluss-identity-navigation-portal__backdrop" role="button" tabindex="0" aria-label="<?php esc_attr_e( 'Fermer la navigation', 'faluss-identity' ); ?>" data-faluss-navigation-close></div>
                     <aside class="faluss-identity-navigation-portal__sidebar" aria-labelledby="<?php echo esc_attr( $title_id ); ?>" tabindex="-1" data-faluss-navigation-sidebar>
                         <h2 class="screen-reader-text" id="<?php echo esc_attr( $title_id ); ?>"><?php esc_html_e( 'Navigation Faluss', 'faluss-identity' ); ?></h2>
                         <nav class="faluss-identity-navigation-portal__links" aria-label="<?php esc_attr_e( 'Navigation Faluss', 'faluss-identity' ); ?>">
