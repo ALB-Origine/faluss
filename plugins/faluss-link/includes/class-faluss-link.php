@@ -351,6 +351,12 @@ final class Faluss_Link {
         $preferences = self::valid_prefs( $faluss_id );
         $blocks = self::content_blocks( $faluss_id, $profile['links'], true );
         $step = self::onboarding_step( $context['step'] ?? '' );
+        $step_keys = array_keys( self::onboarding_steps() );
+        $step_index = array_search( $step, $step_keys, true );
+        $step_index = false === $step_index ? 0 : $step_index;
+        $step_number = $step_index + 1;
+        $step_count = count( $step_keys );
+        $progress_scale = round( $step_number / $step_count, 4 );
         $selected_networks = self::onboarding_network_selection( $preferences['social_selected'] );
         if ( ! $selected_networks ) {
             foreach ( self::socials( $preferences['social_links'] ) as $social ) { $selected_networks[] = $social['network']; }
@@ -359,57 +365,59 @@ final class Faluss_Link {
         $instance = function_exists( 'wp_unique_id' ) ? wp_unique_id( 'faluss-link-onboarding-' ) : 'faluss-link-onboarding';
         ob_start();
         ?>
-        <section id="<?php echo esc_attr( $instance ); ?>" class="faluss-link-onboarding" data-faluss-link-onboarding data-current-step="<?php echo esc_attr( $step ); ?>" aria-labelledby="<?php echo esc_attr( $instance ); ?>-title">
-            <header class="faluss-link-onboarding__header">
-                <p class="faluss-link-onboarding__eyebrow"><?php esc_html_e( 'Votre Faluss', 'faluss-link' ); ?></p>
-                <h1 id="<?php echo esc_attr( $instance ); ?>-title"><?php esc_html_e( 'Créons votre carte', 'faluss-link' ); ?></h1>
-                <p><?php esc_html_e( 'Quelques choix simples, enregistrés à mesure. Vous pourrez les modifier dans Studio Faluss.', 'faluss-link' ); ?></p>
-                <ol class="faluss-link-onboarding__progress" aria-label="<?php esc_attr_e( 'Progression de création', 'faluss-link' ); ?>">
-                    <?php foreach ( self::onboarding_steps() as $key => $label ) : ?><li data-onboarding-progress="<?php echo esc_attr( $key ); ?>"<?php echo $key === $step ? ' aria-current="step"' : ''; ?>><span aria-hidden="true"></span><?php echo esc_html( $label ); ?></li><?php endforeach; ?>
-                </ol>
+        <section id="<?php echo esc_attr( $instance ); ?>" class="faluss-link-onboarding" data-faluss-link-onboarding data-current-step="<?php echo esc_attr( $step ); ?>" aria-label="<?php esc_attr_e( 'Création de votre carte Faluss', 'faluss-link' ); ?>" style="--flo-progress-scale:<?php echo esc_attr( (string) $progress_scale ); ?>">
+            <header class="faluss-link-onboarding__topbar">
+                <button class="faluss-link-onboarding__back" type="button" data-onboarding-back aria-label="<?php esc_attr_e( 'Revenir à l’étape précédente', 'faluss-link' ); ?>"<?php echo 0 === $step_index ? ' hidden' : ''; ?>><span aria-hidden="true">←</span></button>
+                <div class="faluss-link-onboarding__gauge" role="progressbar" aria-label="<?php esc_attr_e( 'Progression de création', 'faluss-link' ); ?>" aria-valuemin="1" aria-valuemax="<?php echo (int) $step_count; ?>" aria-valuenow="<?php echo (int) $step_number; ?>" aria-valuetext="<?php echo esc_attr( sprintf( __( 'Étape %1$d sur %2$d : %3$s', 'faluss-link' ), $step_number, $step_count, self::onboarding_steps()[ $step ] ) ); ?>">
+                    <span class="faluss-link-onboarding__gauge-fill" data-onboarding-progress-bar aria-hidden="true"></span>
+                    <span class="screen-reader-text" data-onboarding-progress-text><?php echo esc_html( sprintf( __( 'Étape %1$d sur %2$d : %3$s', 'faluss-link' ), $step_number, $step_count, self::onboarding_steps()[ $step ] ) ); ?></span>
+                </div>
+                <span class="faluss-link-onboarding__symbol" aria-label="<?php esc_attr_e( 'Faluss', 'faluss-link' ); ?>">F<span aria-hidden="true">.</span></span>
             </header>
             <div class="faluss-link-onboarding__layout">
                 <form class="faluss-link-onboarding__form" novalidate>
                     <p class="faluss-link-onboarding__notice" role="status" aria-live="polite" hidden></p>
-                    <section data-onboarding-panel="name"<?php echo 'name' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-name-title">
+                    <div class="faluss-link-onboarding__panels" data-onboarding-panels>
+                    <section class="faluss-link-onboarding__panel<?php echo 'name' === $step ? ' is-active' : ''; ?>" data-onboarding-panel="name" role="group" aria-hidden="<?php echo 'name' === $step ? 'false' : 'true'; ?>"<?php echo 'name' === $step ? '' : ' hidden inert'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-name-title">
                         <h2 id="<?php echo esc_attr( $instance ); ?>-name-title"><?php esc_html_e( 'Quel nom souhaitez-vous afficher ?', 'faluss-link' ); ?></h2>
                         <label><?php esc_html_e( 'Nom affiché', 'faluss-link' ); ?><input name="display_name" type="text" maxlength="80" autocomplete="name" value="<?php echo esc_attr( $profile['display_name'] ); ?>" required></label>
                         <p class="faluss-link-onboarding__hint"><?php esc_html_e( 'Votre identifiant @ reste déjà réservé et ne changera pas.', 'faluss-link' ); ?></p>
                     </section>
-                    <section data-onboarding-panel="avatar"<?php echo 'avatar' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-avatar-title">
+                    <section class="faluss-link-onboarding__panel<?php echo 'avatar' === $step ? ' is-active' : ''; ?>" data-onboarding-panel="avatar" role="group" aria-hidden="<?php echo 'avatar' === $step ? 'false' : 'true'; ?>"<?php echo 'avatar' === $step ? '' : ' hidden inert'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-avatar-title">
                         <h2 id="<?php echo esc_attr( $instance ); ?>-avatar-title"><?php esc_html_e( 'Ajoutez une photo de profil', 'faluss-link' ); ?></h2>
                         <input name="faluss_identity_avatar_id" type="hidden" value="<?php echo (int) $profile['avatar_attachment_id']; ?>">
                         <div class="faluss-link-onboarding__avatar-upload" data-onboarding-avatar-preview><?php if ( (int) $profile['avatar_attachment_id'] ) { echo wp_get_attachment_image( (int) $profile['avatar_attachment_id'], 'medium', false, array( 'alt' => '' ) ); } else { ?><span aria-hidden="true">+</span><?php } ?></div>
                         <button type="button" class="faluss-link-onboarding__secondary" data-onboarding-avatar-select><?php esc_html_e( 'Choisir une image', 'faluss-link' ); ?></button>
                         <p class="faluss-link-onboarding__hint"><?php esc_html_e( 'Facultatif. Seules vos images valides sont acceptées.', 'faluss-link' ); ?></p>
                     </section>
-                    <section data-onboarding-panel="header"<?php echo 'header' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-header-title">
+                    <section class="faluss-link-onboarding__panel<?php echo 'header' === $step ? ' is-active' : ''; ?>" data-onboarding-panel="header" role="group" aria-hidden="<?php echo 'header' === $step ? 'false' : 'true'; ?>"<?php echo 'header' === $step ? '' : ' hidden inert'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-header-title">
                         <h2 id="<?php echo esc_attr( $instance ); ?>-header-title"><?php esc_html_e( 'Soignez votre en-tête', 'faluss-link' ); ?></h2>
                         <fieldset><legend><?php esc_html_e( 'Avatar', 'faluss-link' ); ?></legend><label><input name="avatar_border" type="radio" value="1" <?php checked( ! empty( $preferences['avatar_border'] ) ); ?>> <?php esc_html_e( 'Rond avec bordure', 'faluss-link' ); ?></label><label><input name="avatar_border" type="radio" value="0" <?php checked( empty( $preferences['avatar_border'] ) ); ?>> <?php esc_html_e( 'Rond sans bordure', 'faluss-link' ); ?></label></fieldset>
                         <label><?php esc_html_e( 'Police disponible', 'faluss-link' ); ?><select name="name_font"><?php foreach ( self::onboarding_name_fonts() as $font_key => $font ) : ?><option value="<?php echo esc_attr( $font_key ); ?>" <?php selected( $preferences['name_font'], $font_key ); ?>><?php echo esc_html( $font['label'] ); ?></option><?php endforeach; ?></select></label>
                         <label><?php esc_html_e( 'Traitement du nom', 'faluss-link' ); ?><select name="name_treatment"><?php self::options( self::NAME_TREATMENTS, $preferences['name_treatment'] ); ?></select></label>
                     </section>
-                    <section data-onboarding-panel="style"<?php echo 'style' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-style-title">
+                    <section class="faluss-link-onboarding__panel<?php echo 'style' === $step ? ' is-active' : ''; ?>" data-onboarding-panel="style" role="group" aria-hidden="<?php echo 'style' === $step ? 'false' : 'true'; ?>"<?php echo 'style' === $step ? '' : ' hidden inert'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-style-title">
                         <h2 id="<?php echo esc_attr( $instance ); ?>-style-title"><?php esc_html_e( 'Définissez l’ambiance', 'faluss-link' ); ?></h2>
                         <label><?php esc_html_e( 'Fond de carte', 'faluss-link' ); ?><input name="page_background" type="color" value="<?php echo esc_attr( $preferences['page_background'] ); ?>"></label>
                         <fieldset><legend><?php esc_html_e( 'Boutons de liens', 'faluss-link' ); ?></legend><label><input name="link_style" type="radio" value="solid" <?php checked( 'solid', $preferences['link_style'] ); ?>> <?php esc_html_e( 'Plein', 'faluss-link' ); ?></label><label><input name="link_style" type="radio" value="outline" <?php checked( 'outline', $preferences['link_style'] ); ?>> <?php esc_html_e( 'Contour', 'faluss-link' ); ?></label></fieldset>
                     </section>
-                    <section data-onboarding-panel="socials"<?php echo 'socials' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-socials-title">
+                    <section class="faluss-link-onboarding__panel<?php echo 'socials' === $step ? ' is-active' : ''; ?>" data-onboarding-panel="socials" role="group" aria-hidden="<?php echo 'socials' === $step ? 'false' : 'true'; ?>"<?php echo 'socials' === $step ? '' : ' hidden inert'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-socials-title">
                         <h2 id="<?php echo esc_attr( $instance ); ?>-socials-title"><?php esc_html_e( 'Quels réseaux ajouter ?', 'faluss-link' ); ?></h2>
                         <div class="faluss-link-onboarding__networks">
                             <?php foreach ( self::active_network_catalog() as $network => $network_settings ) : ?><label class="faluss-link-onboarding__network"><input name="social_selected[]" type="checkbox" value="<?php echo esc_attr( $network ); ?>" <?php checked( in_array( $network, $selected_networks, true ) ); ?>><span class="faluss-link-onboarding__network-asset" aria-hidden="true"><?php echo self::social_asset_markup( $network, 'outline' ); ?></span><span><?php echo esc_html( $network_settings['label'] ); ?></span></label><?php endforeach; ?>
                         </div>
                         <p class="faluss-link-onboarding__hint"><?php esc_html_e( 'Vous pourrez les compléter ou passer cette étape.', 'faluss-link' ); ?></p>
                     </section>
-                    <section data-onboarding-panel="links"<?php echo 'links' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-links-title">
+                    <section class="faluss-link-onboarding__panel<?php echo 'links' === $step ? ' is-active' : ''; ?>" data-onboarding-panel="links" role="group" aria-hidden="<?php echo 'links' === $step ? 'false' : 'true'; ?>"<?php echo 'links' === $step ? '' : ' hidden inert'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-links-title">
                         <h2 id="<?php echo esc_attr( $instance ); ?>-links-title"><?php esc_html_e( 'Ajoutez vos liens', 'faluss-link' ); ?></h2>
                         <div class="faluss-link-onboarding__social-urls" data-onboarding-social-urls><?php foreach ( $selected_networks as $network ) : $existing_url = ''; foreach ( self::socials( $preferences['social_links'] ) as $social ) { if ( $network === $social['network'] ) { $existing_url = $social['url']; break; } } ?><label data-onboarding-social-url="<?php echo esc_attr( $network ); ?>"><?php echo esc_html( self::network_label( $network ) ); ?><input name="social_urls[<?php echo esc_attr( $network ); ?>]" type="text" maxlength="2048" value="<?php echo esc_attr( $existing_url ); ?>" placeholder="@identifiant ou https://"></label><?php endforeach; ?></div>
                         <div class="faluss-link-onboarding__free-links" data-onboarding-free-links><?php foreach ( $blocks as $block ) : if ( 'link' === $block['type'] ) : ?><div class="faluss-link-onboarding__free-link"><input name="wizard_links[][block_id]" type="hidden" value="<?php echo esc_attr( $block['block_id'] ); ?>"><label><?php esc_html_e( 'Libellé', 'faluss-link' ); ?><input name="wizard_links[][label]" type="text" maxlength="80" value="<?php echo esc_attr( $block['label'] ); ?>"></label><label><?php esc_html_e( 'URL HTTPS', 'faluss-link' ); ?><input name="wizard_links[][url]" type="url" maxlength="2048" value="<?php echo esc_attr( $block['url'] ); ?>" placeholder="https://"></label><button type="button" class="faluss-link-onboarding__remove-link" aria-label="<?php esc_attr_e( 'Supprimer ce lien', 'faluss-link' ); ?>">×</button></div><?php endif; endforeach; ?></div>
                         <button type="button" class="faluss-link-onboarding__secondary" data-onboarding-add-link><?php esc_html_e( 'Ajouter un lien', 'faluss-link' ); ?></button>
                         <p class="faluss-link-onboarding__hint"><?php esc_html_e( 'Les liens libres doivent utiliser HTTPS.', 'faluss-link' ); ?></p>
                     </section>
-                    <section data-onboarding-panel="finish"<?php echo 'finish' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-finish-title"><h2 id="<?php echo esc_attr( $instance ); ?>-finish-title"><?php esc_html_e( 'Prêt à publier ?', 'faluss-link' ); ?></h2><p><?php esc_html_e( 'Votre carte restera modifiable dans Studio Faluss. Elle ne devient publique qu’après cette action.', 'faluss-link' ); ?></p></section>
-                    <footer class="faluss-link-onboarding__actions"><button class="faluss-link-onboarding__back" type="button" data-onboarding-back hidden><?php esc_html_e( 'Retour', 'faluss-link' ); ?></button><button class="faluss-link-onboarding__secondary" type="button" data-onboarding-skip hidden><?php esc_html_e( 'Passer', 'faluss-link' ); ?></button><button class="faluss-link-onboarding__next" type="button" data-onboarding-next><?php esc_html_e( 'Continuer', 'faluss-link' ); ?></button><button class="faluss-link-onboarding__finish" type="button" data-onboarding-finish hidden><?php esc_html_e( 'Terminer et publier mon Faluss', 'faluss-link' ); ?></button></footer>
+                    <section class="faluss-link-onboarding__panel<?php echo 'finish' === $step ? ' is-active' : ''; ?>" data-onboarding-panel="finish" role="group" aria-hidden="<?php echo 'finish' === $step ? 'false' : 'true'; ?>"<?php echo 'finish' === $step ? '' : ' hidden inert'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-finish-title"><h2 id="<?php echo esc_attr( $instance ); ?>-finish-title"><?php esc_html_e( 'Votre Faluss est prêt', 'faluss-link' ); ?></h2><p><?php esc_html_e( 'Vérifiez votre aperçu. Votre carte restera modifiable dans Studio Faluss et ne devient publique qu’après cette action.', 'faluss-link' ); ?></p></section>
+                    </div>
+                    <footer class="faluss-link-onboarding__actions"><button class="faluss-link-onboarding__secondary" type="button" data-onboarding-skip hidden><?php esc_html_e( 'Passer', 'faluss-link' ); ?></button><button class="faluss-link-onboarding__next" type="submit" data-onboarding-next><?php esc_html_e( 'Continuer', 'faluss-link' ); ?></button><button class="faluss-link-onboarding__finish" type="button" data-onboarding-finish hidden><?php esc_html_e( 'Terminer et publier mon Faluss', 'faluss-link' ); ?></button></footer>
                 </form>
                 <aside class="faluss-link-onboarding__preview" aria-label="<?php esc_attr_e( 'Aperçu de votre Faluss', 'faluss-link' ); ?>" data-onboarding-preview><p><?php esc_html_e( 'Aperçu', 'faluss-link' ); ?></p><?php echo self::card_markup( $profile, $preferences, $preferences['alignment'], true, $blocks ); ?></aside>
             </div>
@@ -422,14 +430,16 @@ final class Faluss_Link {
         $faluss_id = self::onboarding_ajax_member( 'faluss_link_onboarding' );
         if ( '' === $faluss_id ) { wp_send_json_error( array( 'message' => __( 'Votre création Faluss n’est plus disponible.', 'faluss-link' ) ), 403 ); }
         $step = self::onboarding_step( $_POST['step'] ?? '' );
-        if ( ! self::save_onboarding_step( $faluss_id, $step, $_POST ) || ! Faluss_Identity_Onboarding::advance_card_wizard( self::onboarding_next_step( $step ) ) ) {
+        $direction = isset( $_POST['direction'] ) && is_string( $_POST['direction'] ) && 'backward' === sanitize_key( wp_unslash( $_POST['direction'] ) ) ? 'backward' : 'forward';
+        $target_step = 'backward' === $direction ? self::onboarding_previous_step( $step ) : self::onboarding_next_step( $step );
+        if ( ! self::save_onboarding_step( $faluss_id, $step, $_POST ) || ! Faluss_Identity_Onboarding::advance_card_wizard( $target_step ) ) {
             wp_send_json_error( array( 'message' => __( 'Nous ne pouvons pas enregistrer cette étape. Vérifiez vos informations.', 'faluss-link' ) ), 400 );
         }
         $profile = Faluss_Identity_Public_Profile::studio_profile( $faluss_id );
         $preferences = self::valid_prefs( $faluss_id );
         $blocks = self::content_blocks( $faluss_id, is_array( $profile ) ? ( $profile['links'] ?? array() ) : array(), false );
         wp_send_json_success( array(
-            'step' => self::onboarding_next_step( $step ),
+            'step' => $target_step,
             // Reuse the same safe card renderer after each saved choice rather
             // than maintaining a second browser-only preview implementation.
             'preview' => is_array( $profile ) ? self::card_markup( $profile, $preferences, $preferences['alignment'], true, $blocks ) : '',
@@ -469,6 +479,12 @@ final class Faluss_Link {
         $steps = array_keys( self::onboarding_steps() );
         $index = array_search( self::onboarding_step( $step ), $steps, true );
         return false === $index || ! isset( $steps[ $index + 1 ] ) ? 'wizard_finish' : 'wizard_' . $steps[ $index + 1 ];
+    }
+
+    private static function onboarding_previous_step( $step ) {
+        $steps = array_keys( self::onboarding_steps() );
+        $index = array_search( self::onboarding_step( $step ), $steps, true );
+        return false === $index || $index < 1 ? 'wizard_name' : 'wizard_' . $steps[ $index - 1 ];
     }
 
     private static function onboarding_ajax_member( $nonce_action ) {

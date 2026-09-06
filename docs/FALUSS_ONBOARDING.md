@@ -20,6 +20,10 @@ ONB-01 ne crée ni données Faluss Link, ni thème, ni entitlement, ni paiement,
 
 Après une réservation réussie, le même widget sur la page Elementor sélectionnée devient un parcours de création repris à la dernière étape enregistrée. Il est disponible uniquement pour un membre connecté avec une identité active, un choix `create_card`, un slug réservé et un profil FI-03 encore en brouillon. Le parcours ne crée aucune page WordPress et ne dépend jamais d’un slug de page imposé.
 
+ONB-02.1 affiche une seule décision à la fois : nom, photo, en-tête, style, réseaux, liens, puis résumé. Le sommaire vertical historique a été retiré du rendu. La barre supérieure associe un retour clavier accessible, une jauge calculée depuis l’étape serveur réellement reprise et le repère Faluss. Continuer, Passer et Retour enregistrent d’abord l’étape courante, puis animent horizontalement le panneau suivant ou précédent avec `transform` et `opacity`. Les autres panneaux restent `hidden`, `inert` et absents de l’arbre d’accessibilité ; le document ne devient donc jamais une pile d’étapes à faire défiler.
+
+Sur mobile, le panneau actif utilise la hauteur dynamique disponible et possède sa propre zone de défilement lorsque le clavier réduit le viewport ; les actions restent dans le cadre du wizard sans verrouiller le défilement global. `prefers-reduced-motion: reduce` supprime les transitions sans supprimer la navigation. Fermer puis rouvrir la page sélectionnée recharge directement l’étape inachevée persistée, y compris après un retour.
+
 Les données restent exclusivement dans leurs propriétaires canoniques :
 
 | Étape | Données enregistrées | Source canonique |

@@ -3,8 +3,12 @@
 
     var initialized = new WeakSet();
     var order = ['name', 'avatar', 'header', 'style', 'socials', 'links', 'finish'];
+    var transitionDuration = 230;
 
     function config() { return window.falussLinkOnboarding || {}; }
+    function stepName(value) { return order.indexOf(value) !== -1 ? value : 'name'; }
+    function panel(root, step) { return root.querySelector('[data-onboarding-panel="' + stepName(step) + '"]'); }
+    function reduceMotion() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
     function request(root, action, form, extra) {
         var data = new FormData(form);
         data.set('action', action);
@@ -21,35 +25,82 @@
         target.hidden = !message;
         target.dataset.state = error ? 'error' : 'success';
     }
-    function stepName(value) { return order.indexOf(value) !== -1 ? value : 'name'; }
     function setPending(root, value) {
         root.querySelectorAll('[data-onboarding-next],[data-onboarding-back],[data-onboarding-skip],[data-onboarding-finish]').forEach(function (button) {
             button.disabled = value;
             button.setAttribute('aria-busy', value ? 'true' : 'false');
         });
     }
-    function show(root, value, focus) {
-        var current = stepName(value), index = order.indexOf(current);
+    function setPanelAvailability(target, active) {
+        target.hidden = !active;
+        if (active) { target.removeAttribute('inert'); } else { target.setAttribute('inert', ''); }
+        target.setAttribute('aria-hidden', active ? 'false' : 'true');
+        target.classList.toggle('is-active', active);
+    }
+    function updateChrome(root, step) {
+        var current = stepName(step), index = order.indexOf(current), currentPanel = panel(root, current);
+        var gauge = root.querySelector('[role="progressbar"]'), text = root.querySelector('[data-onboarding-progress-text]');
+        var title = currentPanel ? currentPanel.querySelector('h2') : null;
+        var progressText = 'Étape ' + (index + 1) + ' sur ' + order.length + (title ? ' : ' + title.textContent.trim() : '');
         root.dataset.currentStep = current;
-        root.querySelectorAll('[data-onboarding-panel]').forEach(function (panel) {
-            panel.hidden = panel.getAttribute('data-onboarding-panel') !== current;
-        });
-        root.querySelectorAll('[data-onboarding-progress]').forEach(function (item) {
-            var itemIndex = order.indexOf(item.getAttribute('data-onboarding-progress'));
-            item.classList.toggle('is-complete', itemIndex < index);
-            item.classList.toggle('is-current', itemIndex === index);
-            if (itemIndex === index) { item.setAttribute('aria-current', 'step'); } else { item.removeAttribute('aria-current'); }
-        });
+        root.style.setProperty('--flo-progress-scale', String((index + 1) / order.length));
+        if (gauge) {
+            gauge.setAttribute('aria-valuenow', String(index + 1));
+            gauge.setAttribute('aria-valuetext', progressText);
+        }
+        if (text) { text.textContent = progressText; }
         var back = root.querySelector('[data-onboarding-back]'), skip = root.querySelector('[data-onboarding-skip]'), next = root.querySelector('[data-onboarding-next]'), finish = root.querySelector('[data-onboarding-finish]');
         if (back) { back.hidden = index === 0; }
-        if (skip) { skip.hidden = order[index] !== 'avatar' && order[index] !== 'socials' && order[index] !== 'links'; }
+        if (skip) { skip.hidden = current !== 'avatar' && current !== 'socials' && current !== 'links'; }
         if (next) { next.hidden = current === 'finish'; }
         if (finish) { finish.hidden = current !== 'finish'; }
         if (current === 'links') { socialInputs(root); }
-        if (focus) {
-            var heading = root.querySelector('[data-onboarding-panel="' + current + '"] h2');
-            if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus(); }
+    }
+    function focusPanel(root, step) {
+        var heading = panel(root, step);
+        heading = heading ? heading.querySelector('h2') : null;
+        if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus({ preventScroll: true }); }
+    }
+    function showInitial(root, step) {
+        var current = stepName(step);
+        root.querySelectorAll('[data-onboarding-panel]').forEach(function (item) {
+            setPanelAvailability(item, item.getAttribute('data-onboarding-panel') === current);
+        });
+        updateChrome(root, current);
+    }
+    function transition(root, step, direction) {
+        var next = stepName(step), current = stepName(root.dataset.currentStep), currentPanel = panel(root, current), nextPanel = panel(root, next);
+        if (!currentPanel || !nextPanel || current === next || reduceMotion()) {
+            showInitial(root, next);
+            focusPanel(root, next);
+            return Promise.resolve();
         }
+        return new Promise(function (resolve) {
+            root.dataset.transitionDirection = direction === 'backward' ? 'backward' : 'forward';
+            root.classList.add('is-transitioning');
+            nextPanel.hidden = false;
+            nextPanel.removeAttribute('inert');
+            nextPanel.setAttribute('aria-hidden', 'false');
+            nextPanel.classList.add('is-entering');
+            currentPanel.setAttribute('inert', '');
+            currentPanel.setAttribute('aria-hidden', 'true');
+            window.requestAnimationFrame(function () {
+                window.requestAnimationFrame(function () {
+                    currentPanel.classList.remove('is-active');
+                    currentPanel.classList.add('is-leaving');
+                    nextPanel.classList.remove('is-entering');
+                    nextPanel.classList.add('is-active');
+                    updateChrome(root, next);
+                    window.setTimeout(function () {
+                        currentPanel.hidden = true;
+                        currentPanel.classList.remove('is-leaving');
+                        root.classList.remove('is-transitioning');
+                        focusPanel(root, next);
+                        resolve();
+                    }, transitionDuration);
+                });
+            });
+        });
     }
     function preview(root) {
         var card = root.querySelector('[data-onboarding-preview] .faluss-link-card');
@@ -59,7 +110,7 @@
         var nameTarget = card.querySelector('.faluss-link-card__name');
         if (nameTarget && name && name.value.trim()) { nameTarget.textContent = name.value.trim(); }
         if (background && /^#[0-9a-f]{6}$/i.test(background.value || '')) { card.style.setProperty('--fl-page-background', background.value); }
-        if (treatment) {
+        if (nameTarget && treatment) {
             nameTarget.classList.remove('faluss-link-card__name--strong', 'faluss-link-card__name--editorial');
             nameTarget.classList.add('faluss-link-card__name--' + treatment.value);
         }
@@ -113,29 +164,30 @@
             notice(root, 'Photo ajoutée.', false);
         }).catch(function () { notice(root, 'L’image n’a pas pu être ajoutée.', true); }).finally(function () { setPending(root, false); });
     }
-    function saveCurrent(root, next) {
+    function saveCurrent(root, direction) {
         var current = stepName(root.dataset.currentStep), form = root.querySelector('form');
         if (current === 'name') {
             var name = form.querySelector('[name="display_name"]');
             if (!name || !name.value.trim()) { notice(root, 'Ajoutez un nom affiché.', true); if (name) { name.focus(); } return; }
         }
         setPending(root, true);
-        request(root, 'faluss_link_onboarding_save', form, { step: current }).then(function (result) {
+        request(root, 'faluss_link_onboarding_save', form, { step: current, direction: direction === 'backward' ? 'backward' : 'forward' }).then(function (result) {
             if (!result || !result.success || !result.data) { throw new Error('save'); }
+            var next = String(result.data.step || '').replace(/^wizard_/, '');
             replacePreview(root, result.data.preview || '');
             notice(root, 'Étape enregistrée.', false);
-            show(root, next || String(result.data.step || '').replace(/^wizard_/, ''), true);
-            preview(root);
+            return transition(root, next, direction).then(function () { preview(root); });
         }).catch(function () { notice(root, 'Nous ne pouvons pas enregistrer cette étape. Vérifiez vos informations.', true); }).finally(function () { setPending(root, false); });
     }
     function init(root) {
         if (!(root instanceof HTMLElement) || initialized.has(root)) { return; }
-        initialized.add(root); show(root, root.dataset.currentStep || 'name', false); preview(root);
+        initialized.add(root); showInitial(root, root.dataset.currentStep || 'name'); preview(root);
+        var form = root.querySelector('form');
+        if (form) { form.addEventListener('submit', function (event) { event.preventDefault(); saveCurrent(root, 'forward'); }); }
         root.addEventListener('click', function (event) {
             var target = event.target.closest('button'); if (!target || !root.contains(target)) { return; }
-            if (target.matches('[data-onboarding-next]')) { event.preventDefault(); saveCurrent(root); }
-            if (target.matches('[data-onboarding-skip]')) { event.preventDefault(); saveCurrent(root); }
-            if (target.matches('[data-onboarding-back]')) { event.preventDefault(); var index = Math.max(0, order.indexOf(stepName(root.dataset.currentStep)) - 1); show(root, order[index], true); }
+            if (target.matches('[data-onboarding-skip]')) { event.preventDefault(); saveCurrent(root, 'forward'); }
+            if (target.matches('[data-onboarding-back]')) { event.preventDefault(); saveCurrent(root, 'backward'); }
             if (target.matches('[data-onboarding-add-link]')) { event.preventDefault(); var wrap = root.querySelector('[data-onboarding-free-links]'); if (wrap) { wrap.append(linkRow()); } }
             if (target.matches('.faluss-link-onboarding__remove-link')) { event.preventDefault(); target.closest('.faluss-link-onboarding__free-link').remove(); }
             if (target.matches('[data-onboarding-avatar-select]')) { event.preventDefault(); var input = document.createElement('input'); input.type = 'file'; input.accept = 'image/jpeg,image/png,image/webp,image/gif'; input.addEventListener('change', function () { uploadAvatar(root, input.files && input.files[0]); }); input.click(); }

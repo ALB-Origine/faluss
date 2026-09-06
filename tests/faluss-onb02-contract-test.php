@@ -38,13 +38,28 @@ onb02_assert( false === strpos( $link, 'CREATE TABLE' ) && false === strpos( $li
 onb02_assert( false !== strpos( $schema, 'faluss_link_cards' ) && false !== strpos( $schema, 'faluss_link_blocks' ), 'Existing Link card preferences and ordered blocks remain the only Link stores.' );
 onb02_assert( false !== strpos( $link, "'https://www.instagram.com/'" ) && false !== strpos( $link, 'URL HTTPS' ) && false !== strpos( $link, 'socials( array( array( \'network\'' ), 'Social identifiers resolve only through recognised HTTPS network URLs.' );
 
-foreach ( array( 'WeakSet', 'FormData', 'faluss_link_onboarding_save', 'faluss_link_onboarding_finish', 'faluss_link_onboarding_upload_avatar', 'credentials: \'same-origin\'', 'data-onboarding-progress', 'aria-current', 'data-onboarding-back', 'data-onboarding-skip', 'replacePreview' ) as $needle ) {
+foreach ( array( 'WeakSet', 'FormData', 'faluss_link_onboarding_save', 'faluss_link_onboarding_finish', 'faluss_link_onboarding_upload_avatar', 'credentials: \'same-origin\'', 'data-onboarding-back', 'data-onboarding-skip', 'replacePreview' ) as $needle ) {
     onb02_assert( false !== strpos( $script, $needle ), 'The mobile wizard needs the scoped, idempotent interaction contract: ' . $needle );
 }
 onb02_assert( false === strpos( $script, 'localStorage' ) && false === strpos( $script, 'sessionStorage' ), 'The client does not keep resumable onboarding state locally.' );
-foreach ( array( '#FFFDF5', '#FFF', '#080808', 'Outfit', '--faluss-action', 'prefers-reduced-motion', '.faluss-link-onboarding' ) as $needle ) {
+onb02_assert( false === strpos( $link, '<ol class="faluss-link-onboarding__progress"' ) && false === strpos( $link, 'data-onboarding-progress="' ), 'The vertical/listing step summary must be absent from markup, not visually hidden.' );
+foreach ( array( 'role="progressbar"', 'aria-valuenow=', 'data-onboarding-progress-bar', 'data-onboarding-progress-text', 'data-onboarding-panels', 'role="group"', 'aria-hidden="', ' hidden inert', 'data-current-step=', '--flo-progress-scale:' ) as $needle ) {
+    onb02_assert( false !== strpos( $link, $needle ), 'The server-rendered wizard must expose one resumed, accessible step and real progress: ' . $needle );
+}
+onb02_assert( 7 === substr_count( $link, 'data-onboarding-panel="' ), 'The seven product decisions remain distinct panels.' );
+onb02_assert( 7 === substr_count( $link, ' hidden inert' ) && 7 === substr_count( $link, 'aria-hidden="<?php echo' ), 'Every non-current server panel is removed from focus and the accessibility tree.' );
+onb02_assert( false !== strpos( $link, '$step = self::onboarding_step( $context[\'step\'] ?? \'\' )' ) && false !== strpos( $link, '$step_index = array_search( $step, $step_keys, true )' ), 'The visible panel and gauge must come from the persisted server step.' );
+foreach ( array( 'setPanelAvailability', 'target.hidden = !active', "removeAttribute('inert')", "setAttribute('inert', '')", "setAttribute('aria-hidden'", 'window.requestAnimationFrame', "focus({ preventScroll: true })", "form.addEventListener('submit'", "saveCurrent(root, 'backward')", "direction: direction === 'backward'", 'replacePreview' ) as $needle ) {
+    onb02_assert( false !== strpos( $script, $needle ), 'Dynamic transitions must save first and keep only one panel focusable: ' . $needle );
+}
+foreach ( array( '$target_step', 'onboarding_previous_step', "'backward' === \$direction", 'advance_card_wizard( $target_step )', "'step' => \$target_step" ) as $needle ) {
+    onb02_assert( false !== strpos( $link, $needle ), 'Forward, skip and back navigation must persist the exact resumable server step: ' . $needle );
+}
+onb02_assert( false === strpos( $script, 'document.body.style.overflow' ) && false === strpos( $script, 'touchmove' ), 'The wizard must not lock global scrolling or Safari touch navigation.' );
+foreach ( array( '#FFFDF5', '#FFF', '#080808', 'Outfit', '--faluss-action', 'prefers-reduced-motion', '.faluss-link-onboarding', 'transform .23s ease', 'opacity .23s ease', 'scaleX(var(--flo-progress-scale))', '.faluss-link-onboarding__panel[hidden]', 'height: 100dvh' ) as $needle ) {
     onb02_assert( false !== strpos( $css, $needle ), 'The wizard must remain scoped to the Faluss UI foundation: ' . $needle );
 }
+onb02_assert( false !== strpos( $css, 'grid-template-rows: auto minmax(0, 1fr)' ) && false !== strpos( $css, 'overflow-y: auto' ), 'The active decision owns the useful viewport instead of creating a document-sized stack.' );
 
 // ONB-01 remains a choice/handle flow: business returns are still typed and
 // no-card never enters the wizard.
