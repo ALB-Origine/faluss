@@ -38,6 +38,14 @@ Les réseaux sont choisis dans le catalogue Faluss actif puis validés comme URL
 
 ONB-02.2 fait passer le brouillon courant par une façade d’aperçu commune au Studio et au wizard, puis par le rendu canonique de la carte publique. Le nom, l’avatar, la bordure, la police autorisée, le fond, les boutons, les réseaux et les liens saisis sont normalisés côté serveur avant de revenir dans l’aperçu ; cet appel ne persiste et ne publie rien. Les changements de fond, de typographie et de boutons reçoivent en plus un retour immédiat local pendant cette actualisation courte.
 
+ONB-02.3 applique la planche produit Figma décrite dans
+[`FALUSS_PRODUCT_UI.md`](FALUSS_PRODUCT_UI.md). L’aperçu devient un petit écran
+Faluss proportionné (`271 × 557 px`) : il reste le renderer partagé, montre la
+photo réelle et les variantes de bordure, fond, police, réseaux et boutons, mais
+n’est jamais une seconde carte ni une source de données. Les assets Figma
+utilisés sont embarqués dans Faluss Link ; aucune URL Figma ne reste une
+dépendance de production.
+
 Les étapes En-tête et Style montrent la carte en pleine hauteur derrière un panneau de contrôles superposé sur mobile. Le résumé final emploie exactement la même carte à une taille lisible. Tant qu’aucun lien réel n’existe, trois actions squelettes illustrent uniquement la forme et le contraste des boutons : elles sont marquées comme aperçu, ne traversent aucun chemin d’enregistrement et sont absentes du rendu public. La sauvegarde réussie reste implicite ; seul un statut réservé aux lecteurs d’écran est annoncé, tandis qu’une erreur visible apparaît dans le formulaire et peut être corrigée.
 
 Aucune table, copie d’identité, donnée métier, entitlement, abonnement, paiement, token ou règle économique n’est ajouté par ONB-02.

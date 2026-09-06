@@ -9,6 +9,20 @@ Design Faluss as a mature, unmistakable consumer-tech brand: the clarity of a ca
 
 The product brief and existing approved screens always override this skill.
 
+## Authority routing
+
+Choose the governing UI contract before changing visuals:
+
+- WordPress administration, settings and native admin workflows: read and
+  follow `docs/FALUSS_PLUGIN_UI.md`.
+- Member and public product surfaces (onboarding, Studio, discoveries and
+  future Faluss product flows): read and follow `docs/FALUSS_PRODUCT_UI.md`.
+
+When a product task names approved Figma frames, those frames override both
+default token sets for the component in scope. Keep the resulting styles scoped
+to that product component and do not convert front-office tokens into global
+WordPress administration styling.
+
 ## Canonical foundation
 
 Use these tokens as defaults. Keep them configurable in the host system.

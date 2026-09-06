@@ -47,7 +47,7 @@ foreach ( array( 'role="progressbar"', 'aria-valuenow=', 'data-onboarding-progre
     onb02_assert( false !== strpos( $link, $needle ), 'The server-rendered wizard must expose one resumed, accessible step and real progress: ' . $needle );
 }
 onb02_assert( 7 === substr_count( $link, 'data-onboarding-panel="' ), 'The seven product decisions remain distinct panels.' );
-onb02_assert( 7 === substr_count( $link, ' hidden inert' ) && 7 === substr_count( $link, 'aria-hidden="<?php echo' ), 'Every non-current server panel is removed from focus and the accessibility tree.' );
+onb02_assert( 7 === substr_count( $link, 'data-onboarding-panel="' ) && 7 <= substr_count( $link, ' hidden inert' ) && 7 === substr_count( $link, 'aria-hidden="<?php echo' ), 'Every non-current server wizard panel is removed from focus and the accessibility tree; nested Figma controls may add their own inert panel.' );
 onb02_assert( false !== strpos( $link, '$step = self::onboarding_step( $context[\'step\'] ?? \'\' )' ) && false !== strpos( $link, '$step_index = array_search( $step, $step_keys, true )' ), 'The visible panel and gauge must come from the persisted server step.' );
 foreach ( array( 'setPanelAvailability', 'target.hidden = !active', "removeAttribute('inert')", "setAttribute('inert', '')", "setAttribute('aria-hidden'", 'window.requestAnimationFrame', "focus({ preventScroll: true })", "form.addEventListener('submit'", "saveCurrent(root, 'backward')", "direction: direction === 'backward'", 'replacePreview' ) as $needle ) {
     onb02_assert( false !== strpos( $script, $needle ), 'Dynamic transitions must save first and keep only one panel focusable: ' . $needle );
@@ -56,10 +56,10 @@ foreach ( array( '$target_step', 'onboarding_previous_step', "'backward' === \$d
     onb02_assert( false !== strpos( $link, $needle ), 'Forward, skip and back navigation must persist the exact resumable server step: ' . $needle );
 }
 onb02_assert( false === strpos( $script, 'document.body.style.overflow' ) && false === strpos( $script, 'touchmove' ), 'The wizard must not lock global scrolling or Safari touch navigation.' );
-foreach ( array( '#FFFDF5', '#FFF', '#080808', 'Outfit', '--faluss-action', 'prefers-reduced-motion', '.faluss-link-onboarding', 'transform .23s ease', 'opacity .23s ease', 'scaleX(var(--flo-progress-scale))', '.faluss-link-onboarding__panel[hidden]', 'height: 100dvh' ) as $needle ) {
+foreach ( array( '#ed4343', '#f4f4f4', '#1e1e1e', 'Outfit', 'prefers-reduced-motion', '.faluss-link-onboarding', 'transform .23s ease', 'opacity .23s ease', 'scaleX(var(--flo-progress-scale))', '.faluss-link-onboarding__panel[hidden]', 'height:100dvh' ) as $needle ) {
     onb02_assert( false !== strpos( $css, $needle ), 'The wizard must remain scoped to the Faluss UI foundation: ' . $needle );
 }
-onb02_assert( false !== strpos( $css, 'grid-template-rows: auto minmax(0, 1fr)' ) && false !== strpos( $css, 'overflow-y: auto' ), 'The active decision owns the useful viewport instead of creating a document-sized stack.' );
+onb02_assert( false !== strpos( $css, 'grid-template-rows:auto minmax(0,1fr)' ) && false !== strpos( $css, 'overflow-y:auto' ), 'The active decision owns the useful viewport instead of creating a document-sized stack.' );
 
 // ONB-01 remains a choice/handle flow: business returns are still typed and
 // no-card never enters the wizard.

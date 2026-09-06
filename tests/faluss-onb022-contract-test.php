@@ -25,7 +25,7 @@ $css = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-o
 $preview_resolver = onb022_method( $link, 'private static function onboarding_preview_state', 'private static function save_onboarding_step' );
 $public_renderer = onb022_method( $link, 'private static function card_markup', 'private static function public_block_markup' );
 
-onb022_assert( false !== strpos( $bootstrap, 'Version: 0.3.2' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.2'" ), 'The asset cache key must change with ONB-02.2.' );
+onb022_assert( false !== strpos( $bootstrap, 'Version: 0.3.3' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.3'" ), 'The asset cache key must change with the Figma ONB-02 assets.' );
 onb022_assert( false !== strpos( $link, "wp_ajax_faluss_link_onboarding_preview" ) && false === strpos( $link, "wp_ajax_nopriv_faluss_link_onboarding_preview" ), 'Only the authenticated member may resolve a draft preview.' );
 onb022_assert( false !== strpos( $link, "self::ONBOARDING_SCRIPT, plugins_url( 'assets/js/faluss-link-onboarding.js'" ) && false !== strpos( $link, 'array( self::CARD_SCRIPT )' ), 'The wizard must load the shared card runtime explicitly.' );
 
@@ -58,11 +58,11 @@ foreach ( array( 'data-faluss-preview-only', 'faluss-link-card__link--skeleton',
 onb022_assert( false !== strpos( $link, '$markup = self::card_markup( $profile, $preferences, $alignment, false, $blocks );' ), 'The public route must call the canonical renderer without demo links.' );
 onb022_assert( false === strpos( $preview_resolver, 'data-faluss-preview-only' ) && false === strpos( $preview_resolver, 'link--skeleton' ), 'Demo link markup must never enter normalized or stored block data.' );
 
-foreach ( array( 'max-height: 62%', 'grid-area: 1 / 1', 'align-self: end', 'min-height: 100%', 'max-height: 34dvh', 'faluss-link-card__preview-links' ) as $needle ) {
-    onb022_assert( false !== strpos( $css, $needle ), 'Mobile style and final previews must be full-size, layered and legible: ' . $needle );
+foreach ( array( 'faluss-link-onboarding__device-viewport', 'width:271px', 'height:557px', 'transform:scale(.409)', 'border-radius:50px 50px 0 0', 'faluss-link-card__preview-links' ) as $needle ) {
+    onb022_assert( false !== strpos( $css, $needle ), 'The Figma mobile preview and final card must stay layered, compact and legible: ' . $needle );
 }
-onb022_assert( false === strpos( $css, 'scale(.72)' ) && false === strpos( $css, '24dvh' ), 'The obsolete reduced card thumbnail must not return.' );
-onb022_assert( false !== strpos( $css, '@media (prefers-reduced-motion: reduce)' ) && false === strpos( $script, 'document.body.style.overflow' ), 'Motion and Safari-safe viewport behavior must remain intact.' );
+onb022_assert( false === strpos( $css, 'scale(.72)' ) && false === strpos( $css, 'max-height: 62%' ), 'The obsolete oversized mobile preview composition must not return.' );
+onb022_assert( false !== strpos( $css, '@media (prefers-reduced-motion:reduce)' ) && false === strpos( $script, 'document.body.style.overflow' ), 'Motion and Safari-safe viewport behavior must remain intact.' );
 onb022_assert( false !== strpos( $link, 'wizard_links[<?php echo esc_attr( $field_key ); ?>][block_id]' ) && false !== strpos( $script, "wizard_links[' + id + '][block_id]" ), 'Real links must retain one grouped stable block payload in preview and persistence.' );
 
 echo 'ONB-02.2 shared immersive preview contract: OK' . PHP_EOL;
