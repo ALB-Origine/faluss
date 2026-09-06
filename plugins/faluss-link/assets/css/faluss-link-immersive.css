@@ -11,8 +11,9 @@
   background: var(--fl-page);
 }
 
-/* The route shell is known: Elementor's header is the direct body sibling of
-   the generated profile main. Keep that designer-owned header out of flow. */
+/* The route shell owns only the layer relationship. Elementor still owns its
+   header design and its menu implementation. A named header plane keeps
+   fixed/off-canvas descendants above the profile without reserving space. */
 body.faluss-identity-public-route {
   margin: 0;
   padding: 0;
@@ -25,19 +26,43 @@ html:has(body.faluss-identity-public-route) {
   background: var(--faluss-ink, #080808);
 }
 
+body.faluss-identity-public-route > .faluss-identity-public-header-layer,
 body.faluss-identity-public-route > .elementor-location-header {
   position: absolute;
-  z-index: 10;
+  z-index: 1;
   top: 0;
   right: 0;
   left: 0;
   width: 100%;
   box-sizing: border-box;
+  overflow: visible;
+}
+
+/* The wrapper never intercepts the card, while every real header control and
+   its off-canvas panel remains a live hit target above the profile plane. */
+body.faluss-identity-public-route > .faluss-identity-public-header-layer {
+  isolation: isolate;
+  pointer-events: none;
+}
+
+body.faluss-identity-public-route > .faluss-identity-public-header-layer > * {
+  pointer-events: auto;
+}
+
+body.faluss-identity-public-route > .faluss-identity-public-header-layer > .elementor-location-header,
+body.faluss-identity-public-route > .elementor-location-header {
+  position: relative;
+  z-index: 0;
+  overflow: visible;
   padding-top: env(safe-area-inset-top, 0px);
   pointer-events: auto;
 }
 
 body.faluss-identity-public-route > .faluss-identity-profile-page {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  overflow: visible;
   margin: 0;
   padding: 0;
 }
@@ -47,6 +72,14 @@ body.faluss-identity-public-route .faluss-link-card--presentation-immersive {
   z-index: 0;
   min-height: 100vh;
   min-height: 100svh;
+}
+
+/* The hero is visual-only. Its image and gradient cannot create a transparent
+   interaction shield over the separate Elementor header plane. */
+body.faluss-identity-public-route .faluss-link-card--presentation-immersive .faluss-link-card__cover,
+body.faluss-identity-public-route .faluss-link-card--presentation-immersive .faluss-link-card__cover img,
+body.faluss-identity-public-route .faluss-link-card--presentation-immersive .faluss-link-card__cover::after {
+  pointer-events: none;
 }
 
 .faluss-link-card--presentation-immersive .faluss-link-card__cover {

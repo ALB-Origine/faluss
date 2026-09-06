@@ -164,7 +164,7 @@ final class Faluss_Identity_Public_Profile {
         <!doctype html>
         <html <?php language_attributes(); ?>><head><meta charset="<?php bloginfo( 'charset' ); ?>"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><?php wp_head(); ?></head>
         <body <?php body_class( 'faluss-identity-public-shell faluss-identity-public-route' ); ?>><?php wp_body_open(); ?>
-        <?php self::render_elementor_header(); ?>
+        <div class="faluss-identity-public-header-layer"><?php self::render_elementor_header(); ?></div>
         <?php if ( ! self::render_elementor_template( self::get_template_id() ) ) : ?>
             <main class="faluss-identity-profile-page"><?php echo self::render_profile_markup( $profile ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- safe server-rendered fallback. ?></main>
         <?php endif; ?>
