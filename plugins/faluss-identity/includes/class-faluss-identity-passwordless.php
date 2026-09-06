@@ -24,6 +24,8 @@ final class Faluss_Identity_Passwordless {
 
     public static function register() {
         add_shortcode( 'faluss_identity_login', array( __CLASS__, 'shortcode' ) );
+        add_action( 'parse_request', array( __CLASS__, 'exclude_login_from_cache' ), 0 );
+        add_action( 'template_redirect', array( __CLASS__, 'send_login_no_cache_headers' ), 0 );
         add_action( 'admin_post_nopriv_faluss_identity_request_code', array( __CLASS__, 'handle_request_code' ) );
         add_action( 'admin_post_faluss_identity_request_code', array( __CLASS__, 'handle_request_code' ) );
         add_action( 'admin_post_nopriv_faluss_identity_verify_code', array( __CLASS__, 'handle_verify_code' ) );
@@ -32,6 +34,45 @@ final class Faluss_Identity_Passwordless {
         add_action( 'wp_ajax_faluss_identity_request_code_ajax', array( __CLASS__, 'handle_request_code_ajax' ) );
         add_action( 'wp_ajax_nopriv_faluss_identity_verify_code_ajax', array( __CLASS__, 'handle_verify_code_ajax' ) );
         add_action( 'wp_ajax_faluss_identity_verify_code_ajax', array( __CLASS__, 'handle_verify_code_ajax' ) );
+        self::exclude_login_from_cache( null );
+    }
+
+    /**
+     * The login document contains a nonce and renders a cookie-backed ceremony
+     * stage. A shared page cache must therefore never store or replay it.
+     */
+    public static function exclude_login_from_cache( $request ) {
+        if ( is_admin() || ! self::is_login_request( $request ) ) {
+            return;
+        }
+        if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+            define( 'DONOTCACHEPAGE', true );
+        }
+        add_filter( 'wp_headers', array( __CLASS__, 'login_no_cache_headers' ), 99 );
+        do_action( 'litespeed_control_set_nocache' );
+    }
+
+    /** @param array<string, string> $headers @return array<string, string> */
+    public static function login_no_cache_headers( $headers ) {
+        if ( ! self::is_login_request() ) {
+            return $headers;
+        }
+        return array_merge( (array) $headers, array(
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+            'Expires' => 'Wed, 11 Jan 1984 05:00:00 GMT',
+            'X-LiteSpeed-Cache-Control' => 'no-cache',
+        ) );
+    }
+
+    public static function send_login_no_cache_headers() {
+        if ( ! self::is_login_request() ) {
+            return;
+        }
+        if ( function_exists( 'nocache_headers' ) ) {
+            nocache_headers();
+        }
+        do_action( 'litespeed_control_set_nocache' );
     }
 
     public static function register_assets() {
@@ -577,6 +618,19 @@ final class Faluss_Identity_Passwordless {
             'httponly' => true,
             'samesite' => 'Lax',
         );
+    }
+
+    private static function is_login_request( $request = null ) {
+        if ( is_object( $request ) && isset( $request->request ) && is_string( $request->request ) ) {
+            return 'login' === trim( rawurldecode( $request->request ), '/' );
+        }
+        $request_uri = isset( $_SERVER['REQUEST_URI'] ) && is_string( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+        $request_path = wp_parse_url( $request_uri, PHP_URL_PATH );
+        $login_path = wp_parse_url( home_url( '/login/' ), PHP_URL_PATH );
+        if ( ! is_string( $request_path ) || ! is_string( $login_path ) ) {
+            return false;
+        }
+        return untrailingslashit( $request_path ) === untrailingslashit( $login_path );
     }
 
     private static function valid_nonce( $action ) {

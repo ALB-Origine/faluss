@@ -4,12 +4,14 @@ define( 'ABSPATH', __DIR__ . '/' );
 
 function wp_salt( $scheme = '' ) { return 'test-salt-' . $scheme; }
 function is_email( $email ) { return false !== filter_var( $email, FILTER_VALIDATE_EMAIL ); }
+function wp_unslash( $value ) { return $value; }
 function home_url( $path = '/' ) {
     if ( '' === $path || '/' === $path ) { return 'https://faluss.me/'; }
     if ( '?' === $path[0] ) { return 'https://faluss.me/' . $path; }
     return 'https://faluss.me' . ( '/' === $path[0] ? $path : '/' . $path );
 }
-function wp_parse_url( $url ) { return parse_url( $url ); }
+function wp_parse_url( $url, $component = -1 ) { return parse_url( $url, $component ); }
+function untrailingslashit( $value ) { return rtrim( $value, '/\\' ); }
 function wp_validate_redirect( $url, $fallback = '' ) { return $url ?: $fallback; }
 function add_query_arg( $key, $value, $url ) { return $url . '?' . rawurlencode( $key ) . '=' . rawurlencode( $value ); }
 function admin_url( $path = '' ) { return 'https://faluss.me/wp-admin/' . ltrim( $path, '/' ); }
@@ -52,6 +54,16 @@ fi02_passwordless_assert( null === fi02_passwordless_private( 'base64url_decode'
 fi02_passwordless_assert( fi02_passwordless_private( 'secret_hash', 'same-value', 'email' ) !== fi02_passwordless_private( 'secret_hash', 'same-value', 'ip' ), 'Rate-limit buckets are domain separated.' );
 fi02_passwordless_assert( 'email' === fi02_passwordless_private( 'login_stage_for_challenge_email', 'not-an-email' ), 'An incomplete or incoherent local state returns to the e-mail stage.' );
 
+// The nonce and cookie-backed login document is private to one live request.
+$_SERVER['REQUEST_URI'] = '/login/?redirect_to=https%3A%2F%2Ffaluss.me%2Forigin';
+fi02_passwordless_assert( fi02_passwordless_private( 'is_login_request' ), 'The local /login route is recognized with a safe return query.' );
+fi02_passwordless_assert( fi02_passwordless_private( 'is_login_request', (object) array( 'request' => 'login' ) ), 'The parsed WordPress request recognizes /login early.' );
+$login_headers = Faluss_Identity_Passwordless::login_no_cache_headers( array( 'X-Fixture' => 'kept' ) );
+fi02_passwordless_assert( 'no-cache' === $login_headers['X-LiteSpeed-Cache-Control'] && false !== strpos( $login_headers['Cache-Control'], 'no-store' ) && 'kept' === $login_headers['X-Fixture'], '/login receives no-store headers without dropping unrelated headers.' );
+$_SERVER['REQUEST_URI'] = '/mon-faluss/';
+fi02_passwordless_assert( ! fi02_passwordless_private( 'is_login_request' ), 'The cache exclusion does not affect member or ordinary pages.' );
+fi02_passwordless_assert( array( 'X-Fixture' => 'kept' ) === Faluss_Identity_Passwordless::login_no_cache_headers( array( 'X-Fixture' => 'kept' ) ), 'Non-login headers remain unchanged.' );
+
 // FI-02 corrections: new users always receive the least-privileged role and
 // each post retains an exact local redirect, never an external URL.
 fi02_passwordless_assert( 'https://faluss.me/espace-membre' === fi02_passwordless_private( 'local_redirect', '/espace-membre' ), 'A local path is retained.' );
@@ -87,9 +99,15 @@ foreach ( array( 'replaceStage', 'replaceWithEmail', "'otp'", "'email'", 'reset_
 }
 fi02_passwordless_assert( false === strpos( $login_js, 'sessionStorage' ) && false === strpos( $login_js, 'localStorage' ), 'No residual browser storage can select the OTP stage.' );
 $bootstrap = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/faluss-identity.php' );
-fi02_passwordless_assert( false !== strpos( $bootstrap, "FALUSS_IDENTITY_VERSION', '0.4.7" ) && false !== strpos( $source, 'FALUSS_IDENTITY_VERSION' ), 'The corrected frontend asset is versioned from the plugin source.' );
+fi02_passwordless_assert( false !== strpos( $bootstrap, "FALUSS_IDENTITY_VERSION', '0.4.8" ) && false !== strpos( $source, 'FALUSS_IDENTITY_VERSION' ), 'The corrected frontend asset is versioned from the plugin source.' );
 $navigation = file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/includes/class-faluss-identity-navigation.php' );
 fi02_passwordless_assert( false === strpos( $source . $login_js, 'Faluss_Identity_Navigation' ) && false !== strpos( $navigation, 'current_local_return_url' ), 'FI-02 does not alter FI-07 Navigation Faluss.' );
+foreach ( array( 'exclude_login_from_cache', 'send_login_no_cache_headers', 'login_no_cache_headers', 'DONOTCACHEPAGE', 'litespeed_control_set_nocache', 'X-LiteSpeed-Cache-Control', 'no-store, no-cache' ) as $required ) {
+    fi02_passwordless_assert( false !== strpos( $source, $required ), 'The nonce and cookie-backed /login document must bypass shared page caches: ' . $required );
+}
+foreach ( array( 'falussIdentityPending', 'setSubmitting(form, true)', "button[type=\"submit\"]", "aria-busy" ) as $required ) {
+    fi02_passwordless_assert( false !== strpos( $login_js, $required ), 'A repeated browser event must not issue a second passwordless request: ' . $required );
+}
 foreach ( array( '#FFFDF5', '#FFFFFF', '#000000', '#FF3D16', 'Outfit', '--faluss-pill-radius' ) as $required ) {
     fi02_passwordless_assert( false !== strpos( $source . file_get_contents( dirname( __DIR__ ) . '/plugins/faluss-identity/assets/css/faluss-identity-passwordless.css' ), $required ), 'Missing Faluss.me design token: ' . $required );
 }

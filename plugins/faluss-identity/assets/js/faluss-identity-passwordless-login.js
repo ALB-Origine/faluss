@@ -27,6 +27,16 @@
         return replaceStage(form, markup, 'email');
     }
 
+    function setSubmitting(form, submitting) {
+        form.dataset.falussIdentityPending = submitting ? '1' : '0';
+        var submit = form.querySelector('button[type="submit"]');
+        if (submit) {
+            submit.disabled = submitting;
+            if (submitting) { submit.setAttribute('aria-busy', 'true'); }
+            else { submit.removeAttribute('aria-busy'); }
+        }
+    }
+
     document.addEventListener('submit', function (event) {
         var form = event.target;
         if (!(form instanceof HTMLFormElement)) { return; }
@@ -35,6 +45,8 @@
         var action = form.querySelector('input[name="action"]');
         if (!action || (action.value !== 'faluss_identity_request_code' && action.value !== 'faluss_identity_verify_code')) { return; }
         event.preventDefault();
+        if (form.dataset.falussIdentityPending === '1') { return; }
+        setSubmitting(form, true);
         var body = new FormData(form);
         body.set('action', action.value + '_ajax');
         setNotice(component, '');
@@ -42,9 +54,11 @@
             .then(function (response) { return response.json(); })
             .then(function (result) {
                 if (!result || !result.success) {
+                    var stageReplaced = false;
                     if (action.value === 'faluss_identity_verify_code' && result && result.data && result.data.reset_to_email) {
-                        replaceWithEmail(form, result.data.email_html);
+                        stageReplaced = replaceWithEmail(form, result.data.email_html);
                     }
+                    if (!stageReplaced) { setSubmitting(form, false); }
                     setNotice(component, result && result.data ? result.data.notice : 'Nous ne pouvons pas poursuivre cette vérification.');
                     return;
                 }
@@ -53,10 +67,17 @@
                     return;
                 }
                 setNotice(component, result.data.notice);
-                replaceWithOtp(form, result.data.otp_html);
+                if (!replaceWithOtp(form, result.data.otp_html)) {
+                    setSubmitting(form, false);
+                    setNotice(component, 'Nous ne pouvons pas poursuivre cette vérification.');
+                    return;
+                }
                 var otp = component.querySelector('input[name="otp"]');
                 if (otp) { otp.focus(); }
             })
-            .catch(function () { setNotice(component, 'Nous ne pouvons pas poursuivre cette vérification.'); });
+            .catch(function () {
+                setSubmitting(form, false);
+                setNotice(component, 'Nous ne pouvons pas poursuivre cette vérification.');
+            });
     });
 }());

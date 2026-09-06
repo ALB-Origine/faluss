@@ -40,7 +40,6 @@ final class Faluss_Link {
         add_action( 'wp_ajax_faluss_link_upload_teaser', array( __CLASS__, 'upload_teaser' ) );
         add_action( 'wp_ajax_faluss_link_daily_reward_claim', array( __CLASS__, 'claim_daily_reward' ) );
         add_action( 'parse_request', array( __CLASS__, 'exclude_public_profile_from_cache' ), 1 );
-        add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ), 5 );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_public_profile_assets' ), 6 );
         add_action( 'template_redirect', array( __CLASS__, 'send_public_profile_no_cache_headers' ), 0 );
         add_action( 'faluss_catalog_theme_deactivated', array( __CLASS__, 'migrate_deactivated_theme_references' ) );
@@ -67,7 +66,6 @@ final class Faluss_Link {
         wp_register_script( self::SCRIPT, plugins_url( 'assets/js/faluss-link-editor.js', FALUSS_LINK_FILE ), array( 'jquery', self::CARD_SCRIPT ), FALUSS_LINK_VERSION, true );
         wp_register_script( self::IMMERSIVE_SCRIPT, plugins_url( 'assets/js/faluss-link-immersive.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
         wp_register_script( self::REWARD_SCRIPT, plugins_url( 'assets/js/faluss-link-reward.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
-        wp_localize_script( self::REWARD_SCRIPT, 'falussLinkReward', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_daily_reward_claim' ) ) );
     }
 
     /**
@@ -1125,7 +1123,7 @@ final class Faluss_Link {
     private static function identity_ready() { return class_exists( 'Faluss_Identity_Schema' ) && class_exists( 'Faluss_Identity_Registry' ) && ! empty( Faluss_Identity_Schema::get_status()['ready'] ); }
     private static function enqueue_assets() { if ( ! wp_style_is( self::STYLE, 'registered' ) ) { self::assets(); } wp_enqueue_style( self::STYLE ); wp_enqueue_style( self::IMMERSIVE_STYLE ); wp_enqueue_style( self::STUDIO_STYLE ); wp_enqueue_script( self::CARD_SCRIPT ); }
     private static function editor_assets() { self::enqueue_assets(); wp_localize_script( self::SCRIPT, 'falussLinkCover', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_upload_cover' ), 'teaserNonce' => wp_create_nonce( 'faluss_link_upload_teaser' ), 'networks' => self::network_catalog_for_client(), 'themes' => self::catalog_themes_for_client( self::current_faluss_id() ), 'teaserRights' => self::teaser_entitlement_choices() ) ); wp_enqueue_script( self::SCRIPT ); }
-    private static function reward_assets() { if ( ! wp_style_is( self::REWARD_STYLE, 'registered' ) ) { self::assets(); } wp_enqueue_style( self::REWARD_STYLE ); wp_enqueue_script( self::REWARD_SCRIPT ); }
+    private static function reward_assets() { if ( ! wp_style_is( self::REWARD_STYLE, 'registered' ) ) { self::assets(); } wp_localize_script( self::REWARD_SCRIPT, 'falussLinkReward', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_daily_reward_claim' ) ) ); wp_enqueue_style( self::REWARD_STYLE ); wp_enqueue_script( self::REWARD_SCRIPT ); }
     private static function owned_image( $attachment_id, $user_id ) { $attachment = get_post( (int) $attachment_id ); return $attachment instanceof WP_Post && (int) $attachment->post_author === (int) $user_id && 0 === strpos( (string) $attachment->post_mime_type, 'image/' ); }
     private static function empty_card( $message ) { return '<div class="faluss-link-card faluss-link-card--empty" role="status">' . esc_html( $message ) . '</div>'; }
     private static function network_catalog() { return class_exists( 'Faluss_Link_Admin' ) ? Faluss_Link_Admin::catalog() : array_combine( self::NETWORKS, array_map( static function( $network ) { return array( 'label' => ucfirst( $network ), 'active' => 1, 'outline_icon' => 0, 'full_logo' => 0 ); }, self::NETWORKS ) ); }
