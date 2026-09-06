@@ -21,6 +21,9 @@ final class Faluss_Identity_Onboarding {
     const FLOW_TTL = 900;
     const FLOW_VERSION = 1;
 
+    /** ONB-02 persists only its resumable step in the existing ONB-01 state. */
+    const CARD_WIZARD_STEPS = array( 'wizard_name', 'wizard_avatar', 'wizard_header', 'wizard_style', 'wizard_socials', 'wizard_links', 'wizard_finish', 'complete' );
+
     /** @var array<int, string> */
     const INTENTS = array( 'unlock_teaser', 'claim_reward', 'create_card', 'generic_login' );
 
@@ -245,7 +248,10 @@ final class Faluss_Identity_Onboarding {
         if ( null === self::active_faluss_id() ) {
             return self::render_unavailable( $settings );
         }
-        if ( self::current_member_has_public_profile() ) {
+        if ( self::card_wizard_context()['required'] && class_exists( 'Faluss_Link' ) && method_exists( 'Faluss_Link', 'render_onboarding_wizard' ) ) {
+            return Faluss_Link::render_onboarding_wizard();
+        }
+        if ( self::current_member_has_completed_public_profile() ) {
             return self::render_completed( $settings );
         }
         return self::render_choice( $settings, self::current_member_onboarding_state() );
@@ -277,10 +283,10 @@ final class Faluss_Identity_Onboarding {
             self::send_ajax_error();
         }
         $result = Faluss_Identity_Public_Profile::reserve_public_slug( $faluss_id, $slug );
-        if ( 'claimed' !== $result || ! self::record_state( $faluss_id, 'create_card', 'claimed', 'studio' ) ) {
+        if ( 'claimed' !== $result || ! self::record_state( $faluss_id, 'create_card', 'claimed', 'wizard_name' ) ) {
             wp_send_json_error( array( 'message' => self::availability_message( $result ) ), 400 );
         }
-        wp_send_json_success( array( 'redirect' => home_url( '/mon-faluss/' ) ) );
+        wp_send_json_success( array( 'redirect' => self::onboarding_url() ) );
     }
 
     private static function render_login_gate( $settings ) {
@@ -369,9 +375,14 @@ final class Faluss_Identity_Onboarding {
         return Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() );
     }
 
-    private static function current_member_has_public_profile() {
+    /** A reserved draft is intentionally not a completed public card. */
+    private static function current_member_has_completed_public_profile() {
         $faluss_id = self::active_faluss_id();
-        return null !== $faluss_id && class_exists( 'Faluss_Identity_Public_Profile' ) && Faluss_Identity_Public_Profile::has_profile_for_faluss_id( $faluss_id );
+        if ( null === $faluss_id || ! class_exists( 'Faluss_Identity_Public_Profile' ) ) {
+            return false;
+        }
+        $profile = Faluss_Identity_Public_Profile::studio_profile( $faluss_id );
+        return is_array( $profile ) && 'published' === ( $profile['publication_status'] ?? '' );
     }
 
     /**
@@ -380,7 +391,7 @@ final class Faluss_Identity_Onboarding {
      * choice ends that requirement.
      */
     private static function current_member_requires_onboarding() {
-        return self::requires_onboarding( self::current_member_has_public_profile(), self::current_member_onboarding_state() );
+        return self::requires_onboarding( self::current_member_has_completed_public_profile(), self::current_member_onboarding_state() );
     }
 
     /** @param array<string, mixed> $state */
@@ -415,7 +426,7 @@ final class Faluss_Identity_Onboarding {
         if ( null === $faluss_id ) {
             return $state;
         }
-        if ( self::current_member_has_public_profile() ) {
+        if ( self::current_member_has_completed_public_profile() ) {
             return array( 'choice' => 'create_card', 'slug_status' => 'claimed', 'next_step' => 'studio', 'flow_version' => self::FLOW_VERSION );
         }
         if ( ! self::state_schema_ready() ) {
@@ -432,9 +443,48 @@ final class Faluss_Identity_Onboarding {
         }
         $state['choice'] = in_array( $row['onboarding_choice'] ?? '', array( 'create_card', 'no_card' ), true ) ? $row['onboarding_choice'] : 'unknown';
         $state['slug_status'] = in_array( $row['onboarding_slug_status'] ?? '', array( 'none', 'claimed' ), true ) ? $row['onboarding_slug_status'] : 'none';
-        $state['next_step'] = in_array( $row['onboarding_next_step'] ?? '', array( 'identifier', 'studio', 'complete' ), true ) ? $row['onboarding_next_step'] : 'choice';
+        $allowed_steps = array_merge( array( 'identifier', 'studio' ), self::CARD_WIZARD_STEPS );
+        $state['next_step'] = in_array( $row['onboarding_next_step'] ?? '', $allowed_steps, true ) ? $row['onboarding_next_step'] : 'choice';
         $state['flow_version'] = max( self::FLOW_VERSION, (int) ( $row['onboarding_flow_version'] ?? self::FLOW_VERSION ) );
         return $state;
+    }
+
+    /**
+     * Minimal ONB-02 adapter. It exposes no identity value to the browser and
+     * leaves every card field to the canonical Identity or Link owner.
+     *
+     * @return array{required: bool, step: string}
+     */
+    public static function card_wizard_context() {
+        $state = self::current_member_onboarding_state();
+        $faluss_id = self::active_faluss_id();
+        $profile = null !== $faluss_id && class_exists( 'Faluss_Identity_Public_Profile' ) ? Faluss_Identity_Public_Profile::studio_profile( $faluss_id ) : array();
+        $reserved = is_array( $profile ) && '' !== (string) ( $profile['public_slug'] ?? '' ) && 'draft' === ( $profile['publication_status'] ?? '' );
+        $step = in_array( $state['next_step'], self::CARD_WIZARD_STEPS, true ) ? $state['next_step'] : 'wizard_name';
+        return array(
+            'required' => null !== $faluss_id && $reserved && 'create_card' === $state['choice'] && 'claimed' === $state['slug_status'] && 'complete' !== $step,
+            'step' => $step,
+        );
+    }
+
+    /** Advances only the existing ONB-01 row after Link saved canonical data. */
+    public static function advance_card_wizard( $step ) {
+        $context = self::card_wizard_context();
+        $step = is_string( $step ) ? sanitize_key( $step ) : '';
+        if ( empty( $context['required'] ) || ! in_array( $step, self::CARD_WIZARD_STEPS, true ) || 'complete' === $step ) {
+            return false;
+        }
+        $faluss_id = self::active_faluss_id();
+        return null !== $faluss_id && self::record_state( $faluss_id, 'create_card', 'claimed', $step );
+    }
+
+    /** Marks the existing state complete only after the canonical profile published. */
+    public static function complete_card_wizard() {
+        $faluss_id = self::active_faluss_id();
+        if ( null === $faluss_id || ! self::current_member_has_completed_public_profile() ) {
+            return false;
+        }
+        return self::record_state( $faluss_id, 'create_card', 'claimed', 'complete' );
     }
 
     private static function verify_ajax_member() {
@@ -444,7 +494,8 @@ final class Faluss_Identity_Onboarding {
 
     private static function record_state( $faluss_id, $choice, $slug_status, $next_step ) {
         global $wpdb;
-        if ( ! self::state_schema_ready() || ! Faluss_Identity_Registry::is_valid_faluss_id( $faluss_id ) || ! in_array( $choice, array( 'create_card', 'no_card' ), true ) || ! in_array( $slug_status, array( 'none', 'claimed' ), true ) || ! in_array( $next_step, array( 'identifier', 'studio', 'complete' ), true ) ) {
+        $allowed_steps = array_merge( array( 'identifier', 'studio' ), self::CARD_WIZARD_STEPS );
+        if ( ! self::state_schema_ready() || ! Faluss_Identity_Registry::is_valid_faluss_id( $faluss_id ) || ! in_array( $choice, array( 'create_card', 'no_card' ), true ) || ! in_array( $slug_status, array( 'none', 'claimed' ), true ) || ! in_array( $next_step, $allowed_steps, true ) ) {
             return false;
         }
         $tables = Faluss_Identity_Schema::get_table_names();

@@ -95,6 +95,9 @@ onb01_assert( false !== strpos( $profile, "'draft'" ) && false !== strpos( $prof
 foreach ( array( 'unlock_teaser', 'claim_reward', 'create_card', 'generic_login', 'FLOW_TTL', 'hash_hmac', 'set_transient', 'delete_transient', 'safe_local_return', 'render_route', 'DONOTCACHEPAGE', 'litespeed_control_set_nocache', 'handle_choice_ajax', 'handle_availability_ajax', 'handle_reserve_slug_ajax', 'record_state', 'current_member_onboarding_state' ) as $needle ) {
     onb01_assert( false !== strpos( $onboarding, $needle ), 'The bounded onboarding flow is missing: ' . $needle );
 }
+foreach ( array( 'CARD_WIZARD_STEPS', 'card_wizard_context', 'current_member_has_completed_public_profile', "'wizard_name'", "'wizard_finish'" ) as $needle ) {
+    onb01_assert( false !== strpos( $onboarding, $needle ), 'ONB-01 must retain the bounded resumable state used by ONB-02: ' . $needle );
+}
 foreach ( array( 'configured_onboarding_url', 'get_permalink', 'current_member_requires_onboarding', 'resolve_authenticated_destination', 'is_selected_onboarding_request', 'is_onboarding_route', 'return self::is_onboarding_route( $request ) || self::is_selected_onboarding_request()', 'if ( ! self::is_onboarding_route() )', 'return $requires_onboarding ? self::onboarding_url() : $fallback;' ) as $needle ) {
     onb01_assert( false !== strpos( $onboarding, $needle ), 'Configured onboarding URLs and their generic post-authentication priority are missing: ' . $needle );
 }

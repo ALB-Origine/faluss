@@ -67,3 +67,7 @@ Après fermeture pointer de la navigation portaled, le déclencheur retourne imm
 ## ONB-01 — Fondation de l’onboarding de carte
 
 Après une identité passwordless active, un membre choisit explicitement de créer son Faluss ou de continuer sans carte. Le flux `/commencer` garde un état minimal reprenable sur le profil Identity, réserve atomiquement l’identifiant public FI-03 et renvoie ensuite vers le Studio existant. Les préférences Faluss Link, les entitlements, les contenus et les paiements restent hors de ce lot ; ONB-02 les complétera seulement après une réservation réussie.
+
+## ONB-02 — Création guidée de carte
+
+Après la réservation ONB-01, la page Elementor d’onboarding devient un assistant repris à la dernière étape : nom, avatar facultatif, en-tête, style, réseaux, liens puis publication explicite. Il réutilise les tables et le rendu de Faluss Identity et Faluss Link ; aucun profil, média, lien ou préférence n’est dupliqué. Un brouillon n’est jamais public et la finalisation idempotente ouvre ensuite Studio Faluss.

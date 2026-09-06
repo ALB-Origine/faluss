@@ -22,11 +22,13 @@ Les installations WordPress, leurs tables `users`, leurs sessions et leurs bases
 
 Un administrateur peut sélectionner une page Elementor déjà publiée dans **Réglages → Profil public Faluss**. Les routes `faluss.me/identifiant` rendent alors cette page ; le widget **Profil public Faluss**, sans identifiant renseigné, reçoit l’identifiant de la route. Le plugin ne crée aucune page. Si aucun modèle valide n’est sélectionné ou qu’Elementor est indisponible, le rendu autonome du profil est conservé.
 
-## Onboarding de carte (ONB-01)
+## Onboarding de carte (ONB-01 / ONB-02)
 
 La preuve passwordless crée ou active seulement l’identité opaque. La création facultative de carte est ensuite un flux distinct rendu par le widget **Onboarding Faluss** ou son shortcode. L’administrateur peut sélectionner une page Elementor déjà publiée dans **Réglages → Onboarding Faluss** : son URL réelle est la destination canonique, sans dépendre d’un slug imposé. Aucune page n’est créée automatiquement et `/commencer` reste le rendu de secours sans page sélectionnée.
 
-Le navigateur ne transporte qu’une poignée opaque, courte et expirante dont le serveur conserve l’intention autorisée et le retour local validé. La priorité de retour est : consentement SSO local, retour exact d’un teaser ou d’une récompense, ouverture de l’onboarding pour une intention de carte, ouverture de l’onboarding pour une décision encore requise, puis retour générique. `faluss_id` reste entièrement serveur. La réservation finale insère atomiquement le slug dans le registre public FI-03 sous forme de brouillon minimal ; elle n’écrit aucune préférence Faluss Link.
+Le navigateur ne transporte qu’une poignée opaque, courte et expirante dont le serveur conserve l’intention autorisée et le retour local validé. La priorité de retour est : consentement SSO local, retour exact d’un teaser ou d’une récompense, ouverture de l’onboarding pour une intention de carte, ouverture de l’onboarding pour une décision encore requise, puis retour générique. `faluss_id` reste entièrement serveur. La réservation finale insère atomiquement le slug dans le registre public FI-03 sous forme de brouillon minimal.
+
+ONB-02 transforme ensuite ce brouillon sur la même surface Elementor en étapes enregistrées : Identity reste seul propriétaire du nom, de la bio, de l’avatar, de la publication et des liens publics ; Faluss Link reste seul propriétaire des préférences visuelles, réseaux et blocs. Le seul état ajouté au profil Identity existant est la prochaine étape reprenable : aucune table d’onboarding, copie d’identité ni source concurrente n’est créée. Le brouillon reste non rendu publiquement jusqu’à l’action finale idempotente de publication.
 
 ## Identifiants
 

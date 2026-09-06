@@ -4,6 +4,10 @@ Faluss Link est une surface de carte publique : elle lit l’identité, le profi
 
 La carte Faluss ne contient ni abonnement, ni ALB local, ni inventaire cosmétique, ni shop, onglet ou contenu verrouillé. La récompense quotidienne TE-03, lorsqu’elle est configurée, reste une décision du moteur commun par contrat dédié ; les objets acquis restent possédés et les avantages d’abonnement restent temporaires.
 
+## Assistant de création ONB-02
+
+Après la réservation d’un identifiant dans l’onboarding Identity, Faluss Link rend l’assistant de carte sur la page Elementor d’onboarding déjà sélectionnée. Il n’ajoute ni widget public, ni page, ni table : les préférences de présentation, réseaux et blocs sont écrits dans les sources Faluss Link existantes, tandis que l’identité et la publication restent chez Faluss Identity. Le même markup de carte sert à l’aperçu et au rendu public ; l’assistant reste absent du Studio Faluss et des profils déjà publiés.
+
 ## Recette Elementor du profil public
 
 Pour les profils publics à la racine, sélectionnez `/modele-profile` dans le réglage **Profil public Faluss**. Cette page Elementor doit contenir un unique conteneur pleine largeur, sans padding externe, et le widget **Carte Faluss** sans identifiant. Choisissez la présentation **Page immersive** ; l’identifiant vide est résolu depuis l’URL publique, par exemple `/origin`.

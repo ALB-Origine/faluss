@@ -34,3 +34,5 @@
 .faluss-link-card__network-asset{display:block;width:24px;height:24px;max-width:100%;max-height:100%;object-fit:contain}
 .faluss-link-card--align-center .faluss-link-card__avatar{margin-right:auto;margin-left:auto}
 .faluss-link-card--links-light .faluss-link-card__link{border-color:var(--fl-border);background:#FFF;color:#080808}.faluss-link-card--links-light .faluss-link-card__link:hover{border-color:var(--fl-action);background:var(--fl-action);color:var(--fl-action-text)}
+.faluss-link-card__name{font-family:var(--fl-name-font,Outfit,ui-sans-serif,system-ui,sans-serif)}
+.faluss-link-card--avatar-border-no .faluss-link-card__avatar{border:0;box-shadow:none}

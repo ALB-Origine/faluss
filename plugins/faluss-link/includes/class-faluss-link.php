@@ -11,6 +11,8 @@ final class Faluss_Link {
     const REWARD_STYLE = 'faluss-link-reward';
     const REWARD_SCRIPT = 'faluss-link-reward';
     const DISCOVERIES_STYLE = 'faluss-link-discoveries';
+    const ONBOARDING_STYLE = 'faluss-link-onboarding';
+    const ONBOARDING_SCRIPT = 'faluss-link-onboarding';
     const NETWORKS = array( 'instagram', 'tiktok', 'youtube', 'x', 'linkedin', 'github' );
     const ANNOUNCEMENTS = array( 'accent' => 'Accent / ink', 'ink' => 'Ink / white' );
     const NAME_TREATMENTS = array( 'editorial' => 'Éditorial', 'strong' => 'Fort' );
@@ -38,6 +40,9 @@ final class Faluss_Link {
         add_action( 'admin_post_faluss_link_clear_discoveries', array( __CLASS__, 'clear_discoveries' ) );
         add_action( 'wp_ajax_faluss_link_upload_cover', array( __CLASS__, 'upload_cover' ) );
         add_action( 'wp_ajax_faluss_link_upload_teaser', array( __CLASS__, 'upload_teaser' ) );
+        add_action( 'wp_ajax_faluss_link_onboarding_save', array( __CLASS__, 'save_onboarding_wizard' ) );
+        add_action( 'wp_ajax_faluss_link_onboarding_finish', array( __CLASS__, 'finish_onboarding_wizard' ) );
+        add_action( 'wp_ajax_faluss_link_onboarding_upload_avatar', array( __CLASS__, 'upload_onboarding_avatar' ) );
         add_action( 'wp_ajax_faluss_link_daily_reward_claim', array( __CLASS__, 'claim_daily_reward' ) );
         add_action( 'parse_request', array( __CLASS__, 'exclude_public_profile_from_cache' ), 1 );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_public_profile_assets' ), 6 );
@@ -62,10 +67,12 @@ final class Faluss_Link {
         wp_register_style( self::STUDIO_STYLE, plugins_url( 'assets/css/faluss-link-studio.css', FALUSS_LINK_FILE ), array( self::STYLE, self::IMMERSIVE_STYLE ), FALUSS_LINK_VERSION );
         wp_register_style( self::REWARD_STYLE, plugins_url( 'assets/css/faluss-link-reward.css', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION );
         wp_register_style( self::DISCOVERIES_STYLE, plugins_url( 'assets/css/faluss-link-discoveries.css', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION );
+        wp_register_style( self::ONBOARDING_STYLE, plugins_url( 'assets/css/faluss-link-onboarding.css', FALUSS_LINK_FILE ), array( self::STYLE ), FALUSS_LINK_VERSION );
         wp_register_script( self::CARD_SCRIPT, plugins_url( 'assets/js/faluss-link-card.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
         wp_register_script( self::SCRIPT, plugins_url( 'assets/js/faluss-link-editor.js', FALUSS_LINK_FILE ), array( 'jquery', self::CARD_SCRIPT ), FALUSS_LINK_VERSION, true );
         wp_register_script( self::IMMERSIVE_SCRIPT, plugins_url( 'assets/js/faluss-link-immersive.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
         wp_register_script( self::REWARD_SCRIPT, plugins_url( 'assets/js/faluss-link-reward.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
+        wp_register_script( self::ONBOARDING_SCRIPT, plugins_url( 'assets/js/faluss-link-onboarding.js', FALUSS_LINK_FILE ), array(), FALUSS_LINK_VERSION, true );
     }
 
     /**
@@ -330,6 +337,273 @@ final class Faluss_Link {
         self::upload_member_image( 'teaser', 'faluss_link_upload_teaser' );
     }
 
+    /** ONB-02 is rendered only through the selected Identity onboarding page. */
+    public static function render_onboarding_wizard() {
+        if ( ! self::identity_ready() || ! is_user_logged_in() || ! class_exists( 'Faluss_Identity_Onboarding' ) || ! class_exists( 'Faluss_Identity_Public_Profile' ) ) {
+            return self::empty_card( __( 'Votre création Faluss est indisponible.', 'faluss-link' ) );
+        }
+        $faluss_id = self::current_faluss_id();
+        $context = Faluss_Identity_Onboarding::card_wizard_context();
+        if ( ! self::valid_faluss_id( $faluss_id ) || empty( $context['required'] ) ) {
+            return '';
+        }
+        $profile = Faluss_Identity_Public_Profile::studio_profile( $faluss_id );
+        $preferences = self::valid_prefs( $faluss_id );
+        $blocks = self::content_blocks( $faluss_id, $profile['links'], true );
+        $step = self::onboarding_step( $context['step'] ?? '' );
+        $selected_networks = self::onboarding_network_selection( $preferences['social_selected'] );
+        if ( ! $selected_networks ) {
+            foreach ( self::socials( $preferences['social_links'] ) as $social ) { $selected_networks[] = $social['network']; }
+        }
+        self::onboarding_assets();
+        $instance = function_exists( 'wp_unique_id' ) ? wp_unique_id( 'faluss-link-onboarding-' ) : 'faluss-link-onboarding';
+        ob_start();
+        ?>
+        <section id="<?php echo esc_attr( $instance ); ?>" class="faluss-link-onboarding" data-faluss-link-onboarding data-current-step="<?php echo esc_attr( $step ); ?>" aria-labelledby="<?php echo esc_attr( $instance ); ?>-title">
+            <header class="faluss-link-onboarding__header">
+                <p class="faluss-link-onboarding__eyebrow"><?php esc_html_e( 'Votre Faluss', 'faluss-link' ); ?></p>
+                <h1 id="<?php echo esc_attr( $instance ); ?>-title"><?php esc_html_e( 'Créons votre carte', 'faluss-link' ); ?></h1>
+                <p><?php esc_html_e( 'Quelques choix simples, enregistrés à mesure. Vous pourrez les modifier dans Studio Faluss.', 'faluss-link' ); ?></p>
+                <ol class="faluss-link-onboarding__progress" aria-label="<?php esc_attr_e( 'Progression de création', 'faluss-link' ); ?>">
+                    <?php foreach ( self::onboarding_steps() as $key => $label ) : ?><li data-onboarding-progress="<?php echo esc_attr( $key ); ?>"<?php echo $key === $step ? ' aria-current="step"' : ''; ?>><span aria-hidden="true"></span><?php echo esc_html( $label ); ?></li><?php endforeach; ?>
+                </ol>
+            </header>
+            <div class="faluss-link-onboarding__layout">
+                <form class="faluss-link-onboarding__form" novalidate>
+                    <p class="faluss-link-onboarding__notice" role="status" aria-live="polite" hidden></p>
+                    <section data-onboarding-panel="name"<?php echo 'name' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-name-title">
+                        <h2 id="<?php echo esc_attr( $instance ); ?>-name-title"><?php esc_html_e( 'Quel nom souhaitez-vous afficher ?', 'faluss-link' ); ?></h2>
+                        <label><?php esc_html_e( 'Nom affiché', 'faluss-link' ); ?><input name="display_name" type="text" maxlength="80" autocomplete="name" value="<?php echo esc_attr( $profile['display_name'] ); ?>" required></label>
+                        <p class="faluss-link-onboarding__hint"><?php esc_html_e( 'Votre identifiant @ reste déjà réservé et ne changera pas.', 'faluss-link' ); ?></p>
+                    </section>
+                    <section data-onboarding-panel="avatar"<?php echo 'avatar' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-avatar-title">
+                        <h2 id="<?php echo esc_attr( $instance ); ?>-avatar-title"><?php esc_html_e( 'Ajoutez une photo de profil', 'faluss-link' ); ?></h2>
+                        <input name="faluss_identity_avatar_id" type="hidden" value="<?php echo (int) $profile['avatar_attachment_id']; ?>">
+                        <div class="faluss-link-onboarding__avatar-upload" data-onboarding-avatar-preview><?php if ( (int) $profile['avatar_attachment_id'] ) { echo wp_get_attachment_image( (int) $profile['avatar_attachment_id'], 'medium', false, array( 'alt' => '' ) ); } else { ?><span aria-hidden="true">+</span><?php } ?></div>
+                        <button type="button" class="faluss-link-onboarding__secondary" data-onboarding-avatar-select><?php esc_html_e( 'Choisir une image', 'faluss-link' ); ?></button>
+                        <p class="faluss-link-onboarding__hint"><?php esc_html_e( 'Facultatif. Seules vos images valides sont acceptées.', 'faluss-link' ); ?></p>
+                    </section>
+                    <section data-onboarding-panel="header"<?php echo 'header' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-header-title">
+                        <h2 id="<?php echo esc_attr( $instance ); ?>-header-title"><?php esc_html_e( 'Soignez votre en-tête', 'faluss-link' ); ?></h2>
+                        <fieldset><legend><?php esc_html_e( 'Avatar', 'faluss-link' ); ?></legend><label><input name="avatar_border" type="radio" value="1" <?php checked( ! empty( $preferences['avatar_border'] ) ); ?>> <?php esc_html_e( 'Rond avec bordure', 'faluss-link' ); ?></label><label><input name="avatar_border" type="radio" value="0" <?php checked( empty( $preferences['avatar_border'] ) ); ?>> <?php esc_html_e( 'Rond sans bordure', 'faluss-link' ); ?></label></fieldset>
+                        <label><?php esc_html_e( 'Police disponible', 'faluss-link' ); ?><select name="name_font"><?php foreach ( self::onboarding_name_fonts() as $font_key => $font ) : ?><option value="<?php echo esc_attr( $font_key ); ?>" <?php selected( $preferences['name_font'], $font_key ); ?>><?php echo esc_html( $font['label'] ); ?></option><?php endforeach; ?></select></label>
+                        <label><?php esc_html_e( 'Traitement du nom', 'faluss-link' ); ?><select name="name_treatment"><?php self::options( self::NAME_TREATMENTS, $preferences['name_treatment'] ); ?></select></label>
+                    </section>
+                    <section data-onboarding-panel="style"<?php echo 'style' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-style-title">
+                        <h2 id="<?php echo esc_attr( $instance ); ?>-style-title"><?php esc_html_e( 'Définissez l’ambiance', 'faluss-link' ); ?></h2>
+                        <label><?php esc_html_e( 'Fond de carte', 'faluss-link' ); ?><input name="page_background" type="color" value="<?php echo esc_attr( $preferences['page_background'] ); ?>"></label>
+                        <fieldset><legend><?php esc_html_e( 'Boutons de liens', 'faluss-link' ); ?></legend><label><input name="link_style" type="radio" value="solid" <?php checked( 'solid', $preferences['link_style'] ); ?>> <?php esc_html_e( 'Plein', 'faluss-link' ); ?></label><label><input name="link_style" type="radio" value="outline" <?php checked( 'outline', $preferences['link_style'] ); ?>> <?php esc_html_e( 'Contour', 'faluss-link' ); ?></label></fieldset>
+                    </section>
+                    <section data-onboarding-panel="socials"<?php echo 'socials' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-socials-title">
+                        <h2 id="<?php echo esc_attr( $instance ); ?>-socials-title"><?php esc_html_e( 'Quels réseaux ajouter ?', 'faluss-link' ); ?></h2>
+                        <div class="faluss-link-onboarding__networks">
+                            <?php foreach ( self::active_network_catalog() as $network => $network_settings ) : ?><label class="faluss-link-onboarding__network"><input name="social_selected[]" type="checkbox" value="<?php echo esc_attr( $network ); ?>" <?php checked( in_array( $network, $selected_networks, true ) ); ?>><span class="faluss-link-onboarding__network-asset" aria-hidden="true"><?php echo self::social_asset_markup( $network, 'outline' ); ?></span><span><?php echo esc_html( $network_settings['label'] ); ?></span></label><?php endforeach; ?>
+                        </div>
+                        <p class="faluss-link-onboarding__hint"><?php esc_html_e( 'Vous pourrez les compléter ou passer cette étape.', 'faluss-link' ); ?></p>
+                    </section>
+                    <section data-onboarding-panel="links"<?php echo 'links' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-links-title">
+                        <h2 id="<?php echo esc_attr( $instance ); ?>-links-title"><?php esc_html_e( 'Ajoutez vos liens', 'faluss-link' ); ?></h2>
+                        <div class="faluss-link-onboarding__social-urls" data-onboarding-social-urls><?php foreach ( $selected_networks as $network ) : $existing_url = ''; foreach ( self::socials( $preferences['social_links'] ) as $social ) { if ( $network === $social['network'] ) { $existing_url = $social['url']; break; } } ?><label data-onboarding-social-url="<?php echo esc_attr( $network ); ?>"><?php echo esc_html( self::network_label( $network ) ); ?><input name="social_urls[<?php echo esc_attr( $network ); ?>]" type="text" maxlength="2048" value="<?php echo esc_attr( $existing_url ); ?>" placeholder="@identifiant ou https://"></label><?php endforeach; ?></div>
+                        <div class="faluss-link-onboarding__free-links" data-onboarding-free-links><?php foreach ( $blocks as $block ) : if ( 'link' === $block['type'] ) : ?><div class="faluss-link-onboarding__free-link"><input name="wizard_links[][block_id]" type="hidden" value="<?php echo esc_attr( $block['block_id'] ); ?>"><label><?php esc_html_e( 'Libellé', 'faluss-link' ); ?><input name="wizard_links[][label]" type="text" maxlength="80" value="<?php echo esc_attr( $block['label'] ); ?>"></label><label><?php esc_html_e( 'URL HTTPS', 'faluss-link' ); ?><input name="wizard_links[][url]" type="url" maxlength="2048" value="<?php echo esc_attr( $block['url'] ); ?>" placeholder="https://"></label><button type="button" class="faluss-link-onboarding__remove-link" aria-label="<?php esc_attr_e( 'Supprimer ce lien', 'faluss-link' ); ?>">×</button></div><?php endif; endforeach; ?></div>
+                        <button type="button" class="faluss-link-onboarding__secondary" data-onboarding-add-link><?php esc_html_e( 'Ajouter un lien', 'faluss-link' ); ?></button>
+                        <p class="faluss-link-onboarding__hint"><?php esc_html_e( 'Les liens libres doivent utiliser HTTPS.', 'faluss-link' ); ?></p>
+                    </section>
+                    <section data-onboarding-panel="finish"<?php echo 'finish' === $step ? '' : ' hidden'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-finish-title"><h2 id="<?php echo esc_attr( $instance ); ?>-finish-title"><?php esc_html_e( 'Prêt à publier ?', 'faluss-link' ); ?></h2><p><?php esc_html_e( 'Votre carte restera modifiable dans Studio Faluss. Elle ne devient publique qu’après cette action.', 'faluss-link' ); ?></p></section>
+                    <footer class="faluss-link-onboarding__actions"><button class="faluss-link-onboarding__back" type="button" data-onboarding-back hidden><?php esc_html_e( 'Retour', 'faluss-link' ); ?></button><button class="faluss-link-onboarding__secondary" type="button" data-onboarding-skip hidden><?php esc_html_e( 'Passer', 'faluss-link' ); ?></button><button class="faluss-link-onboarding__next" type="button" data-onboarding-next><?php esc_html_e( 'Continuer', 'faluss-link' ); ?></button><button class="faluss-link-onboarding__finish" type="button" data-onboarding-finish hidden><?php esc_html_e( 'Terminer et publier mon Faluss', 'faluss-link' ); ?></button></footer>
+                </form>
+                <aside class="faluss-link-onboarding__preview" aria-label="<?php esc_attr_e( 'Aperçu de votre Faluss', 'faluss-link' ); ?>" data-onboarding-preview><p><?php esc_html_e( 'Aperçu', 'faluss-link' ); ?></p><?php echo self::card_markup( $profile, $preferences, $preferences['alignment'], true, $blocks ); ?></aside>
+            </div>
+        </section>
+        <?php
+        return (string) ob_get_clean();
+    }
+
+    public static function save_onboarding_wizard() {
+        $faluss_id = self::onboarding_ajax_member( 'faluss_link_onboarding' );
+        if ( '' === $faluss_id ) { wp_send_json_error( array( 'message' => __( 'Votre création Faluss n’est plus disponible.', 'faluss-link' ) ), 403 ); }
+        $step = self::onboarding_step( $_POST['step'] ?? '' );
+        if ( ! self::save_onboarding_step( $faluss_id, $step, $_POST ) || ! Faluss_Identity_Onboarding::advance_card_wizard( self::onboarding_next_step( $step ) ) ) {
+            wp_send_json_error( array( 'message' => __( 'Nous ne pouvons pas enregistrer cette étape. Vérifiez vos informations.', 'faluss-link' ) ), 400 );
+        }
+        $profile = Faluss_Identity_Public_Profile::studio_profile( $faluss_id );
+        $preferences = self::valid_prefs( $faluss_id );
+        $blocks = self::content_blocks( $faluss_id, is_array( $profile ) ? ( $profile['links'] ?? array() ) : array(), false );
+        wp_send_json_success( array(
+            'step' => self::onboarding_next_step( $step ),
+            // Reuse the same safe card renderer after each saved choice rather
+            // than maintaining a second browser-only preview implementation.
+            'preview' => is_array( $profile ) ? self::card_markup( $profile, $preferences, $preferences['alignment'], true, $blocks ) : '',
+        ) );
+    }
+
+    public static function finish_onboarding_wizard() {
+        self::onboarding_no_cache();
+        if ( ! is_user_logged_in() || ! check_ajax_referer( 'faluss_link_onboarding', 'nonce', false ) || ! self::identity_ready() || ! class_exists( 'Faluss_Identity_Onboarding' ) || ! class_exists( 'Faluss_Identity_Public_Profile' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Votre création Faluss n’est plus disponible.', 'faluss-link' ) ), 403 );
+        }
+        $faluss_id = self::current_faluss_id();
+        $profile = self::valid_faluss_id( $faluss_id ) ? Faluss_Identity_Public_Profile::studio_profile( $faluss_id ) : array();
+        if ( '' === $faluss_id || ! is_array( $profile ) || '' === trim( (string) ( $profile['display_name'] ?? '' ) ) || ! self::finish_onboarding_profile( $faluss_id, $profile ) ) {
+            wp_send_json_error( array( 'message' => __( 'Ajoutez un nom affiché avant de publier votre Faluss.', 'faluss-link' ) ), 400 );
+        }
+        wp_send_json_success( array( 'redirect' => home_url( '/mon-faluss/' ) ) );
+    }
+
+    public static function upload_onboarding_avatar() {
+        if ( '' === self::onboarding_ajax_member( 'faluss_link_onboarding_avatar' ) ) { wp_send_json_error( array( 'message' => __( 'Votre création Faluss n’est plus disponible.', 'faluss-link' ) ), 403 ); }
+        self::upload_member_image( 'avatar', 'faluss_link_onboarding_avatar' );
+    }
+
+    /** @return array<string, string> */
+    private static function onboarding_steps() {
+        return array( 'name' => __( 'Nom', 'faluss-link' ), 'avatar' => __( 'Photo', 'faluss-link' ), 'header' => __( 'En-tête', 'faluss-link' ), 'style' => __( 'Style', 'faluss-link' ), 'socials' => __( 'Réseaux', 'faluss-link' ), 'links' => __( 'Liens', 'faluss-link' ), 'finish' => __( 'Publier', 'faluss-link' ) );
+    }
+
+    private static function onboarding_step( $step ) {
+        $step = is_string( $step ) ? sanitize_key( wp_unslash( $step ) ) : '';
+        if ( 0 === strpos( $step, 'wizard_' ) ) { $step = substr( $step, 7 ); }
+        return isset( self::onboarding_steps()[ $step ] ) ? $step : 'name';
+    }
+
+    private static function onboarding_next_step( $step ) {
+        $steps = array_keys( self::onboarding_steps() );
+        $index = array_search( self::onboarding_step( $step ), $steps, true );
+        return false === $index || ! isset( $steps[ $index + 1 ] ) ? 'wizard_finish' : 'wizard_' . $steps[ $index + 1 ];
+    }
+
+    private static function onboarding_ajax_member( $nonce_action ) {
+        self::onboarding_no_cache();
+        if ( ! is_user_logged_in() || ! check_ajax_referer( $nonce_action, 'nonce', false ) || ! self::identity_ready() || ! class_exists( 'Faluss_Identity_Onboarding' ) ) { return ''; }
+        $faluss_id = self::current_faluss_id();
+        $context = Faluss_Identity_Onboarding::card_wizard_context();
+        return self::valid_faluss_id( $faluss_id ) && ! empty( $context['required'] ) ? $faluss_id : '';
+    }
+
+    /** Session- and nonce-bound wizard responses can never be shared cached. */
+    private static function onboarding_no_cache() {
+        if ( ! defined( 'DONOTCACHEPAGE' ) ) { define( 'DONOTCACHEPAGE', true ); }
+        if ( function_exists( 'nocache_headers' ) ) { nocache_headers(); }
+        do_action( 'litespeed_control_set_nocache' );
+    }
+
+    private static function save_onboarding_step( $faluss_id, $step, $post ) {
+        if ( ! class_exists( 'Faluss_Identity_Public_Profile' ) ) { return false; }
+        $profile = Faluss_Identity_Public_Profile::studio_profile( $faluss_id );
+        if ( ! is_array( $profile ) || '' === (string) ( $profile['public_slug'] ?? '' ) ) { return false; }
+        if ( 'name' === $step ) {
+            $name = isset( $post['display_name'] ) ? sanitize_text_field( wp_unslash( $post['display_name'] ) ) : '';
+            return '' !== trim( $name ) && self::save_onboarding_identity( $faluss_id, $profile, array( 'display_name' => $name ) );
+        }
+        if ( 'avatar' === $step ) {
+            $avatar = isset( $post['faluss_identity_avatar_id'] ) ? absint( $post['faluss_identity_avatar_id'] ) : 0;
+            return ! $avatar || self::save_onboarding_identity( $faluss_id, $profile, array( 'faluss_identity_avatar_id' => $avatar ) );
+        }
+        if ( in_array( $step, array( 'header', 'style', 'socials' ), true ) ) {
+            return self::save_preferences( $faluss_id, $post );
+        }
+        if ( 'links' === $step ) {
+            $preferences = self::prefs( $faluss_id, false );
+            $selected = self::onboarding_network_selection( $post['social_selected'] ?? $preferences['social_selected'] );
+            $socials = self::onboarding_socials( $post['social_urls'] ?? array(), $selected );
+            $raw_blocks = isset( $post['wizard_links'] ) && is_array( $post['wizard_links'] ) ? wp_unslash( $post['wizard_links'] ) : array();
+            $provided = 0;
+            foreach ( $raw_blocks as $block ) { if ( is_array( $block ) && ( '' !== trim( (string) ( $block['label'] ?? '' ) ) || '' !== trim( (string) ( $block['url'] ?? '' ) ) ) ) { ++$provided; } }
+            $links = self::normalise_blocks( array_map( static function( $block ) { return is_array( $block ) ? array_merge( $block, array( 'type' => 'link' ) ) : array(); }, $raw_blocks ) );
+            if ( false === $socials || $provided !== count( $links ) ) { return false; }
+            $post['social_networks'] = $socials;
+            $post['social_selected'] = $selected;
+            $existing = self::content_blocks( $faluss_id, $profile['links'], false );
+            $blocks = array_merge( array_values( array_filter( $existing, static function( $block ) { return is_array( $block ) && 'link' !== ( $block['type'] ?? '' ); } ) ), $links );
+            return self::save_preferences( $faluss_id, $post ) && self::save_blocks( $faluss_id, $blocks ) && self::save_onboarding_identity( $faluss_id, $profile, array( 'links' => self::identity_links( $blocks ) ) );
+        }
+        return 'finish' === $step;
+    }
+
+    private static function finish_onboarding_profile( $faluss_id, $profile ) {
+        $context = Faluss_Identity_Onboarding::card_wizard_context();
+        if ( empty( $context['required'] ) && 'published' === ( $profile['publication_status'] ?? '' ) ) {
+            return Faluss_Identity_Onboarding::complete_card_wizard();
+        }
+        $blocks = self::content_blocks( $faluss_id, $profile['links'], false );
+        return self::save_onboarding_identity( $faluss_id, $profile, array( 'links' => self::identity_links( $blocks ) ), true ) && Faluss_Identity_Onboarding::complete_card_wizard();
+    }
+
+    private static function save_onboarding_identity( $faluss_id, $profile, $overrides = array(), $publish = false ) {
+        $post = array(
+            'public_slug' => $profile['public_slug'] ?? '',
+            'display_name' => $overrides['display_name'] ?? $profile['display_name'] ?? '',
+            'bio' => $overrides['bio'] ?? $profile['bio'] ?? '',
+            'links' => $overrides['links'] ?? $profile['links'] ?? array(),
+        );
+        if ( isset( $overrides['faluss_identity_avatar_id'] ) ) { $post['faluss_identity_avatar_id'] = absint( $overrides['faluss_identity_avatar_id'] ); }
+        if ( $publish ) { $post['publication_status'] = 'published'; }
+        return 'saved' === Faluss_Identity_Public_Profile::save_studio_profile( $faluss_id, $post, array() );
+    }
+
+    /** @return array<int, array{network: string, url: string}>|false */
+    private static function onboarding_socials( $raw, $selected ) {
+        $out = array();
+        foreach ( $selected as $network ) {
+            $value = is_array( $raw ) && isset( $raw[ $network ] ) ? trim( (string) wp_unslash( $raw[ $network ] ) ) : '';
+            if ( '' === $value ) { continue; }
+            $url = self::onboarding_social_url( $network, $value );
+            if ( '' === $url ) { return false; }
+            $out[] = array( 'network' => $network, 'url' => $url );
+        }
+        return $out;
+    }
+
+    private static function onboarding_social_url( $network, $value ) {
+        $valid = self::socials( array( array( 'network' => $network, 'url' => $value ) ) );
+        if ( $valid ) { return $valid[0]['url']; }
+        $identifier = ltrim( trim( $value ), '@' );
+        if ( '' === $identifier || 1 !== preg_match( '/^[A-Za-z0-9._-]{1,100}$/D', $identifier ) ) { return ''; }
+        $bases = array( 'instagram' => 'https://www.instagram.com/', 'tiktok' => 'https://www.tiktok.com/@', 'youtube' => 'https://www.youtube.com/@', 'x' => 'https://x.com/', 'linkedin' => 'https://www.linkedin.com/in/', 'github' => 'https://github.com/' );
+        if ( ! isset( $bases[ $network ] ) ) { return ''; }
+        $valid = self::socials( array( array( 'network' => $network, 'url' => $bases[ $network ] . rawurlencode( $identifier ) ) ) );
+        return $valid ? $valid[0]['url'] : '';
+    }
+
+    /** @return array<int, string> */
+    private static function onboarding_network_selection( $values ) {
+        $allowed = array_keys( self::active_network_catalog() ); $out = array();
+        foreach ( (array) $values as $value ) {
+            $network = is_array( $value ) ? ( $value['network'] ?? '' ) : $value;
+            $network = sanitize_key( (string) $network );
+            if ( in_array( $network, $allowed, true ) && ! in_array( $network, $out, true ) ) { $out[] = $network; }
+        }
+        return $out;
+    }
+
+    /** @return array<string, array{label: string, stack: string}> */
+    private static function onboarding_name_fonts() {
+        $fonts = array( 'outfit' => array( 'label' => 'Outfit', 'stack' => 'Outfit, ui-sans-serif, system-ui, sans-serif' ) );
+        $fonts = function_exists( 'apply_filters' ) ? apply_filters( 'faluss_link_onboarding_name_fonts', $fonts ) : $fonts;
+        $clean = array();
+        foreach ( (array) $fonts as $key => $font ) {
+            $key = sanitize_key( (string) $key ); $label = is_array( $font ) ? sanitize_text_field( $font['label'] ?? '' ) : ''; $stack = is_array( $font ) ? (string) ( $font['stack'] ?? '' ) : '';
+            if ( '' !== $key && '' !== $label && 1 === preg_match( '/^[A-Za-z0-9, ."\'-]+$/D', $stack ) ) { $clean[ $key ] = array( 'label' => $label, 'stack' => $stack ); }
+        }
+        return $clean ?: array( 'outfit' => array( 'label' => 'Outfit', 'stack' => 'Outfit, ui-sans-serif, system-ui, sans-serif' ) );
+    }
+
+    private static function onboarding_name_font( $value ) {
+        $key = sanitize_key( (string) $value ); $fonts = self::onboarding_name_fonts();
+        return isset( $fonts[ $key ] ) ? $key : 'outfit';
+    }
+
+    private static function onboarding_name_font_stack( $value ) {
+        $fonts = self::onboarding_name_fonts(); $key = self::onboarding_name_font( $value );
+        return $fonts[ $key ]['stack'];
+    }
+
+    private static function onboarding_assets() {
+        if ( ! wp_style_is( self::ONBOARDING_STYLE, 'registered' ) ) { self::assets(); }
+        wp_enqueue_style( self::STYLE ); wp_enqueue_style( self::ONBOARDING_STYLE );
+        wp_localize_script( self::ONBOARDING_SCRIPT, 'falussLinkOnboarding', array( 'url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'faluss_link_onboarding' ), 'avatarNonce' => wp_create_nonce( 'faluss_link_onboarding_avatar' ) ) );
+        wp_enqueue_script( self::ONBOARDING_SCRIPT );
+    }
+
     private static function upload_member_image( $field, $nonce_action ) {
         if ( ! is_user_logged_in() || ! check_ajax_referer( $nonce_action, 'nonce', false ) || ! self::identity_ready() || ! Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() ) ) { wp_send_json_error( array( 'message' => 'Accès refusé.' ), 403 ); }
         if ( empty( $_FILES[ $field ] ) || ! is_array( $_FILES[ $field ] ) ) { wp_send_json_error( array( 'message' => 'Image requise.' ), 400 ); }
@@ -376,11 +650,14 @@ final class Faluss_Link {
         $page_background = is_string( $background_input ) ? sanitize_hex_color( $background_input ) : null;
         $name_color = self::name_color( $field( 'name_color', $old['name_color'] ) );
         $social_variant = self::social_variant( $field( 'social_variant', $old['social_variant'] ) );
+        $avatar_border = array_key_exists( 'avatar_border', $post ) ? ( ! empty( $post['avatar_border'] ) ? 1 : 0 ) : (int) $old['avatar_border'];
+        $name_font = self::onboarding_name_font( $field( 'name_font', $old['name_font'] ) );
+        $social_selected = array_key_exists( 'social_selected', $post ) ? self::onboarding_network_selection( $post['social_selected'] ) : $old['social_selected'];
         $theme_reference = self::theme_reference( $field( 'selected_theme', $old['theme_reference'] ) );
         if ( $theme_reference !== self::theme_reference( $old['theme_reference'] ) && ! self::theme_available_to_subject( self::catalog_theme( $theme_reference ), $faluss_id ) ) { return false; }
         $theme_overrides = self::theme_overrides( $field( 'theme_overrides', $old['theme_overrides'] ) );
         $networks = array_key_exists( 'social_networks', $post ) || array_key_exists( 'social_links', $post ) ? self::socials( wp_unslash( $post['social_networks'] ?? $post['social_links'] ) ) : self::socials( $old['social_links'] );
-        $payload = array( 'networks' => $networks, 'alignment' => $pick( $field( 'alignment', $old['alignment'] ), array( 'left', 'center' ), $old['alignment'] ), 'page_background' => $page_background ? $page_background : '#FFFDF5', 'hero_transition_color' => $color ? $color : '#FFFDF5', 'hero_transition_intensity' => min( 100, max( 0, (int) $field( 'hero_transition_intensity', $old['hero_transition_intensity'] ) ) ), 'hero_transition_position' => min( 100, max( 35, (int) $field( 'hero_transition_position', $old['hero_transition_position'] ) ) ), 'name_color' => $name_color, 'social_variant' => $social_variant, 'selected_theme' => $theme_reference, 'theme_overrides' => $theme_overrides );
+        $payload = array( 'networks' => $networks, 'social_selected' => $social_selected, 'avatar_border' => $avatar_border, 'name_font' => $name_font, 'alignment' => $pick( $field( 'alignment', $old['alignment'] ), array( 'left', 'center' ), $old['alignment'] ), 'page_background' => $page_background ? $page_background : '#FFFDF5', 'hero_transition_color' => $color ? $color : '#FFFDF5', 'hero_transition_intensity' => min( 100, max( 0, (int) $field( 'hero_transition_intensity', $old['hero_transition_intensity'] ) ) ), 'hero_transition_position' => min( 100, max( 35, (int) $field( 'hero_transition_position', $old['hero_transition_position'] ) ) ), 'name_color' => $name_color, 'social_variant' => $social_variant, 'selected_theme' => $theme_reference, 'theme_overrides' => $theme_overrides );
         $values = array( 'cover_attachment_id' => $cover, 'avatar_visible' => array_key_exists( 'avatar_visible', $post ) ? ( ! empty( $post['avatar_visible'] ) ? 1 : 0 ) : (int) $old['avatar_visible'], 'name_weight' => 'bold', 'name_treatment' => $pick( $field( 'name_treatment', $old['name_treatment'] ), array_keys( self::NAME_TREATMENTS ), $old['name_treatment'] ), 'available' => array_key_exists( 'available', $post ) ? ( ! empty( $post['available'] ) ? 1 : 0 ) : (int) $old['available'], 'bio_mode' => $pick( $field( 'bio_mode', $old['bio_mode'] ), array( 'editorial', 'announcement' ), $old['bio_mode'] ), 'announcement' => sanitize_text_field( $field( 'announcement', $old['announcement'] ) ), 'announcement_variant' => $pick( $field( 'announcement_variant', $old['announcement_variant'] ), array_keys( self::ANNOUNCEMENTS ), $old['announcement_variant'] ), 'social_links' => wp_json_encode( $payload ), 'social_layout' => $pick( $field( 'social_layout', $old['social_layout'] ), array_keys( self::LAYOUTS ), $old['social_layout'] ), 'link_style' => $pick( $field( 'link_style', $old['link_style'] ), array_keys( self::LINK_STYLES ), $old['link_style'] ) );
         $now = gmdate( 'Y-m-d H:i:s' );
         if ( $old['faluss_id'] !== $faluss_id ) { return false !== $wpdb->query( $wpdb->prepare( 'INSERT INTO ' . $table . ' (faluss_id,cover_attachment_id,avatar_visible,name_weight,name_treatment,available,bio_mode,announcement,announcement_variant,social_links,social_layout,link_style,created_at,updated_at) VALUES (%s,%d,%d,%s,%s,%d,%s,%s,%s,%s,%s,%s,%s,%s)', ...array_merge( array( $faluss_id ), array_values( $values ), array( $now, $now ) ) ) ); }
@@ -489,10 +766,10 @@ final class Faluss_Link {
         $styles = self::resolve_card_styles( $preferences );
         $variant = self::social_variant( $preferences['social_variant'] ?? 'outline' );
         $social_markup = self::social_markup( $preferences['social_links'], $variant );
-        $style = sprintf( '--fl-page-background:%s;--fl-hero-transition-color:%s;--fl-hero-transition-intensity:%d%%;--fl-hero-transition-position:%d%%;--fl-name-color:%s;', $preferences['page_background'], $preferences['hero_transition_color'], (int) $preferences['hero_transition_intensity'], (int) $preferences['hero_transition_position'], $styles['name_color'] );
+        $style = sprintf( '--fl-page-background:%s;--fl-hero-transition-color:%s;--fl-hero-transition-intensity:%d%%;--fl-hero-transition-position:%d%%;--fl-name-color:%s;--fl-name-font:%s;', $preferences['page_background'], $preferences['hero_transition_color'], (int) $preferences['hero_transition_intensity'], (int) $preferences['hero_transition_position'], $styles['name_color'], self::onboarding_name_font_stack( $preferences['name_font'] ?? 'outfit' ) );
         ob_start();
         ?>
-        <article class="faluss-link-card faluss-link-card--align-<?php echo esc_attr( self::align( $alignment ) ); ?> faluss-link-card--links-<?php echo esc_attr( $preferences['link_style'] ); ?> faluss-link-card--cover-<?php echo $has_cover ? 'yes' : 'no'; ?> faluss-link-card--avatar-<?php echo $has_avatar ? 'yes' : 'no'; ?>" data-faluss-card-theme="<?php echo esc_attr( $preferences['selected_theme'] ?? self::system_card_theme()['slug'] ); ?>" style="<?php echo esc_attr( $style ); ?>">
+        <article class="faluss-link-card faluss-link-card--align-<?php echo esc_attr( self::align( $alignment ) ); ?> faluss-link-card--links-<?php echo esc_attr( $preferences['link_style'] ); ?> faluss-link-card--cover-<?php echo $has_cover ? 'yes' : 'no'; ?> faluss-link-card--avatar-<?php echo $has_avatar ? 'yes' : 'no'; ?> faluss-link-card--avatar-border-<?php echo ! empty( $preferences['avatar_border'] ) ? 'yes' : 'no'; ?>" data-faluss-card-theme="<?php echo esc_attr( $preferences['selected_theme'] ?? self::system_card_theme()['slug'] ); ?>" style="<?php echo esc_attr( $style ); ?>">
             <div class="faluss-link-card__cover" <?php echo $has_cover ? '' : 'hidden'; ?>><?php if ( $has_cover ) { echo wp_get_attachment_image( $cover, 'large', false, array( 'alt' => '' ) ); } ?></div>
             <div class="faluss-link-card__body">
                 <div class="faluss-link-card__avatar" <?php echo $has_avatar ? '' : 'hidden'; ?>><?php if ( $has_avatar ) { echo wp_get_attachment_image( $avatar, 'medium', false, array( 'alt' => '' ) ); } ?></div>
@@ -544,13 +821,16 @@ final class Faluss_Link {
      */
     private static function prefs( $faluss_id, $resolve_entitlement = true ) {
         global $wpdb;
-        $defaults = array( 'faluss_id' => '', 'cover_attachment_id' => 0, 'avatar_visible' => 1, 'name_weight' => 'bold', 'name_treatment' => 'strong', 'available' => 0, 'bio_mode' => 'editorial', 'announcement' => '', 'announcement_variant' => 'accent', 'social_links' => '[]', 'social_layout' => 'bubbles', 'link_style' => 'solid', 'alignment' => 'left', 'page_background' => '#FFFDF5', 'hero_transition_color' => '#FFFDF5', 'hero_transition_intensity' => 82, 'hero_transition_position' => 72, 'name_color' => '#000000', 'social_variant' => 'outline', 'theme_reference' => 'faluss-default', 'selected_theme' => 'faluss-default', 'theme_overrides' => array() );
+        $defaults = array( 'faluss_id' => '', 'cover_attachment_id' => 0, 'avatar_visible' => 1, 'avatar_border' => 1, 'name_font' => 'outfit', 'name_weight' => 'bold', 'name_treatment' => 'strong', 'available' => 0, 'bio_mode' => 'editorial', 'announcement' => '', 'announcement_variant' => 'accent', 'social_links' => '[]', 'social_selected' => array(), 'social_layout' => 'bubbles', 'link_style' => 'solid', 'alignment' => 'left', 'page_background' => '#FFFDF5', 'hero_transition_color' => '#FFFDF5', 'hero_transition_intensity' => 82, 'hero_transition_position' => 72, 'name_color' => '#000000', 'social_variant' => 'outline', 'theme_reference' => 'faluss-default', 'selected_theme' => 'faluss-default', 'theme_overrides' => array() );
         $row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . Faluss_Link_Schema::table() . ' WHERE faluss_id=%s', $faluss_id ), ARRAY_A );
         $preferences = is_array( $row ) ? array_merge( $defaults, $row ) : $defaults;
         $preferences['faluss_id'] = (string) $faluss_id;
         $payload = json_decode( $preferences['social_links'], true );
         $legacy = is_array( $payload ) && ! array_key_exists( 'selected_theme', $payload );
         if ( is_array( $payload ) ) {
+            $preferences['avatar_border'] = array_key_exists( 'avatar_border', $payload ) ? ( ! empty( $payload['avatar_border'] ) ? 1 : 0 ) : (int) $preferences['avatar_border'];
+            $preferences['name_font'] = self::onboarding_name_font( $payload['name_font'] ?? $preferences['name_font'] );
+            $preferences['social_selected'] = self::onboarding_network_selection( $payload['social_selected'] ?? self::socials( $payload['networks'] ?? array() ) );
             $preferences['alignment'] = self::align( $payload['alignment'] ?? $preferences['alignment'] );
             $preferences['page_background'] = self::valid_hex( $payload['page_background'] ?? '' ) ?: $preferences['page_background'];
             $preferences['hero_transition_color'] = self::valid_hex( $payload['hero_transition_color'] ?? '' ) ?: $preferences['hero_transition_color'];

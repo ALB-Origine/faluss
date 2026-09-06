@@ -452,6 +452,17 @@ final class Faluss_Identity_Public_Profile {
         if ( false === $avatar_id ) {
             return 'invalid';
         }
+        // ONB-02 reuses Faluss Link's member-owned image upload. The Identity
+        // profile remains the only owner of the avatar reference and accepts
+        // that attachment only after the same image/author validation.
+        if ( empty( $files['faluss_identity_avatar']['name'] ) && isset( $post['faluss_identity_avatar_id'] ) ) {
+            $requested_avatar = absint( $post['faluss_identity_avatar_id'] );
+            $attachment = $requested_avatar ? get_post( $requested_avatar ) : null;
+            if ( ! $attachment instanceof WP_Post || (int) $attachment->post_author !== (int) get_current_user_id() || ! wp_attachment_is_image( $requested_avatar ) ) {
+                return 'invalid';
+            }
+            $avatar_id = $requested_avatar;
+        }
         $status = isset( $post['publication_status'] ) && 'published' === $post['publication_status'] ? 'published' : 'draft';
         $now = current_time( 'mysql', true );
         $published_at = 'published' === $status ? ( null !== $existing && 'published' === $existing['publication_status'] ? $existing['published_at'] : $now ) : null;
