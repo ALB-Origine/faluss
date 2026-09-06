@@ -22,15 +22,16 @@ $link = file_get_contents( $root . '/plugins/faluss-link/includes/class-faluss-l
 $bootstrap = file_get_contents( $root . '/plugins/faluss-link/faluss-link.php' );
 $script = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-onboarding.js' );
 $css = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-onboarding.css' );
+$card_css = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link.css' );
 $preview_resolver = onb022_method( $link, 'private static function onboarding_preview_state', 'private static function save_onboarding_step' );
 $public_renderer = onb022_method( $link, 'private static function card_markup', 'private static function public_block_markup' );
 
-onb022_assert( false !== strpos( $bootstrap, 'Version: 0.3.3' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.3'" ), 'The asset cache key must change with the Figma ONB-02 assets.' );
+onb022_assert( false !== strpos( $bootstrap, 'Version: 0.3.4' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.4'" ), 'The asset cache key must change with the Figma ONB-02 assets.' );
 onb022_assert( false !== strpos( $link, "wp_ajax_faluss_link_onboarding_preview" ) && false === strpos( $link, "wp_ajax_nopriv_faluss_link_onboarding_preview" ), 'Only the authenticated member may resolve a draft preview.' );
 onb022_assert( false !== strpos( $link, "self::ONBOARDING_SCRIPT, plugins_url( 'assets/js/faluss-link-onboarding.js'" ) && false !== strpos( $link, 'array( self::CARD_SCRIPT )' ), 'The wizard must load the shared card runtime explicitly.' );
 
 onb022_assert( substr_count( $link, 'self::card_preview_markup(' ) >= 4, 'Studio, initial wizard, saved wizard and live draft must share one preview facade.' );
-onb022_assert( false !== strpos( $link, 'return self::card_markup( $profile, $preferences, $alignment, true, $blocks, $demo_links )' ), 'The preview facade must delegate to the canonical card renderer.' );
+onb022_assert( false !== strpos( $link, 'return self::card_markup( $profile, $preferences, $alignment, true, $blocks, $demo_links, $context )' ), 'The preview facade must delegate to the canonical card renderer.' );
 foreach ( array( 'display_name', 'faluss_identity_avatar_id', 'avatar_border', 'name_font', 'name_treatment', 'page_background', 'link_style', 'social_selected', 'social_urls', 'wizard_links', 'normalise_blocks', 'content_blocks' ) as $needle ) {
     onb022_assert( false !== strpos( $preview_resolver, $needle ), 'The draft resolver must carry the current wizard choice into the shared renderer: ' . $needle );
 }
@@ -58,11 +59,14 @@ foreach ( array( 'data-faluss-preview-only', 'faluss-link-card__link--skeleton',
 onb022_assert( false !== strpos( $link, '$markup = self::card_markup( $profile, $preferences, $alignment, false, $blocks );' ), 'The public route must call the canonical renderer without demo links.' );
 onb022_assert( false === strpos( $preview_resolver, 'data-faluss-preview-only' ) && false === strpos( $preview_resolver, 'link--skeleton' ), 'Demo link markup must never enter normalized or stored block data.' );
 
-foreach ( array( 'faluss-link-onboarding__device-viewport', 'width:271px', 'height:557px', 'transform:scale(.409)', 'border-radius:50px 50px 0 0', 'faluss-link-card__preview-links' ) as $needle ) {
+foreach ( array( 'faluss-link-onboarding__device-viewport', 'width:271px', 'height:557px', 'border-radius:50px 50px 0 0' ) as $needle ) {
     onb022_assert( false !== strpos( $css, $needle ), 'The Figma mobile preview and final card must stay layered, compact and legible: ' . $needle );
 }
+onb022_assert( false !== strpos( $link, 'faluss-link-card__preview-links' ), 'The shared renderer must retain preview-only link placeholders.' );
+onb022_assert( false === strpos( $css, 'transform:scale(' ), 'The Figma shell must leave compact card density to the shared renderer.' );
+onb022_assert( false !== strpos( $card_css, 'faluss-link-card--density-compact' ), 'The shared renderer must own the compact density context.' );
 onb022_assert( false === strpos( $css, 'scale(.72)' ) && false === strpos( $css, 'max-height: 62%' ), 'The obsolete oversized mobile preview composition must not return.' );
-onb022_assert( false !== strpos( $css, '@media (prefers-reduced-motion:reduce)' ) && false === strpos( $script, 'document.body.style.overflow' ), 'Motion and Safari-safe viewport behavior must remain intact.' );
+onb022_assert( false !== strpos( $css, '@media(prefers-reduced-motion:reduce)' ) && false === strpos( $script, 'document.body.style.overflow' ), 'Motion and Safari-safe viewport behavior must remain intact.' );
 onb022_assert( false !== strpos( $link, 'wizard_links[<?php echo esc_attr( $field_key ); ?>][block_id]' ) && false !== strpos( $script, "wizard_links[' + id + '][block_id]" ), 'Real links must retain one grouped stable block payload in preview and persistence.' );
 
 echo 'ONB-02.2 shared immersive preview contract: OK' . PHP_EOL;

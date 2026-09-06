@@ -17,7 +17,10 @@ final class Faluss_Link {
     const ANNOUNCEMENTS = array( 'accent' => 'Accent / ink', 'ink' => 'Ink / white' );
     const NAME_TREATMENTS = array( 'editorial' => 'Éditorial', 'strong' => 'Fort' );
     const LAYOUTS = array( 'bubbles' => 'Bulles', 'inline' => 'Ligne' );
-    const LINK_STYLES = array( 'solid' => 'Plein', 'light' => 'Clair', 'outline' => 'Contour' );
+    /* Storage values are kept for existing cards; their member-facing names
+     * describe the shared presentation variants used by Studio, onboarding and
+     * the public renderer. */
+    const LINK_STYLES = array( 'solid' => 'Visuel', 'light' => 'Minutieux', 'outline' => 'Formel' );
     const NAME_COLORS = array( '#BE79FF' => 'Rose', '#FFFFFF' => 'Blanc', '#000000' => 'Noir', '#82206B' => 'Prune' );
     const SOCIAL_VARIANTS = array( 'outline' => 'Icônes contour', 'full' => 'Logos pleins' );
     const BLOCK_TYPES = array( 'section_title' => 'Titre de section', 'text' => 'Texte', 'link' => 'Lien', 'media_teaser' => 'Teaser média' );
@@ -309,7 +312,7 @@ final class Faluss_Link {
                     <section id="faluss-studio-panel-profile" role="tabpanel" aria-labelledby="faluss-studio-tab-profile" data-fl-panel="profile"<?php echo 'profile' === $active_tab ? '' : ' hidden'; ?>><?php self::identity_fields( $profile ); ?><label class="faluss-link-studio__check"><input name="available" type="checkbox" value="1" <?php checked( $preferences['available'] ); ?>> <?php esc_html_e( 'Afficher Disponible', 'faluss-link' ); ?></label></section>
                     <section id="faluss-studio-panel-links" role="tabpanel" aria-labelledby="faluss-studio-tab-links" data-fl-panel="links"<?php echo 'links' === $active_tab ? '' : ' hidden'; ?>><?php self::content_composer( $blocks ); self::social_editor( $preferences ); ?><label for="faluss-studio-social-layout"><?php esc_html_e( 'Affichage des réseaux', 'faluss-link' ); ?></label><select id="faluss-studio-social-layout" name="social_layout"><?php self::options( self::LAYOUTS, $preferences['social_layout'] ); ?></select></section>
                     <section id="faluss-studio-panel-style" role="tabpanel" aria-labelledby="faluss-studio-tab-style" data-fl-panel="style"<?php echo 'style' === $active_tab ? '' : ' hidden'; ?>><?php self::theme_picker( $preferences ); self::page_background_field( $preferences, true ); self::name_color_field( $preferences ); self::preference_fields( $preferences, true ); ?></section>
-                    <aside id="faluss-studio-preview" class="faluss-link-studio__preview" data-fl-preview aria-label="<?php esc_attr_e( 'Aperçu vivant de ma carte Faluss', 'faluss-link' ); ?>" tabindex="-1" hidden><h2><?php esc_html_e( 'Aperçu', 'faluss-link' ); ?></h2><?php echo self::card_preview_markup( $profile, $preferences, $preferences['alignment'], $blocks ); ?></aside>
+                    <aside id="faluss-studio-preview" class="faluss-link-studio__preview" data-fl-preview aria-label="<?php esc_attr_e( 'Aperçu vivant de ma carte Faluss', 'faluss-link' ); ?>" tabindex="-1" hidden><h2><?php esc_html_e( 'Aperçu', 'faluss-link' ); ?></h2><?php echo self::card_preview_markup( $profile, $preferences, $preferences['alignment'], $blocks, false, 'studio-preview' ); ?></aside>
                 </div><div class="faluss-link-studio__actions"><button class="faluss-link-action faluss-link-studio__submit" type="submit"><?php esc_html_e( 'Mettre à jour', 'faluss-link' ); ?></button><button class="faluss-link-studio__preview-toggle" type="button" data-fl-preview-toggle aria-controls="faluss-studio-preview" aria-expanded="false"><?php esc_html_e( 'Aperçu', 'faluss-link' ); ?><span class="faluss-link-studio__dirty-count" data-fl-dirty-count hidden aria-live="polite">0</span></button></div>
             </form>
         </section>
@@ -451,7 +454,7 @@ final class Faluss_Link {
                 <aside class="faluss-link-onboarding__preview" aria-label="<?php esc_attr_e( 'Aperçu de votre Faluss', 'faluss-link' ); ?>" data-onboarding-preview>
                     <p class="screen-reader-text"><?php esc_html_e( 'Aperçu de votre carte Faluss', 'faluss-link' ); ?></p>
                     <div class="faluss-link-onboarding__device" aria-hidden="true"><img src="<?php echo esc_url( $onboarding_assets['device'] ); ?>" width="271" height="557" alt=""></div>
-                    <div class="faluss-link-onboarding__device-viewport" data-onboarding-preview-card><?php echo self::card_preview_markup( $profile, $preferences, $preferences['alignment'], $blocks, true ); ?></div>
+                    <div class="faluss-link-onboarding__device-viewport" data-onboarding-preview-card><?php echo self::card_preview_markup( $profile, $preferences, $preferences['alignment'], $blocks, true, 'onboarding-preview' ); ?></div>
                 </aside>
             </div>
         </section>
@@ -475,7 +478,7 @@ final class Faluss_Link {
             'step' => $target_step,
             // Reuse the same safe card renderer after each saved choice rather
             // than maintaining a second browser-only preview implementation.
-            'preview' => is_array( $profile ) ? self::card_preview_markup( $profile, $preferences, $preferences['alignment'], $blocks, true ) : '',
+            'preview' => is_array( $profile ) ? self::card_preview_markup( $profile, $preferences, $preferences['alignment'], $blocks, true, 'onboarding-preview' ) : '',
         ) );
     }
 
@@ -485,7 +488,7 @@ final class Faluss_Link {
         $draft = self::onboarding_preview_state( $faluss_id, $_POST );
         if ( false === $draft ) { wp_send_json_error( array( 'message' => __( 'Cet aperçu ne peut pas être actualisé.', 'faluss-link' ) ), 400 ); }
         wp_send_json_success( array(
-            'preview' => self::card_preview_markup( $draft['profile'], $draft['preferences'], $draft['preferences']['alignment'], $draft['blocks'], true ),
+            'preview' => self::card_preview_markup( $draft['profile'], $draft['preferences'], $draft['preferences']['alignment'], $draft['blocks'], true, 'onboarding-preview' ),
         ) );
     }
 
@@ -573,6 +576,10 @@ final class Faluss_Link {
         if ( '' !== $background ) { $preferences['page_background'] = $background; }
         $link_style = sanitize_key( $field( 'link_style', $preferences['link_style'] ) );
         $preferences['link_style'] = isset( self::LINK_STYLES[ $link_style ] ) ? $link_style : $preferences['link_style'];
+        /* A current onboarding draft is an explicit member choice for the
+         * preview. It must sit above a future selected theme without writing
+         * anything to storage until the server step is accepted. */
+        $preferences['theme_overrides'] = self::onboarding_theme_overrides( $preferences['theme_overrides'], $post );
 
         $selected = self::onboarding_network_selection( $post['social_selected'] ?? $preferences['social_selected'] );
         $socials = self::onboarding_socials( $post['social_urls'] ?? array(), $selected );
@@ -584,6 +591,21 @@ final class Faluss_Link {
         $existing = self::content_blocks( $faluss_id, $profile['links'] ?? array(), false );
         $blocks = array_merge( array_values( array_filter( $existing, static function( $block ) { return is_array( $block ) && 'link' !== ( $block['type'] ?? '' ); } ) ), $links );
         return array( 'profile' => $profile, 'preferences' => $preferences, 'blocks' => $blocks );
+    }
+
+    /**
+     * ONB-02 has no theme picker: values submitted by its visual decisions are
+     * explicit member choices. Keep that precedence in the transient preview
+     * and persist it only when the corresponding server step succeeds.
+     */
+    private static function onboarding_theme_overrides( $stored, $post ) {
+        $overrides = self::theme_overrides( $stored );
+        foreach ( array( 'page_background', 'link_style', 'alignment', 'social_variant' ) as $key ) {
+            if ( is_array( $post ) && array_key_exists( $key, $post ) && ! in_array( $key, $overrides, true ) ) {
+                $overrides[] = $key;
+            }
+        }
+        return $overrides;
     }
 
     private static function save_onboarding_step( $faluss_id, $step, $post ) {
@@ -599,6 +621,8 @@ final class Faluss_Link {
             return ! $avatar || self::save_onboarding_identity( $faluss_id, $profile, array( 'faluss_identity_avatar_id' => $avatar ) );
         }
         if ( in_array( $step, array( 'header', 'style', 'socials' ), true ) ) {
+            $preferences = self::prefs( $faluss_id, false );
+            $post['theme_overrides'] = self::onboarding_theme_overrides( $preferences['theme_overrides'], $post );
             return self::save_preferences( $faluss_id, $post );
         }
         if ( 'links' === $step ) {
@@ -861,20 +885,59 @@ final class Faluss_Link {
         ?><fieldset class="faluss-link-studio__social-fields"><legend><?php esc_html_e( 'Réseaux sociaux', 'faluss-link' ); ?></legend><div class="faluss-link-studio__network-list"><?php foreach ( $socials as $index => $social ) : ?><div class="faluss-link-studio__network-row"><select name="social_networks[<?php echo (int) $index; ?>][network]" aria-label="<?php esc_attr_e( 'Réseau', 'faluss-link' ); ?>"><?php self::options( wp_list_pluck( $catalog, 'label' ), $social['network'] ); ?></select><input name="social_networks[<?php echo (int) $index; ?>][url]" type="url" maxlength="2048" value="<?php echo esc_attr( $social['url'] ); ?>" placeholder="https://" aria-label="<?php esc_attr_e( 'URL HTTPS', 'faluss-link' ); ?>"><button type="button" class="faluss-link-studio__remove-row"><?php esc_html_e( 'Supprimer', 'faluss-link' ); ?></button></div><?php endforeach; ?></div><button type="button" class="faluss-link-studio__add-network"><?php esc_html_e( 'Ajouter un réseau', 'faluss-link' ); ?></button></fieldset><?php
     }
 
-    /** Shared preview facade used by Studio and ONB-02; it never publishes. */
-    private static function card_preview_markup( $profile, $preferences, $alignment, $blocks, $demo_links = false ) {
-        return self::card_markup( $profile, $preferences, $alignment, true, $blocks, $demo_links );
+    /**
+     * Shared preview facade used by Studio and ONB-02. The context changes only
+     * density, never the member's resolved card appearance, and never publishes.
+     */
+    private static function card_preview_markup( $profile, $preferences, $alignment, $blocks, $demo_links = false, $context = 'studio-preview' ) {
+        return self::card_markup( $profile, $preferences, $alignment, true, $blocks, $demo_links, $context );
     }
 
-    private static function card_markup( $profile, $preferences, $alignment = 'left', $preview = false, $blocks = array(), $preview_demo_links = false ) {
-        $cover = (int) $preferences['cover_attachment_id']; $avatar = (int) $profile['avatar_attachment_id']; $has_cover = $cover > 0; $has_avatar = (int) $preferences['avatar_visible'] && $avatar > 0;
+    /**
+     * Card presentation facade: one canonical source for public cards, Studio
+     * and onboarding. Future themes enter through resolve_card_presentation(),
+     * while an onboarding draft only changes this in-memory presentation.
+     *
+     * @return array<string,mixed>
+     */
+    private static function card_presentation( $profile, $preferences, $alignment = 'left', $blocks = array(), $preview = false, $preview_demo_links = false, $context = 'public' ) {
+        $contexts = array( 'public', 'studio-preview', 'onboarding-preview' );
+        $context = in_array( $context, $contexts, true ) ? $context : 'public';
+        $preferences = self::resolve_card_presentation( $preferences, true );
+        $cover = (int) ( $preferences['cover_attachment_id'] ?? 0 );
+        $avatar = (int) ( $profile['avatar_attachment_id'] ?? 0 );
+        return array(
+            'profile' => is_array( $profile ) ? $profile : array(),
+            'preferences' => $preferences,
+            'alignment' => self::align( $alignment ),
+            'blocks' => is_array( $blocks ) ? $blocks : array(),
+            'preview' => (bool) $preview,
+            'preview_demo_links' => (bool) $preview_demo_links,
+            'context' => $context,
+            'density' => 'onboarding-preview' === $context ? 'compact' : 'standard',
+            'has_cover' => $cover > 0,
+            'has_avatar' => ! empty( $preferences['avatar_visible'] ) && $avatar > 0,
+        );
+    }
+
+    private static function card_markup( $profile, $preferences, $alignment = 'left', $preview = false, $blocks = array(), $preview_demo_links = false, $context = 'public' ) {
+        return self::card_markup_from_presentation( self::card_presentation( $profile, $preferences, $alignment, $blocks, $preview, $preview_demo_links, $context ) );
+    }
+
+    /** @param array<string,mixed> $presentation */
+    private static function card_markup_from_presentation( $presentation ) {
+        $profile = $presentation['profile'];
+        $preferences = $presentation['preferences'];
+        $cover = (int) $preferences['cover_attachment_id']; $avatar = (int) $profile['avatar_attachment_id']; $has_cover = ! empty( $presentation['has_cover'] ); $has_avatar = ! empty( $presentation['has_avatar'] );
         $styles = self::resolve_card_styles( $preferences );
         $variant = self::social_variant( $preferences['social_variant'] ?? 'outline' );
         $social_markup = self::social_markup( $preferences['social_links'], $variant );
-        $style = sprintf( '--fl-page-background:%s;--fl-hero-transition-color:%s;--fl-hero-transition-intensity:%d%%;--fl-hero-transition-position:%d%%;--fl-name-color:%s;--fl-name-font:%s;', $preferences['page_background'], $preferences['hero_transition_color'], (int) $preferences['hero_transition_intensity'], (int) $preferences['hero_transition_position'], $styles['name_color'], self::onboarding_name_font_stack( $preferences['name_font'] ?? 'outfit' ) );
+        $show_social_skeleton = '' === $social_markup && ! empty( $presentation['preview'] ) && ! empty( $presentation['preview_demo_links'] );
+        if ( $show_social_skeleton ) { $social_markup = self::preview_social_markup( $variant ); }
+        $style = sprintf( '--fl-page-background:%s;--fl-canvas:%s;--fl-hero-transition-color:%s;--fl-hero-transition-intensity:%d%%;--fl-hero-transition-position:%d%%;--fl-name-color:%s;--fl-name-font:%s;', $preferences['page_background'], $preferences['page_background'], $preferences['hero_transition_color'], (int) $preferences['hero_transition_intensity'], (int) $preferences['hero_transition_position'], $styles['name_color'], self::onboarding_name_font_stack( $preferences['name_font'] ?? 'outfit' ) );
         ob_start();
         ?>
-        <article class="faluss-link-card faluss-link-card--align-<?php echo esc_attr( self::align( $alignment ) ); ?> faluss-link-card--links-<?php echo esc_attr( $preferences['link_style'] ); ?> faluss-link-card--cover-<?php echo $has_cover ? 'yes' : 'no'; ?> faluss-link-card--avatar-<?php echo $has_avatar ? 'yes' : 'no'; ?> faluss-link-card--avatar-border-<?php echo ! empty( $preferences['avatar_border'] ) ? 'yes' : 'no'; ?>" data-faluss-card-theme="<?php echo esc_attr( $preferences['selected_theme'] ?? self::system_card_theme()['slug'] ); ?>" style="<?php echo esc_attr( $style ); ?>">
+        <article class="faluss-link-card faluss-link-card--align-<?php echo esc_attr( $presentation['alignment'] ); ?> faluss-link-card--links-<?php echo esc_attr( $preferences['link_style'] ); ?> faluss-link-card--density-<?php echo esc_attr( $presentation['density'] ); ?> faluss-link-card--cover-<?php echo $has_cover ? 'yes' : 'no'; ?> faluss-link-card--avatar-<?php echo $has_avatar ? 'yes' : 'no'; ?> faluss-link-card--avatar-border-<?php echo ! empty( $preferences['avatar_border'] ) ? 'yes' : 'no'; ?>" data-faluss-card-context="<?php echo esc_attr( $presentation['context'] ); ?>" data-faluss-card-density="<?php echo esc_attr( $presentation['density'] ); ?>" data-faluss-card-theme="<?php echo esc_attr( $preferences['selected_theme'] ?? self::system_card_theme()['slug'] ); ?>" style="<?php echo esc_attr( $style ); ?>">
             <div class="faluss-link-card__cover" <?php echo $has_cover ? '' : 'hidden'; ?>><?php if ( $has_cover ) { echo wp_get_attachment_image( $cover, 'large', false, array( 'alt' => '' ) ); } ?></div>
             <div class="faluss-link-card__body">
                 <div class="faluss-link-card__avatar" <?php echo $has_avatar ? '' : 'hidden'; ?>><?php if ( $has_avatar ) { echo wp_get_attachment_image( $avatar, 'medium', false, array( 'alt' => '' ) ); } ?></div>
@@ -883,12 +946,22 @@ final class Faluss_Link {
                 <span class="faluss-link-card__availability" <?php echo (int) $preferences['available'] ? '' : 'hidden'; ?>><i></i><?php esc_html_e( 'Disponible', 'faluss-link' ); ?></span>
                 <p class="faluss-link-card__announcement faluss-link-card__announcement--<?php echo esc_attr( $preferences['announcement_variant'] ); ?>" <?php echo 'announcement' === $preferences['bio_mode'] && '' !== $preferences['announcement'] ? '' : 'hidden'; ?>><?php echo esc_html( $preferences['announcement'] ); ?></p>
                 <p class="faluss-link-card__bio" <?php echo 'announcement' === $preferences['bio_mode'] ? 'hidden' : ''; ?>><?php echo esc_html( $profile['bio'] ); ?></p>
-                <nav class="faluss-link-card__social faluss-link-card__social--<?php echo esc_attr( $preferences['social_layout'] ); ?> faluss-link-card__social--variant-<?php echo esc_attr( $variant ); ?>" data-faluss-social-variant="<?php echo esc_attr( $variant ); ?>" aria-label="<?php esc_attr_e( 'Réseaux sociaux', 'faluss-link' ); ?>"<?php echo '' === $social_markup ? ' hidden' : ''; ?>><?php echo $social_markup; ?></nav>
-                <?php echo self::public_blocks_markup( $blocks, $profile, $preview, $preview_demo_links ); ?>
+                <nav class="faluss-link-card__social faluss-link-card__social--<?php echo esc_attr( $preferences['social_layout'] ); ?> faluss-link-card__social--variant-<?php echo esc_attr( $variant ); ?><?php echo $show_social_skeleton ? ' faluss-link-card__social--skeleton' : ''; ?>" data-faluss-social-variant="<?php echo esc_attr( $variant ); ?>" aria-label="<?php esc_attr_e( 'Réseaux sociaux', 'faluss-link' ); ?>"<?php echo '' === $social_markup ? ' hidden' : ''; ?>><?php echo $social_markup; ?></nav>
+                <?php echo self::public_blocks_markup( $presentation['blocks'], $profile, ! empty( $presentation['preview'] ), ! empty( $presentation['preview_demo_links'] ) ); ?>
             </div>
         </article>
         <?php
         return (string) ob_get_clean();
+    }
+
+    /** Temporary, non-actionable placeholders rendered only by the shared preview facade. */
+    private static function preview_social_markup( $variant ) {
+        $markup = '';
+        foreach ( array( 'instagram', 'tiktok', 'x' ) as $network ) {
+            $asset = self::social_asset_markup( $network, $variant );
+            if ( '' !== $asset ) { $markup .= '<span class="faluss-link-card__social-demo" data-faluss-preview-only data-faluss-network="' . esc_attr( $network ) . '" aria-hidden="true">' . $asset . '</span>'; }
+        }
+        return $markup;
     }
 
     private static function public_blocks_markup( $blocks, $profile = array(), $preview = false, $preview_demo_links = false ) {

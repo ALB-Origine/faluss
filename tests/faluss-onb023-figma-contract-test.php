@@ -23,7 +23,7 @@ $preview_resolver_start = strpos( $link, 'private static function onboarding_pre
 $preview_resolver_end = strpos( $link, 'private static function save_onboarding_step', $preview_resolver_start );
 $preview_resolver = false === $preview_resolver_start || false === $preview_resolver_end ? '' : substr( $link, $preview_resolver_start, $preview_resolver_end - $preview_resolver_start );
 
-onb023_assert( false !== strpos( $bootstrap, 'Version: 0.3.3' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.3'" ), 'The Figma assets require a fresh Faluss Link asset version.' );
+onb023_assert( false !== strpos( $bootstrap, 'Version: 0.3.4' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.4'" ), 'The Figma assets require a fresh Faluss Link asset version.' );
 foreach ( array( '3695-2381', '3703-2466', '3703-2546', '3704-2648', '#ED4343', '#D43D3D', '271 × 557', 'FALUSS_PLUGIN_UI.md' ) as $needle ) {
     onb023_assert( false !== strpos( $product_ui, $needle ), 'The product contract must retain the exact Figma source/token mapping: ' . $needle );
 }
@@ -36,7 +36,7 @@ foreach ( array( 'faluss-onboarding-header-back.svg', 'faluss-onboarding-header-
 }
 onb023_assert( false === strpos( $link, 'figma.com/api/mcp/asset' ) && false === strpos( $css, 'figma.com/api/mcp/asset' ), 'No temporary Figma asset URL may be a production dependency.' );
 
-foreach ( array( 'data-onboarding-preview-card', 'faluss-link-onboarding__device', 'width="271" height="557"', 'card_preview_markup( $profile, $preferences, $preferences[\'alignment\'], $blocks, true )' ) as $needle ) {
+foreach ( array( 'data-onboarding-preview-card', 'faluss-link-onboarding__device', 'width="271" height="557"', "'onboarding-preview'" ) as $needle ) {
     onb023_assert( false !== strpos( $link, $needle ), 'The compact device preview must retain the shared card renderer: ' . $needle );
 }
 foreach ( array( "root.querySelector('[data-onboarding-preview-card] .faluss-link-card')", "root.querySelector('[data-onboarding-preview-card]')", 'replaceChildren()', 'FalussLinkCard.initialize' ) as $needle ) {
@@ -51,9 +51,10 @@ foreach ( array( '#000000', '#191919', '#737373', '#DDDDDD', '#FFFFFF', '#321752
 foreach ( array( 'syncBackgroundSwatches', 'syncChoiceSelections', "color.value = event.target.value", "card.style.setProperty('--fl-page-background', background.value)", 'faluss-link-card--avatar-yes', 'setChoicePanel', 'ArrowRight', 'aria-selected', 'prefers-reduced-motion' ) as $needle ) {
     onb023_assert( false !== strpos( $script . $css, $needle ), 'Figma controls must update their live card or remain keyboard/motion accessible: ' . $needle );
 }
-foreach ( array( 'width:271px', 'height:557px', 'transform:scale(.409)', 'border-radius:50px 50px 0 0', 'height:45px' ) as $needle ) {
+foreach ( array( 'width:271px', 'height:557px', 'border-radius:50px 50px 0 0', 'height:45px' ) as $needle ) {
     onb023_assert( false !== strpos( $css, $needle ), 'The local CSS must preserve the Figma dimension: ' . $needle );
 }
+onb023_assert( false === strpos( $css, 'transform:scale(' ), 'The Figma shell must not blur a separate static card through transform scale.' );
 onb023_assert( false === strpos( $css, 'className=' ) && false === strpos( $css, 'rounded-[' ), 'The WordPress stylesheet must not retain generated React or Tailwind source.' );
 onb023_assert( false === strpos( $css, ':root' ) && 0 === preg_match( '/(^|[}])\\s*(?:html|body)\\s*\\{/m', $css ), 'The product UI must remain scoped and cannot alter the page shell.' );
 onb023_assert( false === strpos( $script, 'localStorage' ) && false === strpos( $script, 'sessionStorage' ), 'Resumption remains server-owned rather than browser-persisted.' );

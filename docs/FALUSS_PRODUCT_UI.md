@@ -59,10 +59,10 @@ ombres sont rares : upload `0 0 30.7px rgba(0,0,0,.04)` et choix actif
 - **Palette** — choix circulaires à valeurs exactes `#000000`, `#191919`,
   `#737373`, `#DDDDDD`, `#FFFFFF`, `#321752`, `#350D0D`, `#1A7061` et
   `#A748B5`, plus une entrée personnalisée native.
-- **Aperçu** — le cadre visuel est un petit écran de `271 × 557 px` avec une
-  viewport interne `229 px` de large. Il réemploie le renderer de carte partagé
-  et applique une échelle interne compacte ; il n’est ni une carte parallèle,
-  ni un état persistant.
+- **Aperçu** — le shell visuel est un petit écran de `271 × 557 px` avec une
+  viewport interne `229 px` de large. Il cadre une présentation de carte à
+  densité compacte, nette et réactive ; il ne réduit jamais une carte statique
+  par `transform: scale()`.
 - **Panneau inférieur** — blanc, coins supérieurs `50 px`, posé au-dessus de
   l’aperçu. Son panneau actif seul défile lorsque le viewport se réduit.
 
@@ -84,8 +84,21 @@ conserver son comportement de défilement et de clavier natif.
 Le produit n’invente aucune copie de données : Identity possède nom, avatar,
 publication et liens de compatibilité ; Faluss Link possède préférences de
 carte, réseaux et blocs. Chaque modification de brouillon passe par le même
-normaliseur et le même renderer de carte que le Studio/public. Le squelette de
-liens est un repère visuel limité à l’aperçu : il n’est ni enregistré ni publié.
+normaliseur et la même façade de présentation de carte que le Studio/public.
+
+La frontière ONB-02.4 est stricte : le **preview shell Figma** ne possède que la
+géométrie du wizard (viewport, mockup, marges, profondeur, panneau superposé
+et safe areas). La **présentation de carte partagée** résout thème éventuel,
+préférences Link et brouillon d’onboarding, puis rend fond, avatar et bordure,
+nom, police, alignement, réseaux, liens et variantes de boutons. Elle est la
+source commune du rendu public, de l’aperçu Studio et de l’aperçu onboarding.
+Le contexte `onboarding-preview` ne change que la densité des métriques, jamais
+la sémantique ni les données rendues.
+
+Lorsqu’aucun réseau ou lien n’existe encore, cette même présentation injecte
+uniquement dans l’aperçu des repères temporaires : Instagram, TikTok, X et trois
+liens. Ils portent une marque d’aperçu, disparaissent dès qu’une donnée réelle
+existe et ne sont ni enregistrés, ni publiés.
 
 La prochaine évolution de thème de carte peut résoudre son style dans cet ordre
 : preset autorisé, préférences explicites du membre, puis tokens Faluss Theme.

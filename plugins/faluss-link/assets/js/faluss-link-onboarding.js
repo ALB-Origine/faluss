@@ -154,7 +154,10 @@
         var avatarName = root.querySelector('[data-onboarding-avatar-name]');
         if (nameTarget && name && name.value.trim()) { nameTarget.textContent = name.value.trim(); }
         if (avatarName && name && name.value.trim()) { avatarName.textContent = name.value.trim(); }
-        if (background && /^#[0-9a-f]{6}$/i.test(background.value || '')) { card.style.setProperty('--fl-page-background', background.value); }
+        if (background && /^#[0-9a-f]{6}$/i.test(background.value || '')) {
+            card.style.setProperty('--fl-page-background', background.value);
+            card.style.setProperty('--fl-canvas', background.value);
+        }
         if (nameFont && nameFont.selectedOptions && nameFont.selectedOptions[0]) { card.style.setProperty('--fl-name-font', nameFont.selectedOptions[0].dataset.fontStack || 'Outfit, ui-sans-serif, system-ui, sans-serif'); }
         if (nameTarget && treatment) {
             nameTarget.classList.remove('faluss-link-card__name--strong', 'faluss-link-card__name--editorial');
@@ -165,6 +168,11 @@
         if (linkStyle) {
             card.classList.remove('faluss-link-card--links-solid', 'faluss-link-card--links-outline', 'faluss-link-card--links-light');
             card.classList.add('faluss-link-card--links-' + linkStyle.value);
+        }
+        var alignment = root.querySelector('[name="alignment"]');
+        if (alignment) {
+            card.classList.remove('faluss-link-card--align-left', 'faluss-link-card--align-center');
+            card.classList.add('faluss-link-card--align-' + alignment.value);
         }
         if (window.FalussLinkCard) { window.FalussLinkCard.refresh(card); }
     }

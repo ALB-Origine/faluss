@@ -23,6 +23,10 @@ default token sets for the component in scope. Keep the resulting styles scoped
 to that product component and do not convert front-office tokens into global
 WordPress administration styling.
 
+For member-product previews, Figma can define only the preview shell. Keep card
+data, visual preference resolution and semantic rendering in the shared product
+card presentation so Studio, onboarding and public cards cannot diverge.
+
 ## Canonical foundation
 
 Use these tokens as defaults. Keep them configurable in the host system.
