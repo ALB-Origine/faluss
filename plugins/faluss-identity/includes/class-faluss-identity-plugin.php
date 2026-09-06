@@ -17,6 +17,9 @@ final class Faluss_Identity_Plugin {
         add_action( 'elementor/frontend/after_register_styles', array( 'Faluss_Identity_Passwordless', 'register_assets' ), 5 );
         add_action( 'wp_enqueue_scripts', array( 'Faluss_Identity_Public_Profile', 'register_assets' ) );
         add_action( 'wp_enqueue_scripts', array( 'Faluss_Identity_Authorization', 'register_assets' ) );
+        add_action( 'wp_enqueue_scripts', array( 'Faluss_Identity_Navigation', 'register_assets' ) );
+        add_action( 'elementor/frontend/after_register_scripts', array( 'Faluss_Identity_Navigation', 'register_assets' ), 5 );
+        add_action( 'elementor/frontend/after_register_styles', array( 'Faluss_Identity_Navigation', 'register_assets' ), 5 );
         add_action( 'elementor/widgets/register', array( __CLASS__, 'register_elementor_widget' ) );
 
         if ( is_admin() ) {
@@ -89,8 +92,10 @@ final class Faluss_Identity_Plugin {
 
         require_once FALUSS_IDENTITY_DIR . 'includes/class-faluss-identity-elementor-widget.php';
         require_once FALUSS_IDENTITY_DIR . 'includes/class-faluss-identity-public-profile-elementor-widgets.php';
+        require_once FALUSS_IDENTITY_DIR . 'includes/class-faluss-identity-navigation-elementor-widget.php';
         $widgets_manager->register( new Faluss_Identity_Elementor_Widget() );
         $widgets_manager->register( new Faluss_Identity_Public_Profile_Editor_Widget() );
         $widgets_manager->register( new Faluss_Identity_Public_Profile_Widget() );
+        $widgets_manager->register( new Faluss_Identity_Navigation_Elementor_Widget() );
     }
 }

@@ -48,3 +48,11 @@ Les erreurs visibles restent génériques. Si et seulement si l'URI de retour a 
 Un utilisateur qui possède un profil Faluss Identity et dont l’unique rôle WordPress est `subscriber` reçoit la préférence WordPress `show_admin_bar_front=false`. Le filtre front applique la même règle à chaque affichage afin qu’une réactivation accidentelle de la préférence ne réintroduise pas la barre d’administration. Les rôles combinés ou différents — administrateur, éditeur, auteur, client WooCommerce ou tout autre rôle — ne sont jamais modifiés.
 
 La migration FI-06 est versionnée et idempotente. Elle parcourt exclusivement les `wp_user_id` de la table des profils Faluss Identity ; elle ne parcourt pas la liste globale des utilisateurs et ne crée aucune table ni meta Elementor.
+
+## Navigation Faluss (FI-07)
+
+`Navigation Faluss` est un widget Elementor à placer manuellement dans le modèle Header choisi par l’administrateur. Il ne crée ni page, ni menu, ni modèle Elementor et ne remplace pas The Plus Popup Builder / Off Canvas ou un autre widget de navigation existant.
+
+Le déclencheur reste à l’endroit où Elementor le rend. À l’ouverture, son panneau est cloné dans un `dialog` natif placé sous `document.body`, donc dans la top layer du navigateur : il reste au-dessus d’une carte publique immersive, d’un shell WordPress ou d’un contexte d’empilement Elementor sans modifier leur `z-index` ni leurs interactions. Chaque instance possède ses identifiants propres, ferme avec le fond ou Échap, rend le focus à son déclencheur et respecte `prefers-reduced-motion`.
+
+Les trois seules actions sont `Mon Faluss` (`/mon-faluss/`), `Ma liste` (`/list/`) et une action session : `Connexion` vers `/login/` avec un retour local validé pour un visiteur anonyme, ou l’URL WordPress de déconnexion avec nonce pour un membre connecté. La page `/list/` est créée et ajoutée à la navigation manuellement par l’administrateur ; le widget ne la crée jamais.
