@@ -14,7 +14,7 @@ $card = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link.
 $studio = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-studio.css' );
 $editor = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
 
-studio_v1_polish_assert( false !== strpos( $bootstrap, 'Version: 0.3.9' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.9'" ), 'The Studio polish must rotate every Faluss Link frontend asset URL.' );
+studio_v1_polish_assert( false !== strpos( $bootstrap, 'Version: 0.3.10' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.10'" ), 'The Studio interaction patch must rotate every Faluss Link frontend asset URL.' );
 
 foreach ( array(
     '.elementor-widget.elementor-element.elementor-widget-faluss_link_appearance > .elementor-widget-container',
@@ -43,10 +43,10 @@ studio_v1_polish_assert( false !== strpos( $editor, "showStatus(studio, 'Enregis
 studio_v1_polish_assert( false !== strpos( $link, 'class="faluss-link-studio__notice" role="status" aria-live="polite"></div>' ), 'The Studio must start with an empty polite live region.' );
 
 studio_v1_polish_assert( false !== strpos( $card, '.faluss-link-card--links-solid .faluss-link-card__link{border-color:transparent;border-radius:1px' ), 'Visuel must resolve to the shared low-radius link presentation.' );
-studio_v1_polish_assert( false !== strpos( $card, '.faluss-link-card--links-light .faluss-link-card__link{border:1px solid #fff;border-radius:100%' ), 'Minutieux must resolve to the shared outlined pill presentation.' );
+studio_v1_polish_assert( false !== strpos( $card, '.faluss-link-card--links-light .faluss-link-card__link{border:1px solid #fff;border-radius:100px' ), 'Minutieux must resolve to the shared outlined 100px pill presentation.' );
 studio_v1_polish_assert( false !== strpos( $card, '.faluss-link-card--links-outline .faluss-link-card__link{border-color:transparent;border-radius:1px' ), 'Formel must retain its canonical rectangular presentation.' );
 studio_v1_polish_assert( false !== strpos( $link, "const LINK_STYLES = array( 'solid' => 'Visuel', 'light' => 'Minutieux', 'outline' => 'Formel' )" ), 'Labels and canonical link_style values must keep one shared mapping.' );
-studio_v1_polish_assert( false !== strpos( $studio, '.faluss-link-studio__style-preview--solid i { border-radius: 1px; }' ) && false !== strpos( $studio, '.faluss-link-studio__style-preview--light i { border: 1px solid #fff; border-radius: 100%; }' ), 'Studio choice previews must mirror the shared Visuel and Minutieux mapping.' );
+studio_v1_polish_assert( false !== strpos( $studio, '.faluss-link-studio__style-preview--solid i { border-radius: 1px; }' ) && false !== strpos( $studio, '.faluss-link-studio__style-preview--light i { border: 1px solid #fff; border-radius: 100px; }' ), 'Studio choice previews must mirror the shared Visuel and Minutieux mapping.' );
 
 foreach ( array(
     'data-faluss-studio-back-url=',

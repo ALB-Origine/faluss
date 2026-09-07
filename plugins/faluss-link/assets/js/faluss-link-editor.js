@@ -371,6 +371,13 @@
             output.text(String(value).toUpperCase());
         });
     }
+    function updatePalettes(studio) {
+        studio.find('[data-fl-color-palette]').each(function () {
+            var palette = $(this), field = palette.data('fl-color-palette'), value = String(studio.find('[name="' + field + '"]').val() || '').toUpperCase();
+            palette.find('[data-fl-color]').each(function () { $(this).attr('aria-pressed', String($(this).data('fl-color')).toUpperCase() === value ? 'true' : 'false'); });
+        });
+        studio.find('.faluss-link-studio__style-preview').css('--fl-studio-button-color', studio.find('[name="button_color"]').val() || '#080808');
+    }
     function updatePublication(studio) {
         var input = studio.find('[name="publication_status"]'), published = input.prop('checked');
         input.attr('aria-checked', published ? 'true' : 'false');
@@ -410,6 +417,7 @@
             .addClass('faluss-link-card--align-' + align)
             .attr('data-faluss-card-theme', selectedTheme);
         preview[0].style.setProperty('--fl-page-background', studio.find('[name="page_background"]').val() || '#FFFDF5');
+        preview[0].style.setProperty('--fl-action', studio.find('[name="button_color"]').val() || '#080808');
         preview[0].style.setProperty('--fl-name-color', nameColor);
         preview[0].style.setProperty('--fl-hero-transition-color', studio.find('[name="hero_transition_color"]').val() || '#FFFDF5');
         preview[0].style.setProperty('--fl-hero-transition-intensity', (studio.find('[name="hero_transition_intensity"]').val() || 82) + '%');
@@ -419,6 +427,7 @@
         updateSocials(studio);
         updateLinks(studio);
         updateColorFields(studio);
+        updatePalettes(studio);
         updatePublication(studio);
         updateDirty(studio);
         if (window.FalussLinkCard) { window.FalussLinkCard.refresh(preview[0]); }
@@ -572,9 +581,47 @@
         var section = studio.find('[data-fl-active-section]').val() || 'all';
         showScreen(studio, section === 'collections' ? 'create-collection' : 'create-link');
     }
+    function studioState(studio) {
+        return {
+            tab: activeTab(studio),
+            section: studio.find('[data-fl-active-section]').val() || 'all',
+            collection: studio.find('[data-fl-active-collection]').val() || ''
+        };
+    }
+    function restoreStudioState(studio, state, focus) {
+        state = state || { tab: 'links', section: 'all', collection: '' };
+        showScreen(studio, 'main');
+        activate(studio, state.tab, false);
+        studio.find('[data-fl-active-collection]').val(state.collection || '');
+        studio.attr('data-faluss-studio-collection', state.collection || '');
+        activateSection(studio, state.section, !!focus);
+        updateCursor(studio);
+    }
+    function openEcosystem(studio) {
+        if (!studio.length) { return; }
+        if (!studio.find('[data-fl-preview]').prop('hidden')) { togglePreview(studio, false); }
+        studio.data('falussLinkEcosystemReturn', studioState(studio));
+        showScreen(studio, 'ecosystem');
+    }
+    function openSocialManager(studio) {
+        if (!studio.length) { return; }
+        showScreen(studio, 'main');
+        activate(studio, 'style', false);
+        activateSection(studio, 'header', false);
+        requestAnimationFrame(function () {
+            var target = studio.find('[data-fl-social-manager]').first();
+            if (!target.length) { return; }
+            if (target[0].scrollIntoView) { target[0].scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }); }
+            target.trigger('focus');
+        });
+    }
     function closeTransient(studio) {
         if (!studio.find('[data-fl-preview]').prop('hidden')) { togglePreview(studio, false); return true; }
-        if ((studio.attr('data-faluss-studio-screen') || 'main') !== 'main') { showScreen(studio, 'main'); return true; }
+        var screen = studio.attr('data-faluss-studio-screen') || 'main';
+        if (screen === 'create-link') { restoreStudioState(studio, { tab: 'links', section: 'all', collection: '' }, true); return true; }
+        if (screen === 'create-collection') { restoreStudioState(studio, { tab: 'links', section: 'collections', collection: '' }, true); return true; }
+        if (screen === 'ecosystem') { restoreStudioState(studio, studio.data('falussLinkEcosystemReturn'), true); return true; }
+        if (screen !== 'main') { showScreen(studio, 'main'); return true; }
         if (studio.find('[data-fl-active-section]').val() === 'collection') { activateSection(studio, 'collections', true); return true; }
         return false;
     }
@@ -613,7 +660,7 @@
         var url;
         try { url = new URL(value, window.location.origin); }
         catch (error) { showStatus(studio, 'Partage indisponible.', true); return; }
-        if (url.protocol !== 'https:' || url.origin !== window.location.origin || /\/mon-faluss\/?$/.test(url.pathname)) {
+        if (url.protocol !== 'https:' || !url.hostname || /\/mon-faluss\/?$/.test(url.pathname)) {
             showStatus(studio, 'Partage indisponible.', true);
             return;
         }
@@ -688,6 +735,8 @@
             if (!closeTransient(studio)) { safeHistoryBack(studio); }
         })
         .on('click.falussLink', '.faluss-link-studio [data-fl-studio-share]', function () { sharePublicURL($(this).closest('.faluss-link-studio'), $(this).attr('data-public-url')); })
+        .on('click.falussLink', '.faluss-link-studio [data-fl-studio-ecosystem]', function () { openEcosystem($(this).closest('.faluss-link-studio')); })
+        .on('click.falussLink', '.faluss-link-studio [data-fl-open-social-manager]', function () { openSocialManager($(this).closest('.faluss-link-studio')); })
         .on('click.falussLink', '.faluss-link-studio [data-fl-create]', function () { openCreate($(this).closest('.faluss-link-studio')); })
         .on('submit.falussLink', '.faluss-link-studio__form', function (event) { event.preventDefault(); saveStudio($(this).closest('.faluss-link-studio'), false); })
         .on('click.falussLink', '.faluss-link-studio [data-fl-create-link-submit]', function () {
@@ -747,12 +796,15 @@
             if (group.length && firstCollection.length) { group.insertBefore(firstCollection); }
             collection.remove(); renumberBlocks(studio); activateSection(studio, 'collections', false); update(studio); saveStudio(studio, true);
         })
-        .on('click.falussLink', '.faluss-link-studio [data-fl-background]', function () {
-            var studio = $(this).closest('.faluss-link-studio'), value = $(this).data('fl-background');
-            studio.find('[name="page_background"]').val(value).trigger('change');
-            studio.find('[data-fl-background]').attr('aria-pressed', 'false'); $(this).attr('aria-pressed', 'true');
+        .on('click.falussLink', '.faluss-link-studio [data-fl-color-field][data-fl-color]', function () {
+            var studio = $(this).closest('.faluss-link-studio'), field = $(this).data('fl-color-field'), value = $(this).data('fl-color');
+            studio.find('[name="' + field + '"]').val(value).trigger('change');
+            studio.find('[data-fl-color-field="' + field + '"]').attr('aria-pressed', 'false'); $(this).attr('aria-pressed', 'true');
         })
-        .on('click.falussLink', '.faluss-link-studio [data-fl-open-color]', function () { $(this).closest('.faluss-link-studio').find('.faluss-link-studio__native-color').trigger('click'); })
+        .on('click.falussLink', '.faluss-link-studio [data-fl-open-color]', function () {
+            var studio = $(this).closest('.faluss-link-studio'), field = $(this).attr('data-fl-open-color');
+            studio.find('.faluss-link-studio__native-color[name="' + field + '"]').trigger('click');
+        })
         .on('keydown.falussLink', '.faluss-link-studio [data-fl-tab]', function (event) {
             if (!/ArrowLeft|ArrowRight|Home|End/.test(event.key)) { return; }
             var tabs = $(this).closest('.faluss-link-studio').find('[data-fl-tab]'), index = tabs.index(this);
