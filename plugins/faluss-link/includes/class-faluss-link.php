@@ -315,19 +315,92 @@ final class Faluss_Link {
         if ( ! is_user_logged_in() || ! self::identity_ready() || ! class_exists( 'Faluss_Identity_Public_Profile' ) ) { return self::empty_card( __( 'Connectez-vous pour ouvrir Studio Faluss.', 'faluss-link' ) ); }
         $faluss_id = Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() );
         if ( ! $faluss_id ) { return self::empty_card( __( 'Votre identité Faluss est indisponible.', 'faluss-link' ) ); }
-        self::editor_assets(); $profile = Faluss_Identity_Public_Profile::studio_profile( $faluss_id ); $preferences = self::valid_prefs( $faluss_id ); $blocks = self::content_blocks( $faluss_id, $profile['links'], true ); $active_tab = self::studio_tab( $_GET['faluss_studio_tab'] ?? 'profile' ); ob_start();
+        self::editor_assets();
+        $profile = Faluss_Identity_Public_Profile::studio_profile( $faluss_id );
+        $preferences = self::valid_prefs( $faluss_id );
+        $blocks = self::content_blocks( $faluss_id, $profile['links'], true );
+        $collections = self::studio_collections( $blocks );
+        $active_tab = self::studio_tab( $_GET['faluss_studio_tab'] ?? 'links' );
+        $active_tab = 'profile' === $active_tab ? 'style' : $active_tab;
+        $active_section = self::studio_section( $_GET['faluss_studio_section'] ?? ( 'style' === $active_tab ? 'appearance' : 'all' ), $active_tab );
+        $active_collection = self::studio_collection_id( $_GET['faluss_studio_collection'] ?? '', $collections );
+        $public_url = '' !== $profile['public_slug'] && 'published' === $profile['publication_status'] ? home_url( '/' . $profile['public_slug'] ) : '';
+        ob_start();
         ?>
-        <section class="faluss-link-studio" data-faluss-studio-tab="<?php echo esc_attr( $active_tab ); ?>">
-            <header class="faluss-link-studio__header"><div class="faluss-link-studio__member"><?php if ( (int) $profile['avatar_attachment_id'] ) { echo wp_get_attachment_image( (int) $profile['avatar_attachment_id'], 'thumbnail', false, array( 'alt' => '' ) ); } ?><strong data-studio-member-name><?php echo esc_html( $profile['display_name'] ?: __( 'Mon Faluss', 'faluss-link' ) ); ?></strong><span data-studio-member-handle><?php echo '' === $profile['public_slug'] ? '@—' : '@' . esc_html( $profile['public_slug'] ); ?></span></div><div class="faluss-link-studio__header-actions"><button class="faluss-link-studio__copy-id" type="button" data-faluss-id="<?php echo esc_attr( $faluss_id ); ?>"><?php esc_html_e( 'Copier mon identifiant Faluss', 'faluss-link' ); ?></button><span class="screen-reader-text" aria-live="polite"></span><?php if ( '' !== $profile['public_slug'] && 'published' === $profile['publication_status'] ) : ?><a href="<?php echo esc_url( home_url( '/' . $profile['public_slug'] ) ); ?>"><?php esc_html_e( 'Voir mon Faluss', 'faluss-link' ); ?></a><?php endif; ?></div></header>
-            <form class="faluss-link-studio__form" method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-                <input type="hidden" name="action" value="faluss_link_save_studio"><input type="hidden" name="faluss_studio_tab" data-fl-active-tab value="<?php echo esc_attr( $active_tab ); ?>"><?php wp_nonce_field( 'faluss_link_save_studio', 'faluss_link_studio_nonce' ); ?><div class="faluss-link-studio__notice" role="status" aria-live="polite"><?php echo self::notice( 'faluss_studio_notice' ); ?></div>
-                <nav class="faluss-link-studio__tabs" role="tablist" aria-label="<?php esc_attr_e( 'Sections du Studio Faluss', 'faluss-link' ); ?>"><button id="faluss-studio-tab-profile" type="button" role="tab" aria-selected="<?php echo 'profile' === $active_tab ? 'true' : 'false'; ?>" aria-controls="faluss-studio-panel-profile" tabindex="<?php echo 'profile' === $active_tab ? '0' : '-1'; ?>" data-fl-tab="profile">Profil</button><button id="faluss-studio-tab-links" type="button" role="tab" aria-selected="<?php echo 'links' === $active_tab ? 'true' : 'false'; ?>" aria-controls="faluss-studio-panel-links" tabindex="<?php echo 'links' === $active_tab ? '0' : '-1'; ?>" data-fl-tab="links">Liens</button><button id="faluss-studio-tab-style" type="button" role="tab" aria-selected="<?php echo 'style' === $active_tab ? 'true' : 'false'; ?>" aria-controls="faluss-studio-panel-style" tabindex="<?php echo 'style' === $active_tab ? '0' : '-1'; ?>" data-fl-tab="style">Style</button></nav>
-                <div class="faluss-link-studio__workspace">
-                    <section id="faluss-studio-panel-profile" role="tabpanel" aria-labelledby="faluss-studio-tab-profile" data-fl-panel="profile"<?php echo 'profile' === $active_tab ? '' : ' hidden'; ?>><?php self::identity_fields( $profile ); ?><label class="faluss-link-studio__check"><input name="available" type="checkbox" value="1" <?php checked( $preferences['available'] ); ?>> <?php esc_html_e( 'Afficher Disponible', 'faluss-link' ); ?></label></section>
-                    <section id="faluss-studio-panel-links" role="tabpanel" aria-labelledby="faluss-studio-tab-links" data-fl-panel="links"<?php echo 'links' === $active_tab ? '' : ' hidden'; ?>><?php self::content_composer( $blocks ); self::social_editor( $preferences ); ?><label for="faluss-studio-social-layout"><?php esc_html_e( 'Affichage des réseaux', 'faluss-link' ); ?></label><select id="faluss-studio-social-layout" name="social_layout"><?php self::options( self::LAYOUTS, $preferences['social_layout'] ); ?></select></section>
-                    <section id="faluss-studio-panel-style" role="tabpanel" aria-labelledby="faluss-studio-tab-style" data-fl-panel="style"<?php echo 'style' === $active_tab ? '' : ' hidden'; ?>><?php self::theme_picker( $preferences ); self::page_background_field( $preferences, true ); self::name_color_field( $preferences ); self::preference_fields( $preferences, true ); ?></section>
-                    <aside id="faluss-studio-preview" class="faluss-link-studio__preview" data-fl-preview aria-label="<?php esc_attr_e( 'Aperçu vivant de ma carte Faluss', 'faluss-link' ); ?>" tabindex="-1" hidden><h2><?php esc_html_e( 'Aperçu', 'faluss-link' ); ?></h2><?php echo self::card_preview_markup( $profile, $preferences, $preferences['alignment'], $blocks, false, 'studio-preview' ); ?></aside>
-                </div><div class="faluss-link-studio__actions"><button class="faluss-link-action faluss-link-studio__submit" type="submit"><?php esc_html_e( 'Mettre à jour', 'faluss-link' ); ?></button><button class="faluss-link-studio__preview-toggle" type="button" data-fl-preview-toggle aria-controls="faluss-studio-preview" aria-expanded="false"><?php esc_html_e( 'Aperçu', 'faluss-link' ); ?><span class="faluss-link-studio__dirty-count" data-fl-dirty-count hidden aria-live="polite">0</span></button></div>
+        <section class="faluss-link-studio" data-faluss-studio-tab="<?php echo esc_attr( $active_tab ); ?>" data-faluss-studio-section="<?php echo esc_attr( $active_section ); ?>" data-faluss-studio-collection="<?php echo esc_attr( $active_collection ); ?>">
+            <form class="faluss-link-studio__form" method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" novalidate>
+                <input type="hidden" name="action" value="faluss_link_save_studio">
+                <input type="hidden" name="faluss_studio_response" value="json">
+                <input type="hidden" name="faluss_studio_tab" data-fl-active-tab value="<?php echo esc_attr( $active_tab ); ?>">
+                <input type="hidden" name="faluss_studio_section" data-fl-active-section value="<?php echo esc_attr( $active_section ); ?>">
+                <input type="hidden" name="faluss_studio_collection" data-fl-active-collection value="<?php echo esc_attr( $active_collection ); ?>">
+                <?php wp_nonce_field( 'faluss_link_save_studio', 'faluss_link_studio_nonce' ); ?>
+                <?php self::studio_block_store( $blocks ); ?>
+                <input type="hidden" name="cover_attachment_id" value="<?php echo (int) $preferences['cover_attachment_id']; ?>">
+                <input type="hidden" name="bio_mode" value="<?php echo esc_attr( $preferences['bio_mode'] ); ?>">
+                <input type="hidden" name="announcement" value="<?php echo esc_attr( $preferences['announcement'] ); ?>">
+                <input type="hidden" name="announcement_variant" value="<?php echo esc_attr( $preferences['announcement_variant'] ); ?>">
+
+                <header class="faluss-link-studio__topbar">
+                    <button class="faluss-link-studio__round-action" type="button" data-fl-studio-back aria-label="<?php esc_attr_e( 'Revenir en arrière', 'faluss-link' ); ?>"><span aria-hidden="true">←</span></button>
+                    <div class="faluss-link-studio__header-actions">
+                        <button class="faluss-link-studio__round-action faluss-link-studio__copy-id" type="button" data-faluss-id="<?php echo esc_attr( $faluss_id ); ?>" aria-label="<?php esc_attr_e( 'Copier mon identifiant Faluss', 'faluss-link' ); ?>"><span aria-hidden="true">•••</span></button>
+                        <span class="screen-reader-text" aria-live="polite"></span>
+                        <?php if ( '' !== $public_url ) : ?><a class="faluss-link-studio__round-action" href="<?php echo esc_url( $public_url ); ?>" aria-label="<?php esc_attr_e( 'Voir mon Faluss public', 'faluss-link' ); ?>"><span aria-hidden="true">↗</span></a><?php else : ?><button class="faluss-link-studio__round-action" type="button" disabled aria-label="<?php esc_attr_e( 'Publiez votre Faluss pour ouvrir son aperçu public', 'faluss-link' ); ?>"><span aria-hidden="true">↗</span></button><?php endif; ?>
+                    </div>
+                </header>
+
+                <?php self::studio_member_header( $profile, $preferences ); ?>
+
+                <div class="faluss-link-studio__notice" role="status" aria-live="polite"><?php echo self::notice( 'faluss_studio_notice' ); ?></div>
+
+                <div class="faluss-link-studio__main" data-fl-studio-screen="main">
+                    <section class="faluss-link-studio__main-panel" data-fl-main-panel="links"<?php echo 'links' === $active_tab ? '' : ' hidden inert'; ?>>
+                        <nav class="faluss-link-studio__context-tabs" role="tablist" aria-label="<?php esc_attr_e( 'Navigation des liens', 'faluss-link' ); ?>">
+                            <span class="faluss-link-studio__context-indicator" aria-hidden="true"></span>
+                            <button id="faluss-studio-tab-all" type="button" role="tab" data-fl-context-tab="all" aria-controls="faluss-studio-panel-all" aria-selected="<?php echo 'all' === $active_section ? 'true' : 'false'; ?>" tabindex="<?php echo 'all' === $active_section ? '0' : '-1'; ?>"><?php esc_html_e( 'Tous', 'faluss-link' ); ?></button>
+                            <button id="faluss-studio-tab-collections" type="button" role="tab" data-fl-context-tab="collections" aria-controls="faluss-studio-panel-collections" aria-selected="<?php echo in_array( $active_section, array( 'collections', 'collection' ), true ) ? 'true' : 'false'; ?>" tabindex="<?php echo in_array( $active_section, array( 'collections', 'collection' ), true ) ? '0' : '-1'; ?>"><?php esc_html_e( 'Collections', 'faluss-link' ); ?></button>
+                        </nav>
+                        <div class="faluss-link-studio__content">
+                            <section id="faluss-studio-panel-all" role="tabpanel" aria-labelledby="faluss-studio-tab-all" data-fl-section-panel="all"<?php echo 'all' === $active_section ? '' : ' hidden inert'; ?>><?php self::studio_links_panel( $blocks ); ?></section>
+                            <section id="faluss-studio-panel-collections" role="tabpanel" aria-labelledby="faluss-studio-tab-collections" data-fl-section-panel="collections"<?php echo 'collections' === $active_section && '' === $active_collection ? '' : ' hidden inert'; ?>><?php self::studio_collections_panel( $collections ); ?></section>
+                            <?php if ( '' !== $active_collection ) : ?><section id="faluss-studio-panel-collection" role="tabpanel" aria-labelledby="faluss-studio-tab-collections" data-fl-section-panel="collection"><?php self::studio_collection_panel( $collections[ $active_collection ] ); ?></section><?php endif; ?>
+                        </div>
+                    </section>
+
+                    <section class="faluss-link-studio__main-panel" data-fl-main-panel="style"<?php echo 'style' === $active_tab ? '' : ' hidden inert'; ?>>
+                        <nav class="faluss-link-studio__context-tabs faluss-link-studio__context-tabs--design" role="tablist" aria-label="<?php esc_attr_e( 'Navigation du design', 'faluss-link' ); ?>">
+                            <span class="faluss-link-studio__context-indicator" aria-hidden="true"></span>
+                            <button id="faluss-studio-tab-appearance" type="button" role="tab" data-fl-context-tab="appearance" aria-controls="faluss-studio-panel-appearance" aria-selected="<?php echo 'appearance' === $active_section ? 'true' : 'false'; ?>" tabindex="<?php echo 'appearance' === $active_section ? '0' : '-1'; ?>"><?php esc_html_e( 'Apparence', 'faluss-link' ); ?></button>
+                            <button id="faluss-studio-tab-header" type="button" role="tab" data-fl-context-tab="header" aria-controls="faluss-studio-panel-header" aria-selected="<?php echo 'header' === $active_section ? 'true' : 'false'; ?>" tabindex="<?php echo 'header' === $active_section ? '0' : '-1'; ?>"><?php esc_html_e( 'En-tête', 'faluss-link' ); ?></button>
+                            <button id="faluss-studio-tab-link-style" type="button" role="tab" data-fl-context-tab="link-style" aria-controls="faluss-studio-panel-link-style" aria-selected="<?php echo 'link-style' === $active_section ? 'true' : 'false'; ?>" tabindex="<?php echo 'link-style' === $active_section ? '0' : '-1'; ?>"><?php esc_html_e( 'Liens', 'faluss-link' ); ?></button>
+                        </nav>
+                        <div class="faluss-link-studio__content faluss-link-studio__design-content">
+                            <section id="faluss-studio-panel-appearance" role="tabpanel" aria-labelledby="faluss-studio-tab-appearance" data-fl-section-panel="appearance"<?php echo 'appearance' === $active_section ? '' : ' hidden inert'; ?>><?php self::studio_appearance_panel( $preferences ); ?></section>
+                            <section id="faluss-studio-panel-header" role="tabpanel" aria-labelledby="faluss-studio-tab-header" data-fl-section-panel="header"<?php echo 'header' === $active_section ? '' : ' hidden inert'; ?>><?php self::studio_header_panel( $profile, $preferences ); ?></section>
+                            <section id="faluss-studio-panel-link-style" role="tabpanel" aria-labelledby="faluss-studio-tab-link-style" data-fl-section-panel="link-style"<?php echo 'link-style' === $active_section ? '' : ' hidden inert'; ?>><?php self::studio_link_style_panel( $preferences ); ?></section>
+                        </div>
+                    </section>
+                </div>
+
+                <?php self::studio_create_views(); ?>
+
+                <aside id="faluss-studio-preview" class="faluss-link-studio__preview" data-fl-preview aria-label="<?php esc_attr_e( 'Aperçu vivant de ma carte Faluss', 'faluss-link' ); ?>" tabindex="-1" hidden>
+                    <div class="faluss-link-studio__preview-bar"><h2><?php esc_html_e( 'Aperçu', 'faluss-link' ); ?></h2><button type="button" data-fl-preview-close aria-label="<?php esc_attr_e( 'Fermer l’aperçu', 'faluss-link' ); ?>">×</button></div>
+                    <?php echo self::card_preview_markup( $profile, $preferences, $preferences['alignment'], $blocks, false, 'studio-preview' ); ?>
+                </aside>
+
+                <nav class="faluss-link-studio__dock" aria-label="<?php esc_attr_e( 'Navigation principale du Studio', 'faluss-link' ); ?>">
+                    <button class="faluss-link-studio__create" type="button" data-fl-create aria-label="<?php esc_attr_e( 'Créer', 'faluss-link' ); ?>"><span aria-hidden="true">+</span></button>
+                    <button class="faluss-link-studio__preview-toggle" type="button" data-fl-preview-toggle aria-controls="faluss-studio-preview" aria-expanded="false"><span class="faluss-link-studio__eyes" aria-hidden="true"><i></i><i></i></span><span class="screen-reader-text"><?php esc_html_e( 'Ouvrir le véritable aperçu Faluss', 'faluss-link' ); ?></span><span class="faluss-link-studio__dirty-count" data-fl-dirty-count hidden aria-live="polite">0</span></button>
+                    <div class="faluss-link-studio__dock-tabs">
+                        <span class="faluss-link-studio__dock-indicator" aria-hidden="true"></span>
+                        <button type="button" data-fl-tab="links" aria-pressed="<?php echo 'links' === $active_tab ? 'true' : 'false'; ?>"><?php esc_html_e( 'Liens', 'faluss-link' ); ?></button>
+                        <span aria-disabled="true"><?php esc_html_e( 'Shop', 'faluss-link' ); ?></span>
+                        <button type="button" data-fl-tab="style" aria-pressed="<?php echo 'style' === $active_tab ? 'true' : 'false'; ?>"><?php esc_html_e( 'Design', 'faluss-link' ); ?></button>
+                        <span aria-disabled="true"><?php esc_html_e( 'Profil', 'faluss-link' ); ?></span>
+                    </div>
+                </nav>
             </form>
         </section>
         <?php return (string) ob_get_clean();
@@ -344,7 +417,121 @@ final class Faluss_Link {
         $faluss_id = Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() );
         $blocks = self::normalise_blocks( $_POST['content_blocks'] ?? array() ); $identity_post = $_POST; $identity_post['links'] = self::identity_links( $blocks );
         $identity = $faluss_id && class_exists( 'Faluss_Identity_Public_Profile' ) ? Faluss_Identity_Public_Profile::save_studio_profile( $faluss_id, $identity_post, $_FILES ) : 'invalid';
-        self::redirect( 'faluss_studio_notice', 'saved' === $identity && self::save_preferences( $faluss_id, $_POST ) && self::save_blocks( $faluss_id, $blocks ) ? 'saved' : ( 'taken' === $identity ? 'taken' : 'invalid' ), self::studio_tab( $_POST['faluss_studio_tab'] ?? 'profile' ) );
+        $notice = 'saved' === $identity && self::save_preferences( $faluss_id, $_POST ) && self::save_blocks( $faluss_id, $blocks ) ? 'saved' : ( 'taken' === $identity ? 'taken' : 'invalid' );
+        if ( 'json' === sanitize_key( (string) ( $_POST['faluss_studio_response'] ?? '' ) ) ) {
+            $payload = array( 'notice' => $notice, 'message' => self::notice_message( $notice ) );
+            if ( 'saved' === $notice ) { wp_send_json_success( $payload ); }
+            wp_send_json_error( $payload, 'taken' === $notice ? 409 : 422 );
+        }
+        self::redirect( 'faluss_studio_notice', $notice, self::studio_tab( $_POST['faluss_studio_tab'] ?? 'links' ) );
+    }
+
+    /**
+     * Collections are a Studio projection of the existing ordered block stream.
+     * A section title starts a collection; its first adjacent text block is the
+     * optional description. No collection table, meta, or duplicate link exists.
+     *
+     * @return array<string,array<string,mixed>>
+     */
+    private static function studio_collections( $blocks ) {
+        $collections = array();
+        $current = '';
+        foreach ( (array) $blocks as $block ) {
+            if ( 'section_title' === ( $block['type'] ?? '' ) ) {
+                $current = (string) $block['block_id'];
+                $collections[ $current ] = array(
+                    'block_id' => $current,
+                    'name' => (string) $block['value'],
+                    'description' => '',
+                    'description_block_id' => '',
+                    'links' => array(),
+                );
+                continue;
+            }
+            if ( '' === $current || ! isset( $collections[ $current ] ) ) { continue; }
+            if ( 'text' === ( $block['type'] ?? '' ) && '' === $collections[ $current ]['description'] && ! $collections[ $current ]['links'] ) {
+                $collections[ $current ]['description'] = (string) $block['value'];
+                $collections[ $current ]['description_block_id'] = (string) $block['block_id'];
+                continue;
+            }
+            if ( 'link' === ( $block['type'] ?? '' ) ) { $collections[ $current ]['links'][] = $block; }
+        }
+        return $collections;
+    }
+
+    private static function studio_collection_id( $value, $collections ) {
+        $value = strtolower( sanitize_text_field( (string) wp_unslash( $value ) ) );
+        return self::valid_block_id( $value ) && isset( $collections[ $value ] ) ? $value : '';
+    }
+
+    private static function studio_section( $value, $tab ) {
+        $value = sanitize_key( (string) wp_unslash( $value ) );
+        $allowed = 'style' === $tab ? array( 'appearance', 'header', 'link-style' ) : array( 'all', 'collections', 'collection' );
+        return in_array( $value, $allowed, true ) ? $value : $allowed[0];
+    }
+
+    private static function studio_block_store( $blocks ) {
+        $fields = array(
+            'section_title' => array( 'value' ),
+            'text' => array( 'value' ),
+            'link' => array( 'label', 'url' ),
+            'media_teaser' => array( 'attachment_id', 'title', 'text', 'format', 'access_mode', 'entitlement_code' ),
+        );
+        ?><div class="faluss-link-studio__block-store" data-fl-block-store hidden aria-hidden="true"><?php foreach ( array_values( (array) $blocks ) as $index => $block ) : $type = (string) $block['type']; $prefix = 'content_blocks[' . (int) $index . ']'; ?><div data-fl-stored-block data-block-id="<?php echo esc_attr( $block['block_id'] ); ?>" data-block-type="<?php echo esc_attr( $type ); ?>"><input data-fl-block-field="block_id" name="<?php echo esc_attr( $prefix ); ?>[block_id]" type="hidden" value="<?php echo esc_attr( $block['block_id'] ); ?>"><input data-fl-block-field="type" name="<?php echo esc_attr( $prefix ); ?>[type]" type="hidden" value="<?php echo esc_attr( $type ); ?>"><?php foreach ( $fields[ $type ] ?? array() as $field ) : ?><input data-fl-block-field="<?php echo esc_attr( $field ); ?>" name="<?php echo esc_attr( $prefix ); ?>[<?php echo esc_attr( $field ); ?>]" type="hidden" value="<?php echo esc_attr( $block[ $field ] ?? '' ); ?>"><?php endforeach; ?></div><?php endforeach; ?></div><?php
+    }
+
+    private static function studio_member_header( $profile, $preferences ) {
+        $name = $profile['display_name'] ?: __( 'Mon Faluss', 'faluss-link' );
+        $socials = array_slice( self::socials( $preferences['social_links'] ), 0, 4 );
+        ?><section class="faluss-link-studio__identity" aria-label="<?php esc_attr_e( 'Identité du membre', 'faluss-link' ); ?>"><span class="faluss-link-studio__avatar"><?php if ( (int) $profile['avatar_attachment_id'] ) { echo wp_get_attachment_image( (int) $profile['avatar_attachment_id'], 'medium', false, array( 'alt' => '' ) ); } ?></span><div class="faluss-link-studio__identity-copy"><strong data-studio-member-name><?php echo esc_html( $name ); ?></strong><span data-studio-member-handle><?php echo '' === $profile['public_slug'] ? '@—' : '@' . esc_html( $profile['public_slug'] ); ?></span><?php if ( $socials ) : ?><div class="faluss-link-studio__social-shortcuts"><?php foreach ( $socials as $social ) : $asset = self::social_asset_markup( $social['network'], $preferences['social_variant'] ); if ( '' === $asset ) { continue; } ?><a href="<?php echo esc_url( $social['url'] ); ?>" target="_blank" rel="noopener noreferrer nofollow" aria-label="<?php echo esc_attr( self::network_label( $social['network'] ) ); ?>"><?php echo $asset; ?></a><?php endforeach; ?></div><?php endif; ?></div></section><?php
+    }
+
+    private static function studio_links_panel( $blocks ) {
+        $links = array_values( array_filter( (array) $blocks, static function( $block ) { return 'link' === ( $block['type'] ?? '' ); } ) );
+        if ( ! $links ) { self::studio_empty_state( 'links' ); return; }
+        ?><div class="faluss-link-studio__cards" data-fl-link-list><?php foreach ( $links as $link ) { self::studio_link_card( $link ); } ?></div><?php
+    }
+
+    private static function studio_collections_panel( $collections ) {
+        if ( ! $collections ) { self::studio_empty_state( 'collections' ); return; }
+        ?><div class="faluss-link-studio__collection-grid"><?php foreach ( $collections as $collection ) : ?><a class="faluss-link-studio__collection-card" href="<?php echo esc_url( self::studio_url( array( 'faluss_studio_tab' => 'links', 'faluss_studio_section' => 'collection', 'faluss_studio_collection' => $collection['block_id'] ) ) ); ?>" data-fl-open-collection="<?php echo esc_attr( $collection['block_id'] ); ?>"><strong><?php echo esc_html( $collection['name'] ); ?></strong><span><?php echo esc_html( sprintf( _n( '%d lien actif', '%d liens actifs', count( $collection['links'] ), 'faluss-link' ), count( $collection['links'] ) ) ); ?></span><i aria-hidden="true"></i></a><?php endforeach; ?></div><?php
+    }
+
+    private static function studio_collection_panel( $collection ) {
+        ?><div class="faluss-link-studio__collection-heading"><button type="button" data-fl-rename-collection aria-expanded="false"><?php echo esc_html( $collection['name'] ); ?></button><span><?php echo esc_html( sprintf( _n( '%d lien', '%d liens', count( $collection['links'] ), 'faluss-link' ), count( $collection['links'] ) ) ); ?></span></div><div class="faluss-link-studio__collection-editor" data-fl-collection-editor hidden><label><?php esc_html_e( 'Nom de la collection', 'faluss-link' ); ?><input type="text" maxlength="80" data-fl-collection-name value="<?php echo esc_attr( $collection['name'] ); ?>"></label><label><?php esc_html_e( 'Description facultative', 'faluss-link' ); ?><textarea maxlength="480" rows="3" data-fl-collection-description><?php echo esc_textarea( $collection['description'] ); ?></textarea></label><div class="faluss-link-studio__inline-actions"><button type="button" data-fl-save-collection="<?php echo esc_attr( $collection['block_id'] ); ?>"><?php esc_html_e( 'Enregistrer', 'faluss-link' ); ?></button><button type="button" class="is-destructive" data-fl-dissolve-collection="<?php echo esc_attr( $collection['block_id'] ); ?>"><?php esc_html_e( 'Dissoudre la collection', 'faluss-link' ); ?></button></div></div><?php if ( $collection['description'] ) : ?><p class="faluss-link-studio__collection-description"><?php echo esc_html( $collection['description'] ); ?></p><?php endif; ?><?php if ( $collection['links'] ) : ?><div class="faluss-link-studio__cards"><?php foreach ( $collection['links'] as $link ) { self::studio_link_card( $link ); } ?></div><?php else : self::studio_empty_state( 'collection' ); endif;
+    }
+
+    private static function studio_link_card( $link ) {
+        $id = function_exists( 'wp_unique_id' ) ? wp_unique_id( 'faluss-studio-link-' ) : 'faluss-studio-link-' . substr( $link['block_id'], 0, 8 );
+        ?><article class="faluss-link-studio__link-card" data-fl-link-card data-block-id="<?php echo esc_attr( $link['block_id'] ); ?>"><button class="faluss-link-studio__link-summary" type="button" aria-expanded="false" aria-controls="<?php echo esc_attr( $id ); ?>"><span><?php echo esc_html( $link['label'] ); ?></span><span aria-hidden="true">⌄</span></button><div id="<?php echo esc_attr( $id ); ?>" class="faluss-link-studio__link-details" hidden><label><?php esc_html_e( 'Nom affiché du lien', 'faluss-link' ); ?><input type="text" maxlength="80" value="<?php echo esc_attr( $link['label'] ); ?>" data-fl-link-label></label><label><?php esc_html_e( 'URL du lien', 'faluss-link' ); ?><input type="url" maxlength="2048" value="<?php echo esc_attr( $link['url'] ); ?>" placeholder="https://" data-fl-link-url></label><div class="faluss-link-studio__inline-actions"><button type="button" data-fl-save-link><?php esc_html_e( 'Enregistrer', 'faluss-link' ); ?></button><button class="is-destructive" type="button" data-fl-delete-link><?php esc_html_e( 'Supprimer', 'faluss-link' ); ?></button></div></div></article><?php
+    }
+
+    private static function studio_empty_state( $kind ) {
+        $collection = in_array( $kind, array( 'collections', 'collection' ), true );
+        ?><div class="faluss-link-studio__empty" role="status"><span class="faluss-link-studio__empty-illustration" aria-hidden="true"><i></i><i></i><i></i></span><strong><?php echo esc_html( $collection ? __( 'Zéro collection', 'faluss-link' ) : __( 'Zéro lien', 'faluss-link' ) ); ?></strong><p><?php echo esc_html( $collection ? __( 'Regroupez vos liens. Ajoutez votre première collection.', 'faluss-link' ) : __( 'Montrez à votre audience qui vous êtes. Ajoutez vos premiers liens.', 'faluss-link' ) ); ?></p></div><?php
+    }
+
+    private static function studio_create_views() {
+        ?><section class="faluss-link-studio__create-view" data-fl-studio-screen="create-link" hidden inert><div class="faluss-link-studio__create-copy"><h2><?php esc_html_e( 'Un lien, c’est sacré. Rendez-le unique !', 'faluss-link' ); ?></h2><p><?php esc_html_e( 'Vous pourrez le changer quand vous voulez dans le Studio.', 'faluss-link' ); ?></p></div><div class="faluss-link-studio__create-card"><h3><?php esc_html_e( 'Nouveau lien', 'faluss-link' ); ?></h3><label><?php esc_html_e( 'Nom affiché du lien', 'faluss-link' ); ?><input type="text" maxlength="80" data-fl-new-link-label></label><label><?php esc_html_e( 'URL du lien', 'faluss-link' ); ?><input type="url" maxlength="2048" placeholder="https://" data-fl-new-link-url></label><button type="button" data-fl-create-link-submit><?php esc_html_e( 'Ajouter le lien', 'faluss-link' ); ?></button></div></section><section class="faluss-link-studio__create-view" data-fl-studio-screen="create-collection" hidden inert><div class="faluss-link-studio__create-copy"><h2><?php esc_html_e( 'Catégorisez vos liens. C’est plus simple !', 'faluss-link' ); ?></h2><p><?php esc_html_e( 'Vous pourrez la changer quand vous voulez dans le Studio.', 'faluss-link' ); ?></p></div><div class="faluss-link-studio__create-card"><h3><?php esc_html_e( 'Nouvelle collection', 'faluss-link' ); ?></h3><label><?php esc_html_e( 'Nom de la collection', 'faluss-link' ); ?><input type="text" maxlength="80" data-fl-new-collection-name></label><label><?php esc_html_e( 'Description facultative', 'faluss-link' ); ?><textarea maxlength="480" rows="3" data-fl-new-collection-description></textarea></label><button type="button" data-fl-create-collection-submit><?php esc_html_e( 'Ajouter la collection', 'faluss-link' ); ?></button></div></section><?php
+    }
+
+    private static function studio_appearance_panel( $preferences ) {
+        self::theme_picker( $preferences );
+        $swatches = array( '#000000', '#191919', '#737373', '#DDDDDD', '#FFFFFF', '#321752', '#350D0D', '#1A7061', '#A748B5' );
+        ?><fieldset class="faluss-link-studio__palette"><legend><?php esc_html_e( 'Arrière-plan', 'faluss-link' ); ?></legend><input class="faluss-link-studio__native-color" name="page_background" type="color" value="<?php echo esc_attr( $preferences['page_background'] ); ?>" aria-label="<?php esc_attr_e( 'Couleur personnalisée de l’arrière-plan', 'faluss-link' ); ?>"><div><?php foreach ( $swatches as $color ) : ?><button type="button" data-fl-background="<?php echo esc_attr( $color ); ?>" aria-pressed="<?php echo strtoupper( $preferences['page_background'] ) === $color ? 'true' : 'false'; ?>" aria-label="<?php echo esc_attr( sprintf( __( 'Arrière-plan %s', 'faluss-link' ), $color ) ); ?>" style="--fl-studio-swatch:<?php echo esc_attr( $color ); ?>"></button><?php endforeach; ?><button class="is-custom" type="button" data-fl-open-color aria-label="<?php esc_attr_e( 'Choisir une couleur personnalisée', 'faluss-link' ); ?>">✣</button></div></fieldset><details class="faluss-link-studio__advanced"><summary><?php esc_html_e( 'Transition de couverture', 'faluss-link' ); ?></summary><label><?php esc_html_e( 'Couleur de transition', 'faluss-link' ); ?><input name="hero_transition_color" type="color" value="<?php echo esc_attr( $preferences['hero_transition_color'] ); ?>"></label><label><?php esc_html_e( 'Intensité', 'faluss-link' ); ?><input name="hero_transition_intensity" type="range" min="0" max="100" value="<?php echo (int) $preferences['hero_transition_intensity']; ?>"></label><label><?php esc_html_e( 'Position', 'faluss-link' ); ?><input name="hero_transition_position" type="range" min="35" max="100" value="<?php echo (int) $preferences['hero_transition_position']; ?>"></label></details><?php
+    }
+
+    private static function studio_header_panel( $profile, $preferences ) {
+        ?><div class="faluss-link-studio__settings-card"><?php self::identity_fields( $profile ); ?><input type="hidden" name="available" value="0"><label class="faluss-link-studio__check"><input name="available" type="checkbox" value="1" <?php checked( $preferences['available'] ); ?>> <?php esc_html_e( 'Afficher Disponible', 'faluss-link' ); ?></label><input type="hidden" name="avatar_visible" value="0"><label class="faluss-link-studio__check"><input name="avatar_visible" type="checkbox" value="1" <?php checked( $preferences['avatar_visible'] ); ?>> <?php esc_html_e( 'Afficher l’avatar', 'faluss-link' ); ?></label><input type="hidden" name="avatar_border" value="0"><label class="faluss-link-studio__check"><input name="avatar_border" type="checkbox" value="1" <?php checked( $preferences['avatar_border'] ); ?>> <?php esc_html_e( 'Afficher la bordure de l’avatar', 'faluss-link' ); ?></label><label><?php esc_html_e( 'Police du nom', 'faluss-link' ); ?><select name="name_font"><?php foreach ( self::onboarding_name_fonts() as $key => $font ) : ?><option value="<?php echo esc_attr( $key ); ?>" data-font-stack="<?php echo esc_attr( $font['stack'] ); ?>" <?php selected( $preferences['name_font'], $key ); ?>><?php echo esc_html( $font['label'] ); ?></option><?php endforeach; ?></select></label><label><?php esc_html_e( 'Traitement du nom', 'faluss-link' ); ?><select name="name_treatment"><?php self::name_treatment_options( $preferences['name_treatment'] ); ?></select></label><fieldset class="faluss-link-studio__segments"><legend><?php esc_html_e( 'Alignement du profil', 'faluss-link' ); ?></legend><label><input type="radio" name="alignment" value="left" <?php checked( $preferences['alignment'], 'left' ); ?>><span><?php esc_html_e( 'Gauche', 'faluss-link' ); ?></span></label><label><input type="radio" name="alignment" value="center" <?php checked( $preferences['alignment'], 'center' ); ?>><span><?php esc_html_e( 'Centre', 'faluss-link' ); ?></span></label></fieldset><?php self::name_color_field( $preferences ); self::social_editor( $preferences ); ?><label><?php esc_html_e( 'Affichage des réseaux', 'faluss-link' ); ?><select name="social_layout"><?php self::options( self::LAYOUTS, $preferences['social_layout'] ); ?></select></label><label><?php esc_html_e( 'Style des réseaux', 'faluss-link' ); ?><select name="social_variant"><?php self::options( self::SOCIAL_VARIANTS, $preferences['social_variant'] ); ?></select></label><button class="faluss-link-studio__save-settings" type="submit"><?php esc_html_e( 'Enregistrer l’en-tête', 'faluss-link' ); ?></button></div><?php
+    }
+
+    private static function studio_link_style_panel( $preferences ) {
+        ?><fieldset class="faluss-link-studio__style-options"><legend><?php esc_html_e( 'Style des boutons', 'faluss-link' ); ?></legend><?php foreach ( self::LINK_STYLES as $value => $label ) : ?><label class="faluss-link-studio__style-option"><input type="radio" name="link_style" value="<?php echo esc_attr( $value ); ?>" <?php checked( $preferences['link_style'], $value ); ?>><span class="faluss-link-studio__style-preview faluss-link-studio__style-preview--<?php echo esc_attr( $value ); ?>"><i><?php echo esc_html( $label ); ?></i></span><strong><?php echo esc_html( $label ); ?></strong></label><?php endforeach; ?></fieldset><p class="faluss-link-studio__settings-note"><?php esc_html_e( 'Les couleurs restent celles de la présentation Faluss partagée ; aucune préférence parallèle n’est créée dans le Studio.', 'faluss-link' ); ?></p><?php
+    }
+
+    private static function studio_url( $args ) {
+        $base = function_exists( 'get_permalink' ) ? get_permalink() : home_url( '/' );
+        return add_query_arg( $args, $base );
     }
 
     public static function upload_cover() {
@@ -1530,7 +1717,8 @@ final class Faluss_Link {
     private static function verify( $field, $action ) { return is_user_logged_in() && isset( $_POST[ $field ] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ $field ] ) ), $action ); }
     private static function studio_tab( $value ) { $value = sanitize_key( (string) wp_unslash( $value ) ); return in_array( $value, array( 'profile', 'links', 'style' ), true ) ? $value : 'profile'; }
     private static function redirect( $key, $notice, $studio_tab = '' ) { $url = wp_validate_redirect( wp_get_referer(), home_url( '/' ) ); $args = array( $key => $notice ); if ( '' !== $studio_tab ) { $args['faluss_studio_tab'] = self::studio_tab( $studio_tab ); } wp_safe_redirect( add_query_arg( $args, $url ) ); exit; }
-    private static function notice( $key ) { $value = isset( $_GET[ $key ] ) ? sanitize_key( wp_unslash( $_GET[ $key ] ) ) : ''; $messages = array( 'saved' => __( 'Studio enregistré.', 'faluss-link' ), 'taken' => __( 'Cet identifiant public n’est pas disponible.', 'faluss-link' ), 'invalid' => __( 'Nous ne pouvons pas enregistrer le Studio.', 'faluss-link' ) ); return isset( $messages[ $value ] ) ? '<p class="faluss-link-notice">' . esc_html( $messages[ $value ] ) . '</p>' : ''; }
+    private static function notice( $key ) { $value = isset( $_GET[ $key ] ) ? sanitize_key( wp_unslash( $_GET[ $key ] ) ) : ''; $message = self::notice_message( $value ); return '' !== $message ? '<p class="faluss-link-notice">' . esc_html( $message ) . '</p>' : ''; }
+    private static function notice_message( $value ) { $messages = array( 'saved' => __( 'Studio enregistré.', 'faluss-link' ), 'taken' => __( 'Cet identifiant public n’est pas disponible.', 'faluss-link' ), 'invalid' => __( 'Nous ne pouvons pas enregistrer le Studio.', 'faluss-link' ) ); return $messages[ $value ] ?? ''; }
     private static function discovery_redirect( $notice ) { $url = wp_validate_redirect( wp_get_referer(), home_url( '/' ) ); wp_safe_redirect( add_query_arg( 'faluss_link_discoveries_notice', sanitize_key( $notice ), $url ) ); exit; }
     private static function discovery_notice() { $value = isset( $_GET['faluss_link_discoveries_notice'] ) ? sanitize_key( wp_unslash( $_GET['faluss_link_discoveries_notice'] ) ) : ''; $messages = array( 'saved' => __( 'Préférences des découvertes enregistrées.', 'faluss-link' ), 'deleted' => __( 'Découverte retirée.', 'faluss-link' ), 'cleared' => __( 'Vos découvertes ont été effacées.', 'faluss-link' ), 'invalid' => __( 'Cette action n’a pas pu être effectuée.', 'faluss-link' ) ); return isset( $messages[ $value ] ) ? '<p class="faluss-link-notice">' . esc_html( $messages[ $value ] ) . '</p>' : ''; }
     private static function options( $options, $selected ) { foreach ( $options as $key => $label ) { ?><option value="<?php echo esc_attr( $key ); ?>" <?php selected( $selected, $key ); ?>><?php echo esc_html( $label ); ?></option><?php } }

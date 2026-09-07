@@ -16,7 +16,11 @@ Utilisez **Carte compacte** seulement pour intégrer volontairement une carte da
 
 ## Studio Faluss et réseaux (FL-05)
 
-Sur la page mon-faluss, utilisez seulement le widget **Studio Faluss**. Ses onglets **Profil**, **Liens** et **Style** enregistrent dans un seul parcours : le profil et ses liens publics restent dans Faluss Identity ; les préférences visuelles et les réseaux restent dans Faluss Link.
+Sur la page mon-faluss, utilisez seulement le widget **Studio Faluss**. La navigation principale V1 expose **Liens**, **Shop**, **Design** et **Profil**. Seuls **Liens** et **Design** sont actifs dans ce lot : Shop et Profil restent visibles comme repères de navigation, sans page ni donnée fictive. **Liens** ouvre **Tous** et **Collections** ; **Design** ouvre **Apparence**, **En-tête** et **Liens**. Le dock inférieur est fixe, respecte la zone sûre mobile et réserve sa place dans l’unique flux vertical du document.
+
+Le bouton d’ajout crée un lien dans **Tous**, une collection depuis **Collections**, ou un lien dans la collection ouverte. Le bouton aux yeux ouvre le véritable rendu partagé de carte. Les cartes de liens sont repliées au chargement et une seule peut être développée à la fois. Les créations et éditions utilisent l’unique action `faluss_link_save_studio`, son nonce et l’identité active du propriétaire ; aucune API, table ou meta parallèle n’est introduite.
+
+Une **Collection** est une projection UX de la composition canonique : un bloc `section_title` en marque le début, son premier bloc `text` adjacent peut fournir sa description, et les blocs `link` suivants lui appartiennent jusqu’au prochain titre. Son compteur provient de ces liens réels. Dissoudre une collection conserve ses liens dans la composition générale. Le mot « Set » n’est plus employé dans l’interface membre.
 
 Dans **Réglages > Réseaux Faluss Link**, un administrateur peut activer les réseaux proposés, ajuster leur libellé et choisir leurs ressources image depuis la médiathèque. Les membres ajoutent ensuite un réseau avec un sélecteur et une URL HTTPS : aucune syntaxe technique n’est à saisir.
 
@@ -112,7 +116,7 @@ Le bouton discret **Copier mon identifiant Faluss** est visible uniquement au pr
 
 Le thème effectivement rendu est distinct de la préférence membre conservée. Lorsqu’un droit de thème devient indisponible, Faluss Link affiche la base **Faluss par défaut** sans réécrire le choix, les surcharges visuelles ni les autres données de carte. Les préférences personnelles déjà enregistrées restent donc visibles dans ce repli ; dès que le droit est de nouveau confirmé par le Connector, le thème précédemment choisi redevient disponible. Une surcharge Elementor explicitement renseignée reste la dernière couche de rendu.
 
-Sur mobile, le Studio ouvre l’aperçu à la demande depuis la barre basse **Mettre à jour / Aperçu**. L’aperçu est fermé au chargement, son bouton affiche le nombre de modifications locales non enregistrées, et la barre respecte la zone sûre du navigateur. Le sélecteur de fond expose sa pastille, sa valeur hexadécimale et l’aide « Couleur derrière votre carte ». Le statut de publication est présenté comme le contrôle accessible **Profil public**, avec les états **Visible** et **Masqué** ; il enregistre la même donnée Identity qu’auparavant.
+Sur mobile, le Studio ouvre l’aperçu à la demande depuis le bouton aux yeux du dock V1. L’aperçu est fermé au chargement, son bouton affiche le nombre de modifications locales non enregistrées, et le dock respecte la zone sûre du navigateur. Les changements Design sont sauvegardés par le même formulaire canonique et se reflètent dans le véritable renderer partagé. Le statut de publication reste le contrôle accessible **Profil public**, avec les états **Visible** et **Masqué** ; il enregistre la même donnée Identity qu’auparavant.
 
 ## Mes découvertes Faluss (FL-18)
 

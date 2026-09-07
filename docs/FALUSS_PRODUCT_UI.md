@@ -142,6 +142,37 @@ droits.
 
 ## Application progressive
 
+### Studio V1
+
+La planche Studio V1 fournie pour l’intégration est composée de frames mobiles
+`440 × 956 px` et de sa planche Components. Elle définit un shell de produit
+réutilisable, pas un canevas à positions absolues : topbar d’actions, identité
+membre, navigation contextuelle, contenu dans le flux du document et dock
+inférieur fixé avec réservation et safe areas.
+
+Le dock principal contient l’action circulaire de création, l’action compacte
+d’aperçu et une capsule à quatre destinations : **Liens**, **Shop**, **Design**
+et **Profil**. Son indicateur actif rouge `#ED4343` glisse par `transform`. Shop
+et Profil peuvent rester visuellement présents et désactivés tant qu’aucune
+surface produit réelle n’existe. Le niveau contextuel emploie un indicateur noir
+glissant : **Tous / Collections** pour Liens et **Apparence / En-tête / Liens**
+pour Design. Le focus visible reste violet et le mouvement devient immédiat sous
+`prefers-reduced-motion`.
+
+Les cartes de gestion utilisent `#F5F5F5`, une surface de champ blanche, un
+rayon proche de `18 px` et une cible tactile d’au moins `44 px`. Une carte de
+lien possède un résumé replié et une édition développée ; une seule édition est
+ouverte. Les états vides utilisent la même illustration abstraite de cartes,
+sans faux lien ni faux compteur. Les collections affichent leur nom, leur
+description facultative et le nombre réel de liens. Elles réemploient les
+sections du flux canonique ; elles n’ont ni URL ni stockage autonome.
+
+Le bouton aux yeux ouvre toujours la façade de carte partagée documentée plus
+haut. Les sous-vues Design écrivent uniquement les préférences déjà portées par
+Faluss Link : thème et fond, identité visuelle et réseaux, variantes de liens.
+Les contrôles ne créent jamais une présentation Studio parallèle à la carte
+publique.
+
 Studio, Mes découvertes et les futures surfaces membre adopteront ce contrat
 progressivement, composant par composant. Une migration visuelle ne doit jamais
 modifier des données, un parcours Identity, une règle métier ou l’administration

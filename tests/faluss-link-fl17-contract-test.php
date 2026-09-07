@@ -62,13 +62,13 @@ $widgets = file_get_contents( $root . '/plugins/faluss-link/includes/class-falus
 foreach ( array( 'stored_overrides', 'theme_setting_keys()', 'theme_locked', 'theme_reference' ) as $needle ) {
     fl17_assert( false !== strpos( $link_source, $needle ), 'FL-17 must retain the selected theme and stored member preferences during an entitlement fallback: ' . $needle );
 }
-foreach ( array( 'data-fl-preview', 'aria-expanded="false"', 'Mettre à jour', 'data-fl-dirty-count', 'role="switch"', 'data-fl-publication-state', 'faluss-link-color-field__value' ) as $needle ) {
+foreach ( array( 'data-fl-preview', 'aria-expanded="false"', 'Enregistrer l’en-tête', 'data-fl-dirty-count', 'role="switch"', 'data-fl-publication-state', 'faluss-link-color-field__value' ) as $needle ) {
     fl17_assert( false !== strpos( $link_source, $needle ), 'FL-17 Studio markup is missing the compact control: ' . $needle );
 }
 foreach ( array( 'formState', 'dirtyCount', 'togglePreview', 'scrollIntoView', 'falussLinkInitialState', 'updatePublication', 'updateColorFields', 'prefers-reduced-motion: reduce' ) as $needle ) {
     fl17_assert( false !== strpos( $editor_source, $needle ), 'FL-17 Studio behavior is missing: ' . $needle );
 }
-foreach ( array( 'position:fixed', 'safe-area-inset-bottom', 'padding-bottom:calc(6.25rem', 'border-radius:100%', '-webkit-line-clamp:2', 'faluss-link-publication__switch' ) as $needle ) {
+foreach ( array( 'position: fixed', 'safe-area-inset-bottom', 'calc(6.25rem + env(safe-area-inset-bottom', 'border-radius: 100%', '-webkit-line-clamp: 2', 'faluss-link-publication__switch' ) as $needle ) {
     fl17_assert( false !== strpos( $studio_css, $needle ), 'FL-17 Studio mobile layout or accessible control is missing: ' . $needle );
 }
 fl17_assert( false !== strpos( $widgets, '--fl-page-background:{{VALUE}} !important;' ) && false !== strpos( $widgets, '--fl-name-color:{{VALUE}} !important;' ), 'Explicit Elementor page and name overrides must remain final presentation layers.' );
