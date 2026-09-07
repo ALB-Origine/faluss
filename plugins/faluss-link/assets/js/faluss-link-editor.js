@@ -483,6 +483,21 @@
         Object.keys(values || {}).forEach(function (key) { if (key !== 'block_id' && key !== 'type') { setStoredField(block, key, values[key]); } });
         return block;
     }
+    function hydrateCanonicalBlocks(studio, payload) {
+        var blocks = payload && Array.isArray(payload.blocks) ? payload.blocks : null;
+        if (!blocks) { return false; }
+        var store = studio.find('[data-fl-block-store]').empty();
+        blocks.forEach(function (block) {
+            if (!block || typeof block.block_id !== 'string' || typeof block.type !== 'string') { return; }
+            store.append(makeStoredBlock(block.type, block));
+        });
+        if (typeof payload.links_html === 'string') {
+            studio.find('[data-fl-main-panel="links"] [data-fl-section-panel="all"]').html(payload.links_html);
+        }
+        renumberBlocks(studio);
+        update(studio);
+        return true;
+    }
     function insertStoredLink(studio, values, collectionId) {
         var store = studio.find('[data-fl-block-store]'), block = makeStoredBlock('link', values);
         if (collectionId) {
@@ -541,7 +556,7 @@
             }, statusLifetime));
         }
     }
-    function saveStudio(studio, reload) {
+    function saveStudio(studio, reload, onSaved) {
         var form = studio.find('.faluss-link-studio__form');
         if (!form.length || studio.data('falussLinkSaving')) { return Promise.resolve(false); }
         studio.data('falussLinkSaving', true).addClass('is-saving');
@@ -550,6 +565,7 @@
             .then(function (response) { return response.json().catch(function () { return null; }).then(function (body) { return { ok: response.ok, body: body }; }); })
             .then(function (result) {
                 if (!result.ok || !result.body || !result.body.success) { throw new Error(result.body && result.body.data && result.body.data.message ? result.body.data.message : 'Enregistrement impossible.'); }
+                if (typeof onSaved === 'function') { onSaved(result.body.data || {}); }
                 showStatus(studio, result.body.data.message || 'Studio enregistré.', false, true);
                 studio.data('falussLinkInitialState', formState(studio));
                 updateDirty(studio);
@@ -744,8 +760,16 @@
             var label = $.trim(screen.find('[data-fl-new-link-label]').val() || ''), url = $.trim(screen.find('[data-fl-new-link-url]').val() || '');
             if (!label || !safeURL(url)) { showStatus(studio, 'Renseignez un nom et une URL HTTPS valide.', true); return; }
             if (storedBlocks(studio).length >= 32) { showStatus(studio, 'Votre carte contient déjà le nombre maximal d’éléments.', true); return; }
-            insertStoredLink(studio, { label: label, url: url }, studio.find('[data-fl-active-collection]').val() || '');
-            saveStudio(studio, true);
+            var created = insertStoredLink(studio, { label: label, url: url }, studio.find('[data-fl-active-collection]').val() || '');
+            saveStudio(studio, false, function (payload) {
+                hydrateCanonicalBlocks(studio, payload);
+                restoreStudioState(studio, { tab: 'links', section: 'all', collection: '' }, true);
+            }).then(function (saved) {
+                if (saved) { return; }
+                created.remove();
+                renumberBlocks(studio);
+                update(studio);
+            });
         })
         .on('click.falussLink', '.faluss-link-studio [data-fl-create-collection-submit]', function () {
             var studio = $(this).closest('.faluss-link-studio'), screen = $(this).closest('[data-fl-studio-screen]');

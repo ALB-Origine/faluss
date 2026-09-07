@@ -76,7 +76,7 @@ foreach ( array( '.faluss-link-card--links-outline .faluss-link-card__link', '.f
     studio_v1_assert( false !== strpos( $card, $needle ), 'Design V1 must retain the shared public button variants: ' . $needle );
 }
 
-studio_v1_assert( false === strpos( $link, 'Faluss Pro' ) && false === strpos( $link, '15 jours offerts' ), 'No fictitious subscription banner may be rendered.' );
+studio_v1_assert( false === strpos( $link, '15 jours offerts' ) && false === strpos( $link, 'Temps limité' ), 'No fictitious subscription banner may be rendered; the Ecosystem product card may name Faluss Pro.' );
 
 require_once $root . '/plugins/faluss-link/includes/class-faluss-link.php';
 $project = new ReflectionMethod( 'Faluss_Link', 'studio_collections' );

@@ -6,6 +6,7 @@
     --fl-studio-border: rgba(8, 8, 8, .08);
     --fl-studio-muted: #727272;
     --fl-studio-gutter: clamp(.8rem, 4vw, 2rem);
+    --fl-studio-main-rhythm: clamp(.8rem, 3.5vw, 1.2rem);
     width: 100%;
     max-width: none;
     min-height: 100vh;
@@ -17,6 +18,7 @@
     background: #fff;
     box-shadow: none;
     color: #171717;
+    overflow-x: clip;
 }
 
 /* The historical Elementor widget is now the Studio V1 mount point. Keep its
@@ -64,7 +66,7 @@
     gap: 1rem;
     width: 100%;
     margin: 0;
-    padding: clamp(1.1rem, 5vw, 2.25rem) var(--fl-studio-gutter) 0;
+    padding: clamp(1.1rem, 5vw, 2.25rem) var(--fl-studio-gutter) var(--fl-studio-main-rhythm);
 }
 
 .faluss-link-studio__header-actions { display: flex; align-items: center; gap: .55rem; }
@@ -95,9 +97,9 @@
     gap: 1.1rem;
     align-items: center;
     width: 100%;
-    min-height: 13.5rem;
+    min-height: 0;
     margin: 0;
-    padding: clamp(1.6rem, 7vw, 3rem) var(--fl-studio-gutter) 1.3rem;
+    padding: 0 var(--fl-studio-gutter) var(--fl-studio-main-rhythm);
 }
 .faluss-link-studio__avatar {
     position: relative;
@@ -129,7 +131,7 @@
     white-space: nowrap;
 }
 .faluss-link-studio__identity-copy > span { overflow: hidden; color: var(--fl-studio-muted); font-size: .86rem; text-overflow: ellipsis; white-space: nowrap; }
-.faluss-link-studio__social-shortcuts { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .55rem; }
+.faluss-link-studio__social-shortcuts { display: inline-flex; flex-wrap: wrap; align-items: center; column-gap: .25rem; row-gap: .25rem; margin-top: .35rem; }
 .faluss-link-studio__social-shortcuts a {
     display: grid;
     width: 1.9rem;
@@ -140,11 +142,16 @@
     color: #9e9e9e;
     text-decoration: none;
 }
-.faluss-link-studio__social-add { display: grid; width: 44px; height: 44px; place-items: center; padding: 0; border: 0; border-radius: .55rem; background: transparent; color: #171717; }
-.faluss-link-studio__social-add > span { display: grid; width: 16px; height: 16px; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 1rem; line-height: 1; }
+.faluss-link-studio__social-add { display: inline-flex; flex: 0 0 36px; align-items: center; justify-content: center; box-sizing: border-box; width: 36px; height: 36px; margin: 0 -.15rem; padding: 0; border: 0; border-radius: .55rem; background: transparent; color: #171717; }
+.faluss-link-studio__social-add > span { display: inline-grid; box-sizing: border-box; width: 16px; height: 16px; place-items: center; border: 1.5px solid currentColor; border-radius: 50%; font-size: .8125rem; font-weight: 650; line-height: 1; }
 .faluss-link-studio__social-add:hover > span { background: #171717; color: #fff; }
 .faluss-link-studio__social-shortcuts svg,
 .faluss-link-studio__social-shortcuts img { width: 1.15rem; height: 1.15rem; object-fit: contain; }
+
+.faluss-link-studio[data-faluss-studio="v1"] [data-fl-studio-ecosystem],
+.faluss-link-studio[data-faluss-studio="v1"] [data-fl-studio-ecosystem]:hover,
+.faluss-link-studio[data-faluss-studio="v1"] [data-fl-studio-ecosystem]:focus-visible,
+.faluss-link-studio[data-faluss-studio="v1"] [data-fl-studio-ecosystem]:active { color: #171717; }
 
 .faluss-link-studio__notice {
     position: fixed;
@@ -376,18 +383,23 @@
 .faluss-link-studio__create-card { display: grid; gap: .75rem; padding: clamp(1rem, 5vw, 1.7rem); border: 1px solid var(--fl-studio-border); border-radius: 1.2rem; background: var(--fl-studio-panel); }
 .faluss-link-studio__create-card h3 { margin: 0 0 .35rem; text-align: center; }
 .faluss-link-studio__create-card > button { justify-self: center; margin-top: .25rem; background: transparent; color: #ff4059; }
-.faluss-link-studio__ecosystem-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; max-width: 38rem; margin: 0 auto; }
-.faluss-link-studio__ecosystem-card,
-.faluss-link-studio__ecosystem-actions { min-width: 0; min-height: 7.5rem; padding: 1rem; border: 1px solid var(--fl-studio-border); border-radius: 1.2rem; background: var(--fl-studio-panel); color: #171717; text-decoration: none; }
-.faluss-link-studio__ecosystem-card { display: grid; align-content: space-between; gap: .5rem; }
-.faluss-link-studio__ecosystem-card strong { overflow-wrap: anywhere; font-size: clamp(.9rem, 4vw, 1.1rem); }
-.faluss-link-studio__ecosystem-card span { color: var(--fl-studio-muted); font-size: .8rem; }
+.faluss-link-studio__ecosystem-lead,
+.faluss-link-studio__ecosystem-products { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; width: 100%; max-width: 32rem; margin: 0 auto; }
+.faluss-link-studio__ecosystem-products { margin-top: .65rem; }
+.faluss-link-studio__ecosystem-card { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 0; min-height: 11.25rem; padding: 1rem; border: 1px solid var(--fl-studio-border); border-radius: 1.2rem; background: var(--fl-studio-panel); color: #171717; text-align: center; text-decoration: none; }
+.faluss-link-studio__ecosystem-card strong { overflow-wrap: anywhere; font-size: clamp(.95rem, 4vw, 1.1rem); }
+.faluss-link-studio__ecosystem-card span { margin-top: .25rem; color: var(--fl-studio-muted); font-size: .8rem; }
 .faluss-link-studio__ecosystem-card:not(.is-current):hover { border-color: var(--fl-studio-action); box-shadow: 0 8px 18px rgba(8, 8, 8, .08); }
-.faluss-link-studio__ecosystem-actions { display: grid; align-content: start; justify-items: start; gap: .55rem; }
-.faluss-link-studio__ecosystem-actions a { color: #171717; font-size: .9rem; font-weight: 650; text-align: left; text-decoration: none; }
-.faluss-link-studio__ecosystem-actions a:hover { color: var(--fl-studio-action); }
+.faluss-link-studio__ecosystem-card.is-current { align-items: flex-start; justify-content: flex-end; border-color: #080808; background: #080808; color: #fff; text-align: left; }
+.faluss-link-studio__ecosystem-card.is-current span { color: rgba(255, 255, 255, .72); }
+.faluss-link-studio__ecosystem-symbol { display: block; width: 3.3rem; height: 3.3rem; margin: auto auto 1rem 0; object-fit: cover; mix-blend-mode: multiply; }
+.faluss-link-studio__ecosystem-card.is-current .faluss-link-studio__ecosystem-symbol { filter: invert(1); mix-blend-mode: screen; }
+.faluss-link-studio__ecosystem-actions { display: grid; align-content: center; gap: .4rem; min-width: 0; }
+.faluss-link-studio__ecosystem-actions a { display: flex; align-items: center; justify-content: space-between; min-height: 3.25rem; padding: .65rem .85rem; border: 1px solid var(--fl-studio-border); border-radius: 1rem; background: var(--fl-studio-panel); color: #171717; font-size: .9rem; font-weight: 650; text-align: left; text-decoration: none; }
+.faluss-link-studio__ecosystem-actions a:hover { border-color: var(--fl-studio-action); color: #171717; }
+.faluss-link-studio__ecosystem-actions i { font-size: 1.2rem; font-style: normal; line-height: 1; }
 
-.faluss-link-studio__design-content { padding-top: 2.2rem; }
+.faluss-link-studio__design-content { overflow-x: clip; padding-top: 2.2rem; }
 .faluss-link-studio__design-content fieldset { min-width: 0; }
 .faluss-link-theme-picker,
 .faluss-link-studio__palette,
@@ -405,26 +417,29 @@
 .faluss-link-publication__hint,
 .faluss-link-color-field__hint { margin: 0 0 .75rem; color: var(--fl-studio-muted); font-size: .82rem; text-align: center; }
 
-.faluss-link-theme-picker__rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; overflow: visible; padding: 0; }
+.faluss-link-theme-picker__rail { display: flex; min-width: 0; gap: .75rem; overflow-x: auto; overflow-y: hidden; padding: 0 0 .45rem; overscroll-behavior-x: contain; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
 .faluss-link-theme-picker__theme {
     display: grid;
+    flex: 0 0 min(18rem, calc(100% - 4rem));
     grid-template-columns: 3.75rem minmax(0, 1fr);
     grid-template-rows: auto auto;
     gap: .2rem .65rem;
     align-items: center;
     min-height: 5rem;
+    height: 5rem;
     padding: .55rem;
     border: 1px solid var(--fl-studio-border);
     border-radius: 1rem;
     background: #fff;
     color: #171717;
+    scroll-snap-align: start;
     text-align: left;
 }
 .faluss-link-theme-picker__theme[aria-pressed="true"] { border-color: var(--fl-studio-action); box-shadow: 0 0 0 2px color-mix(in srgb, var(--fl-studio-action) 35%, transparent); }
 .faluss-link-theme-picker__image { position: relative; grid-row: span 2; display: block; width: 3.75rem; height: 3.75rem; overflow: hidden; border-radius: .75rem; background: linear-gradient(180deg, var(--fl-theme-hero) 0 52%, var(--fl-theme-page) 52%); }
 .faluss-link-theme-picker__image img,
 .faluss-link-theme-picker__image > span { display: block; width: 100%; height: 100%; object-fit: cover; }
-.faluss-link-theme-picker__name { display: -webkit-box; min-width: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-weight: 700; line-height: 1.15; }
+.faluss-link-theme-picker__name { display: block; min-width: 0; overflow: hidden; font-weight: 700; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
 .faluss-link-theme-picker__selected,
 .faluss-link-theme-picker__locked { color: var(--fl-studio-muted); font-size: .72rem; }
 .faluss-link-theme-picker__selected { display: none; }
@@ -651,14 +666,14 @@
 .faluss-link-card--align-center .faluss-link-card__media-teaser-copy { text-align: center; }
 
 @media (min-width: 720px) {
-    .faluss-link-studio__identity { min-height: 12.5rem; }
+    .faluss-link-studio__identity { min-height: 0; }
     .faluss-link-studio__content { min-height: 31rem; }
     .faluss-link-studio__collection-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .faluss-link-studio__dock { grid-template-columns: 3.5rem 2.5rem minmax(0, 30rem); justify-content: center; }
 }
 
 @media (max-width: 420px) {
-    .faluss-link-studio__identity { grid-template-columns: 5.2rem minmax(0, 1fr); min-height: 11.75rem; }
+    .faluss-link-studio__identity { grid-template-columns: 5.2rem minmax(0, 1fr); min-height: 0; }
     .faluss-link-studio__avatar { width: 5.2rem; height: 5.2rem; }
     .faluss-link-studio__content { padding-right: .8rem; padding-left: .8rem; }
     .faluss-link-studio__style-options { gap: .3rem; }
@@ -670,7 +685,16 @@
 }
 
 @media (max-width: 300px) {
-    .faluss-link-studio__ecosystem-grid { grid-template-columns: minmax(0, 1fr); }
+    .faluss-link-studio__ecosystem-lead,
+    .faluss-link-studio__ecosystem-products { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* iOS only zooms focused controls below 16px. Keep the Studio readable without
+   constraining the user's browser zoom or desktop sizing. */
+@media (max-width: 767px) {
+    .faluss-link-studio input,
+    .faluss-link-studio select,
+    .faluss-link-studio textarea { font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
