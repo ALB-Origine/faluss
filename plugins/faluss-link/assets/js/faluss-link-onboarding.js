@@ -5,11 +5,23 @@
     var previewRequests = new WeakMap();
     var order = ['name', 'avatar', 'header', 'style', 'socials', 'links', 'finish'];
     var transitionDuration = 230;
+    var layouts = { name: 'name', avatar: 'upload', socials: 'list', links: 'list' };
 
     function config() { return window.falussLinkOnboarding || {}; }
     function stepName(value) { return order.indexOf(value) !== -1 ? value : 'name'; }
     function panel(root, step) { return root.querySelector('[data-onboarding-panel="' + stepName(step) + '"]'); }
     function reduceMotion() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+    function layoutName(step) { return layouts[stepName(step)] || 'preview'; }
+    function prepareViewportHost(root) {
+        var body = document.body;
+        if (!body || (!body.classList.contains('faluss-link-onboarding-route') && !body.classList.contains('faluss-identity-onboarding-route'))) { return; }
+        document.documentElement.classList.add('faluss-link-onboarding-document');
+        var ancestor = root.parentElement;
+        while (ancestor && ancestor !== body) {
+            ancestor.setAttribute('data-faluss-onboarding-host', '');
+            ancestor = ancestor.parentElement;
+        }
+    }
     function request(root, action, form, extra) {
         var data = new FormData(form);
         data.set('action', action);
@@ -48,6 +60,7 @@
         var title = currentPanel ? currentPanel.querySelector('h2') : null;
         var progressText = 'Étape ' + (index + 1) + ' sur ' + order.length + (title ? ' : ' + title.textContent.trim() : '');
         root.dataset.currentStep = current;
+        root.dataset.onboardingLayout = layoutName(current);
         root.style.setProperty('--flo-progress-scale', String((index + 1) / order.length));
         if (gauge) {
             gauge.setAttribute('aria-valuenow', String(index + 1));
@@ -70,7 +83,7 @@
         return Array.prototype.slice.call(root.querySelectorAll('[data-onboarding-choice-tab][data-onboarding-choice-group="' + group + '"]'));
     }
     function setChoicePanel(root, group, target, focus) {
-        var tabs = choiceTabs(root, group), selected = null;
+        var tabs = choiceTabs(root, group), selected = null, animate = !!focus && !reduceMotion();
         tabs.forEach(function (tab) {
             var active = tab.dataset.onboardingChoiceTarget === target;
             tab.setAttribute('aria-selected', active ? 'true' : 'false');
@@ -80,7 +93,18 @@
         root.querySelectorAll('[data-onboarding-choice-panel][data-onboarding-choice-group="' + group + '"]').forEach(function (choicePanel) {
             var active = choicePanel.dataset.onboardingChoicePanelName === target;
             choicePanel.hidden = !active;
-            if (active) { choicePanel.removeAttribute('inert'); } else { choicePanel.setAttribute('inert', ''); }
+            choicePanel.classList.remove('is-entering');
+            if (active) {
+                choicePanel.removeAttribute('inert');
+                if (animate) {
+                    choicePanel.classList.add('is-entering');
+                    window.requestAnimationFrame(function () {
+                        window.requestAnimationFrame(function () { choicePanel.classList.remove('is-entering'); });
+                    });
+                }
+            } else {
+                choicePanel.setAttribute('inert', '');
+            }
         });
         if (focus && selected) { selected.focus({ preventScroll: true }); }
     }
@@ -269,7 +293,7 @@
     }
     function init(root) {
         if (!(root instanceof HTMLElement) || initialized.has(root)) { return; }
-        initialized.add(root); initialiseChoicePanels(root); syncBackgroundSwatches(root); syncChoiceSelections(root); showInitial(root, root.dataset.currentStep || 'name'); preview(root);
+        initialized.add(root); prepareViewportHost(root); initialiseChoicePanels(root); syncBackgroundSwatches(root); syncChoiceSelections(root); showInitial(root, root.dataset.currentStep || 'name'); preview(root);
         var form = root.querySelector('form');
         if (form) { form.addEventListener('submit', function (event) { event.preventDefault(); saveCurrent(root, 'forward'); }); }
         root.addEventListener('click', function (event) {

@@ -38,7 +38,7 @@ foreach ( array( 'faluss-link-card--density-compact', '.faluss-link-card--align-
     onb024_assert( false !== strpos( $card_css, $needle ), 'Shared card CSS must propagate appearance and exact button variants: ' . $needle );
 }
 onb024_assert( false === strpos( $onboarding_css, 'transform:scale(' ), 'The Figma shell cannot scale a second static card.' );
-foreach ( array( 'height:100dvh', 'padding-top:env(safe-area-inset-top,0px)', 'faluss-link-onboarding[data-current-step=avatar] .faluss-link-onboarding__preview', 'faluss-link-onboarding[data-current-step=socials] .faluss-link-onboarding__preview', 'faluss-link-onboarding[data-current-step=links] .faluss-link-onboarding__preview', 'overflow-y:auto', 'button:focus-visible', 'button[aria-selected=true]' ) as $needle ) {
+foreach ( array( 'height: 100dvh', 'padding-top: env(safe-area-inset-top, 0px)', 'faluss-link-onboarding[data-onboarding-layout=upload] .faluss-link-onboarding__preview', 'faluss-link-onboarding[data-onboarding-layout=list] .faluss-link-onboarding__preview', 'faluss-link-onboarding__scroll-region', 'overflow-y: auto', 'button:focus-visible', 'button[aria-selected=true]' ) as $needle ) {
     onb024_assert( false !== strpos( $onboarding_css, $needle ), 'The shell must preserve safe area, preview/no-preview layouts, constrained scrolling and readable focus: ' . $needle );
 }
 foreach ( array( "card.style.setProperty('--fl-canvas', background.value)", 'FalussLinkCard.initialize', 'replacePreview', 'scheduleSharedPreview' ) as $needle ) {

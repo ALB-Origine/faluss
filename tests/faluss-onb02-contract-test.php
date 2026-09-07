@@ -56,10 +56,10 @@ foreach ( array( '$target_step', 'onboarding_previous_step', "'backward' === \$d
     onb02_assert( false !== strpos( $link, $needle ), 'Forward, skip and back navigation must persist the exact resumable server step: ' . $needle );
 }
 onb02_assert( false === strpos( $script, 'document.body.style.overflow' ) && false === strpos( $script, 'touchmove' ), 'The wizard must not lock global scrolling or Safari touch navigation.' );
-foreach ( array( '#ed4343', '#f4f4f4', '#1e1e1e', 'Outfit', 'prefers-reduced-motion', '.faluss-link-onboarding', 'transform .23s ease', 'opacity .23s ease', 'scaleX(var(--flo-progress-scale))', '.faluss-link-onboarding__panel[hidden]', 'height:100dvh' ) as $needle ) {
+foreach ( array( '#ed4343', '#f4f4f4', '#1e1e1e', 'Outfit', 'prefers-reduced-motion', '.faluss-link-onboarding', 'transform .23s ease', 'opacity .23s ease', 'scaleX(var(--flo-progress-scale))', '.faluss-link-onboarding__panel[hidden]', 'height: 100dvh' ) as $needle ) {
     onb02_assert( false !== strpos( $css, $needle ), 'The wizard must remain scoped to the Faluss UI foundation: ' . $needle );
 }
-onb02_assert( false !== strpos( $css, 'grid-template-rows:auto minmax(0,1fr)' ) && false !== strpos( $css, 'overflow-y:auto' ), 'The active decision owns the useful viewport instead of creating a document-sized stack.' );
+onb02_assert( false !== strpos( $css, 'grid-template-rows: auto minmax(0, 1fr) auto' ) && false !== strpos( $css, 'overflow-y: auto' ), 'The active decision owns the useful viewport instead of creating a document-sized stack.' );
 
 // ONB-01 remains a choice/handle flow: business returns are still typed and
 // no-card never enters the wizard.

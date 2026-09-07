@@ -79,6 +79,24 @@ Les choix, boutons, champs et erreurs restent utilisables au clavier. Les
 Le document complet ne devient jamais une pile verticale d’étapes ; Safari peut
 conserver son comportement de défilement et de clavier natif.
 
+### Shell viewport ONB-02.5
+
+La page Elementor Canvas d’onboarding est une application mobile continue : la
+classe de route Faluss Link borne à cette seule page la remise à zéro de la
+chaîne de conteneurs WordPress/Elementor, puis le wizard occupe `100dvh` et les
+safe areas contrôlées par la page. Aucun décalage fixe ou marge négative ne
+compense le shell. Le header produit, le fond et l’étape forment le même
+viewport ; le statut de sauvegarde est une live region dédiée qui ne réserve
+aucune surface visuelle.
+
+Quatre layouts explicites existent : Nom en haut de son panel, aperçu compact
+avec panneau inférieur superposé, Upload opaque sans aperçu, puis listes pleine
+hauteur sans aperçu. Les étapes courtes ne défilent pas. Pour Réseaux et Liens,
+seule la liste centrale peut défiler ; le titre, le bouton principal et
+« Passer » restent stables. Les contenus des contrôles segmentés utilisent une
+transition courte en opacité et translation, supprimée avec
+`prefers-reduced-motion`.
+
 ## Données et aperçu
 
 Le produit n’invente aucune copie de données : Identity possède nom, avatar,
@@ -94,6 +112,11 @@ nom, police, alignement, réseaux, liens et variantes de boutons. Elle est la
 source commune du rendu public, de l’aperçu Studio et de l’aperçu onboarding.
 Le contexte `onboarding-preview` ne change que la densité des métriques, jamais
 la sémantique ni les données rendues.
+
+Une carte qui ne possède aucune préférence d’alignement explicite utilise le
+repli centré dans la présentation partagée, donc dans l’onboarding, le Studio et
+le public. Une préférence gauche explicite déjà enregistrée reste prioritaire :
+ONB-02.5 ne migre et ne réécrit aucune carte historique.
 
 Lorsqu’aucun réseau ou lien n’existe encore, cette même présentation injecte
 uniquement dans l’aperçu des repères temporaires : Instagram, TikTok, X et trois
