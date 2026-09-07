@@ -48,4 +48,12 @@ dépendance de production.
 
 Les étapes En-tête et Style montrent la carte en pleine hauteur derrière un panneau de contrôles superposé sur mobile. Le résumé final emploie exactement la même carte à une taille lisible. Tant qu’aucun lien réel n’existe, trois actions squelettes illustrent uniquement la forme et le contraste des boutons : elles sont marquées comme aperçu, ne traversent aucun chemin d’enregistrement et sont absentes du rendu public. La sauvegarde réussie reste implicite ; seul un statut réservé aux lecteurs d’écran est annoncé, tandis qu’une erreur visible apparaît dans le formulaire et peut être corrigée.
 
+ONB-02.6 conserve ce shell et fiabilise son rendu : la colonne compacte garde
+ses liens à largeur pleine, les traitements Fort et Éditorial proviennent de la
+présentation partagée, et la photo remplit le cercle avec le même cadrage dans
+l’onboarding, le Studio et la carte publique. Sur les étapes avec aperçu, le
+stage gris couvre aussi la safe area haute ; les étapes sans aperçu restent
+blanches. Le panneau En-tête réserve sa zone d’actions par sa grille responsive
+et les deux switchers déplacent un indicateur sans reflow.
+
 Aucune table, copie d’identité, donnée métier, entitlement, abonnement, paiement, token ou règle économique n’est ajouté par ONB-02.

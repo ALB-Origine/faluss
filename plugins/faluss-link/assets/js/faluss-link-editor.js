@@ -309,6 +309,9 @@
         var nameColor = studio.find('[name="name_color"]:checked').val() || '#000000';
         var selectedTheme = studio.find('[name="selected_theme"]').val() || 'faluss-default';
         preview.find('.faluss-link-card__name').text(name).attr('class', 'faluss-link-card__name faluss-link-card__name--' + treatment);
+        var treatmentOption = studio.find('[name="name_treatment"] option:selected');
+        preview[0].style.setProperty('--fl-name-weight', treatmentOption.data('name-weight') || 800);
+        preview[0].style.setProperty('--fl-name-tracking', treatmentOption.data('name-tracking') || '-.045em');
         preview.find('.faluss-link-card__handle').text(slug ? '@' + slug : '@—');
         preview.find('.faluss-link-card__bio').text(studio.find('[name="bio"]').val() || '').prop('hidden', mode === 'announcement');
         preview.find('.faluss-link-card__announcement').text(announcement).attr('class', 'faluss-link-card__announcement faluss-link-card__announcement--' + (studio.find('[name="announcement_variant"]').val() || 'accent')).prop('hidden', !(mode === 'announcement' && announcement));

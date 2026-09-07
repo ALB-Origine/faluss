@@ -113,6 +113,18 @@ source commune du rendu public, de l’aperçu Studio et de l’aperçu onboardi
 Le contexte `onboarding-preview` ne change que la densité des métriques, jamais
 la sémantique ni les données rendues.
 
+La densité compacte conserve une colonne de contenu à largeur pleine : liens
+réels et squelettes utilisent toute la largeur intérieure du petit écran. Le
+traitement du nom est résolu par la façade partagée en poids et approche
+typographique, et l’avatar utilise partout le même cadrage circulaire centré
+avec `object-fit: cover`. Sa bordure est une couche du conteneur et ne change
+donc jamais le cadrage de l’image.
+
+Les contrôles segmentés En-tête et Style utilisent le même principe que le
+switcher du Studio : un indicateur unique se translate sous les options tandis
+que le panneau associé apparaît en opacité et translation. Le mouvement est
+supprimé avec `prefers-reduced-motion`, sans modifier l’état sélectionné.
+
 Une carte qui ne possède aucune préférence d’alignement explicite utilise le
 repli centré dans la présentation partagée, donc dans l’onboarding, le Studio et
 le public. Une préférence gauche explicite déjà enregistrée reste prioritaire :

@@ -61,6 +61,9 @@
         var progressText = 'Étape ' + (index + 1) + ' sur ' + order.length + (title ? ' : ' + title.textContent.trim() : '');
         root.dataset.currentStep = current;
         root.dataset.onboardingLayout = layoutName(current);
+        if (document.body && document.body.classList.contains('faluss-link-onboarding-route')) {
+            document.body.dataset.falussOnboardingLayout = layoutName(current);
+        }
         root.style.setProperty('--flo-progress-scale', String((index + 1) / order.length));
         if (gauge) {
             gauge.setAttribute('aria-valuenow', String(index + 1));
@@ -83,13 +86,14 @@
         return Array.prototype.slice.call(root.querySelectorAll('[data-onboarding-choice-tab][data-onboarding-choice-group="' + group + '"]'));
     }
     function setChoicePanel(root, group, target, focus) {
-        var tabs = choiceTabs(root, group), selected = null, animate = !!focus && !reduceMotion();
-        tabs.forEach(function (tab) {
+        var tabs = choiceTabs(root, group), selected = null, selectedIndex = 0, animate = !!focus && !reduceMotion();
+        tabs.forEach(function (tab, index) {
             var active = tab.dataset.onboardingChoiceTarget === target;
             tab.setAttribute('aria-selected', active ? 'true' : 'false');
             tab.tabIndex = active ? 0 : -1;
-            if (active) { selected = tab; }
+            if (active) { selected = tab; selectedIndex = index; }
         });
+        if (tabs[0] && tabs[0].parentElement) { tabs[0].parentElement.dataset.activeIndex = String(selectedIndex); }
         root.querySelectorAll('[data-onboarding-choice-panel][data-onboarding-choice-group="' + group + '"]').forEach(function (choicePanel) {
             var active = choicePanel.dataset.onboardingChoicePanelName === target;
             choicePanel.hidden = !active;
@@ -186,6 +190,10 @@
         if (nameTarget && treatment) {
             nameTarget.classList.remove('faluss-link-card__name--strong', 'faluss-link-card__name--editorial');
             nameTarget.classList.add('faluss-link-card__name--' + treatment.value);
+            if (treatment.selectedOptions && treatment.selectedOptions[0]) {
+                card.style.setProperty('--fl-name-weight', treatment.selectedOptions[0].dataset.nameWeight || '800');
+                card.style.setProperty('--fl-name-tracking', treatment.selectedOptions[0].dataset.nameTracking || '-.045em');
+            }
         }
         card.classList.toggle('faluss-link-card--avatar-border-yes', !!(avatarBorder && avatarBorder.value === '1'));
         card.classList.toggle('faluss-link-card--avatar-border-no', !!(avatarBorder && avatarBorder.value !== '1'));

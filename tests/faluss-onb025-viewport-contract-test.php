@@ -23,7 +23,7 @@ $card_css = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-l
 $script = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-onboarding.js' );
 $product_ui = file_get_contents( $root . '/docs/FALUSS_PRODUCT_UI.md' );
 
-onb025_assert( false !== strpos( $bootstrap, 'Version: 0.3.5' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.5'" ), 'The repaired viewport assets need a renewable plugin version.' );
+onb025_assert( false !== strpos( $bootstrap, 'Version: 0.3.6' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.6'" ), 'The repaired viewport assets need a renewable plugin version.' );
 
 // Elementor Canvas must be normalized only on the configured onboarding URL.
 foreach ( array( "add_filter( 'body_class', array( __CLASS__, 'onboarding_body_class' ), 99 )", 'faluss-link-onboarding-route', 'Faluss_Identity_Onboarding::onboarding_url()', "wp_parse_url( \$request_uri, PHP_URL_PATH )", 'untrailingslashit( $request_path ) !== untrailingslashit( $onboarding_path )', 'PHP_URL_QUERY', 'foreach ( $required_query as $key => $value )' ) as $needle ) {
@@ -67,7 +67,7 @@ foreach ( array( "'alignment' => 'center'", "'alignment' => self::align( \$theme
 onb025_assert( false !== strpos( $link, "\$preferences['alignment'] = self::align( \$payload['alignment'] ?? \$preferences['alignment'] )" ) && false !== strpos( $link, '$legacy ? self::theme_setting_keys()' ), 'A historical explicit-left payload must remain an explicit presentation override.' );
 $prefs_method = onb025_slice( $link, 'private static function prefs(', 'private static function name_color(' );
 onb025_assert( false === strpos( $prefs_method, 'UPDATE ' ) && false === strpos( $prefs_method, '$wpdb->update' ), 'Reading the centered fallback cannot rewrite historical card rows.' );
-foreach ( array( "nameTarget.classList.remove('faluss-link-card__name--strong', 'faluss-link-card__name--editorial')", "nameTarget.classList.add('faluss-link-card__name--' + treatment.value)", "faluss-link-card__name--<?php echo esc_attr( \$preferences['name_treatment'] ); ?>" ) as $needle ) {
+foreach ( array( "nameTarget.classList.remove('faluss-link-card__name--strong', 'faluss-link-card__name--editorial')", "nameTarget.classList.add('faluss-link-card__name--' + treatment.value)", "faluss-link-card__name--<?php echo esc_attr( \$name_treatment['key'] ); ?>" ) as $needle ) {
     onb025_assert( false !== strpos( $script . $link, $needle ), 'Name treatment must propagate immediately and through the shared renderer: ' . $needle );
 }
 onb025_assert( false !== strpos( $card_css, '.faluss-link-card__name--strong' ) && false !== strpos( $card_css, '.faluss-link-card__name--editorial' ), 'Both stored name treatments need visible card presentation rules.' );

@@ -423,6 +423,7 @@ final class Faluss_Link {
                     <section class="faluss-link-onboarding__panel<?php echo 'header' === $step ? ' is-active' : ''; ?>" data-onboarding-panel="header" role="group" aria-hidden="<?php echo 'header' === $step ? 'false' : 'true'; ?>"<?php echo 'header' === $step ? '' : ' hidden inert'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-header-title">
                         <h2 id="<?php echo esc_attr( $instance ); ?>-header-title"><?php esc_html_e( 'Personnalisez votre en-tête', 'faluss-link' ); ?></h2>
                         <div class="faluss-link-onboarding__choice-tabs" role="tablist" aria-label="<?php esc_attr_e( 'Options d’en-tête', 'faluss-link' ); ?>">
+                            <span class="faluss-link-onboarding__choice-indicator" role="presentation" aria-hidden="true"></span>
                             <button type="button" role="tab" aria-selected="true" aria-controls="<?php echo esc_attr( $instance ); ?>-header-layout" id="<?php echo esc_attr( $instance ); ?>-header-layout-tab" data-onboarding-choice-tab data-onboarding-choice-group="header" data-onboarding-choice-target="layout"><?php esc_html_e( 'Mise en page', 'faluss-link' ); ?></button>
                             <button type="button" role="tab" aria-selected="false" aria-controls="<?php echo esc_attr( $instance ); ?>-header-font" id="<?php echo esc_attr( $instance ); ?>-header-font-tab" data-onboarding-choice-tab data-onboarding-choice-group="header" data-onboarding-choice-target="font"><?php esc_html_e( 'Police', 'faluss-link' ); ?></button>
                         </div>
@@ -431,12 +432,13 @@ final class Faluss_Link {
                         </div>
                         <div id="<?php echo esc_attr( $instance ); ?>-header-font" class="faluss-link-onboarding__choice-panel" role="tabpanel" aria-labelledby="<?php echo esc_attr( $instance ); ?>-header-font-tab" data-onboarding-choice-panel data-onboarding-choice-group="header" data-onboarding-choice-panel-name="font" hidden inert>
                             <label class="faluss-link-onboarding__field"><?php esc_html_e( 'Police disponible', 'faluss-link' ); ?><select name="name_font"><?php foreach ( self::onboarding_name_fonts() as $font_key => $font ) : ?><option value="<?php echo esc_attr( $font_key ); ?>" data-font-stack="<?php echo esc_attr( $font['stack'] ); ?>" <?php selected( $preferences['name_font'], $font_key ); ?>><?php echo esc_html( $font['label'] ); ?></option><?php endforeach; ?></select></label>
-                            <label class="faluss-link-onboarding__field"><?php esc_html_e( 'Traitement du nom', 'faluss-link' ); ?><select name="name_treatment"><?php self::options( self::NAME_TREATMENTS, $preferences['name_treatment'] ); ?></select></label>
+                            <label class="faluss-link-onboarding__field"><?php esc_html_e( 'Traitement du nom', 'faluss-link' ); ?><select name="name_treatment"><?php self::name_treatment_options( $preferences['name_treatment'] ); ?></select></label>
                         </div>
                     </section>
                     <section class="faluss-link-onboarding__panel<?php echo 'style' === $step ? ' is-active' : ''; ?>" data-onboarding-panel="style" role="group" aria-hidden="<?php echo 'style' === $step ? 'false' : 'true'; ?>"<?php echo 'style' === $step ? '' : ' hidden inert'; ?> aria-labelledby="<?php echo esc_attr( $instance ); ?>-style-title">
                         <h2 id="<?php echo esc_attr( $instance ); ?>-style-title"><?php esc_html_e( 'Ajoutez de la couleur', 'faluss-link' ); ?></h2>
                         <div class="faluss-link-onboarding__choice-tabs" role="tablist" aria-label="<?php esc_attr_e( 'Options de style', 'faluss-link' ); ?>">
+                            <span class="faluss-link-onboarding__choice-indicator" role="presentation" aria-hidden="true"></span>
                             <button type="button" role="tab" aria-selected="true" aria-controls="<?php echo esc_attr( $instance ); ?>-style-background" id="<?php echo esc_attr( $instance ); ?>-style-background-tab" data-onboarding-choice-tab data-onboarding-choice-group="style" data-onboarding-choice-target="background"><?php esc_html_e( 'Arrière-plan', 'faluss-link' ); ?></button>
                             <button type="button" role="tab" aria-selected="false" aria-controls="<?php echo esc_attr( $instance ); ?>-style-buttons" id="<?php echo esc_attr( $instance ); ?>-style-buttons-tab" data-onboarding-choice-tab data-onboarding-choice-group="style" data-onboarding-choice-target="buttons"><?php esc_html_e( 'Boutons', 'faluss-link' ); ?></button>
                         </div>
@@ -745,6 +747,22 @@ final class Faluss_Link {
         return $fonts[ $key ]['stack'];
     }
 
+    /** @return array{key:string,label:string,weight:int,tracking:string} */
+    private static function name_treatment_presentation( $value ) {
+        $key = sanitize_key( (string) $value );
+        if ( ! isset( self::NAME_TREATMENTS[ $key ] ) ) { $key = 'strong'; }
+        return 'editorial' === $key
+            ? array( 'key' => 'editorial', 'label' => self::NAME_TREATMENTS['editorial'], 'weight' => 500, 'tracking' => '-.065em' )
+            : array( 'key' => 'strong', 'label' => self::NAME_TREATMENTS['strong'], 'weight' => 800, 'tracking' => '-.045em' );
+    }
+
+    private static function name_treatment_options( $selected ) {
+        foreach ( array_keys( self::NAME_TREATMENTS ) as $key ) {
+            $treatment = self::name_treatment_presentation( $key );
+            ?><option value="<?php echo esc_attr( $treatment['key'] ); ?>" data-name-weight="<?php echo (int) $treatment['weight']; ?>" data-name-tracking="<?php echo esc_attr( $treatment['tracking'] ); ?>" <?php selected( $selected, $treatment['key'] ); ?>><?php echo esc_html( $treatment['label'] ); ?></option><?php
+        }
+    }
+
     private static function onboarding_assets() {
         if ( ! wp_style_is( self::ONBOARDING_STYLE, 'registered' ) ) { self::assets(); }
         wp_enqueue_style( self::STYLE ); wp_enqueue_style( self::ONBOARDING_STYLE );
@@ -831,7 +849,7 @@ final class Faluss_Link {
             <label class="faluss-link-studio__check"><input name="avatar_visible" type="checkbox" value="1" <?php checked( $preferences['avatar_visible'] ); ?>> <?php esc_html_e( 'Afficher l’avatar', 'faluss-link' ); ?></label>
             <?php if ( ! $studio ) : ?><label class="faluss-link-studio__check"><input name="available" type="checkbox" value="1" <?php checked( $preferences['available'] ); ?>> <?php esc_html_e( 'Afficher Disponible', 'faluss-link' ); ?></label><?php endif; ?>
             <label for="<?php echo esc_attr( $prefix ); ?>name"><?php esc_html_e( 'Traitement du nom', 'faluss-link' ); ?></label>
-            <select id="<?php echo esc_attr( $prefix ); ?>name" name="name_treatment"><?php self::options( self::NAME_TREATMENTS, $preferences['name_treatment'] ); ?></select>
+            <select id="<?php echo esc_attr( $prefix ); ?>name" name="name_treatment"><?php self::name_treatment_options( $preferences['name_treatment'] ); ?></select>
             <label for="<?php echo esc_attr( $prefix ); ?>bio"><?php esc_html_e( 'Bio', 'faluss-link' ); ?></label>
             <select id="<?php echo esc_attr( $prefix ); ?>bio" name="bio_mode"><option value="editorial" <?php selected( $preferences['bio_mode'], 'editorial' ); ?>><?php esc_html_e( 'Texte éditorial', 'faluss-link' ); ?></option><option value="announcement" <?php selected( $preferences['bio_mode'], 'announcement' ); ?>><?php esc_html_e( 'Annonce', 'faluss-link' ); ?></option></select>
             <label for="<?php echo esc_attr( $prefix ); ?>announcement"><?php esc_html_e( 'Texte de l’annonce', 'faluss-link' ); ?></label>
@@ -930,6 +948,7 @@ final class Faluss_Link {
         $preferences = self::resolve_card_presentation( $preferences, true );
         $cover = (int) ( $preferences['cover_attachment_id'] ?? 0 );
         $avatar = (int) ( $profile['avatar_attachment_id'] ?? 0 );
+        $name_treatment = self::name_treatment_presentation( $preferences['name_treatment'] ?? 'strong' );
         return array(
             'profile' => is_array( $profile ) ? $profile : array(),
             'preferences' => $preferences,
@@ -939,6 +958,7 @@ final class Faluss_Link {
             'preview_demo_links' => (bool) $preview_demo_links,
             'context' => $context,
             'density' => 'onboarding-preview' === $context ? 'compact' : 'standard',
+            'name_treatment' => $name_treatment,
             'has_cover' => $cover > 0,
             'has_avatar' => ! empty( $preferences['avatar_visible'] ) && $avatar > 0,
         );
@@ -954,18 +974,19 @@ final class Faluss_Link {
         $preferences = $presentation['preferences'];
         $cover = (int) $preferences['cover_attachment_id']; $avatar = (int) $profile['avatar_attachment_id']; $has_cover = ! empty( $presentation['has_cover'] ); $has_avatar = ! empty( $presentation['has_avatar'] );
         $styles = self::resolve_card_styles( $preferences );
+        $name_treatment = $presentation['name_treatment'];
         $variant = self::social_variant( $preferences['social_variant'] ?? 'outline' );
         $social_markup = self::social_markup( $preferences['social_links'], $variant );
         $show_social_skeleton = '' === $social_markup && ! empty( $presentation['preview'] ) && ! empty( $presentation['preview_demo_links'] );
         if ( $show_social_skeleton ) { $social_markup = self::preview_social_markup( $variant ); }
-        $style = sprintf( '--fl-page-background:%s;--fl-canvas:%s;--fl-hero-transition-color:%s;--fl-hero-transition-intensity:%d%%;--fl-hero-transition-position:%d%%;--fl-name-color:%s;--fl-name-font:%s;', $preferences['page_background'], $preferences['page_background'], $preferences['hero_transition_color'], (int) $preferences['hero_transition_intensity'], (int) $preferences['hero_transition_position'], $styles['name_color'], self::onboarding_name_font_stack( $preferences['name_font'] ?? 'outfit' ) );
+        $style = sprintf( '--fl-page-background:%s;--fl-canvas:%s;--fl-hero-transition-color:%s;--fl-hero-transition-intensity:%d%%;--fl-hero-transition-position:%d%%;--fl-name-color:%s;--fl-name-font:%s;--fl-name-weight:%d;--fl-name-tracking:%s;', $preferences['page_background'], $preferences['page_background'], $preferences['hero_transition_color'], (int) $preferences['hero_transition_intensity'], (int) $preferences['hero_transition_position'], $styles['name_color'], self::onboarding_name_font_stack( $preferences['name_font'] ?? 'outfit' ), (int) $name_treatment['weight'], $name_treatment['tracking'] );
         ob_start();
         ?>
         <article class="faluss-link-card faluss-link-card--align-<?php echo esc_attr( $presentation['alignment'] ); ?> faluss-link-card--links-<?php echo esc_attr( $preferences['link_style'] ); ?> faluss-link-card--density-<?php echo esc_attr( $presentation['density'] ); ?> faluss-link-card--cover-<?php echo $has_cover ? 'yes' : 'no'; ?> faluss-link-card--avatar-<?php echo $has_avatar ? 'yes' : 'no'; ?> faluss-link-card--avatar-border-<?php echo ! empty( $preferences['avatar_border'] ) ? 'yes' : 'no'; ?>" data-faluss-card-context="<?php echo esc_attr( $presentation['context'] ); ?>" data-faluss-card-density="<?php echo esc_attr( $presentation['density'] ); ?>" data-faluss-card-theme="<?php echo esc_attr( $preferences['selected_theme'] ?? self::system_card_theme()['slug'] ); ?>" style="<?php echo esc_attr( $style ); ?>">
             <div class="faluss-link-card__cover" <?php echo $has_cover ? '' : 'hidden'; ?>><?php if ( $has_cover ) { echo wp_get_attachment_image( $cover, 'large', false, array( 'alt' => '' ) ); } ?></div>
             <div class="faluss-link-card__body">
                 <div class="faluss-link-card__avatar" <?php echo $has_avatar ? '' : 'hidden'; ?>><?php if ( $has_avatar ) { echo wp_get_attachment_image( $avatar, 'medium', false, array( 'alt' => '' ) ); } ?></div>
-                <h2 class="faluss-link-card__name faluss-link-card__name--<?php echo esc_attr( $preferences['name_treatment'] ); ?>"><?php echo esc_html( $profile['display_name'] ?: __( 'Mon Faluss', 'faluss-link' ) ); ?></h2>
+                <h2 class="faluss-link-card__name faluss-link-card__name--<?php echo esc_attr( $name_treatment['key'] ); ?>"><?php echo esc_html( $profile['display_name'] ?: __( 'Mon Faluss', 'faluss-link' ) ); ?></h2>
                 <p class="faluss-link-card__handle"><?php echo '' === $profile['public_slug'] ? '@—' : '@' . esc_html( $profile['public_slug'] ); ?></p>
                 <span class="faluss-link-card__availability" <?php echo (int) $preferences['available'] ? '' : 'hidden'; ?>><i></i><?php esc_html_e( 'Disponible', 'faluss-link' ); ?></span>
                 <p class="faluss-link-card__announcement faluss-link-card__announcement--<?php echo esc_attr( $preferences['announcement_variant'] ); ?>" <?php echo 'announcement' === $preferences['bio_mode'] && '' !== $preferences['announcement'] ? '' : 'hidden'; ?>><?php echo esc_html( $preferences['announcement'] ); ?></p>

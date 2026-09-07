@@ -12,7 +12,7 @@ body.faluss-link-onboarding-route {
     margin: 0;
     padding: 0;
     overflow: clip;
-    background: linear-gradient(162.13deg, #f4f4f4 56.59%, #fff 93.54%);
+    background: #f4f4f4;
 }
 
 /* The runtime marks the actual WordPress/Elementor ancestor chain. :has()
@@ -88,8 +88,8 @@ body.faluss-link-onboarding-route .elementor-widget-container:has(> .faluss-link
 .faluss-link-onboarding__back img { display: block; width: 44px; height: 44px; }
 .faluss-link-onboarding__gauge { position: absolute; top: 16px; left: 67px; width: min(269px, calc(100% - 123px)); height: 12px; overflow: hidden; border-radius: 18.5px; background: #cacaca; }
 .faluss-link-onboarding__gauge-fill { display: block; width: 100%; height: 100%; border-radius: inherit; background: var(--flo-action); transform: scaleX(var(--flo-progress-scale)); transform-origin: left center; transition: transform .28s ease; }
-.faluss-link-onboarding__symbol { position: absolute; top: 4px; right: 0; display: block; width: 35px; height: 35px; overflow: hidden; border-radius: 50%; clip-path: circle(50% at 50% 50%); background: #fff; }
-.faluss-link-onboarding__symbol img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.faluss-link-onboarding__symbol { position: absolute; top: 4px; right: 0; display: block; width: 35px; height: 35px; aspect-ratio: 1; overflow: hidden; border-radius: 50%; clip-path: circle(50% at 50% 50%); background: #fff; }
+.faluss-link-onboarding__symbol img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; clip-path: circle(50% at 50% 50%); }
 
 .faluss-link-onboarding__layout { position: relative; width: 100%; min-width: 0; min-height: 0; overflow: clip; }
 .faluss-link-onboarding__preview { position: absolute; z-index: 1; top: 44px; left: 50%; width: 271px; height: 557px; pointer-events: none; transform: translateX(-50%); }
@@ -164,6 +164,15 @@ body.faluss-link-onboarding-route .elementor-widget-container:has(> .faluss-link
 .faluss-link-onboarding[data-onboarding-layout=name],
 .faluss-link-onboarding[data-onboarding-layout=upload],
 .faluss-link-onboarding[data-onboarding-layout=list] { background: #fff; }
+body.faluss-link-onboarding-route[data-faluss-onboarding-layout=name],
+body.faluss-link-onboarding-route[data-faluss-onboarding-layout=upload],
+body.faluss-link-onboarding-route[data-faluss-onboarding-layout=list],
+body.faluss-link-onboarding-route:has(.faluss-link-onboarding[data-onboarding-layout=name]),
+body.faluss-link-onboarding-route:has(.faluss-link-onboarding[data-onboarding-layout=upload]),
+body.faluss-link-onboarding-route:has(.faluss-link-onboarding[data-onboarding-layout=list]) { background: #fff; }
+html:has(> body.faluss-link-onboarding-route .faluss-link-onboarding[data-onboarding-layout=name]),
+html:has(> body.faluss-link-onboarding-route .faluss-link-onboarding[data-onboarding-layout=upload]),
+html:has(> body.faluss-link-onboarding-route .faluss-link-onboarding[data-onboarding-layout=list]) { background: #fff; }
 .faluss-link-onboarding[data-onboarding-layout=name] .faluss-link-onboarding__preview,
 .faluss-link-onboarding[data-onboarding-layout=upload] .faluss-link-onboarding__preview,
 .faluss-link-onboarding[data-onboarding-layout=list] .faluss-link-onboarding__preview { display: none; }
@@ -186,14 +195,21 @@ body.faluss-link-onboarding-route .elementor-widget-container:has(> .faluss-link
 .faluss-link-onboarding__scroll-region { min-width: 0; min-height: 0; padding: 3px 4px 8px 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; -webkit-overflow-scrolling: touch; }
 .faluss-link-onboarding__links-scroll { display: grid; align-content: start; gap: 12px; }
 
-.faluss-link-onboarding__choice-tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; width: min(274px, 100%); height: 37px; margin: 0 auto; padding: 4px; border-radius: 18.5px; background: #f4f4f4; }
+.faluss-link-onboarding__choice-tabs { --flo-choice-shift: 0%; position: relative; display: grid; grid-template-columns: 1fr 1fr; width: min(274px, 100%); height: 37px; margin: 0 auto; padding: 4px; border-radius: 18.5px; background: #f4f4f4; }
+.faluss-link-onboarding__choice-tabs[data-active-index="1"] { --flo-choice-shift: 100%; }
+.faluss-link-onboarding__choice-indicator { position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 18.5px; background: #fff; box-shadow: 0 1px 4px rgba(30, 30, 30, .06); pointer-events: none; transform: translateX(var(--flo-choice-shift)); transition: transform .2s ease, opacity .18s ease; }
 .faluss-link-onboarding__choice-tabs button { position: relative; z-index: 1; min-width: 0; padding: 0; border: 0; border-radius: 18.5px; background: transparent; color: var(--flo-ink); font: 300 13px/1 Outfit, ui-sans-serif, system-ui, sans-serif; cursor: pointer; }
-.faluss-link-onboarding__choice-tabs button:hover { background: rgba(255, 255, 255, .62); color: var(--flo-ink); }
-.faluss-link-onboarding__choice-tabs button[aria-selected=true] { background: #fff; color: var(--flo-ink); font-weight: 500; }
-.faluss-link-onboarding__choice-tabs button:focus-visible { z-index: 2; background: #fff; color: var(--flo-ink); outline: 2px solid var(--flo-action); outline-offset: 2px; }
+.faluss-link-onboarding__choice-tabs button:hover { background: rgba(255, 255, 255, .38); color: var(--flo-ink); }
+.faluss-link-onboarding__choice-tabs button[aria-selected=true] { background: transparent; color: var(--flo-ink); font-weight: 500; }
+.faluss-link-onboarding__choice-tabs button:focus-visible { z-index: 2; background: transparent; color: var(--flo-ink); outline: 2px solid var(--flo-action); outline-offset: 2px; }
 .faluss-link-onboarding__choice-tabs button:disabled { background: transparent; color: var(--flo-muted); opacity: .65; }
 .faluss-link-onboarding__choice-panel { display: grid; gap: 16px; opacity: 1; transform: translateX(0); transition: opacity .18s ease, transform .18s ease; }
 .faluss-link-onboarding__choice-panel.is-entering { opacity: 0; transform: translateX(12px); }
+
+.faluss-link-onboarding__panel[data-onboarding-panel=header] { grid-template-rows: auto auto minmax(0, 1fr); align-content: stretch; gap: clamp(8px, 1.45dvh, 14px); padding-bottom: clamp(2px, .8dvh, 8px); }
+.faluss-link-onboarding__panel[data-onboarding-panel=header] .faluss-link-onboarding__choice-panel { align-content: start; gap: clamp(7px, 1.2dvh, 14px); min-height: 0; }
+.faluss-link-onboarding__panel[data-onboarding-panel=header] .faluss-link-onboarding__field { gap: clamp(4px, .7dvh, 8px); font-size: clamp(13px, 1.8dvh, 16px); }
+.faluss-link-onboarding__panel[data-onboarding-panel=header] select { min-height: clamp(40px, 5.65dvh, 54px); padding-block: clamp(8px, 1.25dvh, 12px); }
 
 .faluss-link-onboarding__choice-grid,
 .faluss-link-onboarding__button-choices,
@@ -281,6 +297,7 @@ body.faluss-link-onboarding-route .elementor-widget-container:has(> .faluss-link
     .faluss-link-onboarding__gauge-fill,
     .faluss-link-onboarding__panel,
     .faluss-link-onboarding__choice-panel,
+    .faluss-link-onboarding__choice-indicator,
     .faluss-link-onboarding__next,
     .faluss-link-onboarding__finish,
     .faluss-link-onboarding__secondary { transition: none; }
