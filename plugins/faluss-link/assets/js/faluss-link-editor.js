@@ -4,6 +4,7 @@
     var teaserFormats = { landscape: 'Paysage', portrait: 'Portrait', square: 'Carré' };
     var teaserAccessModes = { public: 'Public', member: 'Membre Faluss', entitlement: 'Droit requis' };
     var styleFields = /^(page_background|hero_transition_color|name_color|alignment|social_variant|link_style)$/;
+    var statusLifetime = 1800;
 
     function card(studio) { return studio.find('.faluss-link-studio__preview .faluss-link-card'); }
     function reducedMotion() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
@@ -512,20 +513,35 @@
         update(studio);
         return true;
     }
-    function showStatus(studio, message, error) {
+    function clearStatus(studio) {
         var notice = studio.find('.faluss-link-studio__notice');
+        window.clearTimeout(studio.data('falussLinkStatusTimer'));
+        window.clearTimeout(studio.data('falussLinkStatusFadeTimer'));
+        studio.removeData('falussLinkStatusTimer').removeData('falussLinkStatusFadeTimer');
+        notice.removeClass('is-visible').empty();
+    }
+    function showStatus(studio, message, error, temporary) {
+        var notice = studio.find('.faluss-link-studio__notice');
+        clearStatus(studio);
         notice.empty().append($('<p>', { 'class': 'faluss-link-notice' + (error ? ' is-error' : ''), text: message }));
+        requestAnimationFrame(function () { notice.addClass('is-visible'); });
+        if (temporary !== false) {
+            studio.data('falussLinkStatusTimer', window.setTimeout(function () {
+                notice.removeClass('is-visible');
+                studio.data('falussLinkStatusFadeTimer', window.setTimeout(function () { clearStatus(studio); }, 180));
+            }, statusLifetime));
+        }
     }
     function saveStudio(studio, reload) {
         var form = studio.find('.faluss-link-studio__form');
         if (!form.length || studio.data('falussLinkSaving')) { return Promise.resolve(false); }
         studio.data('falussLinkSaving', true).addClass('is-saving');
-        showStatus(studio, 'Enregistrement…', false);
+        showStatus(studio, 'Enregistrement…', false, false);
         return window.fetch(form.attr('action'), { method: 'POST', body: new FormData(form[0]), credentials: 'same-origin', headers: { Accept: 'application/json' } })
             .then(function (response) { return response.json().catch(function () { return null; }).then(function (body) { return { ok: response.ok, body: body }; }); })
             .then(function (result) {
                 if (!result.ok || !result.body || !result.body.success) { throw new Error(result.body && result.body.data && result.body.data.message ? result.body.data.message : 'Enregistrement impossible.'); }
-                showStatus(studio, result.body.data.message || 'Studio enregistré.', false);
+                showStatus(studio, result.body.data.message || 'Studio enregistré.', false, true);
                 studio.data('falussLinkInitialState', formState(studio));
                 updateDirty(studio);
                 form.find('input[type="file"]').val('');
@@ -562,6 +578,56 @@
         if (studio.find('[data-fl-active-section]').val() === 'collection') { activateSection(studio, 'collections', true); return true; }
         return false;
     }
+    function safeHistoryBack(studio) {
+        var fallback = studio.attr('data-faluss-studio-back-url') || '/';
+        try {
+            var referrer = document.referrer ? new URL(document.referrer) : null;
+            if (window.history.length > 1 && referrer && referrer.origin === window.location.origin && referrer.href !== window.location.href) {
+                window.history.back();
+                return;
+            }
+        } catch (error) { /* Fall through to the server-provided local URL. */ }
+        window.location.assign(fallback);
+    }
+    function legacyCopyText(value) {
+        return new Promise(function (resolve, reject) {
+            var field = document.createElement('textarea');
+            field.value = value;
+            field.setAttribute('readonly', '');
+            field.style.position = 'fixed';
+            field.style.opacity = '0';
+            document.body.appendChild(field);
+            field.select();
+            try { document.execCommand('copy') ? resolve() : reject(new Error('Copie indisponible.')); }
+            catch (error) { reject(error); }
+            finally { document.body.removeChild(field); }
+        });
+    }
+    function copyText(value) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(value).catch(function () { return legacyCopyText(value); });
+        }
+        return legacyCopyText(value);
+    }
+    function sharePublicURL(studio, value) {
+        var url;
+        try { url = new URL(value, window.location.origin); }
+        catch (error) { showStatus(studio, 'Partage indisponible.', true); return; }
+        if (url.protocol !== 'https:' || url.origin !== window.location.origin || /\/mon-faluss\/?$/.test(url.pathname)) {
+            showStatus(studio, 'Partage indisponible.', true);
+            return;
+        }
+        if (navigator.share) {
+            navigator.share({ title: 'Mon Faluss', url: url.href })
+                .then(function () { showStatus(studio, 'Lien public partagé.', false, true); })
+                .catch(function (error) {
+                    if (error && error.name === 'AbortError') { return; }
+                    copyText(url.href).then(function () { showStatus(studio, 'Lien public copié.', false, true); }, function () { showStatus(studio, 'Partage indisponible.', true); });
+                });
+            return;
+        }
+        copyText(url.href).then(function () { showStatus(studio, 'Lien public copié.', false, true); }, function () { showStatus(studio, 'Partage indisponible.', true); });
+    }
     function togglePreview(studio) {
         var preview = studio.find('[data-fl-preview]'), button = studio.find('[data-fl-preview-toggle]');
         if (!preview.length) { return; }
@@ -581,6 +647,7 @@
             var studio = $(this);
             if (studio.data('falussLinkStudioReady')) { updateCursor(studio); return; }
             studio.data('falussLinkStudioReady', true);
+            clearStatus(studio);
             ensureTeaserFormats(studio);
             renumberBlocks(studio);
             showScreen(studio, 'main');
@@ -611,13 +678,6 @@
                 update(studio);
             }
         })
-        .on('click.falussLink', '.faluss-link-studio__copy-id', function () {
-            var button = $(this), value = button.data('faluss-id'), status = button.siblings('[aria-live]');
-            if (!value) { return; }
-            var copied = function () { status.text('Identifiant Faluss copié.'); };
-            if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(value).then(copied, function () { status.text('Copie indisponible.'); }); }
-            else { status.text('Copie indisponible.'); }
-        })
         .on('click.falussLink', '.faluss-link-studio [data-fl-tab]', function () { activate($(this).closest('.faluss-link-studio'), $(this).data('fl-tab'), true); })
         .on('click.falussLink', '.faluss-link-studio [data-fl-context-tab]', function () { activateSection($(this).closest('.faluss-link-studio'), $(this).data('fl-context-tab'), true); })
         .on('click.falussLink', '.faluss-link-theme-picker__theme', function () { var studio = $(this).closest('.faluss-link-studio'); applyTheme(studio, $(this).data('faluss-theme')); queueStudioSave(studio); })
@@ -625,8 +685,9 @@
         .on('click.falussLink', '.faluss-link-studio [data-fl-preview-close]', function () { togglePreview($(this).closest('.faluss-link-studio'), false); })
         .on('click.falussLink', '.faluss-link-studio [data-fl-studio-back]', function () {
             var studio = $(this).closest('.faluss-link-studio');
-            if (!closeTransient(studio)) { window.history.back(); }
+            if (!closeTransient(studio)) { safeHistoryBack(studio); }
         })
+        .on('click.falussLink', '.faluss-link-studio [data-fl-studio-share]', function () { sharePublicURL($(this).closest('.faluss-link-studio'), $(this).attr('data-public-url')); })
         .on('click.falussLink', '.faluss-link-studio [data-fl-create]', function () { openCreate($(this).closest('.faluss-link-studio')); })
         .on('submit.falussLink', '.faluss-link-studio__form', function (event) { event.preventDefault(); saveStudio($(this).closest('.faluss-link-studio'), false); })
         .on('click.falussLink', '.faluss-link-studio [data-fl-create-link-submit]', function () {

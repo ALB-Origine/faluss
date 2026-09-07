@@ -39,10 +39,10 @@ foreach ( array( 'token_engine_connector_test_entitlements', 'Diagnostic des dro
 foreach ( array( "'entitlement_code'", 'connector_theme_entitlements', 'validated_entitlement', 'Inclus — aucun droit requis', 'Aucun code libre' ) as $needle ) {
     ec02_assert( false !== strpos( $catalog, $needle ), 'Catalogue must offer only Core-compatible or included theme rights: ' . $needle );
 }
-foreach ( array( 'theme_available_to_subject', 'subject_has_entitlement', 'theme_locked', 'prefs( $faluss_id, false )', 'Droit requis', 'data-faluss-id', 'catalog_themes_for_client( self::current_faluss_id() )' ) as $needle ) {
-    ec02_assert( false !== strpos( $link, $needle ), 'Link must validate locked themes on the server and keep owner copy action private: ' . $needle );
+foreach ( array( 'theme_available_to_subject', 'subject_has_entitlement', 'theme_locked', 'prefs( $faluss_id, false )', 'Droit requis', 'catalog_themes_for_client( self::current_faluss_id() )' ) as $needle ) {
+    ec02_assert( false !== strpos( $link, $needle ), 'Link must validate locked themes on the server: ' . $needle );
 }
 ec02_assert( false === strpos( $link, 'CREATE TABLE token_engine_entitlement' ) && false === strpos( $link, 'INSERT INTO token_engine_entitlement' ), 'Faluss Link must not keep an entitlement table or grant locally.' );
-ec02_assert( false !== strpos( $studio, 'preset.locked') && false !== strpos( $studio, 'faluss-link-studio__copy-id' ), 'Studio must prevent locked theme selection and support the private ID copy action.' );
+ec02_assert( false !== strpos( $studio, 'preset.locked') && false === strpos( $studio, 'faluss-link-studio__copy-id' ), 'Studio must prevent locked theme selection without exposing a private identity copy action.' );
 
 echo "EC-02 centralized entitlements and lockable Faluss themes contract: OK\n";

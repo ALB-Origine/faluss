@@ -23,7 +23,7 @@ $preview_resolver_start = strpos( $link, 'private static function onboarding_pre
 $preview_resolver_end = strpos( $link, 'private static function save_onboarding_step', $preview_resolver_start );
 $preview_resolver = false === $preview_resolver_start || false === $preview_resolver_end ? '' : substr( $link, $preview_resolver_start, $preview_resolver_end - $preview_resolver_start );
 
-onb023_assert( false !== strpos( $bootstrap, 'Version: 0.3.8' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.8'" ), 'The current Faluss Link frontend assets require a fresh plugin version.' );
+onb023_assert( false !== strpos( $bootstrap, 'Version: 0.3.9' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.9'" ), 'The current Faluss Link frontend assets require a fresh plugin version.' );
 foreach ( array( '3695-2381', '3703-2466', '3703-2546', '3704-2648', '#ED4343', '#D43D3D', '271 × 557', 'FALUSS_PLUGIN_UI.md' ) as $needle ) {
     onb023_assert( false !== strpos( $product_ui, $needle ), 'The product contract must retain the exact Figma source/token mapping: ' . $needle );
 }

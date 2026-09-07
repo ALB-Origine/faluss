@@ -328,7 +328,7 @@ final class Faluss_Link {
         $public_url = '' !== $profile['public_slug'] && 'published' === $profile['publication_status'] ? home_url( '/' . $profile['public_slug'] ) : '';
         ob_start();
         ?>
-        <section class="faluss-link-studio" data-faluss-studio="v1" data-faluss-studio-tab="<?php echo esc_attr( $active_tab ); ?>" data-faluss-studio-section="<?php echo esc_attr( $active_section ); ?>" data-faluss-studio-collection="<?php echo esc_attr( $active_collection ); ?>">
+        <section class="faluss-link-studio" data-faluss-studio="v1" data-faluss-studio-tab="<?php echo esc_attr( $active_tab ); ?>" data-faluss-studio-section="<?php echo esc_attr( $active_section ); ?>" data-faluss-studio-collection="<?php echo esc_attr( $active_collection ); ?>" data-faluss-studio-back-url="<?php echo esc_url( home_url( '/' ) ); ?>">
             <form class="faluss-link-studio__form" method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" novalidate>
                 <input type="hidden" name="action" value="faluss_link_save_studio">
                 <input type="hidden" name="faluss_studio_response" value="json">
@@ -345,15 +345,14 @@ final class Faluss_Link {
                 <header class="faluss-link-studio__topbar">
                     <button class="faluss-link-studio__round-action" type="button" data-fl-studio-back aria-label="<?php esc_attr_e( 'Revenir en arrière', 'faluss-link' ); ?>"><span aria-hidden="true">←</span></button>
                     <div class="faluss-link-studio__header-actions">
-                        <button class="faluss-link-studio__round-action faluss-link-studio__copy-id" type="button" data-faluss-id="<?php echo esc_attr( $faluss_id ); ?>" aria-label="<?php esc_attr_e( 'Copier mon identifiant Faluss', 'faluss-link' ); ?>"><span aria-hidden="true">•••</span></button>
-                        <span class="screen-reader-text" aria-live="polite"></span>
-                        <?php if ( '' !== $public_url ) : ?><a class="faluss-link-studio__round-action" href="<?php echo esc_url( $public_url ); ?>" aria-label="<?php esc_attr_e( 'Voir mon Faluss public', 'faluss-link' ); ?>"><span aria-hidden="true">↗</span></a><?php else : ?><button class="faluss-link-studio__round-action" type="button" disabled aria-label="<?php esc_attr_e( 'Publiez votre Faluss pour ouvrir son aperçu public', 'faluss-link' ); ?>"><span aria-hidden="true">↗</span></button><?php endif; ?>
+                        <button class="faluss-link-studio__round-action" type="button" disabled aria-disabled="true" aria-label="<?php esc_attr_e( 'Plus d’options, bientôt disponible', 'faluss-link' ); ?>"><span aria-hidden="true">•••</span></button>
+                        <?php if ( '' !== $public_url ) : ?><button class="faluss-link-studio__round-action" type="button" data-fl-studio-share data-public-url="<?php echo esc_url( $public_url ); ?>" aria-label="<?php esc_attr_e( 'Partager mon Faluss public', 'faluss-link' ); ?>"><span aria-hidden="true">↗</span></button><?php else : ?><button class="faluss-link-studio__round-action" type="button" disabled aria-label="<?php esc_attr_e( 'Publiez votre Faluss pour pouvoir le partager', 'faluss-link' ); ?>"><span aria-hidden="true">↗</span></button><?php endif; ?>
                     </div>
                 </header>
 
                 <?php self::studio_member_header( $profile, $preferences ); ?>
 
-                <div class="faluss-link-studio__notice" role="status" aria-live="polite"><?php echo self::notice( 'faluss_studio_notice' ); ?></div>
+                <div class="faluss-link-studio__notice" role="status" aria-live="polite"></div>
 
                 <div class="faluss-link-studio__main" data-fl-studio-screen="main">
                     <section class="faluss-link-studio__main-panel" data-fl-main-panel="links"<?php echo 'links' === $active_tab ? '' : ' hidden inert'; ?>>
