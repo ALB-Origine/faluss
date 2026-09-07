@@ -90,6 +90,13 @@
 .faluss-link-studio__round-action:hover:not(:disabled) { background: #e7e7e7; transform: translateY(-1px); }
 .faluss-link-studio__round-action:disabled { cursor: not-allowed; opacity: .45; }
 .faluss-link-studio__round-action[aria-disabled="true"] { cursor: default; opacity: 1; }
+.faluss-link-studio[data-faluss-studio="v1"] .faluss-link-studio__round-action,
+.faluss-link-studio[data-faluss-studio="v1"] .faluss-link-studio__round-action:hover,
+.faluss-link-studio[data-faluss-studio="v1"] .faluss-link-studio__round-action:active,
+.faluss-link-studio[data-faluss-studio="v1"] .faluss-link-studio__round-action:focus,
+.faluss-link-studio[data-faluss-studio="v1"] .faluss-link-studio__round-action:focus-visible { border: 0; color: #171717; }
+.faluss-link-studio[data-faluss-studio="v1"] .faluss-link-studio__round-action:focus:not(:focus-visible) { outline: 0; }
+.faluss-link-studio[data-faluss-studio="v1"] .faluss-link-studio__round-action > span { color: currentColor; }
 
 .faluss-link-studio__identity {
     display: grid;
@@ -386,14 +393,16 @@
 .faluss-link-studio__ecosystem-lead,
 .faluss-link-studio__ecosystem-products { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; width: 100%; max-width: 32rem; margin: 0 auto; }
 .faluss-link-studio__ecosystem-products { margin-top: .65rem; }
-.faluss-link-studio__ecosystem-card { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 0; min-height: 11.25rem; padding: 1rem; border: 1px solid var(--fl-studio-border); border-radius: 1.2rem; background: var(--fl-studio-panel); color: #171717; text-align: center; text-decoration: none; }
+.faluss-link-studio__ecosystem-card { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; min-width: 0; min-height: 11.25rem; padding: 1rem; border: 1px solid var(--fl-studio-border); border-radius: 1.2rem; background: var(--fl-studio-panel); color: #171717; text-align: left; text-decoration: none; }
 .faluss-link-studio__ecosystem-card strong { overflow-wrap: anywhere; font-size: clamp(.95rem, 4vw, 1.1rem); }
 .faluss-link-studio__ecosystem-card span { margin-top: .25rem; color: var(--fl-studio-muted); font-size: .8rem; }
 .faluss-link-studio__ecosystem-card:not(.is-current):hover { border-color: var(--fl-studio-action); box-shadow: 0 8px 18px rgba(8, 8, 8, .08); }
-.faluss-link-studio__ecosystem-card.is-current { align-items: flex-start; justify-content: flex-end; border-color: #080808; background: #080808; color: #fff; text-align: left; }
+.faluss-link-studio__ecosystem-card.is-current { border-color: #080808; background: #080808; color: #fff; }
 .faluss-link-studio__ecosystem-card.is-current span { color: rgba(255, 255, 255, .72); }
-.faluss-link-studio__ecosystem-symbol { display: block; width: 3.3rem; height: 3.3rem; margin: auto auto 1rem 0; object-fit: cover; mix-blend-mode: multiply; }
-.faluss-link-studio__ecosystem-card.is-current .faluss-link-studio__ecosystem-symbol { filter: invert(1); mix-blend-mode: screen; }
+.faluss-link-studio__ecosystem-symbol { display: block; width: 3.3rem; height: 3.3rem; margin: auto auto 1rem 0; object-fit: contain; object-position: left center; }
+.faluss-link-studio__ecosystem-symbol--faluss-me { mix-blend-mode: multiply; }
+.faluss-link-studio__ecosystem-card.is-current .faluss-link-studio__ecosystem-symbol--faluss-me { filter: invert(1); mix-blend-mode: screen; }
+.faluss-link-studio__ecosystem-placeholder { border-radius: .75rem; background: #dedede; }
 .faluss-link-studio__ecosystem-actions { display: grid; align-content: center; gap: .4rem; min-width: 0; }
 .faluss-link-studio__ecosystem-actions a { display: flex; align-items: center; justify-content: space-between; min-height: 3.25rem; padding: .65rem .85rem; border: 1px solid var(--fl-studio-border); border-radius: 1rem; background: var(--fl-studio-panel); color: #171717; font-size: .9rem; font-weight: 650; text-align: left; text-decoration: none; }
 .faluss-link-studio__ecosystem-actions a:hover { border-color: var(--fl-studio-action); color: #171717; }

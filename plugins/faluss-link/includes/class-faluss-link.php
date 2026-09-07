@@ -528,7 +528,10 @@ final class Faluss_Link {
 
     private static function studio_create_views() {
         $smart_action = self::studio_ecosystem_smart_action();
-        $symbol_url = plugins_url( 'assets/images/faluss-onboarding-header-logo.png', FALUSS_LINK_FILE );
+        $faluss_me_symbol_url = plugins_url( 'assets/images/faluss-onboarding-header-logo.png', FALUSS_LINK_FILE );
+        $hub_symbol_url       = plugins_url( 'assets/images/studio-ecosystem/faluss-studio-hub.png', FALUSS_LINK_FILE );
+        $pro_symbol_url       = plugins_url( 'assets/images/studio-ecosystem/faluss-studio-pro.png', FALUSS_LINK_FILE );
+        $date_symbol_url      = plugins_url( 'assets/images/studio-ecosystem/faluss-studio-date.png', FALUSS_LINK_FILE );
         ?>
         <section class="faluss-link-studio__create-view" data-fl-studio-screen="create-link" hidden inert>
             <div class="faluss-link-studio__create-copy"><h2><?php esc_html_e( 'Un lien, c’est sacré. Rendez-le unique !', 'faluss-link' ); ?></h2><p><?php esc_html_e( 'Vous pourrez le changer quand vous voulez dans le Studio.', 'faluss-link' ); ?></p></div>
@@ -541,14 +544,14 @@ final class Faluss_Link {
         <section class="faluss-link-studio__create-view faluss-link-studio__ecosystem" data-fl-studio-screen="ecosystem" hidden inert>
             <div class="faluss-link-studio__create-copy"><h2><?php esc_html_e( 'Faluss, c’est juste un écosystème complet.', 'faluss-link' ); ?></h2><p><?php esc_html_e( 'Visitez nos autres produits !', 'faluss-link' ); ?></p></div>
             <div class="faluss-link-studio__ecosystem-lead">
-                <article class="faluss-link-studio__ecosystem-card is-current" data-faluss-product-url="https://www.faluss.me/" aria-current="page"><img class="faluss-link-studio__ecosystem-symbol" src="<?php echo esc_url( $symbol_url ); ?>" alt="" aria-hidden="true"><strong>Faluss Me</strong><span><?php esc_html_e( 'Vous êtes déjà ici', 'faluss-link' ); ?></span></article>
+                <article class="faluss-link-studio__ecosystem-card is-current" data-faluss-product-url="https://www.faluss.me/" aria-current="page"><img class="faluss-link-studio__ecosystem-symbol faluss-link-studio__ecosystem-symbol--faluss-me" src="<?php echo esc_url( $faluss_me_symbol_url ); ?>" alt="" aria-hidden="true"><strong>Faluss Me</strong><span><?php esc_html_e( 'Vous êtes déjà ici', 'faluss-link' ); ?></span></article>
                 <nav class="faluss-link-studio__ecosystem-actions" aria-label="<?php esc_attr_e( 'Accès Faluss', 'faluss-link' ); ?>"><a href="<?php echo esc_url( home_url( '/mon-faluss/' ) ); ?>"><span><?php esc_html_e( 'Mon Faluss', 'faluss-link' ); ?></span><i aria-hidden="true">›</i></a><a href="<?php echo esc_url( home_url( '/list/' ) ); ?>"><span><?php esc_html_e( 'Ma Liste', 'faluss-link' ); ?></span><i aria-hidden="true">›</i></a><a href="<?php echo esc_url( $smart_action['url'] ); ?>"><span><?php echo esc_html( $smart_action['label'] ); ?></span></a></nav>
             </div>
             <div class="faluss-link-studio__ecosystem-products">
-                <a class="faluss-link-studio__ecosystem-card" href="https://www.faluss.com/" target="_blank" rel="noopener noreferrer"><img class="faluss-link-studio__ecosystem-symbol" src="<?php echo esc_url( $symbol_url ); ?>" alt="" aria-hidden="true"><strong>Faluss Hub</strong><span><?php esc_html_e( 'M’y rendre', 'faluss-link' ); ?></span></a>
-                <a class="faluss-link-studio__ecosystem-card" href="https://www.pro.faluss.com/" target="_blank" rel="noopener noreferrer"><img class="faluss-link-studio__ecosystem-symbol" src="<?php echo esc_url( $symbol_url ); ?>" alt="" aria-hidden="true"><strong>Faluss Pro</strong><span><?php esc_html_e( 'M’y rendre', 'faluss-link' ); ?></span></a>
-                <a class="faluss-link-studio__ecosystem-card" href="https://www.faluss.fans/" target="_blank" rel="noopener noreferrer"><img class="faluss-link-studio__ecosystem-symbol" src="<?php echo esc_url( $symbol_url ); ?>" alt="" aria-hidden="true"><strong>Faluss Fans</strong><span><?php esc_html_e( 'M’y rendre', 'faluss-link' ); ?></span></a>
-                <a class="faluss-link-studio__ecosystem-card" href="https://date.faluss.com/" target="_blank" rel="noopener noreferrer"><img class="faluss-link-studio__ecosystem-symbol" src="<?php echo esc_url( $symbol_url ); ?>" alt="" aria-hidden="true"><strong>Faluss Date</strong><span><?php esc_html_e( 'M’y rendre', 'faluss-link' ); ?></span></a>
+                <a class="faluss-link-studio__ecosystem-card" href="https://www.faluss.com/" target="_blank" rel="noopener noreferrer"><img class="faluss-link-studio__ecosystem-symbol" src="<?php echo esc_url( $hub_symbol_url ); ?>" alt="" aria-hidden="true"><strong>Faluss Hub</strong><span><?php esc_html_e( 'M’y rendre', 'faluss-link' ); ?></span></a>
+                <a class="faluss-link-studio__ecosystem-card" href="https://www.pro.faluss.com/" target="_blank" rel="noopener noreferrer"><img class="faluss-link-studio__ecosystem-symbol" src="<?php echo esc_url( $pro_symbol_url ); ?>" alt="" aria-hidden="true"><strong>Faluss Pro</strong><span><?php esc_html_e( 'M’y rendre', 'faluss-link' ); ?></span></a>
+                <a class="faluss-link-studio__ecosystem-card" href="https://www.faluss.fans/" target="_blank" rel="noopener noreferrer"><span class="faluss-link-studio__ecosystem-symbol faluss-link-studio__ecosystem-placeholder" aria-hidden="true"></span><strong>Faluss Fans</strong><span><?php esc_html_e( 'M’y rendre', 'faluss-link' ); ?></span></a>
+                <a class="faluss-link-studio__ecosystem-card" href="https://date.faluss.com/" target="_blank" rel="noopener noreferrer"><img class="faluss-link-studio__ecosystem-symbol" src="<?php echo esc_url( $date_symbol_url ); ?>" alt="" aria-hidden="true"><strong>Faluss Date</strong><span><?php esc_html_e( 'M’y rendre', 'faluss-link' ); ?></span></a>
             </div>
         </section>
         <?php

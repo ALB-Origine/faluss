@@ -583,13 +583,17 @@
     function showScreen(studio, name) {
         studio.find('[data-fl-studio-screen]').each(function () {
             var screen = $(this), active = screen.data('fl-studio-screen') === name;
+            screen.find('h2[tabindex]').removeAttr('tabindex');
             screen.prop('hidden', !active);
             if (active) { screen.removeAttr('inert'); } else { screen.attr('inert', ''); }
         });
         studio.attr('data-faluss-studio-screen', name);
         requestAnimationFrame(function () {
-            var target = studio.find('[data-fl-studio-screen="' + name + '"] h2, [data-fl-studio-screen="' + name + '"] input').first();
-            if (target.length) { target.attr('tabindex', '-1').trigger('focus'); }
+            /* Headings stay static. A create screen may focus its first real field,
+               while the Ecosystem screen deliberately leaves focus on More. */
+            if (name !== 'create-link' && name !== 'create-collection') { return; }
+            var target = studio.find('[data-fl-studio-screen="' + name + '"] input:not([type="hidden"]), [data-fl-studio-screen="' + name + '"] textarea').first();
+            if (target.length) { target.trigger('focus'); }
         });
     }
     function openCreate(studio) {
@@ -598,20 +602,45 @@
         showScreen(studio, section === 'collections' ? 'create-collection' : 'create-link');
     }
     function studioState(studio) {
+        var expanded = studio.find('[data-fl-link-card] .faluss-link-studio__link-summary[aria-expanded="true"]').first().closest('[data-fl-link-card]');
+        var collectionEditor = studio.find('[data-fl-collection-editor]').first();
         return {
             tab: activeTab(studio),
             section: studio.find('[data-fl-active-section]').val() || 'all',
-            collection: studio.find('[data-fl-active-collection]').val() || ''
+            collection: studio.find('[data-fl-active-collection]').val() || '',
+            expandedLink: expanded.length ? String(expanded.data('block-id')) : '',
+            collectionEditorOpen: collectionEditor.length && !collectionEditor.prop('hidden'),
+            scrollY: window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0
         };
     }
+    function restoreEditorState(studio, state) {
+        if (state.expandedLink) {
+            var cardNode = studio.find('[data-fl-link-card][data-block-id="' + state.expandedLink + '"]').first();
+            if (cardNode.length) {
+                studio.find('[data-fl-link-card]').not(cardNode).find('.faluss-link-studio__link-summary').attr('aria-expanded', 'false');
+                studio.find('[data-fl-link-card]').not(cardNode).find('.faluss-link-studio__link-details').prop('hidden', true);
+                cardNode.find('.faluss-link-studio__link-summary').attr('aria-expanded', 'true');
+                cardNode.find('.faluss-link-studio__link-details').prop('hidden', false);
+            }
+        }
+        if (state.collectionEditorOpen && state.section === 'collection') {
+            studio.find('[data-fl-collection-editor]').prop('hidden', false);
+            studio.find('[data-fl-rename-collection]').attr('aria-expanded', 'true');
+        }
+    }
     function restoreStudioState(studio, state, focus) {
-        state = state || { tab: 'links', section: 'all', collection: '' };
+        state = state || { tab: 'links', section: 'all', collection: '', expandedLink: '', collectionEditorOpen: false, scrollY: 0 };
         showScreen(studio, 'main');
         activate(studio, state.tab, false);
         studio.find('[data-fl-active-collection]').val(state.collection || '');
         studio.attr('data-faluss-studio-collection', state.collection || '');
-        activateSection(studio, state.section, !!focus);
-        updateCursor(studio);
+        activateSection(studio, state.section, false);
+        restoreEditorState(studio, state);
+        requestAnimationFrame(function () {
+            updateCursor(studio);
+            if (Number.isFinite(state.scrollY)) { window.scrollTo(0, Math.max(0, state.scrollY)); }
+            if (focus) { studio.find('[data-fl-studio-back]').first().trigger('focus'); }
+        });
     }
     function openEcosystem(studio) {
         if (!studio.length) { return; }
