@@ -23,7 +23,7 @@ $card_css = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-l
 $script = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-onboarding.js' );
 $product_ui = file_get_contents( $root . '/docs/FALUSS_PRODUCT_UI.md' );
 
-onb025_assert( false !== strpos( $bootstrap, 'Version: 0.3.7' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.7'" ), 'The current viewport assets need a renewable plugin version.' );
+onb025_assert( false !== strpos( $bootstrap, 'Version: 0.3.8' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.8'" ), 'The current viewport assets need a renewable plugin version.' );
 
 // Elementor Canvas must be normalized only on the configured onboarding URL.
 foreach ( array( "add_filter( 'body_class', array( __CLASS__, 'onboarding_body_class' ), 99 )", 'faluss-link-onboarding-route', 'Faluss_Identity_Onboarding::onboarding_url()', "wp_parse_url( \$request_uri, PHP_URL_PATH )", 'untrailingslashit( $request_path ) !== untrailingslashit( $onboarding_path )', 'PHP_URL_QUERY', 'foreach ( $required_query as $key => $value )' ) as $needle ) {

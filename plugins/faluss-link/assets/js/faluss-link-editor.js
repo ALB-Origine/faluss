@@ -772,11 +772,13 @@
         initialize(document);
         if (window.elementorFrontend && window.elementorFrontend.hooks) {
             window.elementorFrontend.hooks.addAction('frontend/element_ready/faluss_link_studio.default', function (scope) { initialize(scope); });
+            window.elementorFrontend.hooks.addAction('frontend/element_ready/faluss_link_appearance.default', function (scope) { initialize(scope); });
         }
     });
     $(window).on('elementor/frontend/init', function () {
         if (window.elementorFrontend && window.elementorFrontend.hooks) {
             window.elementorFrontend.hooks.addAction('frontend/element_ready/faluss_link_studio.default', function (scope) { initialize(scope); });
+            window.elementorFrontend.hooks.addAction('frontend/element_ready/faluss_link_appearance.default', function (scope) { initialize(scope); });
         }
     });
 }(jQuery));

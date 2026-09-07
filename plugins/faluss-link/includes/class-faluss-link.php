@@ -61,7 +61,8 @@ final class Faluss_Link {
 
     public static function activate() { return Faluss_Link_Schema::install(); }
     public static function card_shortcode( $attributes = array() ) { return self::render_card( (array) $attributes ); }
-    public static function appearance_shortcode() { return self::render_editor(); }
+    /** Keep historical Elementor/shortcode placements on the canonical Studio surface. */
+    public static function appearance_shortcode() { return self::studio_shortcode(); }
     public static function studio_shortcode() { return self::render_studio(); }
     public static function daily_reward_shortcode( $attributes = array() ) { return self::render_daily_reward( (array) $attributes ); }
     public static function discoveries_shortcode( $attributes = array() ) { return self::render_discoveries( (array) $attributes ); }
@@ -327,7 +328,7 @@ final class Faluss_Link {
         $public_url = '' !== $profile['public_slug'] && 'published' === $profile['publication_status'] ? home_url( '/' . $profile['public_slug'] ) : '';
         ob_start();
         ?>
-        <section class="faluss-link-studio" data-faluss-studio-tab="<?php echo esc_attr( $active_tab ); ?>" data-faluss-studio-section="<?php echo esc_attr( $active_section ); ?>" data-faluss-studio-collection="<?php echo esc_attr( $active_collection ); ?>">
+        <section class="faluss-link-studio" data-faluss-studio="v1" data-faluss-studio-tab="<?php echo esc_attr( $active_tab ); ?>" data-faluss-studio-section="<?php echo esc_attr( $active_section ); ?>" data-faluss-studio-collection="<?php echo esc_attr( $active_collection ); ?>">
             <form class="faluss-link-studio__form" method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" novalidate>
                 <input type="hidden" name="action" value="faluss_link_save_studio">
                 <input type="hidden" name="faluss_studio_response" value="json">

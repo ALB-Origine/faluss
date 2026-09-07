@@ -49,5 +49,5 @@
 
     window.FalussLinkCard = { refresh: refresh, initialize: initialize, contrastRatio: contrastRatio, bestContrastColor: bestContrastColor, surfaceFor: surfaceFor };
     if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', function () { initialize(document); }); } else { initialize(document); }
-    window.addEventListener('elementor/frontend/init', function () { if (window.elementorFrontend && window.elementorFrontend.hooks) { window.elementorFrontend.hooks.addAction('frontend/element_ready/faluss_link_card.default', initialize); window.elementorFrontend.hooks.addAction('frontend/element_ready/faluss_link_studio.default', initialize); } });
+    window.addEventListener('elementor/frontend/init', function () { if (window.elementorFrontend && window.elementorFrontend.hooks) { window.elementorFrontend.hooks.addAction('frontend/element_ready/faluss_link_card.default', initialize); window.elementorFrontend.hooks.addAction('frontend/element_ready/faluss_link_studio.default', initialize); window.elementorFrontend.hooks.addAction('frontend/element_ready/faluss_link_appearance.default', initialize); } });
 }());
