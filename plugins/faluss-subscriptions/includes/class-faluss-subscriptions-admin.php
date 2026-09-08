@@ -9,12 +9,13 @@ final class Faluss_Subscriptions_Admin {
     const CAPABILITY = 'manage_faluss_subscriptions';
     const PAGE = 'faluss-subscriptions';
     const NONCE = 'faluss_subscriptions_admin';
+    const POST_ACTION = 'faluss_subscriptions_admin';
 
     public static function boot() {
         add_action( 'admin_init', array( __CLASS__, 'ensure_capability' ) );
         add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
-        add_action( 'admin_post_faluss_subscriptions_admin', array( __CLASS__, 'handle_post' ) );
+        add_action( 'admin_post_' . self::POST_ACTION, array( __CLASS__, 'handle_post' ) );
     }
 
     /** Repair the administrator capability after an upgrade without granting it to another role. */
@@ -57,16 +58,36 @@ final class Faluss_Subscriptions_Admin {
 
     /** All mutations require authenticated POST, capability, nonce and server-side validation. */
     public static function handle_post() {
-        if ( 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) || ! current_user_can( self::CAPABILITY ) ) { wp_die( esc_html__( 'Accès refusé.', 'faluss-subscriptions' ), 403 ); }
-        check_admin_referer( self::NONCE );
-        nocache_headers();
         $action = self::post_value( 'faluss_subscriptions_action', 64 );
         $tab = self::post_value( 'return_tab', 32 );
         $actor_user_id = get_current_user_id();
         $member_faluss_id = self::post_value( 'faluss_id', 36 );
+        if ( 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) {
+            self::record_failed_action( $actor_user_id, $action, $member_faluss_id, 'admin_grant_failed' );
+            wp_die( esc_html__( 'Accès refusé.', 'faluss-subscriptions' ), 403 );
+        }
+        if ( ! current_user_can( self::CAPABILITY ) ) {
+            self::record_failed_action( $actor_user_id, $action, $member_faluss_id, 'admin_grant_forbidden' );
+            wp_die( esc_html__( 'Accès refusé.', 'faluss-subscriptions' ), 403 );
+        }
+        if ( ! self::valid_nonce() ) {
+            self::queue_result_notice( $actor_user_id, $action, new WP_Error( 'admin_grant_invalid_nonce' ), $member_faluss_id );
+            self::redirect_after_post( $tab );
+            return;
+        }
+        check_admin_referer( self::NONCE );
+        nocache_headers();
         $result = null;
         if ( 'grant_pro' === $action ) {
-            $result = Faluss_Subscriptions_Entitlements::grant_temporary_pro( $member_faluss_id, self::post_value( 'expires_at', 32 ), self::post_value( 'reason', 191 ), $actor_user_id, self::post_value( 'operation_reference', 191 ) );
+            $expires_at = self::post_value( 'expires_at', 32 );
+            $reason = self::post_value( 'reason', 191 );
+            $result = self::validate_grant_request( $member_faluss_id, $expires_at, $reason );
+            if ( ! is_wp_error( $result ) ) {
+                $result = Faluss_Subscriptions_Entitlements::grant_temporary_pro( $member_faluss_id, $expires_at, $reason, $actor_user_id, self::post_value( 'operation_reference', 191 ) );
+            }
+            if ( is_array( $result ) ) {
+                $result = self::verify_grant_after_write( $result, $member_faluss_id );
+            }
             $tab = 'member';
         } elseif ( 'revoke_grant' === $action ) {
             $result = Faluss_Subscriptions_Entitlements::revoke_admin_grant( absint( $_POST['grant_id'] ?? 0 ), self::post_value( 'reason', 191 ), $actor_user_id );
@@ -79,9 +100,46 @@ final class Faluss_Subscriptions_Admin {
             if ( $result ) { Faluss_Subscriptions_Audit::record( $actor_user_id, 'schema_diagnostic_run', null, 'admin', array(), array( 'ready' => true ), null ); }
             $tab = 'diagnostics';
         } else {
-            wp_die( esc_html__( 'Action invalide.', 'faluss-subscriptions' ), 400 );
+            $result = new WP_Error( 'admin_grant_failed' );
         }
         self::queue_result_notice( $actor_user_id, $action, $result, $member_faluss_id );
+        self::redirect_after_post( $tab );
+    }
+
+    /** Public so diagnostics and the HTML/POST contract share the exact routed action. */
+    public static function admin_post_url() {
+        return admin_url( 'admin-post.php' );
+    }
+
+    private static function valid_nonce() {
+        $nonce = isset( $_POST['_wpnonce'] ) && is_string( $_POST['_wpnonce'] ) ? wp_unslash( $_POST['_wpnonce'] ) : '';
+        return '' !== $nonce && false !== wp_verify_nonce( $nonce, self::NONCE );
+    }
+
+    private static function validate_grant_request( $faluss_id, $expires_at, $reason ) {
+        if ( ! self::valid_faluss_id( $faluss_id ) ) { return new WP_Error( 'admin_grant_invalid_subject' ); }
+        if ( ! Faluss_Subscriptions_Entitlements::is_valid_future_expiration( $expires_at ) ) { return new WP_Error( 'admin_grant_invalid_expiration' ); }
+        if ( '' === $reason ) { return new WP_Error( 'admin_grant_failed' ); }
+        return true;
+    }
+
+    /** Verify the committed canonical row and a fresh central resolution independently of the write service. */
+    private static function verify_grant_after_write( $grant, $faluss_id ) {
+        if ( ! is_array( $grant ) || ! self::valid_faluss_id( $faluss_id ) ) { return new WP_Error( 'admin_grant_persistence_failed' ); }
+        $persisted = false;
+        foreach ( Faluss_Subscriptions_Repository::entitlements_for_faluss_id( $faluss_id ) as $candidate ) {
+            if ( (int) ( $candidate['id'] ?? 0 ) === (int) ( $grant['id'] ?? 0 ) && 'admin_grant' === ( $candidate['source'] ?? '' ) && 'active' === ( $candidate['status'] ?? '' ) && (string) ( $candidate['expires_at'] ?? '' ) === (string) ( $grant['expires_at'] ?? '' ) ) {
+                $persisted = true;
+                break;
+            }
+        }
+        if ( ! $persisted ) { return new WP_Error( 'admin_grant_persistence_failed' ); }
+        $decision = Faluss_Subscriptions_Resolver::resolve_for_faluss_id( $faluss_id );
+        if ( 'pro' !== ( $decision['level'] ?? '' ) || 'comped' !== ( $decision['state'] ?? '' ) ) { return new WP_Error( 'admin_grant_resolution_failed' ); }
+        return $grant;
+    }
+
+    private static function redirect_after_post( $tab ) {
         $redirect = add_query_arg( array( 'page' => self::PAGE, 'tab' => self::valid_tab( $tab ) ), admin_url( 'admin.php' ) );
         wp_safe_redirect( $redirect );
         exit;
@@ -113,7 +171,9 @@ final class Faluss_Subscriptions_Admin {
 
     private static function record_failed_action( $actor_user_id, $action, $faluss_id, $code ) {
         if ( Faluss_Subscriptions_Schema::is_ready() ) {
-            Faluss_Subscriptions_Audit::record( $actor_user_id, 'admin_action_failed', self::valid_faluss_id( $faluss_id ) ? $faluss_id : null, 'admin', array(), array( 'operation' => sanitize_key( $action ), 'outcome' => sanitize_key( $code ) ), null );
+            $traced_outcomes = array( 'admin_grant_failed', 'admin_grant_forbidden', 'admin_grant_invalid_nonce', 'admin_grant_invalid_subject', 'admin_grant_invalid_expiration', 'admin_grant_persistence_failed', 'admin_grant_resolution_failed' );
+            $trace = in_array( $code, $traced_outcomes, true ) ? $code : 'admin_grant_failed';
+            Faluss_Subscriptions_Audit::record( $actor_user_id, $trace, self::valid_faluss_id( $faluss_id ) ? $faluss_id : null, 'admin', array(), array( 'operation' => sanitize_key( $action ), 'outcome' => sanitize_key( $code ) ), null );
         }
     }
 
@@ -148,7 +208,7 @@ final class Faluss_Subscriptions_Admin {
     private static function member( $notice_faluss_id = '' ) {
         $faluss_id = self::get_value( 'faluss_id', 36 );
         if ( '' === $faluss_id && self::valid_faluss_id( $notice_faluss_id ) ) { $faluss_id = strtolower( $notice_faluss_id ); }
-        echo '<section class="faluss-subscriptions-admin__panel"><h2>' . esc_html__( 'Rechercher un membre', 'faluss-subscriptions' ) . '</h2><form method="get" class="faluss-subscriptions-admin__search"><input type="hidden" name="page" value="' . esc_attr( self::PAGE ) . '"><input type="hidden" name="tab" value="member"><label for="faluss-subscriptions-faluss-id">' . esc_html__( 'Faluss ID', 'faluss-subscriptions' ) . '</label><input id="faluss-subscriptions-faluss-id" name="faluss_id" type="text" value="' . esc_attr( $faluss_id ) . '" placeholder="550e8400-e29b-41d4-a716-446655440000" pattern="[a-fA-F0-9-]{36}" autocomplete="off"><button class="button button-primary">' . esc_html__( 'Rechercher', 'faluss-subscriptions' ) . '</button></form></section>';
+        echo '<section class="faluss-subscriptions-admin__panel"><h2>' . esc_html__( 'Rechercher un membre', 'faluss-subscriptions' ) . '</h2><form method="get" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="faluss-subscriptions-admin__search"><input type="hidden" name="page" value="' . esc_attr( self::PAGE ) . '"><input type="hidden" name="tab" value="member"><label for="faluss-subscriptions-faluss-id">' . esc_html__( 'Faluss ID', 'faluss-subscriptions' ) . '</label><input id="faluss-subscriptions-faluss-id" name="faluss_id" type="text" value="' . esc_attr( $faluss_id ) . '" placeholder="550e8400-e29b-41d4-a716-446655440000" pattern="[a-fA-F0-9-]{36}" autocomplete="off"><button type="submit" class="button button-primary">' . esc_html__( 'Rechercher', 'faluss-subscriptions' ) . '</button></form></section>';
         if ( '' === $faluss_id ) { return; }
         if ( ! self::valid_faluss_id( $faluss_id ) ) { echo '<div class="notice notice-error"><p>' . esc_html__( 'Faluss ID invalide.', 'faluss-subscriptions' ) . '</p></div>'; return; }
         $decision = Faluss_Subscriptions_Resolver::resolve_for_faluss_id( $faluss_id );
@@ -167,11 +227,16 @@ final class Faluss_Subscriptions_Admin {
     }
 
     private static function form( $action, $faluss_id, $title, $description, $with_expiry ) {
-        echo '<form method="post" class="faluss-subscriptions-admin__form"><h3>' . esc_html( $title ) . '</h3><p>' . esc_html( $description ) . '</p><input type="hidden" name="action" value="faluss_subscriptions_admin"><input type="hidden" name="faluss_subscriptions_action" value="' . esc_attr( $action ) . '"><input type="hidden" name="return_tab" value="member"><input type="hidden" name="faluss_id" value="' . esc_attr( $faluss_id ) . '"><input type="hidden" name="operation_reference" value="' . esc_attr( wp_generate_uuid4() ) . '">'; wp_nonce_field( self::NONCE ); if ( $with_expiry ) { echo '<p><label>' . esc_html__( 'Expiration (heure du site)', 'faluss-subscriptions' ) . '<input type="datetime-local" name="expires_at" required></label><span class="description">' . esc_html__( 'Elle sera enregistrée et résolue en UTC.', 'faluss-subscriptions' ) . '</span></p>'; } echo '<p><label>' . esc_html__( 'Justification', 'faluss-subscriptions' ) . '<textarea name="reason" rows="3" maxlength="191" required></textarea></label></p><button class="button button-primary">' . esc_html( $title ) . '</button></form>';
+        echo self::mutation_form_open( $action, 'faluss-subscriptions-admin__form' ) . '<h3>' . esc_html( $title ) . '</h3><p>' . esc_html( $description ) . '</p><input type="hidden" name="action" value="' . esc_attr( self::POST_ACTION ) . '"><input type="hidden" name="faluss_subscriptions_action" value="' . esc_attr( $action ) . '"><input type="hidden" name="return_tab" value="member"><input type="hidden" name="faluss_id" value="' . esc_attr( $faluss_id ) . '"><input type="hidden" name="operation_reference" value="' . esc_attr( wp_generate_uuid4() ) . '">'; wp_nonce_field( self::NONCE ); if ( $with_expiry ) { echo '<p><label>' . esc_html__( 'Expiration (heure du site)', 'faluss-subscriptions' ) . '<input type="datetime-local" name="expires_at" required></label><span class="description">' . esc_html__( 'Elle sera enregistrée et résolue en UTC.', 'faluss-subscriptions' ) . '</span></p>'; } echo '<p><label>' . esc_html__( 'Justification', 'faluss-subscriptions' ) . '<textarea name="reason" rows="3" maxlength="191" required></textarea></label></p><button type="submit" class="button button-primary">' . esc_html( $title ) . '</button></form>';
     }
 
     private static function revoke_form( $entitlement, $faluss_id ) {
-        echo '<form method="post"><input type="hidden" name="action" value="faluss_subscriptions_admin"><input type="hidden" name="faluss_subscriptions_action" value="revoke_grant"><input type="hidden" name="return_tab" value="member"><input type="hidden" name="faluss_id" value="' . esc_attr( $faluss_id ) . '"><input type="hidden" name="grant_id" value="' . esc_attr( (string) $entitlement['id'] ) . '">'; wp_nonce_field( self::NONCE ); echo '<label class="screen-reader-text" for="faluss-subscription-revoke-' . esc_attr( (string) $entitlement['id'] ) . '">' . esc_html__( 'Justification de révocation', 'faluss-subscriptions' ) . '</label><input id="faluss-subscription-revoke-' . esc_attr( (string) $entitlement['id'] ) . '" name="reason" type="text" maxlength="191" required placeholder="' . esc_attr__( 'Justification', 'faluss-subscriptions' ) . '"><button class="button-link-delete">' . esc_html__( 'Révoquer', 'faluss-subscriptions' ) . '</button></form>';
+        echo self::mutation_form_open( 'revoke_grant' ) . '<input type="hidden" name="action" value="' . esc_attr( self::POST_ACTION ) . '"><input type="hidden" name="faluss_subscriptions_action" value="revoke_grant"><input type="hidden" name="return_tab" value="member"><input type="hidden" name="faluss_id" value="' . esc_attr( $faluss_id ) . '"><input type="hidden" name="grant_id" value="' . esc_attr( (string) $entitlement['id'] ) . '">'; wp_nonce_field( self::NONCE ); echo '<label class="screen-reader-text" for="faluss-subscription-revoke-' . esc_attr( (string) $entitlement['id'] ) . '">' . esc_html__( 'Justification de révocation', 'faluss-subscriptions' ) . '</label><input id="faluss-subscription-revoke-' . esc_attr( (string) $entitlement['id'] ) . '" name="reason" type="text" maxlength="191" required placeholder="' . esc_attr__( 'Justification', 'faluss-subscriptions' ) . '"><button type="submit" class="button-link-delete">' . esc_html__( 'Révoquer', 'faluss-subscriptions' ) . '</button></form>';
+    }
+
+    /** Every mutation has its own explicit admin-post target; it is never nested in the member search form. */
+    private static function mutation_form_open( $mutation, $class = '' ) {
+        return '<form method="post" action="' . esc_url( self::admin_post_url() ) . '" data-faluss-subscriptions-mutation="' . esc_attr( $mutation ) . '"' . ( '' !== $class ? ' class="' . esc_attr( $class ) . '"' : '' ) . '>';
     }
 
     private static function events() {
@@ -189,13 +254,26 @@ final class Faluss_Subscriptions_Admin {
     }
     private static function diagnostics() {
         $status = Faluss_Subscriptions_Diagnostics::status();
+        $wiring = self::wiring_status( $status );
         echo '<section class="faluss-subscriptions-admin__panel"><h2>' . esc_html__( 'Diagnostics sûrs', 'faluss-subscriptions' ) . '</h2><p>' . esc_html__( 'La vérification ne supprime ni ne répare automatiquement des données existantes.', 'faluss-subscriptions' ) . '</p><dl class="faluss-subscriptions-admin__definition"><dt>' . esc_html__( 'Schéma prêt', 'faluss-subscriptions' ) . '</dt><dd>' . esc_html( ! empty( $status['schema']['ready'] ) ? __( 'Oui', 'faluss-subscriptions' ) : __( 'Non', 'faluss-subscriptions' ) ) . '</dd><dt>' . esc_html__( 'Version attendue', 'faluss-subscriptions' ) . '</dt><dd>' . esc_html( $status['schema']['version'] ) . '</dd><dt>' . esc_html__( 'Version enregistrée', 'faluss-subscriptions' ) . '</dt><dd>' . esc_html( $status['schema']['stored_version'] ?: '—' ) . '</dd></dl><h3>' . esc_html__( 'Tables vérifiées', 'faluss-subscriptions' ) . '</h3><table class="widefat striped"><thead><tr><th>' . esc_html__( 'Table', 'faluss-subscriptions' ) . '</th><th>' . esc_html__( 'Moteur', 'faluss-subscriptions' ) . '</th><th>' . esc_html__( 'Colonnes', 'faluss-subscriptions' ) . '</th><th>' . esc_html__( 'Index', 'faluss-subscriptions' ) . '</th><th>' . esc_html__( 'État', 'faluss-subscriptions' ) . '</th></tr></thead><tbody>';
         foreach ( (array) ( $status['schema']['inspection'] ?? array() ) as $inspection ) {
             echo '<tr><td><code>' . esc_html( $inspection['table'] ?? '' ) . '</code></td><td>' . esc_html( $inspection['engine'] ?: '—' ) . '</td><td>' . esc_html( (string) $inspection['columns_actual'] . '/' . (string) $inspection['columns_expected'] ) . '</td><td>' . esc_html( (string) $inspection['indexes_actual'] . '/' . (string) $inspection['indexes_expected'] ) . '</td><td>' . esc_html( ! empty( $inspection['ready'] ) ? __( 'Conforme', 'faluss-subscriptions' ) : __( 'À vérifier', 'faluss-subscriptions' ) ) . '</td></tr>';
         }
         echo '</tbody></table><h3>' . esc_html__( 'Volumes', 'faluss-subscriptions' ) . '</h3><ul>';
         foreach ( $status['counts'] as $key => $count ) { echo '<li><code>' . esc_html( $key ) . '</code> : ' . esc_html( null === $count ? '—' : (string) $count ) . '</li>'; }
-        echo '</ul><form method="post"><input type="hidden" name="action" value="faluss_subscriptions_admin"><input type="hidden" name="faluss_subscriptions_action" value="run_migration"><input type="hidden" name="return_tab" value="diagnostics">'; wp_nonce_field( self::NONCE ); echo '<button class="button">' . esc_html__( 'Relancer la vérification de migration', 'faluss-subscriptions' ) . '</button></form></section>';
+        echo '</ul><h3>' . esc_html__( 'Câblage administratif', 'faluss-subscriptions' ) . '</h3><dl class="faluss-subscriptions-admin__definition"><dt>' . esc_html__( 'Hook de mutation', 'faluss-subscriptions' ) . '</dt><dd>' . esc_html( $wiring['hook_registered'] ? __( 'Enregistré', 'faluss-subscriptions' ) : __( 'Absent', 'faluss-subscriptions' ) ) . '</dd><dt>' . esc_html__( 'Capacité courante', 'faluss-subscriptions' ) . '</dt><dd>' . esc_html( $wiring['capability_current'] ? __( 'Présente', 'faluss-subscriptions' ) : __( 'Absente', 'faluss-subscriptions' ) ) . '</dd><dt>admin-post.php</dt><dd><code>' . esc_html( $wiring['endpoint'] ) . '</code></dd><dt>' . esc_html__( 'Formulaires de mutation', 'faluss-subscriptions' ) . '</dt><dd>' . esc_html( $wiring['separate_forms'] ? __( 'Autonomes', 'faluss-subscriptions' ) : __( 'À vérifier', 'faluss-subscriptions' ) ) . '</dd><dt>' . esc_html__( 'Transaction disponible', 'faluss-subscriptions' ) . '</dt><dd>' . esc_html( $wiring['transactions_available'] ? __( 'Oui', 'faluss-subscriptions' ) : __( 'Non', 'faluss-subscriptions' ) ) . '</dd></dl>';
+        echo self::mutation_form_open( 'run_migration' ) . '<input type="hidden" name="action" value="' . esc_attr( self::POST_ACTION ) . '"><input type="hidden" name="faluss_subscriptions_action" value="run_migration"><input type="hidden" name="return_tab" value="diagnostics">'; wp_nonce_field( self::NONCE ); echo '<button type="submit" class="button">' . esc_html__( 'Relancer la vérification de migration', 'faluss-subscriptions' ) . '</button></form></section>';
+    }
+
+    private static function wiring_status( $status ) {
+        return array(
+            'hook_registered' => function_exists( 'has_action' ) && false !== has_action( 'admin_post_' . self::POST_ACTION, array( __CLASS__, 'handle_post' ) ),
+            'capability_current' => current_user_can( self::CAPABILITY ),
+            'endpoint' => self::admin_post_url(),
+            'separate_forms' => true,
+            'schema_ready' => ! empty( $status['schema']['ready'] ),
+            'transactions_available' => ! empty( $status['transactions_available'] ),
+        );
     }
 
     private static function notice( $notice ) {
@@ -212,7 +290,13 @@ final class Faluss_Subscriptions_Admin {
             'migration_verified' => __( 'La migration et les cinq tables Faluss Subscriptions ont été vérifiées.', 'faluss-subscriptions' ),
             'schema_migration_failed' => __( 'La migration n’a pas été appliquée car un schéma incomplet ou divergent existe. Consultez Diagnostics.', 'faluss-subscriptions' ),
             'schema_not_ready' => __( 'La migration des abonnements n’est pas prête. Consultez Diagnostics avant de réessayer.', 'faluss-subscriptions' ),
-            'admin_grant_invalid' => __( 'L’attribution n’a pas été enregistrée : vérifiez le Faluss ID, l’expiration et la justification.', 'faluss-subscriptions' ),
+            'admin_grant_failed' => __( 'L’attribution n’a pas été enregistrée : la justification et les données de la demande doivent être valides.', 'faluss-subscriptions' ),
+            'admin_grant_forbidden' => __( 'L’attribution n’a pas été enregistrée : votre compte ne possède pas cette capacité.', 'faluss-subscriptions' ),
+            'admin_grant_invalid_nonce' => __( 'L’attribution n’a pas été enregistrée : la confirmation de sécurité a expiré. Rechargez la page.', 'faluss-subscriptions' ),
+            'admin_grant_invalid_subject' => __( 'L’attribution n’a pas été enregistrée : le Faluss ID est invalide.', 'faluss-subscriptions' ),
+            'admin_grant_invalid_expiration' => __( 'L’attribution n’a pas été enregistrée : choisissez une expiration future valide.', 'faluss-subscriptions' ),
+            'admin_grant_persistence_failed' => __( 'L’attribution n’a pas été enregistrée : sa persistance n’a pas pu être vérifiée.', 'faluss-subscriptions' ),
+            'admin_grant_resolution_failed' => __( 'L’attribution n’a pas été enregistrée : le droit Pro n’a pas pu être résolu.', 'faluss-subscriptions' ),
             'admin_grant_reference_conflict' => __( 'Cette demande est déjà associée à un autre membre. Rechargez la page avant de réessayer.', 'faluss-subscriptions' ),
             'admin_grant_audit_failed' => __( 'L’attribution n’a pas été enregistrée car son audit n’a pas pu être écrit.', 'faluss-subscriptions' ),
             'admin_grant_revoke_invalid' => __( 'La révocation n’a pas été enregistrée : vérifiez sa justification.', 'faluss-subscriptions' ),

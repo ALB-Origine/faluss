@@ -121,10 +121,34 @@ consommées une seule fois après redirection et ne placent ni résultat ni Falu
 dans l’URL. Le membre ciblé est repris depuis cette notification afin que le droit
 calculé soit relu immédiatement.
 
+Chaque mutation possède un formulaire HTML autonome, fermé avant le formulaire
+suivant, dont `method="post"` cible explicitement `admin-post.php`. Le champ
+WordPress `action` est `faluss_subscriptions_admin`, correspondant au hook
+enregistré au bootstrap sur chaque requête d’administration, y compris
+`admin-post.php`. Le formulaire de recherche reste un GET indépendant vers
+`admin.php`. Cette séparation évite qu’un navigateur republie une attribution
+sur la page de recherche sans jamais appeler le handler.
+
+Scénario positif : un administrateur soumet une attribution avec Faluss ID,
+justification, expiration future, nonce et référence d’opération ; le handler
+vérifie la ligne persistée, relit le résolveur en état `comped`, écrit
+`admin_grant_succeeded`, invalide le cache puis redirige vers le même membre avec
+la notice unique « Faluss Pro a été attribué jusqu’au … ». Scénarios négatifs :
+capacité absente, nonce invalide, Faluss ID invalide, expiration invalide,
+échec de persistance ou résolution non `comped` produisent un résultat d’audit
+nettoyé (`admin_grant_forbidden`, `admin_grant_invalid_nonce`,
+`admin_grant_invalid_subject`, `admin_grant_invalid_expiration`,
+`admin_grant_persistence_failed` ou `admin_grant_resolution_failed`) et aucune
+attribution partielle.
+
 Le champ `datetime-local` est saisi dans le fuseau du site WordPress puis converti
 en UTC avant la persistance. L’écran Diagnostics expose pour chacune des cinq
 tables son nom, moteur, volumes de colonnes et d’index, et son état de conformité,
-sans divulguer d’erreur SQL.
+sans divulguer d’erreur SQL. Il vérifie aussi sans créer de droit que le hook de
+mutation est enregistré, que la capacité est présente pour l’administrateur
+courant, que l’URL `admin-post.php` est générée, que les formulaires de mutation
+sont autonomes, que le schéma est prêt et qu’une transaction peut être ouverte
+puis annulée.
 
 L’administration ne permet jamais de modifier directement le statut d’un
 fournisseur, les montants, une carte ou un abonnement fournisseur.

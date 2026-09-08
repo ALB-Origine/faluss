@@ -148,7 +148,7 @@ sub01a_persistence_assert( is_array( $revoked ) && 'revoked' === $revoked['statu
 $after_revoke = Faluss_Subscriptions_Resolver::resolve_for_faluss_id( $faluss_id );
 sub01a_persistence_assert( 'free' === $after_revoke['level'], 'A revoked admin grant must resolve to Free immediately.' );
 $invalid = Faluss_Subscriptions_Entitlements::grant_temporary_pro( $faluss_id, gmdate( 'Y-m-d\\TH:i', time() - HOUR_IN_SECONDS ), 'Date passée', 77, '33333333-3333-4333-8333-333333333333' );
-sub01a_persistence_assert( is_wp_error( $invalid ) && 'admin_grant_invalid' === $invalid->get_error_code() && 1 === count( $wpdb->rows['entitlements'] ), 'An invalid grant must fail without a partial entitlement.' );
+sub01a_persistence_assert( is_wp_error( $invalid ) && 'admin_grant_invalid_expiration' === $invalid->get_error_code() && 1 === count( $wpdb->rows['entitlements'] ), 'An invalid expiration must fail without a partial entitlement.' );
 $override = Faluss_Subscriptions_Trials::set_eligibility_override( $faluss_id, 'Exception validée', 77, '44444444-4444-4444-8444-444444444444' );
 sub01a_persistence_assert( is_array( $override ) && 'admin_override' === $override['eligibility_status'] && 3 === count( $wpdb->rows['audit'] ), 'A trial override must persist and audit before it is reported as saved.' );
 sub01a_persistence_assert( false !== strpos( implode( "\n", $wpdb->queries ), 'START TRANSACTION' ) && false !== strpos( implode( "\n", $wpdb->queries ), 'COMMIT' ), 'Administrative mutations must use transaction boundaries.' );

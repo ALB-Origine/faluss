@@ -18,9 +18,9 @@ final class Faluss_Subscriptions_Entitlements {
         if ( ! Faluss_Subscriptions_Schema::is_ready() ) {
             return self::error( 'schema_not_ready' );
         }
-        if ( ! $faluss_id || ! $expires_at || '' === $reason || '' === $operation_reference ) {
-            return self::error( 'admin_grant_invalid' );
-        }
+        if ( ! $faluss_id ) { return self::error( 'admin_grant_invalid_subject' ); }
+        if ( ! $expires_at ) { return self::error( 'admin_grant_invalid_expiration' ); }
+        if ( '' === $reason || '' === $operation_reference ) { return self::error( 'admin_grant_failed' ); }
         $table = Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::entitlements_table() );
         if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
             return self::error( 'admin_grant_failed' );
@@ -40,26 +40,31 @@ final class Faluss_Subscriptions_Entitlements {
             $written = $wpdb->insert( Faluss_Subscriptions_Schema::entitlements_table(), $record, array( '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%s', '%s' ) );
             if ( false === $written ) {
                 $wpdb->query( 'ROLLBACK' );
-                return self::error( 'admin_grant_failed' );
+                return self::error( 'admin_grant_persistence_failed' );
             }
             $record['id'] = (int) $wpdb->insert_id;
             $saved = self::grant_by_id( $record['id'] );
             if ( ! self::saved_grant_matches( $saved, $record ) ) {
                 $wpdb->query( 'ROLLBACK' );
-                return self::error( 'admin_grant_failed' );
+                return self::error( 'admin_grant_persistence_failed' );
             }
-            $audit = Faluss_Subscriptions_Audit::record( $actor_user_id, 'admin_pro_granted', $faluss_id, 'admin_grant', array(), self::audit_state( $saved ), $reason );
+            $decision = Faluss_Subscriptions_Resolver::resolve_for_faluss_id( $faluss_id );
+            if ( 'pro' !== ( $decision['level'] ?? '' ) || 'comped' !== ( $decision['state'] ?? '' ) ) {
+                $wpdb->query( 'ROLLBACK' );
+                return self::error( 'admin_grant_resolution_failed' );
+            }
+            $audit = Faluss_Subscriptions_Audit::record( $actor_user_id, 'admin_grant_succeeded', $faluss_id, 'admin_grant', array(), self::audit_state( $saved ), $reason );
             if ( is_wp_error( $audit ) || false === $audit ) {
                 $wpdb->query( 'ROLLBACK' );
                 return self::error( 'admin_grant_audit_failed' );
             }
             if ( false === $wpdb->query( 'COMMIT' ) ) {
                 $wpdb->query( 'ROLLBACK' );
-                return self::error( 'admin_grant_failed' );
+                return self::error( 'admin_grant_persistence_failed' );
             }
             $saved = self::grant_by_id( $record['id'] );
             if ( ! self::saved_grant_matches( $saved, $record ) ) {
-                return self::error( 'admin_grant_failed' );
+                return self::error( 'admin_grant_persistence_failed' );
             }
             self::invalidate_decision( $faluss_id );
             return $saved;
@@ -67,6 +72,11 @@ final class Faluss_Subscriptions_Entitlements {
             $wpdb->query( 'ROLLBACK' );
             return self::error( 'admin_grant_failed' );
         }
+    }
+
+    /** Used by the admin handler before it calls the write service, using the site timezone. */
+    public static function is_valid_future_expiration( $value ) {
+        return null !== self::future_utc( $value );
     }
 
     /** @return array<string,mixed>|WP_Error */
