@@ -1,166 +1,94 @@
-# Faluss Subscriptions — SUB-01A
+# Faluss Subscriptions — SUB-01B
 
-## Responsabilités
+## Autorité centrale et frontières
 
-**Faluss Subscriptions**, installé exclusivement sur `faluss.com`, est l’autorité
-centrale des niveaux Gratuit/Pro, des essais, des attributions administratives,
-de leur audit et de leur résolution déterministe. Son identifiant métier est le
-`faluss_id` opaque de Faluss Identity ; il ne crée jamais de seconde identité.
+Faluss Subscriptions, installé exclusivement sur faluss.com, est l’autorité centrale des niveaux Gratuit/Pro, essais, abonnements Stripe, attributions administratives, audit et résolution. Sa clé métier est le faluss_id opaque de Faluss Identity : il ne crée ni identité, session, e-mail, donnée de carte publique, Token Engine ou projection Link.
 
 | Système | Responsabilité | Hors responsabilité |
 |---|---|---|
-| Faluss Identity | identité, session, Faluss ID | abonnement, carte, droits produit |
-| Faluss Subscriptions | niveau Gratuit/Pro, essai, cycle de vie, audit | paiement, session, données Link |
-| Token Engine | ledger ALB, droits de thèmes et récompenses | abonnement, revenu, carte |
-| Faluss Link / autres consommateurs | données et application locale d’un droit | calculer ou stocker l’abonnement |
+| Faluss Identity | identité, session, Faluss ID | paiement, droit Pro |
+| Faluss Subscriptions | catalogue, Stripe, essai, droit Pro, audit | contenu Link et Token Engine |
+| Faluss Link / produits | appliquer une décision contractuelle future | calculer ou stocker l’abonnement |
+| Stripe | Checkout, Customer Portal, paiement | identité Faluss et autorisation produit |
 
-SUB-01A calcule le niveau `faluss.pro`, mais aucun produit consommateur ne lui
-est encore connecté : les liens, collections, réseaux et réglages existants de
-Faluss Link restent gratuits et inchangés.
+SUB-01B ne crée aucun bouton de vente, bannière, shortcode, AJAX ou route REST anonyme de Checkout. Les accès sont des services PHP privés et l’administration WordPress protégée. Aucun consommateur Faluss n’est encore relié à ce droit : les fonctions Link restent inchangées. Token Engine ne reçoit aucune écriture ni projection. FL-21 reste le lot séparé qui pourra consommer explicitement une décision de droit validée.
 
-## Catalogue canonique v1
+## Catalogue Faluss Pro
 
-Le catalogue est versionné dans `Faluss_Subscriptions_Catalog` et il est
-consultable, mais non éditable, dans l’administration.
+| Clé | Offre | Période | Prix TTC | Devise | Essai | Carte |
+|---|---|---:|---:|---|---:|---|
+| free | Faluss Gratuit | — | 0 | EUR | 0 | non |
+| pro | Faluss Pro | mensuel | 999 centimes | EUR | 15 jours | obligatoire |
+| pro | Faluss Pro | annuel | 9900 centimes | EUR | 15 jours | obligatoire |
 
-| Clé | Nom public | Période | Prix TTC | Devise | Essai | Carte | Renouvellement | Vente |
-|---|---|---:|---:|---|---:|---|---|---|
-| `free` | Faluss Gratuit | — | 0 | EUR | 0 | non | non | actif |
-| `pro` | Faluss Pro | mensuel | 999 centimes | EUR | 15 jours | obligatoire | automatique | préparé, non actif |
-| `pro` | Faluss Pro | annuel | 9900 centimes | EUR | 15 jours | obligatoire | automatique | préparé, non actif |
+Avant Checkout et avant qu’un webhook puisse affecter un droit, le serveur relit le Price Stripe. Il refuse un Price inactif ou divergent : EUR, montant exact, intervalle month/year avec quantité 1, taxe TTC inclusive et même Product Faluss Pro. Les prix ne sont jamais modifiables dans WordPress.
 
-Faluss Pro devient commercialement actif seulement dans SUB-01B, lorsque le
-paiement, les preuves serveur et les avantages Pro minimaux seront livrés. Il
-n’existe ni identifiant, ni prix, ni produit de fournisseur de paiement dans le
-code de SUB-01A.
+## SDK et configuration serveur
 
-## États, sources et résolution
+Le plugin embarque le SDK officiel stripe/stripe-php 21.3.0, épinglé par composer.lock, avec son vendor/ de production et la licence MIT. Il ne charge que ce SDK local, refuse la collision avec un SDK Stripe déjà chargé, et force l’API 2025-03-31.basil.
 
-Les états normalisés sont `free`, `trialing`, `active`, `canceling`,
-`past_due`, `suspended`, `expired`, `comped` et `revoked`.
+Les secrets viennent uniquement de constantes serveur, jamais d’options WordPress, HTML, JavaScript, URL, audit ou logs :
 
-La résolution est faite à la lecture, exclusivement en UTC, selon la version de
-calcul indiquée dans chaque réponse. Elle retourne le niveau, le droit
-`faluss.pro`, la source retenue, l’expiration et une raison non sensible.
+~~~php
+define( 'FALUSS_STRIPE_MODE', 'test' ); // valeur par défaut
+define( 'FALUSS_STRIPE_TEST_SECRET_KEY', '...' );
+define( 'FALUSS_STRIPE_TEST_WEBHOOK_SECRET', '...' );
+define( 'FALUSS_STRIPE_TEST_PRICE_PRO_MONTHLY', '...' );
+define( 'FALUSS_STRIPE_TEST_PRICE_PRO_ANNUAL', '...' );
+define( 'FALUSS_STRIPE_TEST_PRO_PRODUCT_ID', '...' );
+define( 'FALUSS_STRIPE_TEST_PORTAL_CONFIGURATION_ID', '...' );
+define( 'FALUSS_STRIPE_TAX_ENABLED', true );
+~~~
 
-1. une `compliance_override` active de refus/révocation gagne toujours ; le
-   résultat est Gratuit ;
-2. une attribution administrative Pro valide (`admin_grant`) gagne sur les
-   sources positives et donne l’état `comped` jusqu’à son expiration ;
-3. un essai `trialing` non expiré donne Pro jusqu’à son terme exact ;
-4. un abonnement `active` ou `canceling` donne Pro jusqu’à la fin de période ;
-5. `past_due` conserve Pro seulement jusqu’à la fin du délai de régularisation
-   de sept jours ;
-6. l’absence, l’expiration ou la suspension donnent Gratuit sans supprimer les
-   données des produits consommateurs.
+Les équivalents LIVE sont nécessaires en live. Le live échoue fermé tant que FALUSS_STRIPE_LIVE_ENABLED n’est pas exactement true; test est le défaut. L’administration n’affiche que des booléens de disponibilité, le mode et la version d’API.
 
-Les sources réservées au modèle sont `free`, `trial`, `subscription`,
-`admin_grant`, `permanent_purchase`, `cosmetic_ownership` et
-`compliance_override`. Les trois dernières ne deviennent actives qu’avec leurs
-moteurs spécifiques : Pro n’inclut ni achat créateur, ni abonnement créateur,
-ni jeton, ni cosmétique permanent, ni commission de Shop.
+**Mise en service test :** créer le Product Faluss Pro, les deux Prices TTC, activer Stripe Tax, configurer un Customer Portal sans changement libre de Price, déclarer les constantes et enregistrer le webhook. Pour une rotation, remplacer la constante hors Git, déployer, contrôler l’onglet Configuration puis envoyer un événement test signé. Pour l’arrêt d’urgence, retirer LIVE_ENABLED ou passer en test : Checkout et webhooks échouent fermé sans supprimer l’historique.
 
-## Essais
+## Checkout, Customer, portail et retour
 
-Un essai est unique par `faluss_id` et par empreinte de moyen de paiement. La
-table conserve uniquement une empreinte SHA-256 dérivée, jamais une carte, un
-numéro, un e-mail ou un payload fournisseur.
+Faluss_Subscriptions_Billing::create_checkout() est un service PHP privé pour un futur appelant authentifié. Il accepte un Faluss ID opaque et monthly/annual; un verrou MySQL par Faluss ID, les contraintes uniques et une clé d’idempotence Stripe évitent les créations concurrentes. Le Customer Stripe ne contient que le Faluss ID opaque en métadonnées; sa référence est locale et aucune adresse e-mail n’est stockée.
 
-`activate_verified_trial()` est un service interne pour le futur adaptateur de
-paiement : il exige une référence de vérification serveur et une empreinte de
-moyen de paiement. Il n’existe aucune route REST/AJAX, shortcode ou action
-navigateur pour l’appeler. Deux verrous MySQL ordonnés, associés aux contraintes
-uniques, empêchent une double activation concurrente. Une dérogation
-administrative ne fait que marquer l’éligibilité : elle ne permet jamais de
-démarrer un essai sans preuve de paiement vérifiée.
+Checkout est hébergé par Stripe : abonnement, un Price, quantité 1, carte obligatoire, adresse de facturation, automatic_tax, essai 15 jours et annulation sans moyen de paiement valide. Les retours succès/annulation sont une page technique interne no-store avec état opaque; ils n’accordent jamais de droit. Seul le webhook signé et relu peut le faire.
 
-## Tables et migrations
+Customer Portal est un service privé, limité au Customer Stripe relié au même Faluss ID. Résiliation/réactivation ne modifient que cancel_at_period_end; aucune baisse de Price, migration gratuite ou suppression immédiate n’est automatisée.
 
-Les tables utilisent le préfixe WordPress courant, InnoDB, colonnes et index
-vérifiés strictement :
+## Webhooks et droits
+
+L’endpoint est :
+
+~~~text
+POST /wp-json/faluss-subscriptions/v1/stripe/webhook
+~~~
+
+Il vérifie le corps brut et Stripe-Signature avant toute écriture, est indépendant de session/nonce et répond Cache-Control: no-store, private. Il ne conserve que ID Stripe, type, date, tentative, statut, erreur nettoyée et empreinte SHA-256 du payload — jamais payload, carte, e-mail ou secret. L’ID d’événement unique rend les livraisons idempotentes. Une reprise administrateur relit l’événement Stripe par API puis la ressource courante : elle ne reconstruit jamais un vieux payload.
+
+Les événements couverts sont checkout.session.completed, customer.subscription.*, invoice.*, charge.refunded, charge.dispute.*, customer.updated et payment_method.attached/detached. Toute décision relit Customer, métadonnées Faluss et Price courant : une photo d’événement ne peut pas attribuer de droit.
+
+États normalisés : trialing, active, canceling, past_due, suspended, expired. L’essai exige une carte réellement relue et une fenêtre strictement égale à 15 jours, puis est consommé atomiquement par Faluss ID et empreinte dérivée de carte. past_due garde Pro au plus sept jours depuis le **premier** échec observé, sans glissement par relivraison. unpaid, paused, incomplete, incomplete_expired et les fins de période sont Gratuit. Les remboursements et litiges sont réconciliés, sans révocation automatique arbitraire.
+
+La résolution UTC et à lecture conserve l’ordre : révocation conformité, attribution administrative, essai valide, abonnement actif/à résilier, grâce past_due, puis Gratuit. Une erreur Stripe n’efface ni n’invente un droit.
+
+## Migration et opérations
+
+La migration **v2**, additive/rejouable, ajoute grace_started_at et les trois tables InnoDB suivantes :
 
 | Table | Rôle |
 |---|---|
-| `faluss_subscriptions` | références fournisseur, état normalisé, périodes, délai et version |
-| `faluss_subscription_trials` | éligibilité et consommation unique de l’essai |
-| `faluss_entitlements` | droits horodatés, source, priorité et version |
-| `faluss_subscription_events` | idempotence des événements futurs avec empreinte de payload seule |
-| `faluss_subscription_audit` | mutations sensibles avec états nettoyés et justification |
+| faluss_subscriptions | abonnements, périodes, ancre/fin de grâce, état |
+| faluss_subscription_trials | essai unique sans carte |
+| faluss_entitlements | attributions horodatées |
+| faluss_subscription_events | déduplication et empreinte |
+| faluss_subscription_audit | audit nettoyé |
+| faluss_billing_customers | lien Faluss ID / Customer, sans e-mail |
+| faluss_billing_checkout_sessions | état opaque/idempotence/expiration |
+| faluss_subscription_notifications | file sans destinataire ni contenu persistant |
 
-La migration v1 crée des tables temporaires, vérifie leur moteur, colonnes et
-index, puis les promeut dans un unique `RENAME TABLE`. Elle est rejouable : un
-schéma complet identique est simplement revalidé ; un schéma partiel ou divergent
-échoue fermé et n’est ni supprimé ni réparé automatiquement. La vérification
-tolère uniquement l’absence des anciennes largeurs d’affichage d’entiers dans
-`SHOW FULL COLUMNS` (par exemple `bigint unsigned` au lieu de
-`bigint(20) unsigned` sous MySQL 8) ; moteur, colonnes, nullabilité, index et
-unicité restent vérifiés strictement. La désactivation du plugin ne supprime
-aucune donnée ; aucune désinstallation destructive n’est fournie.
+Un v1 complet évolue uniquement par ajout/création sous verrou; un schéma partiel ou divergent échoue fermé. Désactivation/désinstallation ne suppriment aucune donnée.
 
-## Administration
+La tâche quotidienne verrouille, réconcilie les abonnements stagnants et met en file J-7/J-3/J-1, incidents, confirmation, essai, annulation et fin de droits. wp_mail() n’est appelé que si une intégration de confiance fournit instantanément le destinataire via faluss_subscriptions_transactional_recipient. Faluss Subscriptions ne lit ni ne stocke l’e-mail Identity; sans ce contrat, l’envoi reste inactif.
 
-La capacité `manage_faluss_subscriptions` est donnée seulement au rôle
-`administrator` à l’activation et réparée sans élargissement de rôle à chaque
-initialisation d’administration. Les actions sont toutes des POST authentifiés,
-avec capacité, nonce, validation, échappement, audit et en-têtes no-cache :
+## Administration et limites
 
-- consulter le catalogue immuable, les états calculés, essais, événements,
-  erreurs et audit ;
-- rechercher par Faluss ID opaque ;
-- attribuer temporairement Faluss Pro avec une justification et une expiration
-  UTC obligatoires ;
-- révoquer une attribution administrative avec justification ;
-- enregistrer une dérogation d’éligibilité à l’essai ;
-- relancer une vérification sûre de migration et diagnostic.
+manage_faluss_subscriptions est réservé à administrator. Tous les POST exigent capacité, nonce, validation, PRG, no-cache et audit. Les onglets sont Configuration sûre, Catalogue, Membre, Abonnements, Événements, Sandbox test, Audit et Diagnostics. La sandbox est test-only et n’est pas une surface publique.
 
-Une attribution, révocation ou dérogation n’est considérée comme réussie qu’après
-écriture, relecture et audit dans la même transaction. Une erreur annule la
-mutation et donne une notification locale, explicite et sans SQL, secret ni détail
-interne. Les notifications PRG sont stockées brièvement par administrateur,
-consommées une seule fois après redirection et ne placent ni résultat ni Faluss ID
-dans l’URL. Le membre ciblé est repris depuis cette notification afin que le droit
-calculé soit relu immédiatement.
-
-Chaque mutation possède un formulaire HTML autonome, fermé avant le formulaire
-suivant, dont `method="post"` cible explicitement `admin-post.php`. Le champ
-WordPress `action` est `faluss_subscriptions_admin`, correspondant au hook
-enregistré au bootstrap sur chaque requête d’administration, y compris
-`admin-post.php`. Le formulaire de recherche reste un GET indépendant vers
-`admin.php`. Cette séparation évite qu’un navigateur republie une attribution
-sur la page de recherche sans jamais appeler le handler.
-
-Scénario positif : un administrateur soumet une attribution avec Faluss ID,
-justification, expiration future, nonce et référence d’opération ; le handler
-vérifie la ligne persistée, relit le résolveur en état `comped`, écrit
-`admin_grant_succeeded`, invalide le cache puis redirige vers le même membre avec
-la notice unique « Faluss Pro a été attribué jusqu’au … ». Scénarios négatifs :
-capacité absente, nonce invalide, Faluss ID invalide, expiration invalide,
-échec de persistance ou résolution non `comped` produisent un résultat d’audit
-nettoyé (`admin_grant_forbidden`, `admin_grant_invalid_nonce`,
-`admin_grant_invalid_subject`, `admin_grant_invalid_expiration`,
-`admin_grant_persistence_failed` ou `admin_grant_resolution_failed`) et aucune
-attribution partielle.
-
-Le champ `datetime-local` est saisi dans le fuseau du site WordPress puis converti
-en UTC avant la persistance. L’écran Diagnostics expose pour chacune des cinq
-tables son nom, moteur, volumes de colonnes et d’index, et son état de conformité,
-sans divulguer d’erreur SQL. Il vérifie aussi sans créer de droit que le hook de
-mutation est enregistré, que la capacité est présente pour l’administrateur
-courant, que l’URL `admin-post.php` est générée, que les formulaires de mutation
-sont autonomes, que le schéma est prêt et qu’une transaction peut être ouverte
-puis annulée.
-
-L’administration ne permet jamais de modifier directement le statut d’un
-fournisseur, les montants, une carte ou un abonnement fournisseur.
-
-## Frontières des lots suivants
-
-- **SUB-01B** : intégration de paiement côté serveur, création de la preuve de
-  moyen de paiement et ingestion idempotente d’événements authentifiés.
-- **SUB-01C** : portail client, résiliation et projections minimales validées.
-- **SUB-01D** : connecteurs intersites de droits, avec protocole et consentement
-  explicitement définis.
-- **ONB-03** : éventuelle surface de choix/essai après SUB-01B ; aucun bouton
-  ni bannière d’essai n’est livré ici.
-- **FL-21** : consommation explicite d’un droit réellement disponible, sans
-  toucher aux fonctions Link gratuites existantes.
+Les contrats PHP ne remplacent pas une livraison Stripe réelle, une configuration d’hébergeur, l’envoi d’e-mails ou une recette WordPress/Safari. SUB-01C livrera un appelant membre authentifié et une surface Hub validée; SUB-01D définira les connecteurs intersites sans dupliquer l’identité ou l’abonnement.

@@ -1,0 +1,57 @@
+<?php
+
+define( 'ABSPATH', __DIR__ . '/' );
+
+function sub01b_assert( $condition, $message ) { if ( ! $condition ) { fwrite( STDERR, "FAIL: {$message}\n" ); exit( 1 ); } }
+function __( $value ) { return $value; }
+function is_wp_error( $value ) { return $value instanceof WP_Error; }
+function sanitize_key( $value ) { return preg_replace( '/[^a-z0-9_-]/', '', strtolower( (string) $value ) ); }
+function wp_parse_url( $value ) { return parse_url( $value ); }
+function home_url( $path = '' ) { return 'https://faluss.example' . $path; }
+function add_query_arg( $args, $url ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . http_build_query( $args ); }
+function wp_unslash( $value ) { return $value; }
+
+final class WP_Error { private $code; public function __construct( $code ) { $this->code = $code; } public function get_error_code() { return $this->code; } }
+
+$root = dirname( __DIR__ );
+$plugin = $root . '/plugins/faluss-subscriptions';
+$config = file_get_contents( $plugin . '/includes/class-faluss-subscriptions-stripe-config.php' );
+$sdk = file_get_contents( $plugin . '/includes/class-faluss-subscriptions-stripe-sdk.php' );
+$billing = file_get_contents( $plugin . '/includes/class-faluss-subscriptions-billing.php' );
+$webhooks = file_get_contents( $plugin . '/includes/class-faluss-subscriptions-webhooks.php' );
+$notifications = file_get_contents( $plugin . '/includes/class-faluss-subscriptions-notifications.php' );
+$returns = file_get_contents( $plugin . '/includes/class-faluss-subscriptions-returns.php' );
+$schema = file_get_contents( $plugin . '/includes/class-faluss-subscriptions-schema.php' );
+$repository = file_get_contents( $plugin . '/includes/class-faluss-subscriptions-repository.php' );
+$admin = file_get_contents( $plugin . '/includes/class-faluss-subscriptions-admin.php' );
+$bootstrap = file_get_contents( $plugin . '/faluss-subscriptions.php' );
+$composer = json_decode( file_get_contents( $plugin . '/composer.lock' ), true );
+
+require_once $plugin . '/includes/class-faluss-subscriptions-catalog.php';
+require_once $plugin . '/includes/class-faluss-subscriptions-stripe-config.php';
+require_once $plugin . '/includes/class-faluss-subscriptions-stripe-sdk.php';
+require_once $plugin . '/includes/class-faluss-subscriptions-billing.php';
+
+sub01b_assert( 'test' === Faluss_Subscriptions_Stripe_Config::mode(), 'Stripe mode must default to test without a server constant.' );
+sub01b_assert( '2025-03-31.basil' === Faluss_Subscriptions_Stripe_Config::API_VERSION && false !== strpos( $config, 'FALUSS_STRIPE_LIVE_ENABLED' ), 'The Stripe API version must be pinned and live must remain opt-in.' );
+foreach ( array( 'FALUSS_STRIPE_TEST_SECRET_KEY', 'FALUSS_STRIPE_TEST_WEBHOOK_SECRET', "'_PRICE_PRO_'", "'_PORTAL_CONFIGURATION_ID'" ) as $constant ) { sub01b_assert( false !== strpos( $config, $constant ), 'Required server-only Stripe configuration is missing: ' . $constant ); }
+sub01b_assert( isset( $composer['packages'][0]['name'], $composer['packages'][0]['version'] ) && 'stripe/stripe-php' === $composer['packages'][0]['name'] && 'v21.3.0' === $composer['packages'][0]['version'], 'The distributed lock file must pin the official Stripe SDK v21.3.0.' );
+sub01b_assert( false !== strpos( $sdk, 'stripe_sdk_collision' ) && false !== strpos( $sdk, 'vendor/autoload.php' ) && false !== strpos( $sdk, 'Webhook::constructEvent' ) && false !== strpos( $sdk, 'retrieve_event' ), 'The bundled SDK must fail closed on a WordPress collision, verify signatures and fetch canonical retry events.' );
+foreach ( array( "'unit_amount'", "'tax_behavior'", "'inclusive'", "'interval_count'", "'FALUSS_STRIPE_" ) as $needle ) { sub01b_assert( false !== strpos( $billing . $config, $needle ), 'Server-side Price validation is missing: ' . $needle ); }
+foreach ( array( "'mode' => 'subscription'", "'payment_method_types' => array( 'card' )", "'payment_method_collection' => 'always'", "'trial_period_days' => Faluss_Subscriptions_Catalog::TRIAL_DAYS", "'automatic_tax' => array( 'enabled' => true )", "'idempotency_key'" ) as $needle ) { sub01b_assert( false !== strpos( $billing . $sdk, $needle ), 'Checkout invariant is missing: ' . $needle ); }
+sub01b_assert( false !== strpos( $billing, 'checkout_subscription_exists' ) && false !== strpos( $billing, 'checkout_trial_already_used' ) && false !== strpos( $billing, 'GET_LOCK' ), 'Checkout must serialize a subject and refuse duplicate subscription or trial.' );
+sub01b_assert( false !== strpos( $webhooks, 'file_get_contents( \'php://input\' )' ) && false !== strpos( $webhooks, 'stripe-signature' ) && false !== strpos( $webhooks, 'permission_callback' ) && false !== strpos( $webhooks, 'no-store, private' ), 'The webhook must use raw body, Stripe signature, public route permission and no-cache responses.' );
+foreach ( array( 'checkout.session.completed', 'customer.subscription.updated', 'invoice.paid', 'invoice.payment_failed', 'charge.refunded', 'charge.dispute.created' ) as $event_type ) { sub01b_assert( false !== strpos( $webhooks, $event_type ), 'Required Stripe event is not handled: ' . $event_type ); }
+sub01b_assert( false !== strpos( $webhooks, 'retrieve_subscription' ) && false !== strpos( $webhooks, 'retrieve_event' ) && false !== strpos( $webhooks, 'customer.updated' ) && false !== strpos( $webhooks, 'record_event' ) && false !== strpos( $repository, 'payload_hash' ), 'A webhook or retry must record only an idempotence hash then re-fetch its current Stripe subject.' );
+sub01b_assert( false !== strpos( $billing, 'validated_subscription_price( $adapter' ) && false !== strpos( $billing, 'self::validated_price( $adapter, $period )' ) && false !== strpos( $billing, 'grace_started_at' ), 'Webhook application must revalidate the configured Price and preserve the first grace anchor.' );
+sub01b_assert( false !== strpos( $schema, "const VERSION = '2'" ) && false !== strpos( $schema, 'migrate_v1_to_v2' ) && false !== strpos( $schema, 'faluss_billing_customers' ) && false !== strpos( $schema, 'faluss_billing_checkout_sessions' ) && false !== strpos( $schema, 'faluss_subscription_notifications' ), 'The migration must add replayable billing tables without replacing SUB-01A tables.' );
+sub01b_assert( false !== strpos( $notifications, 'trial_reminder_j7' ) && false !== strpos( $notifications, 'trial_reminder_j3' ) && false !== strpos( $notifications, 'trial_reminder_j1' ) && false !== strpos( $notifications, 'wp_mail' ) && false !== strpos( $notifications, 'faluss_subscriptions_daily_lock' ), 'Transactional reminders require J-7/J-3/J-1, wp_mail idempotence and a reconciliation lock.' );
+sub01b_assert( false !== strpos( $returns, 'checkout_for_state' ) && false !== strpos( $returns, 'nocache_headers' ) && false !== strpos( $returns, 'Les droits sont déterminés exclusivement après vérification serveur' ), 'Technical returns must validate opaque state and never grant rights from a URL.' );
+sub01b_assert( false !== strpos( $admin, 'sandbox_checkout' ) && false !== strpos( $admin, 'Configuration Stripe' ) && false !== strpos( $admin, 'resync_subscription' ) && false !== strpos( $admin, 'sandbox_test_only' ), 'Protected administration must expose configuration, sandbox and resynchronization only.' );
+sub01b_assert( false !== strpos( $bootstrap, 'Faluss_Subscriptions_Webhooks::boot' ) && false !== strpos( $bootstrap, 'Faluss_Subscriptions_Notifications::boot' ), 'Bootstrap must mount webhook and daily operational services.' );
+
+sub01b_assert( 'trialing' === Faluss_Subscriptions_Billing::normalise_state( array( 'status' => 'trialing' ) ), 'A trialing Stripe subscription must normalize to trialing only after billing verification.' );
+sub01b_assert( 'canceling' === Faluss_Subscriptions_Billing::normalise_state( array( 'status' => 'active', 'cancel_at_period_end' => true ) ), 'An active Stripe subscription cancelled at period end must normalize to canceling.' );
+sub01b_assert( 'past_due' === Faluss_Subscriptions_Billing::normalise_state( array( 'status' => 'past_due' ) ) && 'suspended' === Faluss_Subscriptions_Billing::normalise_state( array( 'status' => 'unpaid' ) ) && 'expired' === Faluss_Subscriptions_Billing::normalise_state( array( 'status' => 'incomplete' ) ), 'Past due, unpaid and incomplete must normalize to the required distinct central outcomes.' );
+
+echo "SUB-01B Stripe contract: OK\n";

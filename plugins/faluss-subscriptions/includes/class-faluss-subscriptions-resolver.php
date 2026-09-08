@@ -95,9 +95,11 @@ final class Faluss_Subscriptions_Resolver {
     private static function source( $row, $kind ) { return array( 'source' => $row['source'] ?? $kind, 'reference' => $row['source_reference'] ?? ( $row['entitlement_uuid'] ?? '' ), 'expires_at' => $row['expires_at'] ?? null ); }
     /** Never retain Pro longer than the central seven-day grace window, even for imported records. */
     private static function past_due_grace_end( $subscription ) {
-        $period_end = $subscription['period_ends_at'] ?? null;
-        if ( ! is_string( $period_end ) || '' === $period_end ) { return null; }
-        $maximum = gmdate( 'Y-m-d H:i:s', strtotime( '+' . Faluss_Subscriptions_Catalog::GRACE_DAYS . ' days', strtotime( $period_end ) ) );
+        // SUB-01B anchors grace on the first payment failure. Legacy SUB-01A
+        // records without the new field fall back to their historical period end.
+        $started = $subscription['grace_started_at'] ?? ( $subscription['period_ends_at'] ?? null );
+        if ( ! is_string( $started ) || '' === $started ) { return null; }
+        $maximum = gmdate( 'Y-m-d H:i:s', strtotime( '+' . Faluss_Subscriptions_Catalog::GRACE_DAYS . ' days', strtotime( $started ) ) );
         $requested = $subscription['grace_ends_at'] ?? null;
         return is_string( $requested ) && '' !== $requested && strcmp( $requested, $maximum ) < 0 ? $requested : $maximum;
     }

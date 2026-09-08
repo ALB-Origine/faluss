@@ -38,8 +38,9 @@ final class Faluss_Subscriptions_Catalog {
                 'trial_days' => self::TRIAL_DAYS,
                 'card_required' => true,
                 'auto_renew' => true,
-                // SUB-01B must explicitly enable commercial sale after payment integration.
-                'commercially_active' => false,
+                // SUB-01B is testable through the protected administrator sandbox;
+                // no public sale surface is enabled before SUB-01C.
+                'commercially_active' => true,
             ),
         );
     }

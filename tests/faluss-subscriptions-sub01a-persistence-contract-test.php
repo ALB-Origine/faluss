@@ -14,7 +14,7 @@ function wp_unslash( $value ) { return $value; }
 function wp_json_encode( $value ) { return json_encode( $value ); }
 function wp_timezone() { return new DateTimeZone( 'UTC' ); }
 function current_time( $type, $gmt = false ) { return time(); }
-function get_option( $key, $default = false ) { return 'faluss_subscriptions_schema_version' === $key ? '1' : $default; }
+function get_option( $key, $default = false ) { return 'faluss_subscriptions_schema_version' === $key ? '2' : $default; }
 function wp_generate_uuid4() { static $counter = 0; ++$counter; return sprintf( '00000000-0000-4000-8000-%012d', $counter ); }
 function is_wp_error( $value ) { return $value instanceof WP_Error; }
 function wp_cache_delete( $key, $group ) { global $sub01a_cache_deletes; $sub01a_cache_deletes[] = array( $group, $key ); return true; }
@@ -32,9 +32,9 @@ final class Faluss_Subscriptions_Test_Wpdb {
     public $prefix = 'wp_';
     public $insert_id = 0;
     public $schema = array();
-    public $rows = array( 'entitlements' => array(), 'trials' => array(), 'audit' => array() );
+    public $rows = array( 'subscriptions' => array(), 'entitlements' => array(), 'trials' => array(), 'events' => array(), 'audit' => array(), 'customers' => array(), 'checkout_sessions' => array(), 'notifications' => array() );
     public $queries = array();
-    private $next_id = array( 'entitlements' => 1, 'trials' => 1, 'audit' => 1 );
+    private $next_id = array( 'subscriptions' => 1, 'entitlements' => 1, 'trials' => 1, 'events' => 1, 'audit' => 1, 'customers' => 1, 'checkout_sessions' => 1, 'notifications' => 1 );
 
     public function get_charset_collate() { return 'DEFAULT CHARACTER SET utf8mb4'; }
     public function prepare( $query, ...$args ) {
@@ -110,8 +110,8 @@ final class Faluss_Subscriptions_Test_Wpdb {
         return 0;
     }
     private function table_key( $table ) {
-        foreach ( array( 'subscriptions', 'trials', 'entitlements', 'events', 'audit' ) as $key ) {
-            if ( false !== strpos( $table, 'faluss_' . ( 'subscriptions' === $key ? 'subscriptions' : ( 'trials' === $key ? 'subscription_trials' : ( 'events' === $key ? 'subscription_events' : ( 'audit' === $key ? 'subscription_audit' : 'entitlements' ) ) ) ) ) ) { return $key; }
+        foreach ( array( 'checkout_sessions' => 'faluss_billing_checkout_sessions', 'customers' => 'faluss_billing_customers', 'notifications' => 'faluss_subscription_notifications', 'subscriptions' => 'faluss_subscriptions', 'trials' => 'faluss_subscription_trials', 'entitlements' => 'faluss_entitlements', 'events' => 'faluss_subscription_events', 'audit' => 'faluss_subscription_audit' ) as $key => $suffix ) {
+            if ( false !== strpos( $table, $suffix ) ) { return $key; }
         }
         return null;
     }

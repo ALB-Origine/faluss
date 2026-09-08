@@ -7,13 +7,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 /** Atomic, verified, additive installation of the subscription authority tables. */
 final class Faluss_Subscriptions_Schema {
     const OPTION = 'faluss_subscriptions_schema_version';
-    const VERSION = '1';
+    const VERSION = '2';
 
     public static function subscriptions_table() { return self::table( 'faluss_subscriptions' ); }
     public static function trials_table() { return self::table( 'faluss_subscription_trials' ); }
     public static function entitlements_table() { return self::table( 'faluss_entitlements' ); }
     public static function events_table() { return self::table( 'faluss_subscription_events' ); }
     public static function audit_table() { return self::table( 'faluss_subscription_audit' ); }
+    public static function customers_table() { return self::table( 'faluss_billing_customers' ); }
+    public static function checkout_sessions_table() { return self::table( 'faluss_billing_checkout_sessions' ); }
+    public static function notifications_table() { return self::table( 'faluss_subscription_notifications' ); }
 
     public static function maybe_install() { return self::install(); }
 
@@ -46,6 +49,13 @@ final class Faluss_Subscriptions_Schema {
         }
         try {
             if ( self::current_schema_ready() ) {
+                update_option( self::OPTION, self::VERSION, false );
+                return true;
+            }
+            if ( self::legacy_schema_ready() ) {
+                if ( ! self::migrate_v1_to_v2() || ! self::current_schema_ready() ) {
+                    return false;
+                }
                 update_option( self::OPTION, self::VERSION, false );
                 return true;
             }
@@ -140,7 +150,15 @@ final class Faluss_Subscriptions_Schema {
             'entitlements' => self::entitlements_table(),
             'events' => self::events_table(),
             'audit' => self::audit_table(),
+            'customers' => self::customers_table(),
+            'checkout_sessions' => self::checkout_sessions_table(),
+            'notifications' => self::notifications_table(),
         );
+    }
+
+    /** SUB-01A's five original tables remain the only accepted migration base. */
+    private static function legacy_tables() {
+        return array_slice( self::tables(), 0, 5, true );
     }
 
     /** @return array<string,string> */
@@ -171,7 +189,7 @@ final class Faluss_Subscriptions_Schema {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         if ( 'subscriptions' === $name ) {
-            return 'CREATE TABLE ' . self::quote_identifier( $table ) . ' (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`subscription_uuid` char(36) NOT NULL,`faluss_id` char(36) NOT NULL,`provider` varchar(32) NOT NULL,`provider_customer_reference` varchar(191) NULL,`provider_subscription_reference` varchar(191) NULL,`plan_key` varchar(32) NOT NULL,`billing_interval` varchar(16) NULL,`provider_status` varchar(32) NULL,`normalized_state` varchar(16) NOT NULL,`trial_starts_at` datetime NULL,`trial_ends_at` datetime NULL,`period_starts_at` datetime NULL,`period_ends_at` datetime NULL,`grace_ends_at` datetime NULL,`cancel_at_period_end` tinyint(1) NOT NULL,`cancelled_at` datetime NULL,`ended_at` datetime NULL,`last_synced_at` datetime NULL,`version` bigint(20) unsigned NOT NULL,`created_at` datetime NOT NULL,`updated_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `subscription_uuid_unique` (`subscription_uuid`),UNIQUE KEY `provider_subscription_unique` (`provider`,`provider_subscription_reference`),KEY `subscription_faluss_state` (`faluss_id`,`normalized_state`,`period_ends_at`),KEY `subscription_provider_status` (`provider`,`provider_status`),KEY `subscription_updated` (`updated_at`)) ENGINE=InnoDB ' . $charset;
+            return 'CREATE TABLE ' . self::quote_identifier( $table ) . ' (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`subscription_uuid` char(36) NOT NULL,`faluss_id` char(36) NOT NULL,`provider` varchar(32) NOT NULL,`provider_customer_reference` varchar(191) NULL,`provider_subscription_reference` varchar(191) NULL,`plan_key` varchar(32) NOT NULL,`billing_interval` varchar(16) NULL,`provider_status` varchar(32) NULL,`normalized_state` varchar(16) NOT NULL,`trial_starts_at` datetime NULL,`trial_ends_at` datetime NULL,`period_starts_at` datetime NULL,`period_ends_at` datetime NULL,`grace_started_at` datetime NULL,`grace_ends_at` datetime NULL,`cancel_at_period_end` tinyint(1) NOT NULL,`cancelled_at` datetime NULL,`ended_at` datetime NULL,`last_synced_at` datetime NULL,`version` bigint(20) unsigned NOT NULL,`created_at` datetime NOT NULL,`updated_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `subscription_uuid_unique` (`subscription_uuid`),UNIQUE KEY `provider_subscription_unique` (`provider`,`provider_subscription_reference`),KEY `subscription_faluss_state` (`faluss_id`,`normalized_state`,`period_ends_at`),KEY `subscription_provider_status` (`provider`,`provider_status`),KEY `subscription_updated` (`updated_at`)) ENGINE=InnoDB ' . $charset;
         }
         if ( 'trials' === $name ) {
             return 'CREATE TABLE ' . self::quote_identifier( $table ) . ' (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`trial_uuid` char(36) NOT NULL,`faluss_id` char(36) NOT NULL,`eligibility_status` varchar(24) NOT NULL,`trial_state` varchar(16) NOT NULL,`activated_at` datetime NULL,`expires_at` datetime NULL,`consumed_at` datetime NULL,`revoked_at` datetime NULL,`verification_reference` varchar(191) NULL,`payment_fingerprint_hash` char(64) NULL,`admin_override_reason` varchar(191) NULL,`admin_override_reference` varchar(191) NULL,`created_at` datetime NOT NULL,`updated_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `trial_uuid_unique` (`trial_uuid`),UNIQUE KEY `trial_faluss_unique` (`faluss_id`),UNIQUE KEY `trial_payment_fingerprint_unique` (`payment_fingerprint_hash`),UNIQUE KEY `trial_override_reference_unique` (`admin_override_reference`),KEY `trial_state_expiry` (`trial_state`,`expires_at`),KEY `trial_eligibility` (`eligibility_status`,`trial_state`)) ENGINE=InnoDB ' . $charset;
@@ -182,7 +200,44 @@ final class Faluss_Subscriptions_Schema {
         if ( 'events' === $name ) {
             return 'CREATE TABLE ' . self::quote_identifier( $table ) . ' (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`provider` varchar(32) NOT NULL,`provider_event_id` varchar(191) NOT NULL,`event_type` varchar(80) NOT NULL,`processing_status` varchar(24) NOT NULL,`attempt_count` bigint(20) unsigned NOT NULL,`payload_hash` char(64) NOT NULL,`received_at` datetime NOT NULL,`processed_at` datetime NULL,`last_error` varchar(191) NULL,`created_at` datetime NOT NULL,`updated_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `provider_event_unique` (`provider`,`provider_event_id`),KEY `event_processing` (`processing_status`,`received_at`),KEY `event_provider_type` (`provider`,`event_type`)) ENGINE=InnoDB ' . $charset;
         }
+        if ( 'customers' === $name ) {
+            return 'CREATE TABLE ' . self::quote_identifier( $table ) . ' (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`faluss_id` char(36) NOT NULL,`provider` varchar(32) NOT NULL,`provider_customer_reference` varchar(191) NOT NULL,`mode` varchar(8) NOT NULL,`created_at` datetime NOT NULL,`updated_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `billing_customer_faluss_provider` (`faluss_id`,`provider`),UNIQUE KEY `billing_customer_provider_reference` (`provider`,`provider_customer_reference`),KEY `billing_customer_updated` (`updated_at`)) ENGINE=InnoDB ' . $charset;
+        }
+        if ( 'checkout_sessions' === $name ) {
+            return 'CREATE TABLE ' . self::quote_identifier( $table ) . ' (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`checkout_uuid` char(36) NOT NULL,`faluss_id` char(36) NOT NULL,`provider` varchar(32) NOT NULL,`plan_key` varchar(32) NOT NULL,`billing_interval` varchar(16) NOT NULL,`provider_customer_reference` varchar(191) NOT NULL,`provider_session_reference` varchar(191) NULL,`provider_subscription_reference` varchar(191) NULL,`return_state_hash` char(64) NOT NULL,`idempotency_key_hash` char(64) NOT NULL,`session_status` varchar(24) NOT NULL,`expires_at` datetime NULL,`created_at` datetime NOT NULL,`updated_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `checkout_uuid_unique` (`checkout_uuid`),UNIQUE KEY `checkout_state_unique` (`return_state_hash`),UNIQUE KEY `checkout_idempotency_unique` (`idempotency_key_hash`),UNIQUE KEY `checkout_provider_session_unique` (`provider`,`provider_session_reference`),KEY `checkout_faluss_status` (`faluss_id`,`session_status`,`created_at`),KEY `checkout_subscription` (`provider`,`provider_subscription_reference`)) ENGINE=InnoDB ' . $charset;
+        }
+        if ( 'notifications' === $name ) {
+            return 'CREATE TABLE ' . self::quote_identifier( $table ) . ' (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`faluss_id` char(36) NOT NULL,`notification_type` varchar(64) NOT NULL,`reference_hash` char(64) NOT NULL,`status` varchar(16) NOT NULL,`scheduled_at` datetime NOT NULL,`sent_at` datetime NULL,`created_at` datetime NOT NULL,`updated_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `subscription_notification_unique` (`faluss_id`,`notification_type`,`reference_hash`),KEY `subscription_notification_due` (`status`,`scheduled_at`)) ENGINE=InnoDB ' . $charset;
+        }
         return 'CREATE TABLE ' . self::quote_identifier( $table ) . ' (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`audit_uuid` char(36) NOT NULL,`actor_user_id` bigint(20) unsigned NULL,`action` varchar(80) NOT NULL,`faluss_id` char(36) NULL,`source` varchar(32) NOT NULL,`previous_state` longtext NULL,`next_state` longtext NULL,`justification` varchar(191) NULL,`created_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `audit_uuid_unique` (`audit_uuid`),KEY `audit_faluss_created` (`faluss_id`,`created_at`),KEY `audit_action_created` (`action`,`created_at`),KEY `audit_actor_created` (`actor_user_id`,`created_at`)) ENGINE=InnoDB ' . $charset;
+    }
+
+    /**
+     * v2 adds operational billing tables and one grace anchor. Existing SUB-01A
+     * rows and keys are never rebuilt, renamed or deleted. DDL is deliberately
+     * replayable: an interrupted upgrade can be safely verified and continued.
+     */
+    private static function migrate_v1_to_v2() {
+        global $wpdb;
+        $subscriptions = self::subscriptions_table();
+        if ( ! self::column_exists( $subscriptions, 'grace_started_at' ) ) {
+            $sql = 'ALTER TABLE ' . self::quote_identifier( $subscriptions ) . ' ADD COLUMN `grace_started_at` datetime NULL AFTER `period_ends_at`';
+            if ( false === $wpdb->query( $sql ) ) {
+                return false;
+            }
+        }
+        foreach ( array( 'customers', 'checkout_sessions', 'notifications' ) as $name ) {
+            $table = self::tables()[ $name ];
+            if ( ! self::table_exists( $table ) && false === $wpdb->query( self::create_query( $name, $table ) ) ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static function column_exists( $table, $column ) {
+        global $wpdb;
+        return null !== $wpdb->get_var( $wpdb->prepare( 'SHOW COLUMNS FROM ' . self::quote_identifier( $table ) . ' LIKE %s', $column ) );
     }
 
     private static function current_schema_ready() {
@@ -194,13 +249,22 @@ final class Faluss_Subscriptions_Schema {
         return true;
     }
 
-    private static function verify_table( $name, $table ) {
-        $inspection = self::inspect_table( $name, $table );
+    private static function legacy_schema_ready() {
+        foreach ( self::legacy_tables() as $name => $table ) {
+            if ( ! self::table_exists( $table ) || ! self::verify_table( $name, $table, self::legacy_expected_schema() ) ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static function verify_table( $name, $table, $expected_schema = null ) {
+        $inspection = self::inspect_table( $name, $table, $expected_schema );
         return ! empty( $inspection['ready'] );
     }
 
     /** @return array<string,mixed> */
-    private static function inspect_table( $name, $table ) {
+    private static function inspect_table( $name, $table, $expected_schema = null ) {
         global $wpdb;
         $result = array(
             'table' => $table,
@@ -217,7 +281,8 @@ final class Faluss_Subscriptions_Schema {
         }
         $status = $wpdb->get_row( $wpdb->prepare( 'SHOW TABLE STATUS LIKE %s', $table ), ARRAY_A );
         $result['engine'] = is_array( $status ) ? (string) ( $status['Engine'] ?? '' ) : '';
-        $expected = self::expected_schema()[ $name ] ?? null;
+        $definitions = is_array( $expected_schema ) ? $expected_schema : self::expected_schema();
+        $expected = $definitions[ $name ] ?? null;
         $actual = $wpdb->get_results( 'SHOW FULL COLUMNS FROM ' . self::quote_identifier( $table ), ARRAY_A );
         $result['columns_expected'] = is_array( $expected ) ? count( $expected['columns'] ) : 0;
         $result['columns_actual'] = is_array( $actual ) ? count( $actual ) : 0;
@@ -265,7 +330,7 @@ final class Faluss_Subscriptions_Schema {
     }
 
     /** @return array<string,array<string,mixed>> */
-    private static function expected_schema() {
+    private static function legacy_expected_schema() {
         return array(
             'subscriptions' => array(
                 'columns' => array( 'id' => array( 'bigint(20) unsigned', 'NO' ), 'subscription_uuid' => array( 'char(36)', 'NO' ), 'faluss_id' => array( 'char(36)', 'NO' ), 'provider' => array( 'varchar(32)', 'NO' ), 'provider_customer_reference' => array( 'varchar(191)', 'YES' ), 'provider_subscription_reference' => array( 'varchar(191)', 'YES' ), 'plan_key' => array( 'varchar(32)', 'NO' ), 'billing_interval' => array( 'varchar(16)', 'YES' ), 'provider_status' => array( 'varchar(32)', 'YES' ), 'normalized_state' => array( 'varchar(16)', 'NO' ), 'trial_starts_at' => array( 'datetime', 'YES' ), 'trial_ends_at' => array( 'datetime', 'YES' ), 'period_starts_at' => array( 'datetime', 'YES' ), 'period_ends_at' => array( 'datetime', 'YES' ), 'grace_ends_at' => array( 'datetime', 'YES' ), 'cancel_at_period_end' => array( 'tinyint(1)', 'NO' ), 'cancelled_at' => array( 'datetime', 'YES' ), 'ended_at' => array( 'datetime', 'YES' ), 'last_synced_at' => array( 'datetime', 'YES' ), 'version' => array( 'bigint(20) unsigned', 'NO' ), 'created_at' => array( 'datetime', 'NO' ), 'updated_at' => array( 'datetime', 'NO' ) ),
@@ -288,5 +353,31 @@ final class Faluss_Subscriptions_Schema {
                 'indexes' => array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'audit_uuid_unique' => array( 'unique' => true, 'columns' => array( 'audit_uuid' ) ), 'audit_faluss_created' => array( 'unique' => false, 'columns' => array( 'faluss_id', 'created_at' ) ), 'audit_action_created' => array( 'unique' => false, 'columns' => array( 'action', 'created_at' ) ), 'audit_actor_created' => array( 'unique' => false, 'columns' => array( 'actor_user_id', 'created_at' ) ) ),
             ),
         );
+    }
+
+    /** @return array<string,array<string,mixed>> */
+    private static function expected_schema() {
+        $schema = self::legacy_expected_schema();
+        $expanded = array();
+        foreach ( $schema['subscriptions']['columns'] as $name => $definition ) {
+            $expanded[ $name ] = $definition;
+            if ( 'period_ends_at' === $name ) {
+                $expanded['grace_started_at'] = array( 'datetime', 'YES' );
+            }
+        }
+        $schema['subscriptions']['columns'] = $expanded;
+        $schema['customers'] = array(
+            'columns' => array( 'id' => array( 'bigint(20) unsigned', 'NO' ), 'faluss_id' => array( 'char(36)', 'NO' ), 'provider' => array( 'varchar(32)', 'NO' ), 'provider_customer_reference' => array( 'varchar(191)', 'NO' ), 'mode' => array( 'varchar(8)', 'NO' ), 'created_at' => array( 'datetime', 'NO' ), 'updated_at' => array( 'datetime', 'NO' ) ),
+            'indexes' => array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'billing_customer_faluss_provider' => array( 'unique' => true, 'columns' => array( 'faluss_id', 'provider' ) ), 'billing_customer_provider_reference' => array( 'unique' => true, 'columns' => array( 'provider', 'provider_customer_reference' ) ), 'billing_customer_updated' => array( 'unique' => false, 'columns' => array( 'updated_at' ) ) ),
+        );
+        $schema['checkout_sessions'] = array(
+            'columns' => array( 'id' => array( 'bigint(20) unsigned', 'NO' ), 'checkout_uuid' => array( 'char(36)', 'NO' ), 'faluss_id' => array( 'char(36)', 'NO' ), 'provider' => array( 'varchar(32)', 'NO' ), 'plan_key' => array( 'varchar(32)', 'NO' ), 'billing_interval' => array( 'varchar(16)', 'NO' ), 'provider_customer_reference' => array( 'varchar(191)', 'NO' ), 'provider_session_reference' => array( 'varchar(191)', 'YES' ), 'provider_subscription_reference' => array( 'varchar(191)', 'YES' ), 'return_state_hash' => array( 'char(64)', 'NO' ), 'idempotency_key_hash' => array( 'char(64)', 'NO' ), 'session_status' => array( 'varchar(24)', 'NO' ), 'expires_at' => array( 'datetime', 'YES' ), 'created_at' => array( 'datetime', 'NO' ), 'updated_at' => array( 'datetime', 'NO' ) ),
+            'indexes' => array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'checkout_uuid_unique' => array( 'unique' => true, 'columns' => array( 'checkout_uuid' ) ), 'checkout_state_unique' => array( 'unique' => true, 'columns' => array( 'return_state_hash' ) ), 'checkout_idempotency_unique' => array( 'unique' => true, 'columns' => array( 'idempotency_key_hash' ) ), 'checkout_provider_session_unique' => array( 'unique' => true, 'columns' => array( 'provider', 'provider_session_reference' ) ), 'checkout_faluss_status' => array( 'unique' => false, 'columns' => array( 'faluss_id', 'session_status', 'created_at' ) ), 'checkout_subscription' => array( 'unique' => false, 'columns' => array( 'provider', 'provider_subscription_reference' ) ) ),
+        );
+        $schema['notifications'] = array(
+            'columns' => array( 'id' => array( 'bigint(20) unsigned', 'NO' ), 'faluss_id' => array( 'char(36)', 'NO' ), 'notification_type' => array( 'varchar(64)', 'NO' ), 'reference_hash' => array( 'char(64)', 'NO' ), 'status' => array( 'varchar(16)', 'NO' ), 'scheduled_at' => array( 'datetime', 'NO' ), 'sent_at' => array( 'datetime', 'YES' ), 'created_at' => array( 'datetime', 'NO' ), 'updated_at' => array( 'datetime', 'NO' ) ),
+            'indexes' => array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'subscription_notification_unique' => array( 'unique' => true, 'columns' => array( 'faluss_id', 'notification_type', 'reference_hash' ) ), 'subscription_notification_due' => array( 'unique' => false, 'columns' => array( 'status', 'scheduled_at' ) ) ),
+        );
+        return $schema;
     }
 }

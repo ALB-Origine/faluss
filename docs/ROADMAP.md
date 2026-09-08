@@ -80,8 +80,16 @@ administratives, des audits et diagnostics. SUB-01A ne livre ni paiement, ni
 Checkout, ni webhook, ni portail client, ni bannière, ni consommation de droit
 dans Faluss Link. Voir [`FALUSS_SUBSCRIPTIONS.md`](FALUSS_SUBSCRIPTIONS.md).
 
-## SUB-01B à SUB-01D — Abonnements — à réaliser
+## SUB-01B — Stripe central Faluss Pro — livré techniquement en mode test
 
-SUB-01B ajoutera les adaptateurs serveur de paiement et événements
-idempotents ; SUB-01C le portail et les cycles membres ; SUB-01D les contrats
-de connecteurs intersites. Ces lots restent non livrés par SUB-01A.
+Faluss Subscriptions embarque maintenant l’adaptateur Stripe PHP épinglé, le
+Customer central, Checkout/Customer Portal privés, validation TTC des Prices,
+webhooks signés et idempotents, reprise par relecture Stripe, réconciliation et
+administration sandbox test. Aucun appelant membre, bouton public ou consommateur
+de droit Faluss Link n’est activé par ce lot.
+
+## SUB-01C à SUB-01D — Abonnements — à réaliser
+
+SUB-01C définira l’appelant membre authentifié, les cycles Hub et une recette
+Stripe réelle. SUB-01D définira les connecteurs intersites de droits, sans
+dupliquer identité ou abonnement.

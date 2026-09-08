@@ -33,6 +33,120 @@ final class Faluss_Subscriptions_Repository {
         return (array) $wpdb->get_results( 'SELECT * FROM ' . $table . $where . ' ORDER BY id DESC LIMIT ' . $limit, ARRAY_A );
     }
 
+    /** @return array<string,mixed>|null */
+    public static function event_by_id( $event_id ) {
+        global $wpdb;
+        $event_id = absint( $event_id );
+        if ( ! $event_id ) { return null; }
+        $row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::events_table() ) . ' WHERE id=%d LIMIT 1', $event_id ), ARRAY_A );
+        return is_array( $row ) ? $row : null;
+    }
+
+    /** @return array<int,array<string,mixed>> */
+    public static function all_subscriptions( $limit = 100 ) {
+        global $wpdb;
+        $limit = max( 1, min( 250, (int) $limit ) );
+        return (array) $wpdb->get_results( 'SELECT * FROM ' . Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::subscriptions_table() ) . ' ORDER BY updated_at ASC,id ASC LIMIT ' . $limit, ARRAY_A );
+    }
+
+    /** @return array<string,mixed>|null */
+    public static function customer_for_faluss_id( $faluss_id, $provider = 'stripe' ) {
+        global $wpdb;
+        if ( ! self::valid_faluss_id( $faluss_id ) || ! self::valid_provider( $provider ) ) { return null; }
+        $table = Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::customers_table() );
+        $row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . $table . ' WHERE faluss_id=%s AND provider=%s LIMIT 1', strtolower( $faluss_id ), strtolower( $provider ) ), ARRAY_A );
+        return is_array( $row ) ? $row : null;
+    }
+
+    /** @return array<string,mixed>|null */
+    public static function customer_for_reference( $reference, $provider = 'stripe' ) {
+        global $wpdb;
+        $reference = self::bounded( $reference, 191 );
+        if ( '' === $reference || ! self::valid_provider( $provider ) ) { return null; }
+        $table = Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::customers_table() );
+        $row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . $table . ' WHERE provider=%s AND provider_customer_reference=%s LIMIT 1', strtolower( $provider ), $reference ), ARRAY_A );
+        return is_array( $row ) ? $row : null;
+    }
+
+    /** Canonical customer persistence is unique per opaque Faluss ID and provider. */
+    public static function record_customer( $faluss_id, $provider, $reference, $mode ) {
+        global $wpdb;
+        $faluss_id = self::valid_faluss_id( $faluss_id ) ? strtolower( $faluss_id ) : '';
+        $provider = strtolower( self::bounded( $provider, 32 ) );
+        $reference = self::bounded( $reference, 191 );
+        $mode = self::bounded( $mode, 8 );
+        if ( ! Faluss_Subscriptions_Schema::is_ready() || '' === $faluss_id || ! self::valid_provider( $provider ) || '' === $reference || ! in_array( $mode, array( 'test', 'live' ), true ) ) { return self::error( 'billing_customer_invalid' ); }
+        $existing = self::customer_for_faluss_id( $faluss_id, $provider );
+        if ( is_array( $existing ) ) {
+            return (string) $existing['provider_customer_reference'] === $reference ? $existing : self::error( 'billing_customer_conflict' );
+        }
+        $now = gmdate( 'Y-m-d H:i:s' );
+        $written = $wpdb->insert( Faluss_Subscriptions_Schema::customers_table(), array( 'faluss_id' => $faluss_id, 'provider' => $provider, 'provider_customer_reference' => $reference, 'mode' => $mode, 'created_at' => $now, 'updated_at' => $now ) );
+        if ( false === $written ) {
+            $existing = self::customer_for_faluss_id( $faluss_id, $provider );
+            return is_array( $existing ) && (string) $existing['provider_customer_reference'] === $reference ? $existing : self::error( 'billing_customer_conflict' );
+        }
+        return self::customer_for_faluss_id( $faluss_id, $provider );
+    }
+
+    /** @return array<string,mixed>|null */
+    public static function checkout_for_state( $opaque_state ) {
+        global $wpdb;
+        if ( ! is_string( $opaque_state ) || '' === $opaque_state ) { return null; }
+        $hash = hash( 'sha256', $opaque_state );
+        $table = Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::checkout_sessions_table() );
+        $row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . $table . ' WHERE return_state_hash=%s LIMIT 1', $hash ), ARRAY_A );
+        return is_array( $row ) ? $row : null;
+    }
+
+    /** @return array<string,mixed>|null */
+    public static function checkout_for_provider_session( $reference ) {
+        global $wpdb;
+        $reference = self::bounded( $reference, 191 );
+        if ( '' === $reference ) { return null; }
+        $table = Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::checkout_sessions_table() );
+        $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE provider='stripe' AND provider_session_reference=%s LIMIT 1", $reference ), ARRAY_A );
+        return is_array( $row ) ? $row : null;
+    }
+
+    /** @return array<string,mixed>|WP_Error */
+    public static function create_checkout( $record ) {
+        global $wpdb;
+        if ( ! is_array( $record ) || ! self::valid_faluss_id( $record['faluss_id'] ?? '' ) || ! Faluss_Subscriptions_Catalog::valid_period( Faluss_Subscriptions_Catalog::PRO, $record['billing_interval'] ?? '' ) ) { return self::error( 'checkout_invalid' ); }
+        $state = $record['opaque_state'] ?? '';
+        $key = $record['idempotency_key'] ?? '';
+        if ( ! is_string( $state ) || strlen( $state ) < 32 || ! is_string( $key ) || strlen( $key ) < 32 ) { return self::error( 'checkout_invalid' ); }
+        $now = gmdate( 'Y-m-d H:i:s' );
+        $data = array(
+            'checkout_uuid' => wp_generate_uuid4(), 'faluss_id' => strtolower( $record['faluss_id'] ), 'provider' => 'stripe', 'plan_key' => Faluss_Subscriptions_Catalog::PRO,
+            'billing_interval' => $record['billing_interval'], 'provider_customer_reference' => self::bounded( $record['provider_customer_reference'] ?? '', 191 ), 'provider_session_reference' => null, 'provider_subscription_reference' => null,
+            'return_state_hash' => hash( 'sha256', $state ), 'idempotency_key_hash' => hash( 'sha256', $key ), 'session_status' => 'creating', 'expires_at' => null, 'created_at' => $now, 'updated_at' => $now,
+        );
+        if ( '' === $data['provider_customer_reference'] ) { return self::error( 'checkout_invalid' ); }
+        $written = $wpdb->insert( Faluss_Subscriptions_Schema::checkout_sessions_table(), $data );
+        if ( false === $written ) { return self::error( 'checkout_conflict' ); }
+        return self::checkout_for_state( $state ) ?: self::error( 'checkout_record_failed' );
+    }
+
+    /** @return array<string,mixed>|WP_Error */
+    public static function mark_checkout_provider_session( $id, $session_reference, $expires_at = null ) {
+        global $wpdb;
+        $id = absint( $id ); $session_reference = self::bounded( $session_reference, 191 );
+        if ( ! $id || '' === $session_reference ) { return self::error( 'checkout_invalid' ); }
+        $written = $wpdb->update( Faluss_Subscriptions_Schema::checkout_sessions_table(), array( 'provider_session_reference' => $session_reference, 'session_status' => 'open', 'expires_at' => self::utc_or_null( $expires_at ), 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $id ) );
+        return false === $written ? self::error( 'checkout_record_failed' ) : self::checkout_for_provider_session( $session_reference );
+    }
+
+    public static function update_event_status( $event_id, $status, $error_code = null ) {
+        global $wpdb;
+        $event_id = absint( $event_id ); $status = self::bounded( $status, 24 );
+        if ( ! $event_id || ! in_array( $status, array( 'received', 'processing', 'processed', 'ignored', 'failed' ), true ) ) { return false; }
+        $data = array( 'processing_status' => $status, 'updated_at' => gmdate( 'Y-m-d H:i:s' ) );
+        if ( in_array( $status, array( 'processed', 'ignored' ), true ) ) { $data['processed_at'] = gmdate( 'Y-m-d H:i:s' ); $data['last_error'] = null; }
+        if ( 'failed' === $status ) { $data['last_error'] = self::nullable( $error_code, 191 ); }
+        return false !== $wpdb->query( $wpdb->prepare( 'UPDATE ' . Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::events_table() ) . ' SET processing_status=%s,attempt_count=attempt_count+1,processed_at=%s,last_error=%s,updated_at=%s WHERE id=%d', $data['processing_status'], $data['processed_at'] ?? null, $data['last_error'] ?? null, $data['updated_at'], $event_id ) );
+    }
+
     /**
      * Idempotence foundation for SUB-01B. Only a payload hash is stored; raw provider data never is.
      * @return array<string,mixed>|WP_Error
@@ -79,14 +193,18 @@ final class Faluss_Subscriptions_Repository {
         $now = gmdate( 'Y-m-d H:i:s' );
         $existing = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::subscriptions_table() ) . ' WHERE provider=%s AND provider_subscription_reference=%s LIMIT 1', $provider, $reference ), ARRAY_A );
         $period_ends_at = self::utc_or_null( $record['period_ends_at'] ?? null );
-        $grace_ends_at = 'past_due' === $record['normalized_state'] ? self::capped_grace_end( $period_ends_at, self::utc_or_null( $record['grace_ends_at'] ?? null ) ) : self::utc_or_null( $record['grace_ends_at'] ?? null );
+        $grace_started_at = self::utc_or_null( $record['grace_started_at'] ?? null );
+        if ( 'past_due' === $record['normalized_state'] && is_array( $existing ) && 'past_due' === ( $existing['normalized_state'] ?? '' ) && ! empty( $existing['grace_started_at'] ) ) {
+            $grace_started_at = $existing['grace_started_at'];
+        }
+        $grace_ends_at = 'past_due' === $record['normalized_state'] ? self::capped_grace_end( $grace_started_at, self::utc_or_null( $record['grace_ends_at'] ?? null ) ) : self::utc_or_null( $record['grace_ends_at'] ?? null );
         if ( 'past_due' === $record['normalized_state'] && ! $grace_ends_at ) { return self::error( 'subscription_grace_invalid' ); }
         $data = array(
             'faluss_id' => strtolower( $record['faluss_id'] ), 'provider' => $provider,
             'provider_customer_reference' => self::nullable( $record['provider_customer_reference'] ?? null, 191 ), 'provider_subscription_reference' => $reference,
             'plan_key' => $record['plan_key'], 'billing_interval' => $interval, 'provider_status' => self::nullable( $record['provider_status'] ?? null, 32 ),
             'normalized_state' => $record['normalized_state'], 'trial_starts_at' => self::utc_or_null( $record['trial_starts_at'] ?? null ), 'trial_ends_at' => self::utc_or_null( $record['trial_ends_at'] ?? null ),
-            'period_starts_at' => self::utc_or_null( $record['period_starts_at'] ?? null ), 'period_ends_at' => $period_ends_at, 'grace_ends_at' => $grace_ends_at,
+            'period_starts_at' => self::utc_or_null( $record['period_starts_at'] ?? null ), 'period_ends_at' => $period_ends_at, 'grace_started_at' => $grace_started_at, 'grace_ends_at' => $grace_ends_at,
             'cancel_at_period_end' => empty( $record['cancel_at_period_end'] ) ? 0 : 1, 'cancelled_at' => self::utc_or_null( $record['cancelled_at'] ?? null ), 'ended_at' => self::utc_or_null( $record['ended_at'] ?? null ), 'last_synced_at' => $now, 'updated_at' => $now,
         );
         if ( is_array( $existing ) ) {
@@ -116,12 +234,12 @@ final class Faluss_Subscriptions_Repository {
     private static function bounded( $value, $length ) { $value = is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : ''; return function_exists( 'mb_substr' ) ? mb_substr( trim( $value ), 0, $length ) : substr( trim( $value ), 0, $length ); }
     private static function nullable( $value, $length ) { $value = self::bounded( $value, $length ); return '' === $value ? null : $value; }
     /** The grace period is a server rule, not an arbitrary provider value. */
-    private static function capped_grace_end( $period_ends_at, $requested_grace_end ) {
-        if ( ! $period_ends_at ) { return null; }
-        $maximum = gmdate( 'Y-m-d H:i:s', strtotime( '+' . Faluss_Subscriptions_Catalog::GRACE_DAYS . ' days', strtotime( $period_ends_at ) ) );
+    private static function capped_grace_end( $grace_started_at, $requested_grace_end ) {
+        if ( ! $grace_started_at ) { return null; }
+        $maximum = gmdate( 'Y-m-d H:i:s', strtotime( '+' . Faluss_Subscriptions_Catalog::GRACE_DAYS . ' days', strtotime( $grace_started_at ) ) );
         return $requested_grace_end && strcmp( $requested_grace_end, $maximum ) < 0 ? $requested_grace_end : $maximum;
     }
-    private static function subscription_audit_state( $record ) { return is_array( $record ) ? array_intersect_key( $record, array_flip( array( 'subscription_uuid', 'plan_key', 'billing_interval', 'normalized_state', 'trial_starts_at', 'trial_ends_at', 'period_starts_at', 'period_ends_at', 'grace_ends_at', 'cancel_at_period_end', 'cancelled_at', 'ended_at', 'version' ) ) ) : array(); }
+    private static function subscription_audit_state( $record ) { return is_array( $record ) ? array_intersect_key( $record, array_flip( array( 'subscription_uuid', 'plan_key', 'billing_interval', 'normalized_state', 'trial_starts_at', 'trial_ends_at', 'period_starts_at', 'period_ends_at', 'grace_started_at', 'grace_ends_at', 'cancel_at_period_end', 'cancelled_at', 'ended_at', 'version' ) ) ) : array(); }
     private static function utc_or_null( $value ) { if ( ! is_string( $value ) || '' === trim( $value ) ) { return null; } try { return ( new DateTimeImmutable( $value, new DateTimeZone( 'UTC' ) ) )->setTimezone( new DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' ); } catch ( Exception $exception ) { return null; } }
     private static function error( $code ) { return new WP_Error( $code, __( 'L’enregistrement central ne peut pas être modifié.', 'faluss-subscriptions' ) ); }
 }

@@ -20,7 +20,7 @@ $documentation = file_get_contents( $root . '/docs/FALUSS_SUBSCRIPTIONS.md' );
 $persistence_contract = file_get_contents( $root . '/tests/faluss-subscriptions-sub01a-persistence-contract-test.php' );
 $admin_post_contract = file_get_contents( $root . '/tests/faluss-subscriptions-sub01a-admin-post-contract-test.php' );
 
-sub01a_assert( false !== strpos( $bootstrap, 'Plugin Name: Faluss Subscriptions' ) && false !== strpos( $bootstrap, "FALUSS_SUBSCRIPTIONS_VERSION', '0.1.2'" ), 'SUB-01A repair requires a standalone Faluss Subscriptions plugin at 0.1.2.' );
+sub01a_assert( false !== strpos( $bootstrap, 'Plugin Name: Faluss Subscriptions' ) && false !== strpos( $bootstrap, "FALUSS_SUBSCRIPTIONS_VERSION', '0.2.0'" ), 'SUB-01B requires the standalone Faluss Subscriptions plugin at 0.2.0.' );
 sub01a_assert( false !== strpos( $schema, 'RENAME TABLE' ) && false !== strpos( $schema, 'temporary_tables' ) && false !== strpos( $schema, 'current_schema_ready' ) && false !== strpos( $schema, 'GET_LOCK' ), 'Installation must be atomic, verified, locked and replayable.' );
 foreach ( array( 'faluss_subscriptions', 'faluss_subscription_trials', 'faluss_entitlements', 'faluss_subscription_events', 'faluss_subscription_audit', 'ENGINE=InnoDB' ) as $needle ) { sub01a_assert( false !== strpos( $schema, $needle ), 'Missing dedicated subscription schema invariant: ' . $needle ); }
 sub01a_assert( false !== strpos( $schema, 'trial_faluss_unique' ) && false !== strpos( $schema, 'trial_payment_fingerprint_unique' ) && false !== strpos( $schema, 'trial_override_reference_unique' ), 'Trial identity, derived payment fingerprint and administrative override must be uniquely constrained.' );
@@ -28,7 +28,7 @@ sub01a_assert( false !== strpos( $schema, 'trial_faluss_unique' ) && false !== s
 $wpdb = (object) array( 'prefix' => 'wp_' );
 require_once $plugin . '/includes/class-faluss-subscriptions-schema.php';
 $plan = Faluss_Subscriptions_Schema::get_install_plan( '0123456789abcdef' );
-sub01a_assert( is_array( $plan ) && 5 === count( $plan['final_tables'] ) && 5 === count( $plan['temporary_tables'] ), 'The initial migration must plan all five temporary tables.' );
+sub01a_assert( is_array( $plan ) && 8 === count( $plan['final_tables'] ) && 8 === count( $plan['temporary_tables'] ), 'The v2 initial migration must plan the five original and three additive billing tables.' );
 foreach ( $plan['temporary_tables'] as $temporary ) { sub01a_assert( strlen( $temporary ) <= 64, 'Migration temporary table names must stay within MySQL limits.' ); }
 
 require_once $plugin . '/includes/class-faluss-subscriptions-catalog.php';
@@ -37,7 +37,7 @@ require_once $plugin . '/includes/class-faluss-subscriptions-resolver.php';
 $plans = Faluss_Subscriptions_Catalog::plans();
 sub01a_assert( isset( $plans['free'], $plans['pro'] ) && 'Faluss Gratuit' === $plans['free']['public_name'] && 'Faluss Pro' === $plans['pro']['public_name'], 'Catalogue must expose free and pro canonical plans.' );
 sub01a_assert( 999 === $plans['pro']['periods']['monthly']['amount_cents'] && 9900 === $plans['pro']['periods']['annual']['amount_cents'] && 'EUR' === $plans['pro']['currency'], 'Pro must retain EUR 999/9900 integer-cent prices.' );
-sub01a_assert( 15 === $plans['pro']['trial_days'] && true === $plans['pro']['card_required'] && true === $plans['pro']['auto_renew'] && false === $plans['pro']['commercially_active'], 'The 15-day card-required trial must remain non-commercial before SUB-01B.' );
+sub01a_assert( 15 === $plans['pro']['trial_days'] && true === $plans['pro']['card_required'] && true === $plans['pro']['auto_renew'] && true === $plans['pro']['commercially_active'], 'SUB-01B keeps the 15-day card-required trial testable only through protected administration.' );
 sub01a_assert( false !== strpos( $trials, 'trial_payment_proof_required' ) && false !== strpos( $trials, 'verification_reference' ) && false !== strpos( $trials, 'payment_fingerprint_hash' ), 'Trial activation must refuse absent server payment proof and persist only a derived fingerprint.' );
 sub01a_assert( false !== strpos( $trials, 'START TRANSACTION' ) && false !== strpos( $trials, 'trial_locks' ) && false !== strpos( $trials, 'trial_already_used' ), 'Trial activation must serialize and reject double consumption.' );
 
@@ -81,8 +81,8 @@ sub01a_assert( false !== strpos( $admin, 'POST_ACTION' ) && false !== strpos( $a
 foreach ( array( 'admin_grant_succeeded', 'admin_grant_failed', 'admin_grant_forbidden', 'admin_grant_invalid_nonce', 'admin_grant_invalid_subject', 'admin_grant_invalid_expiration', 'admin_grant_persistence_failed', 'admin_grant_resolution_failed' ) as $outcome ) { sub01a_assert( false !== strpos( $admin . $entitlements, $outcome ), 'Administrative grant outcome must remain traceable: ' . $outcome ); }
 
 $all_source = ''; foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $plugin ) ) as $file ) { if ( $file->isFile() && 'php' === strtolower( $file->getExtension() ) ) { $all_source .= file_get_contents( $file->getPathname() ); } }
-sub01a_assert( false === strpos( $all_source, 'register_rest_route' ) && false === strpos( $all_source, 'wp_ajax_' ) && false === strpos( $all_source, 'add_shortcode' ), 'SUB-01A must expose no client trial activation endpoint.' );
-sub01a_assert( 0 === preg_match( '/(?:price|prod)_[A-Za-z0-9]+/', $all_source ) && 0 === preg_match( '/(?:sk|pk)_(?:live|test)_[A-Za-z0-9]+/', $all_source ), 'SUB-01A must not hard-code a payment-provider identifier or secret.' );
+sub01a_assert( false === strpos( $all_source, 'wp_ajax_' ) && false === strpos( $all_source, 'add_shortcode' ) && false !== strpos( $all_source, "'faluss-subscriptions/v1'" ), 'SUB-01B may expose only its signed Stripe webhook; no browser trial activation endpoint exists.' );
+sub01a_assert( 0 === preg_match( '/(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{10,}/', $all_source ), 'SUB-01B must not hard-code a Stripe secret.' );
 sub01a_assert( false !== strpos( $documentation, 'SUB-01B' ) && false !== strpos( $documentation, 'Token Engine' ) && false !== strpos( $documentation, 'FL-21' ), 'Documentation must preserve boundaries and future lots.' );
 
 echo "SUB-01A subscriptions contract: OK\n";

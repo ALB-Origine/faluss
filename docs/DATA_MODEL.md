@@ -58,11 +58,14 @@ La donnée `subject_id` reste générique. Le connecteur Faluss futur fournira u
 
 | Table | Clés / contenu |
 |---|---|
-| `faluss_subscriptions` | UUID interne, Faluss ID opaque, fournisseur et références, plan/période, statut normalisé, essai/périodes/délai, annulation, synchronisation et version |
+| `faluss_subscriptions` | UUID interne, Faluss ID opaque, fournisseur et références, plan/période, statut normalisé, essai/périodes, ancre/fin de grâce, annulation, synchronisation et version |
 | `faluss_subscription_trials` | Faluss ID et empreinte dérivée du moyen de paiement uniques, éligibilité, cycle de vie, preuve serveur de vérification et dérogation auditée |
 | `faluss_entitlements` | droit, valeur, source, référence idempotente, priorité, dates, statut et version liés au Faluss ID |
 | `faluss_subscription_events` | fournisseur et événement uniques, type, état de traitement, tentatives, empreinte de payload et erreur nettoyée |
 | `faluss_subscription_audit` | acteur, action, Faluss ID, source, états nettoyés, justification et UTC |
+| `faluss_billing_customers` | lien unique Faluss ID ↔ Customer fournisseur ; aucune adresse e-mail ni moyen de paiement |
+| `faluss_billing_checkout_sessions` | état opaque, clé d’idempotence, références de session/customer et expiration ; aucune URL Stripe ou donnée de carte |
+| `faluss_subscription_notifications` | file de notification par référence hachée ; aucun destinataire, contenu ou e-mail persistant |
 
 Ces tables sont propres à `faluss.com`. Elles ne dupliquent ni profil,
 e-mail, carte, contenu de carte publique, solde ALB, achat permanent ou

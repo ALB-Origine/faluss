@@ -55,9 +55,11 @@ spécifiée, validée et révocable.
 
 Faluss Identity ne porte ni abonnement, ni portefeuille ALB ni cosmétique. Faluss.me consommera ultérieurement des droits d’abonnement et un inventaire cosmétique propres à sa carte publique ; les objets acquis avec ALB ou progression restent possédés, tandis que les avantages inclus à l’abonnement sont temporaires.
 
-SUB-01A ne crée ni paiement, ni Checkout, ni webhook, ni connecteur Faluss.me.
-Il ne modifie pas les droits existants de Token Engine et ne change aucune
-fonction gratuite de Faluss Link.
+SUB-01B ajoute dans Faluss Subscriptions l’adaptateur Stripe central serveur :
+Customer lié au Faluss ID opaque, Checkout et Customer Portal hébergés, webhook
+Stripe signé, migration additive et résolution d’états. Aucun appelant membre,
+bouton de vente, connecteur Faluss.me ou projection Link n’est livré : les
+services restent privés et la sandbox est réservée à l’administration test.
 
 ## Économie partagée
 
