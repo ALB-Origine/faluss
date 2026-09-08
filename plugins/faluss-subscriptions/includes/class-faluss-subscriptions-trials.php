@@ -72,29 +72,41 @@ final class Faluss_Subscriptions_Trials {
         $faluss_id = self::faluss_id( $faluss_id );
         $reason = self::bounded( $reason, 191 );
         $operation_reference = self::bounded( $operation_reference, 191 );
-        if ( ! Faluss_Subscriptions_Schema::is_ready() || ! $faluss_id || '' === $reason || '' === $operation_reference ) {
+        if ( ! Faluss_Subscriptions_Schema::is_ready() ) {
+            return self::error( 'schema_not_ready' );
+        }
+        if ( ! $faluss_id || '' === $reason || '' === $operation_reference ) {
             return self::error( 'trial_override_invalid' );
         }
         $locks = self::trial_locks( $faluss_id, '' );
         if ( ! self::acquire_locks( $locks ) ) { return self::error( 'trial_override_busy' ); }
         try {
+            if ( false === $wpdb->query( 'START TRANSACTION' ) ) { return self::error( 'trial_override_failed' ); }
             $table = Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::trials_table() );
-            $by_reference = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . $table . ' WHERE admin_override_reference=%s LIMIT 1', $operation_reference ), ARRAY_A );
+            $by_reference = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . $table . ' WHERE admin_override_reference=%s LIMIT 1 FOR UPDATE', $operation_reference ), ARRAY_A );
             if ( is_array( $by_reference ) ) {
+                $wpdb->query( 'COMMIT' );
                 return (string) $by_reference['faluss_id'] === $faluss_id ? $by_reference : self::error( 'trial_override_reference_conflict' );
             }
-            $existing = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . $table . ' WHERE faluss_id=%s LIMIT 1', $faluss_id ), ARRAY_A );
-            if ( is_array( $existing ) && 'eligible' !== (string) $existing['trial_state'] ) { return self::error( 'trial_already_used' ); }
+            $existing = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . $table . ' WHERE faluss_id=%s LIMIT 1 FOR UPDATE', $faluss_id ), ARRAY_A );
+            if ( is_array( $existing ) && 'eligible' !== (string) $existing['trial_state'] ) { $wpdb->query( 'ROLLBACK' ); return self::error( 'trial_already_used' ); }
             $now = gmdate( 'Y-m-d H:i:s' );
             if ( is_array( $existing ) ) {
                 $written = $wpdb->update( Faluss_Subscriptions_Schema::trials_table(), array( 'eligibility_status' => 'admin_override', 'admin_override_reason' => $reason, 'admin_override_reference' => $operation_reference, 'updated_at' => $now ), array( 'id' => (int) $existing['id'] ) );
             } else {
                 $written = $wpdb->insert( Faluss_Subscriptions_Schema::trials_table(), array( 'trial_uuid' => wp_generate_uuid4(), 'faluss_id' => $faluss_id, 'eligibility_status' => 'admin_override', 'trial_state' => 'eligible', 'admin_override_reason' => $reason, 'admin_override_reference' => $operation_reference, 'created_at' => $now, 'updated_at' => $now ) );
             }
-            if ( false === $written ) { return self::error( 'trial_override_failed' ); }
+            if ( false === $written ) { $wpdb->query( 'ROLLBACK' ); return self::error( 'trial_override_failed' ); }
             $trial = Faluss_Subscriptions_Repository::trial_for_faluss_id( $faluss_id );
-            Faluss_Subscriptions_Audit::record( $actor_user_id, 'trial_eligibility_overridden', $faluss_id, 'admin_grant', is_array( $existing ) ? self::audit_state( $existing ) : array(), self::audit_state( $trial ), $reason );
-            return is_array( $trial ) ? $trial : self::error( 'trial_override_failed' );
+            if ( ! is_array( $trial ) || (string) ( $trial['faluss_id'] ?? '' ) !== $faluss_id || 'admin_override' !== ( $trial['eligibility_status'] ?? '' ) ) { $wpdb->query( 'ROLLBACK' ); return self::error( 'trial_override_failed' ); }
+            $audit = Faluss_Subscriptions_Audit::record( $actor_user_id, 'trial_eligibility_overridden', $faluss_id, 'admin_grant', is_array( $existing ) ? self::audit_state( $existing ) : array(), self::audit_state( $trial ), $reason );
+            if ( is_wp_error( $audit ) || false === $audit ) { $wpdb->query( 'ROLLBACK' ); return self::error( 'trial_override_audit_failed' ); }
+            if ( false === $wpdb->query( 'COMMIT' ) ) { $wpdb->query( 'ROLLBACK' ); return self::error( 'trial_override_failed' ); }
+            $trial = Faluss_Subscriptions_Repository::trial_for_faluss_id( $faluss_id );
+            return is_array( $trial ) && 'admin_override' === ( $trial['eligibility_status'] ?? '' ) ? $trial : self::error( 'trial_override_failed' );
+        } catch ( Exception $exception ) {
+            $wpdb->query( 'ROLLBACK' );
+            return self::error( 'trial_override_failed' );
         } finally {
             self::release_locks( $locks );
         }

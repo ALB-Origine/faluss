@@ -27,7 +27,7 @@ final class Faluss_Subscriptions_Schema {
     public static function deactivate() {}
 
     public static function is_ready() {
-        return self::VERSION === get_option( self::OPTION ) && self::current_schema_ready();
+        return self::VERSION === (string) get_option( self::OPTION ) && self::current_schema_ready();
     }
 
     /** Re-running installation is safe. Partial or divergent existing schemas fail closed. */
@@ -100,7 +100,22 @@ final class Faluss_Subscriptions_Schema {
             'stored_version' => get_option( self::OPTION ),
             'ready' => self::is_ready(),
             'tables' => self::tables(),
+            'inspection' => self::inspect_tables(),
         );
+    }
+
+    /**
+     * Safe schema evidence for the administration diagnostics. It intentionally
+     * contains only structure metadata, never database errors or member data.
+     *
+     * @return array<string,array<string,mixed>>
+     */
+    public static function inspect_tables() {
+        $inspection = array();
+        foreach ( self::tables() as $name => $table ) {
+            $inspection[ $name ] = self::inspect_table( $name, $table );
+        }
+        return $inspection;
     }
 
     public static function quote_identifier( $identifier ) {
@@ -180,41 +195,73 @@ final class Faluss_Subscriptions_Schema {
     }
 
     private static function verify_table( $name, $table ) {
+        $inspection = self::inspect_table( $name, $table );
+        return ! empty( $inspection['ready'] );
+    }
+
+    /** @return array<string,mixed> */
+    private static function inspect_table( $name, $table ) {
         global $wpdb;
-        $status = $wpdb->get_row( $wpdb->prepare( 'SHOW TABLE STATUS LIKE %s', $table ), ARRAY_A );
-        if ( ! is_array( $status ) || 0 !== strcasecmp( 'InnoDB', (string) ( $status['Engine'] ?? '' ) ) ) {
-            return false;
+        $result = array(
+            'table' => $table,
+            'exists' => self::table_exists( $table ),
+            'engine' => '',
+            'columns_expected' => 0,
+            'columns_actual' => 0,
+            'indexes_expected' => 0,
+            'indexes_actual' => 0,
+            'ready' => false,
+        );
+        if ( empty( $result['exists'] ) ) {
+            return $result;
         }
+        $status = $wpdb->get_row( $wpdb->prepare( 'SHOW TABLE STATUS LIKE %s', $table ), ARRAY_A );
+        $result['engine'] = is_array( $status ) ? (string) ( $status['Engine'] ?? '' ) : '';
         $expected = self::expected_schema()[ $name ] ?? null;
         $actual = $wpdb->get_results( 'SHOW FULL COLUMNS FROM ' . self::quote_identifier( $table ), ARRAY_A );
-        if ( ! is_array( $expected ) || ! is_array( $actual ) || count( $actual ) !== count( $expected['columns'] ) ) {
-            return false;
+        $result['columns_expected'] = is_array( $expected ) ? count( $expected['columns'] ) : 0;
+        $result['columns_actual'] = is_array( $actual ) ? count( $actual ) : 0;
+        if ( ! is_array( $status ) || 0 !== strcasecmp( 'InnoDB', $result['engine'] ) || ! is_array( $expected ) || ! is_array( $actual ) || $result['columns_actual'] !== $result['columns_expected'] ) {
+            return $result;
         }
         foreach ( $actual as $column ) {
             $field = $column['Field'] ?? '';
-            if ( ! isset( $expected['columns'][ $field ] ) || strtolower( (string) ( $column['Type'] ?? '' ) ) !== $expected['columns'][ $field ][0] || strtoupper( (string) ( $column['Null'] ?? '' ) ) !== $expected['columns'][ $field ][1] ) {
-                return false;
+            if ( ! isset( $expected['columns'][ $field ] ) || ! self::types_match( (string) ( $column['Type'] ?? '' ), $expected['columns'][ $field ][0] ) || strtoupper( (string) ( $column['Null'] ?? '' ) ) !== $expected['columns'][ $field ][1] ) {
+                return $result;
             }
         }
         $found = array();
         foreach ( (array) $wpdb->get_results( 'SHOW INDEX FROM ' . self::quote_identifier( $table ), ARRAY_A ) as $index ) {
             $key = $index['Key_name'] ?? '';
-            if ( '' === $key ) { return false; }
+            if ( '' === $key ) { return $result; }
             $found[ $key ][] = $index;
         }
-        if ( count( $found ) !== count( $expected['indexes'] ) || array_diff( array_keys( $expected['indexes'] ), array_keys( $found ) ) ) {
-            return false;
+        $result['indexes_expected'] = count( $expected['indexes'] );
+        $result['indexes_actual'] = count( $found );
+        if ( $result['indexes_actual'] !== $result['indexes_expected'] || array_diff( array_keys( $expected['indexes'] ), array_keys( $found ) ) ) {
+            return $result;
         }
         foreach ( $expected['indexes'] as $key => $definition ) {
-            if ( count( $found[ $key ] ) !== count( $definition['columns'] ) ) { return false; }
+            if ( count( $found[ $key ] ) !== count( $definition['columns'] ) ) { return $result; }
             usort( $found[ $key ], static function( $left, $right ) { return (int) $left['Seq_in_index'] <=> (int) $right['Seq_in_index']; } );
             foreach ( $found[ $key ] as $position => $index ) {
                 if ( (int) $index['Non_unique'] !== ( $definition['unique'] ? 0 : 1 ) || $definition['columns'][ $position ] !== ( $index['Column_name'] ?? '' ) ) {
-                    return false;
+                    return $result;
                 }
             }
         }
-        return true;
+        $result['ready'] = true;
+        return $result;
+    }
+
+    /** MySQL 8 omits legacy integer display widths from SHOW FULL COLUMNS. */
+    private static function types_match( $actual, $expected ) {
+        return self::normalise_type( $actual ) === self::normalise_type( $expected );
+    }
+
+    private static function normalise_type( $type ) {
+        $type = strtolower( trim( (string) $type ) );
+        return preg_replace( '/\\b(tinyint|smallint|mediumint|int|bigint)\\(\\d+\\)/', '$1', $type );
     }
 
     /** @return array<string,array<string,mixed>> */

@@ -90,14 +90,18 @@ vérifiés strictement :
 La migration v1 crée des tables temporaires, vérifie leur moteur, colonnes et
 index, puis les promeut dans un unique `RENAME TABLE`. Elle est rejouable : un
 schéma complet identique est simplement revalidé ; un schéma partiel ou divergent
-échoue fermé et n’est ni supprimé ni réparé automatiquement. La désactivation du
-plugin ne supprime aucune donnée ; aucune désinstallation destructive n’est
-fournie.
+échoue fermé et n’est ni supprimé ni réparé automatiquement. La vérification
+tolère uniquement l’absence des anciennes largeurs d’affichage d’entiers dans
+`SHOW FULL COLUMNS` (par exemple `bigint unsigned` au lieu de
+`bigint(20) unsigned` sous MySQL 8) ; moteur, colonnes, nullabilité, index et
+unicité restent vérifiés strictement. La désactivation du plugin ne supprime
+aucune donnée ; aucune désinstallation destructive n’est fournie.
 
 ## Administration
 
 La capacité `manage_faluss_subscriptions` est donnée seulement au rôle
-`administrator` à l’activation. Les actions sont toutes des POST authentifiés,
+`administrator` à l’activation et réparée sans élargissement de rôle à chaque
+initialisation d’administration. Les actions sont toutes des POST authentifiés,
 avec capacité, nonce, validation, échappement, audit et en-têtes no-cache :
 
 - consulter le catalogue immuable, les états calculés, essais, événements,
@@ -108,6 +112,19 @@ avec capacité, nonce, validation, échappement, audit et en-têtes no-cache :
 - révoquer une attribution administrative avec justification ;
 - enregistrer une dérogation d’éligibilité à l’essai ;
 - relancer une vérification sûre de migration et diagnostic.
+
+Une attribution, révocation ou dérogation n’est considérée comme réussie qu’après
+écriture, relecture et audit dans la même transaction. Une erreur annule la
+mutation et donne une notification locale, explicite et sans SQL, secret ni détail
+interne. Les notifications PRG sont stockées brièvement par administrateur,
+consommées une seule fois après redirection et ne placent ni résultat ni Faluss ID
+dans l’URL. Le membre ciblé est repris depuis cette notification afin que le droit
+calculé soit relu immédiatement.
+
+Le champ `datetime-local` est saisi dans le fuseau du site WordPress puis converti
+en UTC avant la persistance. L’écran Diagnostics expose pour chacune des cinq
+tables son nom, moteur, volumes de colonnes et d’index, et son état de conformité,
+sans divulguer d’erreur SQL.
 
 L’administration ne permet jamais de modifier directement le statut d’un
 fournisseur, les montants, une carte ou un abonnement fournisseur.
