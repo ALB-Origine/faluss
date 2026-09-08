@@ -53,3 +53,18 @@ ONB-02 ne crée aucune table Faluss Link : `faluss_link_cards` porte les préfé
 | `token_engine_entitlement_grants` | UUID unique, `subject_id`, définition, source manuelle, référence d’opération unique, cycle de vie (début/fin/révocation) et dates ; aucun solde ni ledger dupliqué |
 
 La donnée `subject_id` reste générique. Le connecteur Faluss futur fournira un `faluss_id`, sans que cette table ne copie une identité, un e-mail ou des données métier.
+
+## Faluss Subscriptions
+
+| Table | Clés / contenu |
+|---|---|
+| `faluss_subscriptions` | UUID interne, Faluss ID opaque, fournisseur et références, plan/période, statut normalisé, essai/périodes/délai, annulation, synchronisation et version |
+| `faluss_subscription_trials` | Faluss ID et empreinte dérivée du moyen de paiement uniques, éligibilité, cycle de vie, preuve serveur de vérification et dérogation auditée |
+| `faluss_entitlements` | droit, valeur, source, référence idempotente, priorité, dates, statut et version liés au Faluss ID |
+| `faluss_subscription_events` | fournisseur et événement uniques, type, état de traitement, tentatives, empreinte de payload et erreur nettoyée |
+| `faluss_subscription_audit` | acteur, action, Faluss ID, source, états nettoyés, justification et UTC |
+
+Ces tables sont propres à `faluss.com`. Elles ne dupliquent ni profil,
+e-mail, carte, contenu de carte publique, solde ALB, achat permanent ou
+cosmétique. Leur schéma, leurs sources de droits et leurs transitions sont
+définis dans [`FALUSS_SUBSCRIPTIONS.md`](FALUSS_SUBSCRIPTIONS.md).

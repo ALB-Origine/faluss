@@ -71,3 +71,17 @@ Après une identité passwordless active, un membre choisit explicitement de cr�
 ## ONB-02 — Création guidée de carte
 
 Après la réservation ONB-01, la page Elementor d’onboarding devient un assistant repris à la dernière étape : nom, avatar facultatif, en-tête, style, réseaux, liens puis publication explicite. Il réutilise les tables et le rendu de Faluss Identity et Faluss Link ; aucun profil, média, lien ou préférence n’est dupliqué. Un brouillon n’est jamais public et la finalisation idempotente ouvre ensuite Studio Faluss.
+
+## SUB-01A — Fondation centrale Gratuit/Pro — livré
+
+Faluss Subscriptions est installé sur `faluss.com` comme autorité centrale du
+catalogue Gratuit/Pro, des essais, des droits de niveau, des attributions
+administratives, des audits et diagnostics. SUB-01A ne livre ni paiement, ni
+Checkout, ni webhook, ni portail client, ni bannière, ni consommation de droit
+dans Faluss Link. Voir [`FALUSS_SUBSCRIPTIONS.md`](FALUSS_SUBSCRIPTIONS.md).
+
+## SUB-01B à SUB-01D — Abonnements — à réaliser
+
+SUB-01B ajoutera les adaptateurs serveur de paiement et événements
+idempotents ; SUB-01C le portail et les cycles membres ; SUB-01D les contrats
+de connecteurs intersites. Ces lots restent non livrés par SUB-01A.
