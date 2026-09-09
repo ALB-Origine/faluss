@@ -14,6 +14,10 @@ final class Faluss_Identity_Authorization {
     const TOKEN_QUERY_VAR = 'faluss_identity_token';
     const REQUEST_COOKIE = 'faluss_identity_authorization';
     const REQUEST_TTL = 600;
+    // A deferred first-party request keeps only its existing opaque request
+    // handle while the member completes the canonical Faluss.me onboarding.
+    // The authorization code itself remains short-lived.
+    const ONBOARDING_REQUEST_TTL = 3600;
     const CODE_TTL = 60;
     const STYLE_HANDLE = 'faluss-identity-authorization';
     const SCOPE_BASIC = 'identity.basic';
@@ -123,7 +127,7 @@ final class Faluss_Identity_Authorization {
             self::resume_or_login();
         }
 
-        $request = self::request_from_cookie();
+        $request = self::request_from_cookie( array( 'pending', 'onboarding' ) );
         if ( null === $request ) {
             self::render_error( __( 'Cette demande d’autorisation a expiré. Recommencez depuis l’application.', 'faluss-identity' ), 400 );
         }
@@ -138,7 +142,7 @@ final class Faluss_Identity_Authorization {
             exit;
         }
         if ( null === $request ) {
-            $request = self::request_from_cookie();
+            $request = self::request_from_cookie( array( 'pending', 'onboarding' ) );
         }
         $faluss_id = Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() );
         if ( null === $faluss_id ) {
@@ -146,13 +150,16 @@ final class Faluss_Identity_Authorization {
             self::render_error( __( 'Votre session Faluss ne permet pas cette autorisation.', 'faluss-identity' ), 403 );
         }
         if ( self::first_party_auto_approval_allowed( $request ) ) {
-            self::complete_authorization( $request, $faluss_id, true );
+            if ( ! self::member_has_completed_onboarding() ) {
+                self::defer_for_onboarding( $request );
+            }
+            self::complete_authorization( $request, $faluss_id, true, array( 'pending', 'onboarding' ) );
         }
         self::render_consent( $request, $faluss_id );
     }
 
     private static function handle_consent() {
-        $request = self::request_from_cookie();
+        $request = self::request_from_cookie( array( 'pending' ) );
         $faluss_id = is_user_logged_in() ? Faluss_Identity_Registry::get_active_for_wp_user( get_current_user_id() ) : null;
         $nonce = isset( $_POST['faluss_identity_authorization_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['faluss_identity_authorization_nonce'] ) ) : '';
         if ( null === $request || null === $faluss_id || ! wp_verify_nonce( $nonce, 'faluss_identity_authorization_' . $request['request_hash'] ) ) {
@@ -220,7 +227,13 @@ final class Faluss_Identity_Authorization {
         return null;
     }
 
-    private static function request_from_cookie() {
+    /**
+     * @param array<int, string> $allowed_statuses
+     * @return array<string, mixed>|null
+     */
+    private static function request_from_cookie( $allowed_statuses = array( 'pending' ) ) {
+        $allowed_statuses = is_array( $allowed_statuses ) ? array_values( array_filter( $allowed_statuses, static function( $status ) { return in_array( $status, array( 'pending', 'onboarding' ), true ); } ) ) : array();
+        if ( empty( $allowed_statuses ) ) { return null; }
         if ( empty( $_COOKIE[ self::REQUEST_COOKIE ] ) || ! is_string( $_COOKIE[ self::REQUEST_COOKIE ] ) ) { return null; }
         $raw = self::base64url_decode( $_COOKIE[ self::REQUEST_COOKIE ] );
         if ( ! is_string( $raw ) || 32 !== strlen( $raw ) ) { return null; }
@@ -228,7 +241,7 @@ final class Faluss_Identity_Authorization {
         $table = Faluss_Identity_Schema::get_authorization_requests_table();
         if ( '' === $table ) { return null; }
         $row = $wpdb->get_row( $wpdb->prepare( 'SELECT request_hash, client_id, redirect_uri, scopes, pkce_challenge, state, status, expires_at FROM ' . self::quote_identifier( $table ) . ' WHERE request_hash = %s', hash( 'sha256', $raw ) ), ARRAY_A );
-        if ( ! is_array( $row ) || 'pending' !== $row['status'] || ! self::future( $row['expires_at'] ) || ! self::valid_redirect_uri( $row['redirect_uri'] ) || ! self::is_valid_pkce_challenge( $row['pkce_challenge'] ) ) { return null; }
+        if ( ! is_array( $row ) || ! in_array( $row['status'], $allowed_statuses, true ) || ! self::future( $row['expires_at'] ) || ! self::valid_redirect_uri( $row['redirect_uri'] ) || ! self::is_valid_pkce_challenge( $row['pkce_challenge'] ) ) { return null; }
         $scopes = self::normalize_scopes( $row['scopes'] );
         $client = self::find_client( $row['client_id'] );
         if ( null === $scopes || null === $client || ! self::client_allows_redirect( $client, $row['redirect_uri'] ) || ! empty( array_diff( $scopes, $client['allowed_scopes'] ) ) ) { return null; }
@@ -238,13 +251,16 @@ final class Faluss_Identity_Authorization {
     }
 
     /** @param array<string, mixed> $request */
-    private static function approve_and_issue_code( $request, $faluss_id ) {
+    /** @param array<string, mixed> $request @param array<int, string> $allowed_statuses */
+    private static function approve_and_issue_code( $request, $faluss_id, $allowed_statuses = array( 'pending' ) ) {
+        $allowed_statuses = is_array( $allowed_statuses ) ? array_values( array_filter( $allowed_statuses, static function( $status ) { return in_array( $status, array( 'pending', 'onboarding' ), true ); } ) ) : array();
+        if ( empty( $allowed_statuses ) ) { return null; }
         global $wpdb;
         $tables = Faluss_Identity_Schema::get_table_names();
         if ( empty( $tables['auth_codes'] ) || false === $wpdb->query( 'START TRANSACTION' ) ) { return null; }
         try {
             $locked = $wpdb->get_row( $wpdb->prepare( 'SELECT id, status, expires_at FROM ' . self::quote_identifier( Faluss_Identity_Schema::get_authorization_requests_table() ) . ' WHERE request_hash = %s FOR UPDATE', $request['request_hash'] ), ARRAY_A );
-            if ( ! is_array( $locked ) || 'pending' !== $locked['status'] || ! self::future( $locked['expires_at'] ) ) { $wpdb->query( 'ROLLBACK' ); return null; }
+            if ( ! is_array( $locked ) || ! in_array( $locked['status'], $allowed_statuses, true ) || ! self::future( $locked['expires_at'] ) ) { $wpdb->query( 'ROLLBACK' ); return null; }
             for ( $attempt = 0; $attempt < 3; ++$attempt ) {
                 try { $code = self::base64url_encode( random_bytes( 32 ) ); } catch ( Exception $exception ) { $wpdb->query( 'ROLLBACK' ); return null; }
                 $inserted = $wpdb->query( $wpdb->prepare(
@@ -252,7 +268,7 @@ final class Faluss_Identity_Authorization {
                     hash( 'sha256', $code ), $faluss_id, $request['client_id'], $request['redirect_uri'], $request['pkce_challenge'], implode( ' ', $request['scopes'] ), gmdate( 'Y-m-d H:i:s', time() + self::CODE_TTL ), gmdate( 'Y-m-d H:i:s' )
                 ) );
                 if ( 1 === $inserted ) {
-                    $updated = $wpdb->query( $wpdb->prepare( 'UPDATE ' . self::quote_identifier( Faluss_Identity_Schema::get_authorization_requests_table() ) . ' SET status = %s, updated_at = %s WHERE id = %d AND status = %s', 'approved', gmdate( 'Y-m-d H:i:s' ), (int) $locked['id'], 'pending' ) );
+                    $updated = $wpdb->query( $wpdb->prepare( 'UPDATE ' . self::quote_identifier( Faluss_Identity_Schema::get_authorization_requests_table() ) . ' SET status = %s, updated_at = %s WHERE id = %d AND status = %s', 'approved', gmdate( 'Y-m-d H:i:s' ), (int) $locked['id'], $locked['status'] ) );
                     if ( 1 === $updated && false !== $wpdb->query( 'COMMIT' ) ) { self::record_audit( 'authorization_code_issued', $request['client_id'] ); return $code; }
                     $wpdb->query( 'ROLLBACK' ); return null;
                 }
@@ -345,9 +361,82 @@ final class Faluss_Identity_Authorization {
             && in_array( self::SCOPE_BASIC, $request['scopes'], true );
     }
 
+    /**
+     * Answers only with an internal route. The original client, callback,
+     * state and PKCE challenge remain in the server-side request ledger until
+     * this route resumes the authorization.
+     *
+     * @return string
+     */
+    public static function pending_onboarding_resume_url() {
+        if ( ! is_user_logged_in() ) { return ''; }
+        $request = self::request_from_cookie( array( 'onboarding' ) );
+        if ( null === $request || ! self::first_party_auto_approval_allowed( $request ) || ! self::member_has_completed_onboarding() ) {
+            return '';
+        }
+        return home_url( '/oauth/authorize/' );
+    }
+
+    /**
+     * Faluss.com can be auto-approved only after Faluss.me has recorded the
+     * member's own onboarding decision. A missing onboarding owner fails
+     * closed rather than treating a card (or its absence) as a decision.
+     */
+    private static function member_has_completed_onboarding() {
+        return class_exists( 'Faluss_Identity_Onboarding' )
+            && method_exists( 'Faluss_Identity_Onboarding', 'current_member_has_completed_onboarding' )
+            && Faluss_Identity_Onboarding::current_member_has_completed_onboarding();
+    }
+
     /** @param array<string, mixed> $request */
-    private static function complete_authorization( $request, $faluss_id, $automatic ) {
-        $code = self::approve_and_issue_code( $request, $faluss_id );
+    private static function defer_for_onboarding( $request ) {
+        if ( ! class_exists( 'Faluss_Identity_Onboarding' ) || ! is_array( $request ) || empty( $request['request_hash'] ) ) {
+            self::render_error( __( 'Le parcours Faluss est momentanément indisponible.', 'faluss-identity' ), 503 );
+        }
+        global $wpdb;
+        $table = Faluss_Identity_Schema::get_authorization_requests_table();
+        if ( '' === $table || false === $wpdb->query( 'START TRANSACTION' ) ) {
+            self::render_error( __( 'Cette demande ne peut pas être reprise pour le moment.', 'faluss-identity' ), 503 );
+        }
+        $deferred = false;
+        $expires_at = '';
+        try {
+            $locked = $wpdb->get_row( $wpdb->prepare( 'SELECT id, status, expires_at FROM ' . self::quote_identifier( $table ) . ' WHERE request_hash = %s FOR UPDATE', $request['request_hash'] ), ARRAY_A );
+            if ( ! is_array( $locked ) || ! in_array( $locked['status'], array( 'pending', 'onboarding' ), true ) || ! self::future( $locked['expires_at'] ) ) {
+                $wpdb->query( 'ROLLBACK' );
+                self::clear_request_cookie();
+                self::render_error( __( 'Cette demande d’autorisation a expiré. Recommencez depuis l’application.', 'faluss-identity' ), 400 );
+            }
+            if ( 'pending' === $locked['status'] ) {
+                $expires_at = gmdate( 'Y-m-d H:i:s', time() + self::ONBOARDING_REQUEST_TTL );
+                $updated = $wpdb->query( $wpdb->prepare( 'UPDATE ' . self::quote_identifier( $table ) . ' SET status = %s, expires_at = %s, updated_at = %s WHERE id = %d AND status = %s', 'onboarding', $expires_at, gmdate( 'Y-m-d H:i:s' ), (int) $locked['id'], 'pending' ) );
+                if ( 1 !== $updated ) {
+                    $wpdb->query( 'ROLLBACK' );
+                    self::render_error( __( 'Cette demande ne peut pas être reprise pour le moment.', 'faluss-identity' ), 503 );
+                }
+                $deferred = true;
+            } else {
+                $expires_at = $locked['expires_at'];
+            }
+            if ( false === $wpdb->query( 'COMMIT' ) ) {
+                $wpdb->query( 'ROLLBACK' );
+                self::render_error( __( 'Cette demande ne peut pas être reprise pour le moment.', 'faluss-identity' ), 503 );
+            }
+        } catch ( Exception $exception ) {
+            $wpdb->query( 'ROLLBACK' );
+            self::render_error( __( 'Cette demande ne peut pas être reprise pour le moment.', 'faluss-identity' ), 503 );
+        }
+        if ( $deferred ) {
+            self::record_audit( 'authorization_deferred_for_onboarding', $request['client_id'] );
+        }
+        self::refresh_request_cookie( $expires_at );
+        wp_safe_redirect( Faluss_Identity_Onboarding::onboarding_url() );
+        exit;
+    }
+
+    /** @param array<string, mixed> $request @param array<int, string> $allowed_statuses */
+    private static function complete_authorization( $request, $faluss_id, $automatic, $allowed_statuses = array( 'pending' ) ) {
+        $code = self::approve_and_issue_code( $request, $faluss_id, $allowed_statuses );
         self::clear_request_cookie();
         if ( null === $code ) {
             self::render_error( __( 'Cette demande ne peut plus être autorisée. Recommencez depuis l’application.', 'faluss-identity' ), 400 );
@@ -422,6 +511,15 @@ final class Faluss_Identity_Authorization {
     private static function future( $value ) { return is_string( $value ) && 1 === preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $value ) && $value > gmdate( 'Y-m-d H:i:s' ); }
     private static function is_opaque_code( $code ) { return is_string( $code ) && 1 === preg_match( '/^[A-Za-z0-9_-]{43}$/D', $code ); }
     private static function write_request_cookie( $value ) { setcookie( self::REQUEST_COOKIE, $value, self::cookie_options( time() + self::REQUEST_TTL ) ); $_COOKIE[ self::REQUEST_COOKIE ] = $value; }
+    private static function refresh_request_cookie( $expires_at ) {
+        $value = isset( $_COOKIE[ self::REQUEST_COOKIE ] ) && is_string( $_COOKIE[ self::REQUEST_COOKIE ] ) ? $_COOKIE[ self::REQUEST_COOKIE ] : '';
+        $expires = is_string( $expires_at ) ? strtotime( $expires_at . ' UTC' ) : false;
+        if ( '' === $value || false === $expires || $expires <= time() ) {
+            self::clear_request_cookie();
+            return;
+        }
+        setcookie( self::REQUEST_COOKIE, $value, self::cookie_options( $expires ) );
+    }
     private static function clear_request_cookie() { setcookie( self::REQUEST_COOKIE, '', self::cookie_options( time() - 3600 ) ); unset( $_COOKIE[ self::REQUEST_COOKIE ] ); }
     private static function cookie_options( $expires ) { return array( 'expires' => $expires, 'path' => defined( 'COOKIEPATH' ) && COOKIEPATH ? COOKIEPATH : '/', 'domain' => defined( 'COOKIE_DOMAIN' ) ? COOKIE_DOMAIN : '', 'secure' => true, 'httponly' => true, 'samesite' => 'Lax' ); }
     private static function base64url_encode( $value ) { return rtrim( strtr( base64_encode( $value ), '+/', '-_' ), '=' ); }

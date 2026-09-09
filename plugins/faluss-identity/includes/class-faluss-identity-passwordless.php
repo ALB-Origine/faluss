@@ -720,8 +720,9 @@ final class Faluss_Identity_Passwordless {
     }
 
     /**
-     * SSO's local authorize route is deliberately resolved before a generic
-     * onboarding intent. No external redirect is ever accepted here.
+     * SSO's local authorize route is deliberately resumed before a generic
+     * onboarding intent. Authorization then applies Faluss.me's canonical
+     * onboarding gate; no external redirect is accepted here.
      */
     private static function post_authentication_redirect( $fallback ) {
         $fallback = self::local_redirect( $fallback );

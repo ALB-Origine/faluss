@@ -34,7 +34,15 @@ Les données restent exclusivement dans leurs propriétaires canoniques :
 
 L’avatar est facultatif. Son envoi est une action explicite, protégée par nonce, réservée au membre connecté et limitée à une image dont il est l’auteur. Le profil Identity ne conserve que l’identifiant de la pièce jointe validée ; aucune image n’est supprimée automatiquement si le parcours est interrompu ou si le membre revient en arrière.
 
-Les réseaux sont choisis dans le catalogue Faluss actif puis validés comme URL HTTPS (ou comme identifiant converti vers l’URL HTTPS connue du réseau). Les liens libres utilisent exclusivement HTTPS. Un brouillon ne devient jamais public. L’action finale publie explicitement le profil Identity, marque l’état ONB-01 terminé de façon idempotente, puis renvoie vers `/mon-faluss/`.
+Les réseaux sont choisis dans le catalogue Faluss actif puis validés comme URL HTTPS (ou comme identifiant converti vers l’URL HTTPS connue du réseau). Les liens libres utilisent exclusivement HTTPS. Un brouillon ne devient jamais public. L’action finale publie explicitement le profil Identity, marque l’état ONB-01 terminé de façon idempotente, puis renvoie vers `/mon-faluss/` en l’absence de demande SSO pendante.
+
+## Continuité SSO Faluss.com
+
+Faluss.me reste l’autorité de l’identité **et** de l’onboarding ; Faluss.com ne consomme qu’une identité dont la finalisation ONB-01 est explicitement enregistrée. Lorsqu’une demande OAuth du client first-party Faluss.com arrive pour un membre sans décision finale, Identity conserve la demande validée dans son registre serveur existant (client, URI exacte, `state`, PKCE S256 et expiration) et le navigateur ne garde qu’une poignée HTTP-only opaque. Aucun de ces éléments ne rejoint l’URL, le markup, les notices ou l’audit de l’onboarding.
+
+Le membre passe alors par le parcours normal : publication effective de sa carte, ou choix explicite **Continuer sans carte**. Ces deux actions seules écrivent l’état ONB-01 `complete`. Après cette écriture, l’onboarding ne renvoie que vers la route locale `/oauth/authorize/`, qui relit la demande pendante et produit le code d’autorisation normal, à usage unique et limité à 60 secondes. Ni le retour navigateur, ni un brouillon de carte, ni la seule présence ou absence d’une carte ne peuvent produire ce code.
+
+Une demande abandonnée expire côté serveur ; elle ne crée ni code OAuth, ni session, ni liaison sur Faluss.com. Une nouvelle tentative réutilise l’identité Faluss existante et reprend l’état d’onboarding canonique, sans créer de second Faluss ID.
 
 ONB-02.2 fait passer le brouillon courant par une façade d’aperçu commune au Studio et au wizard, puis par le rendu canonique de la carte publique. Le nom, l’avatar, la bordure, la police autorisée, le fond, les boutons, les réseaux et les liens saisis sont normalisés côté serveur avant de revenir dans l’aperçu ; cet appel ne persiste et ne publie rien. Les changements de fond, de typographie et de boutons reçoivent en plus un retour immédiat local pendant cette actualisation courte.
 

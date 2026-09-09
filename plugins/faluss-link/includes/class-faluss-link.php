@@ -771,7 +771,10 @@ final class Faluss_Link {
         if ( '' === $faluss_id || ! is_array( $profile ) || '' === trim( (string) ( $profile['display_name'] ?? '' ) ) || ! self::finish_onboarding_profile( $faluss_id, $profile ) ) {
             wp_send_json_error( array( 'message' => __( 'Ajoutez un nom affiché avant de publier votre Faluss.', 'faluss-link' ) ), 400 );
         }
-        wp_send_json_success( array( 'redirect' => home_url( '/mon-faluss/' ) ) );
+        // Identity owns a pending first-party SSO continuation. It returns
+        // only its local authorize route here, never an OAuth callback or
+        // browser-visible request data.
+        wp_send_json_success( array( 'redirect' => Faluss_Identity_Onboarding::onboarding_completion_destination() ) );
     }
 
     public static function upload_onboarding_avatar() {

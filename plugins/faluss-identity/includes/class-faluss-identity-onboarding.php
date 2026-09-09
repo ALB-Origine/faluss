@@ -115,8 +115,9 @@ final class Faluss_Identity_Onboarding {
     }
 
     /**
-     * Resolves an authenticated flow after passwordless proof. SSO owns its
-     * own local return and is selected by Passwordless before this method.
+     * Resolves an authenticated flow after passwordless proof. The local SSO
+     * authorize route resumes its opaque request ledger, which checks the
+     * explicit onboarding state before it can issue a code.
      */
     public static function after_passwordless_authentication( $flow, $fallback ) {
         $fallback = self::safe_local_return( $fallback );
@@ -251,6 +252,9 @@ final class Faluss_Identity_Onboarding {
         if ( self::card_wizard_context()['required'] && class_exists( 'Faluss_Link' ) && method_exists( 'Faluss_Link', 'render_onboarding_wizard' ) ) {
             return Faluss_Link::render_onboarding_wizard();
         }
+        // An explicit no-card completion remains resumable: this UI must keep
+        // offering card creation later. The authorization gate below is
+        // deliberately stricter and uses the canonical ONB-01 final state.
         if ( self::current_member_has_completed_public_profile() ) {
             return self::render_completed( $settings );
         }
@@ -263,7 +267,7 @@ final class Faluss_Identity_Onboarding {
         if ( null === $faluss_id || ! in_array( $choice, array( 'create_card', 'no_card' ), true ) || ! self::record_state( $faluss_id, $choice, 'none', 'create_card' === $choice ? 'identifier' : 'complete' ) ) {
             self::send_ajax_error();
         }
-        wp_send_json_success( array( 'choice' => $choice, 'redirect' => 'no_card' === $choice ? home_url( '/mon-faluss/' ) : '' ) );
+        wp_send_json_success( array( 'choice' => $choice, 'redirect' => 'no_card' === $choice ? self::onboarding_completion_destination() : '' ) );
     }
 
     public static function handle_availability_ajax() {
@@ -307,7 +311,7 @@ final class Faluss_Identity_Onboarding {
     }
 
     private static function render_completed( $settings ) {
-        return '<section class="faluss-identity-onboarding" data-faluss-identity-onboarding><div class="faluss-identity-onboarding__card"><p class="faluss-identity-onboarding__eyebrow">FALUSS</p><h1>' . esc_html( $settings['heading'] ) . '</h1><p>' . esc_html__( 'Votre identifiant public est déjà réservé. Vous pouvez continuer à personnaliser votre Faluss.', 'faluss-identity' ) . '</p><a class="faluss-identity-onboarding__button" href="' . esc_url( home_url( '/mon-faluss/' ) ) . '">' . esc_html__( 'Ouvrir mon Faluss', 'faluss-identity' ) . '</a></div></section>';
+        return '<section class="faluss-identity-onboarding" data-faluss-identity-onboarding><div class="faluss-identity-onboarding__card"><p class="faluss-identity-onboarding__eyebrow">FALUSS</p><h1>' . esc_html( $settings['heading'] ) . '</h1><p>' . esc_html__( 'Votre identifiant public est déjà réservé. Vous pouvez continuer à personnaliser votre Faluss.', 'faluss-identity' ) . '</p><a class="faluss-identity-onboarding__button" href="' . esc_url( self::onboarding_completion_destination() ) . '">' . esc_html__( 'Ouvrir mon Faluss', 'faluss-identity' ) . '</a></div></section>';
     }
 
     private static function render_choice( $settings, $state = array() ) {
@@ -385,18 +389,39 @@ final class Faluss_Identity_Onboarding {
         return is_array( $profile ) && 'published' === ( $profile['publication_status'] ?? '' );
     }
 
-    /**
-     * A generic navigation return is intentionally secondary to an unfinished
-     * onboarding decision. A completed public profile or an explicit no-card
-     * choice ends that requirement.
-     */
+    /** An explicit ONB-01 state, not card presence, determines completion. */
     private static function current_member_requires_onboarding() {
-        return self::requires_onboarding( self::current_member_has_completed_public_profile(), self::current_member_onboarding_state() );
+        return self::requires_onboarding( false, self::current_member_onboarding_state() );
     }
 
     /** @param array<string, mixed> $state */
     private static function requires_onboarding( $has_public_profile, $state ) {
-        return ! $has_public_profile && ( ! is_array( $state ) || ! isset( $state['choice'] ) || 'no_card' !== $state['choice'] );
+        return ! is_array( $state )
+            || ! in_array( $state['choice'] ?? '', array( 'create_card', 'no_card' ), true )
+            || 'complete' !== ( $state['next_step'] ?? '' );
+    }
+
+    /**
+     * Public only for the first-party authorization gate. The canonical
+     * choice and final step are written after publication or after the
+     * explicit no-card decision; a card's presence alone is never enough.
+     */
+    public static function current_member_has_completed_onboarding() {
+        return ! self::current_member_requires_onboarding();
+    }
+
+    /**
+     * The onboarding browser receives only a local route. The original OAuth
+     * client, URI, state and PKCE challenge remain in the server-side ledger.
+     */
+    public static function onboarding_completion_destination() {
+        if ( class_exists( 'Faluss_Identity_Authorization' ) && method_exists( 'Faluss_Identity_Authorization', 'pending_onboarding_resume_url' ) ) {
+            $resume = Faluss_Identity_Authorization::pending_onboarding_resume_url();
+            if ( is_string( $resume ) && '' !== $resume ) {
+                return self::safe_local_return( $resume );
+            }
+        }
+        return home_url( '/mon-faluss/' );
     }
 
     /**
@@ -425,9 +450,6 @@ final class Faluss_Identity_Onboarding {
         $faluss_id = self::active_faluss_id();
         if ( null === $faluss_id ) {
             return $state;
-        }
-        if ( self::current_member_has_completed_public_profile() ) {
-            return array( 'choice' => 'create_card', 'slug_status' => 'claimed', 'next_step' => 'studio', 'flow_version' => self::FLOW_VERSION );
         }
         if ( ! self::state_schema_ready() ) {
             return $state;
