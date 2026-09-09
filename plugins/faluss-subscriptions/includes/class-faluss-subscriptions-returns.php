@@ -46,6 +46,9 @@ final class Faluss_Subscriptions_Returns {
         }
         // This is a presentation-only acknowledgement. Webhooks alone resolve
         // trial, subscription and entitlement state.
+        if ( self::has_canonical_trialing_subscription( $checkout ) ) {
+            return array( 'type' => 'success', 'code' => 'checkout_return_trialing' );
+        }
         return array( 'type' => 'success', 'code' => 'checkout_return_completed' );
     }
 
@@ -64,7 +67,10 @@ final class Faluss_Subscriptions_Returns {
     }
 
     private static function valid_checkout( $checkout ) {
-        return is_array( $checkout ) && 'stripe' === ( $checkout['provider'] ?? '' ) && Faluss_Subscriptions_Catalog::PRO === ( $checkout['plan_key'] ?? '' ) && 'open' === ( $checkout['session_status'] ?? '' );
+        // Stripe's signed webhook can complete and link this exact local
+        // Checkout before the browser returns. completed is therefore a valid
+        // state to acknowledge, not evidence supplied by the browser.
+        return is_array( $checkout ) && 'stripe' === ( $checkout['provider'] ?? '' ) && Faluss_Subscriptions_Catalog::PRO === ( $checkout['plan_key'] ?? '' ) && in_array( $checkout['session_status'] ?? '', array( 'open', 'completed', 'trial_ineligible_pending', 'trial_ineligible' ), true );
     }
 
     private static function expired( $checkout ) {
@@ -76,5 +82,28 @@ final class Faluss_Subscriptions_Returns {
     private static function matches_provider_session( $checkout, $session_id ) {
         $provider_session = is_array( $checkout ) && is_string( $checkout['provider_session_reference'] ?? null ) ? $checkout['provider_session_reference'] : '';
         return '' !== $provider_session && '' !== $session_id && hash_equals( $provider_session, $session_id );
+    }
+
+    /**
+     * Reads an already-synchronised local decision only. It never calls
+     * Stripe, writes a subscription/trial/audit, or treats the browser return
+     * as proof. The Checkout link prevents an unrelated member subscription
+     * from changing this acknowledgement.
+     */
+    private static function has_canonical_trialing_subscription( $checkout ) {
+        if ( ! is_array( $checkout ) ) { return false; }
+        $faluss_id = $checkout['faluss_id'] ?? '';
+        $reference = $checkout['provider_subscription_reference'] ?? '';
+        if ( ! is_string( $faluss_id ) || ! is_string( $reference ) || '' === $reference ) { return false; }
+        $linked_trialing = false;
+        foreach ( Faluss_Subscriptions_Repository::subscriptions_for_faluss_id( $faluss_id ) as $subscription ) {
+            if ( is_array( $subscription ) && 'stripe' === ( $subscription['provider'] ?? '' ) && $reference === ( $subscription['provider_subscription_reference'] ?? '' ) && 'trialing' === ( $subscription['normalized_state'] ?? '' ) ) {
+                $linked_trialing = true;
+                break;
+            }
+        }
+        if ( ! $linked_trialing ) { return false; }
+        $decision = Faluss_Subscriptions_Resolver::resolve_for_faluss_id( $faluss_id );
+        return 'pro' === ( $decision['level'] ?? '' ) && 'trialing' === ( $decision['state'] ?? '' ) && 'subscription_trialing' === ( $decision['reason'] ?? '' );
     }
 }

@@ -432,7 +432,8 @@ final class Faluss_Subscriptions_Admin {
         if ( 'stripe_checkout_rejected' === $code ) { return sprintf( __( 'Checkout test a été refusé avant toute modification de droit. Cause sûre : %s. Consultez Audit.', 'faluss-subscriptions' ), self::safe_checkout_rejection_code( $context['cause'] ?? '' ) ); }
         $messages = array(
             'pro_revoked' => __( 'L’attribution Faluss Max a été révoquée.', 'faluss-subscriptions' ),
-            'checkout_return_completed' => __( 'Checkout test est terminé. L’état définitif dépend de la confirmation Stripe signée.', 'faluss-subscriptions' ),
+            'checkout_return_trialing' => __( 'Checkout test terminé. Faluss Max est actuellement en période d’essai.', 'faluss-subscriptions' ),
+            'checkout_return_completed' => __( 'Checkout test terminé. L’état définitif sera confirmé par Stripe et apparaîtra dans Membre.', 'faluss-subscriptions' ),
             'checkout_return_cancelled' => __( 'Checkout test a été annulé. Aucun droit n’est déterminé par ce retour navigateur.', 'faluss-subscriptions' ),
             'checkout_return_invalid' => __( 'Le retour Checkout test ne peut pas être vérifié. Aucun droit n’a été modifié.', 'faluss-subscriptions' ),
             'checkout_return_expired' => __( 'Le retour Checkout test a expiré. Aucun droit n’a été modifié.', 'faluss-subscriptions' ),
