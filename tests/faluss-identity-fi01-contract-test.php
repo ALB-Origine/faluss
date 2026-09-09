@@ -31,10 +31,11 @@ $schema = Faluss_Identity_Schema::get_expected_schema();
 $fi01_schema = Faluss_Identity_Schema::get_fi01_schema();
 fi01_assert( 'varchar(255)' === $schema['challenges']['columns']['otp_hash']['type'], 'FI-02 keeps the widened OTP hash.' );
 fi01_assert( isset( $schema['challenges']['columns']['email'], $schema['challenges']['columns']['email_hash'] ), 'FI-02 challenge fields are present.' );
-fi01_assert( '5' === Faluss_Identity_Schema::VERSION, 'A new installation targets the additive ONB-01 schema.' );
+fi01_assert( '6' === Faluss_Identity_Schema::VERSION, 'A new installation targets the additive FI-06 SSO schema.' );
 fi01_assert( 6 === count( $fi01_schema ), 'FI-01 defines exactly six Identity tables.' );
 fi01_assert( isset( $schema['public_profiles'] ), 'FI-03 adds the isolated public-profile table.' );
 fi01_assert( isset( $schema['authorization_requests'] ), 'FI-04 adds the server-side authorization-request ledger.' );
+fi01_assert( isset( $schema['clients']['columns']['first_party'] ), 'FI-06 SSO adds an explicit first-party client marker.' );
 
 foreach ( array( 'profiles', 'challenges', 'rate_limits', 'clients', 'auth_codes', 'audit' ) as $table ) {
     fi01_assert( isset( $schema[ $table ] ), 'Missing ' . $table . ' table definition.' );

@@ -18,6 +18,7 @@ final class Faluss_Identity_Authorization {
     const STYLE_HANDLE = 'faluss-identity-authorization';
     const SCOPE_BASIC = 'identity.basic';
     const SCOPE_EMAIL = 'identity.email';
+    const FIRST_PARTY_FALUSS_COM_CALLBACK = 'https://faluss.com/faluss-identity/callback';
 
     public static function register() {
         self::register_rewrite_rules();
@@ -144,6 +145,9 @@ final class Faluss_Identity_Authorization {
             self::clear_request_cookie();
             self::render_error( __( 'Votre session Faluss ne permet pas cette autorisation.', 'faluss-identity' ), 403 );
         }
+        if ( self::first_party_auto_approval_allowed( $request ) ) {
+            self::complete_authorization( $request, $faluss_id, true );
+        }
         self::render_consent( $request, $faluss_id );
     }
 
@@ -166,14 +170,7 @@ final class Faluss_Identity_Authorization {
             self::render_error( __( 'Choisissez une réponse valide.', 'faluss-identity' ), 400 );
         }
 
-        $code = self::approve_and_issue_code( $request, $faluss_id );
-        self::clear_request_cookie();
-        if ( null === $code ) {
-            self::render_error( __( 'Cette demande ne peut plus être autorisée. Recommencez depuis l’application.', 'faluss-identity' ), 400 );
-        }
-        $url = add_query_arg( array( 'code' => $code, 'state' => $request['state'] ), $request['redirect_uri'] );
-        wp_redirect( $url, 302, 'Faluss Identity' );
-        exit;
+        self::complete_authorization( $request, $faluss_id, false );
     }
 
     /** @param array<string, mixed> $input @return array<string, mixed> */
@@ -318,7 +315,7 @@ final class Faluss_Identity_Authorization {
         global $wpdb;
         $tables = Faluss_Identity_Schema::get_table_names();
         if ( empty( $tables['clients'] ) ) { return null; }
-        $row = $wpdb->get_row( $wpdb->prepare( 'SELECT client_id, client_name, client_secret_hash, allowed_scopes, redirect_uris FROM ' . self::quote_identifier( $tables['clients'] ) . ' WHERE client_id = %s AND status = %s', $client_id, 'active' ), ARRAY_A );
+        $row = $wpdb->get_row( $wpdb->prepare( 'SELECT client_id, client_name, client_secret_hash, allowed_scopes, redirect_uris, first_party FROM ' . self::quote_identifier( $tables['clients'] ) . ' WHERE client_id = %s AND status = %s', $client_id, 'active' ), ARRAY_A );
         if ( ! is_array( $row ) ) { return null; }
         $scopes = self::normalize_scopes( $row['allowed_scopes'] );
         $uris = json_decode( $row['redirect_uris'], true );
@@ -331,6 +328,36 @@ final class Faluss_Identity_Authorization {
 
     private static function client_allows_redirect( $client, $redirect_uri ) {
         return is_array( $client ) && self::valid_redirect_uri( $redirect_uri ) && in_array( $redirect_uri, $client['redirect_uris'], true );
+    }
+
+    /**
+     * Consent remains mandatory by default. The only automatic path is the
+     * explicitly marked Faluss.com client and its one exact registered
+     * callback, after the normal client, scope and PKCE checks have passed.
+     */
+    private static function first_party_auto_approval_allowed( $request ) {
+        return is_array( $request )
+            && ! empty( $request['client']['first_party'] )
+            && isset( $request['redirect_uri'], $request['scopes'] )
+            && self::FIRST_PARTY_FALUSS_COM_CALLBACK === $request['redirect_uri']
+            && self::client_allows_redirect( $request['client'], $request['redirect_uri'] )
+            && is_array( $request['scopes'] )
+            && in_array( self::SCOPE_BASIC, $request['scopes'], true );
+    }
+
+    /** @param array<string, mixed> $request */
+    private static function complete_authorization( $request, $faluss_id, $automatic ) {
+        $code = self::approve_and_issue_code( $request, $faluss_id );
+        self::clear_request_cookie();
+        if ( null === $code ) {
+            self::render_error( __( 'Cette demande ne peut plus être autorisée. Recommencez depuis l’application.', 'faluss-identity' ), 400 );
+        }
+        if ( $automatic ) {
+            self::record_audit( 'authorization_first_party_auto_approved', $request['client_id'] );
+        }
+        $url = add_query_arg( array( 'code' => $code, 'state' => $request['state'] ), $request['redirect_uri'] );
+        wp_redirect( $url, 302, 'Faluss Identity' );
+        exit;
     }
 
     private static function mark_request( $request, $status ) {

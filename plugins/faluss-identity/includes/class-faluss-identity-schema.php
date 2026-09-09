@@ -6,11 +6,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Faluss_Identity_Schema {
 
-    const VERSION = '5';
+    const VERSION = '6';
     const FI02_VERSION = '2';
     const FI03_VERSION = '3';
     const FI04_VERSION = '4';
     const ONB01_VERSION = '5';
+    const FI06_SSO_VERSION = '6';
     const OPTION_VERSION = 'faluss_identity_schema_version';
     const OPTION_DIAGNOSTIC = 'faluss_identity_schema_diagnostic';
     const INSTALL_LOCK_TIMEOUT = 10;
@@ -220,6 +221,18 @@ final class Faluss_Identity_Schema {
         return $schema;
     }
 
+    /**
+     * FI-06 adds only an explicit client classification. It does not add a
+     * second identity, session, consent, or authorization-code store.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function get_fi06_sso_schema() {
+        $schema = self::get_onb01_schema();
+        $schema['clients']['columns']['first_party'] = array( 'type' => 'tinyint(3) unsigned', 'null' => false );
+        return $schema;
+    }
+
     public static function get_expected_schema() {
         $version = function_exists( 'get_option' ) ? (string) get_option( self::OPTION_VERSION, '' ) : '';
         if ( '1' === $version ) {
@@ -234,7 +247,10 @@ final class Faluss_Identity_Schema {
         if ( self::FI04_VERSION === $version ) {
             return self::get_fi04_schema();
         }
-        return self::get_onb01_schema();
+        if ( self::ONB01_VERSION === $version ) {
+            return self::get_onb01_schema();
+        }
+        return self::get_fi06_sso_schema();
     }
 
     /**
@@ -274,7 +290,7 @@ final class Faluss_Identity_Schema {
     public static function migrate_fi02() {
         global $wpdb;
         if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) ) { return false; }
-        if ( in_array( (string) get_option( self::OPTION_VERSION, '' ), array( self::FI02_VERSION, self::FI03_VERSION, self::FI04_VERSION, self::ONB01_VERSION ), true ) ) { return self::verify_fi02(); }
+        if ( in_array( (string) get_option( self::OPTION_VERSION, '' ), array( self::FI02_VERSION, self::FI03_VERSION, self::FI04_VERSION, self::ONB01_VERSION, self::FI06_SSO_VERSION ), true ) ) { return self::verify_fi02(); }
         if ( 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_fi02_source_invalid' ); return false; }
         $tables = self::get_table_names();
         $sql = 'ALTER TABLE ' . self::quote_identifier( $tables['challenges'] ) . ' MODIFY otp_hash varchar(255) NULL, ADD email varchar(320) NULL, ADD email_hash char(64) NULL';
@@ -290,7 +306,7 @@ final class Faluss_Identity_Schema {
         global $wpdb;
         if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) || ! method_exists( $wpdb, 'get_charset_collate' ) ) { return false; }
         $version = (string) get_option( self::OPTION_VERSION, '' );
-        if ( in_array( $version, array( self::FI03_VERSION, self::FI04_VERSION, self::ONB01_VERSION ), true ) ) { return 'fi_schema_ready' === self::get_status()['code']; }
+        if ( in_array( $version, array( self::FI03_VERSION, self::FI04_VERSION, self::ONB01_VERSION, self::FI06_SSO_VERSION ), true ) ) { return 'fi_schema_ready' === self::get_status()['code']; }
         if ( self::FI02_VERSION !== $version || 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_fi03_source_invalid' ); return false; }
 
         $table = self::get_public_profiles_table();
@@ -313,7 +329,7 @@ final class Faluss_Identity_Schema {
         global $wpdb;
         if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) || ! method_exists( $wpdb, 'get_charset_collate' ) ) { return false; }
         $version = (string) get_option( self::OPTION_VERSION, '' );
-        if ( in_array( $version, array( self::FI04_VERSION, self::ONB01_VERSION ), true ) ) { return 'fi_schema_ready' === self::get_status()['code']; }
+        if ( in_array( $version, array( self::FI04_VERSION, self::ONB01_VERSION, self::FI06_SSO_VERSION ), true ) ) { return 'fi_schema_ready' === self::get_status()['code']; }
         if ( self::FI03_VERSION !== $version || 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_fi04_source_invalid' ); return false; }
 
         $table = self::get_authorization_requests_table();
@@ -336,7 +352,7 @@ final class Faluss_Identity_Schema {
         global $wpdb;
         if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) ) { return false; }
         $version = (string) get_option( self::OPTION_VERSION, '' );
-        if ( self::ONB01_VERSION === $version ) { return 'fi_schema_ready' === self::get_status()['code']; }
+        if ( in_array( $version, array( self::ONB01_VERSION, self::FI06_SSO_VERSION ), true ) ) { return 'fi_schema_ready' === self::get_status()['code']; }
         if ( self::FI04_VERSION !== $version || 'fi_schema_ready' !== self::get_status()['code'] ) { self::store_diagnostic( 'fi_schema_onb01_source_invalid' ); return false; }
         $tables = self::get_table_names();
         if ( empty( $tables['profiles'] ) ) { self::store_diagnostic( 'fi_schema_prefix_invalid' ); return false; }
@@ -348,6 +364,40 @@ final class Faluss_Identity_Schema {
             . ', ADD onboarding_updated_at datetime NULL';
         if ( false === $wpdb->query( $sql ) ) { self::store_diagnostic( 'fi_schema_onb01_failed' ); return false; }
         update_option( self::OPTION_VERSION, self::ONB01_VERSION, false );
+        $status = self::get_status();
+        self::store_diagnostic( $status['code'] );
+        return ! empty( $status['ready'] );
+    }
+
+    /**
+     * Adds the server-controlled first-party classification to the existing
+     * client registry. The marker defaults to false; an administrator must
+     * opt in an exact Faluss.com callback explicitly after the migration.
+     */
+    public static function migrate_fi06_sso() {
+        global $wpdb;
+        if ( ! is_object( $wpdb ) || ! current_user_can( 'manage_options' ) ) { return false; }
+
+        $version = (string) get_option( self::OPTION_VERSION, '' );
+        if ( self::FI06_SSO_VERSION === $version ) {
+            return 'fi_schema_ready' === self::get_status()['code'];
+        }
+        if ( self::ONB01_VERSION !== $version || 'fi_schema_ready' !== self::get_status()['code'] ) {
+            self::store_diagnostic( 'fi_schema_fi06_sso_source_invalid' );
+            return false;
+        }
+        $tables = self::get_table_names();
+        if ( empty( $tables['clients'] ) ) {
+            self::store_diagnostic( 'fi_schema_prefix_invalid' );
+            return false;
+        }
+
+        $sql = 'ALTER TABLE ' . self::quote_identifier( $tables['clients'] ) . ' ADD first_party tinyint(3) unsigned NOT NULL DEFAULT 0';
+        if ( false === $wpdb->query( $sql ) ) {
+            self::store_diagnostic( 'fi_schema_fi06_sso_failed' );
+            return false;
+        }
+        update_option( self::OPTION_VERSION, self::FI06_SSO_VERSION, false );
         $status = self::get_status();
         self::store_diagnostic( $status['code'] );
         return ! empty( $status['ready'] );

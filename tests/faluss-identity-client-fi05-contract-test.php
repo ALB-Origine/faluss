@@ -9,7 +9,7 @@ fi05_assert(isset($s['links']['indexes']['wp_user_id_unique'],$s['states']['colu
 fi05_assert('char(64)'===$s['states']['columns']['state_hash']['type'] && true===$s['states']['columns']['wp_user_id']['null'],'The strict state schema preserves hashes and nullability.');
 $source=file_get_contents(dirname(__DIR__).'/plugins/faluss-identity-client/includes/class-faluss-identity-client.php');
 foreach(array('START TRANSACTION','FOR UPDATE','consumed_at IS NULL','code_challenge_method','S256','code_verifier','wp_remote_post','FALUSS_IDENTITY_CLIENT_SECRET',"'subscriber'",'flow_mode','link_required','enabled') as $need){fi05_assert(false!==strpos($source,$need),'Missing FI-05 invariant: '.$need);}
-fi05_assert(false!==strpos($source,"if('link'===\$state['flow_mode']){if(\$linked"),'A link flow blocks an already-linked Faluss ID before any session can be opened.');
+fi05_assert(false!==strpos($source,"if ( 'link' === \$state['flow_mode'] )") && false!==strpos($source,'$linked || ! is_user_logged_in()'),'A link flow blocks an already-linked Faluss ID before any session can be opened.');
 fi05_assert(false===strpos($source,'get_user_by( \'email\', $email )'),'No automatic e-mail linkage primitive is present.');
 fi05_assert(false===strpos($source,'access_token'),'The client does not persist bearer tokens.');
 $schema_source=file_get_contents(dirname(__DIR__).'/plugins/faluss-identity-client/includes/class-faluss-identity-client-schema.php');

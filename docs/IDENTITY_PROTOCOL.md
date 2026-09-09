@@ -49,6 +49,27 @@ Un utilisateur qui possède un profil Faluss Identity et dont l’unique rôle W
 
 La migration FI-06 est versionnée et idempotente. Elle parcourt exclusivement les `wp_user_id` de la table des profils Faluss Identity ; elle ne parcourt pas la liste globale des utilisateurs et ne crée aucune table ni meta Elementor.
 
+## Session membre et SSO Faluss.com (FI-06 mini-lot)
+
+### Cause constatée et durée
+
+Le code livré avant ce lot ne limitait pas une session WordPress membre à quinze minutes : `Faluss_Identity_Passwordless::COOKIE_TTL` vaut 600 secondes et protège uniquement le challenge OTP lié au navigateur ; `REQUEST_WINDOW` vaut 900 secondes et protège uniquement le rate limit de demande d’e-mail. Les demandes OAuth conservées côté serveur ont aussi une durée de 600 secondes, tandis que le code d’autorisation garde sa durée de 60 secondes. Aucun filtre `auth_cookie_expiration` n’était présent dans les plugins Faluss.
+
+FI-06 ajoute donc un filtre explicite et fixe `auth_cookie_expiration=3600` secondes pour le seul utilisateur dont le rôle exact est `subscriber` et qui possède un profil Faluss Identity actif. Il ne réémet pas de cookie en tâche de fond : la durée reste une heure fixe à partir de l’ouverture de session. Administrateurs, rôles techniques, comptes avec plusieurs rôles, challenges OTP, rate limits et codes OAuth restent inchangés. Si une instance observait auparavant quinze minutes pour une session WordPress, cette limite provenait donc d’un filtre ou d’une configuration extérieure à ce dépôt ; le filtre FI-06 reprend désormais la maîtrise de la durée pour le membre normal.
+
+### Reconnaissance premier parti
+
+Le client officiel Faluss.com reste un client OAuth `authorization_code` normal. Dans **Réglages → Clients SSO Faluss** sur `faluss.me`, l’administrateur doit cocher *Client officiel Faluss.com* seulement lorsque l’unique URI déclarée est exactement `https://faluss.com/faluss-identity/callback`. Ce choix est stocké dans le registre client comme marqueur `first_party`; il est désactivé par défaut pour tout client existant ou nouveau.
+
+Sur une action explicite nécessitant une session membre, Faluss.com crée le même `state` 256 bits, lié au cookie local `Secure`, `HttpOnly`, `SameSite=Lax`, le même verifier PKCE S256 et la même ligne d’état à usage unique de dix minutes. Si une session locale liée est déjà ouverte, il retourne directement vers la destination locale listée. Sinon, le navigateur effectue une navigation de premier niveau vers `faluss.me` :
+
+1. Identity vérifie le client actif, l’URI exacte, `identity.basic` (et `identity.email` seulement lorsqu’il est demandé), le state et S256 avant toute approbation.
+2. Sans session centrale, Identity redirige vers son formulaire passwordless existant. Ce simple affichage n’envoie aucun e-mail ; le membre doit demander lui-même son OTP.
+3. Avec une session centrale active, seul le client marqué `first_party` dont le callback correspond exactement à celui de Faluss.com est autorisé sans écran de consentement. Tous les autres clients gardent le consentement explicite.
+4. Identity produit toujours un code opaque, haché, à usage unique et limité à 60 secondes. Faluss.com l’échange côté serveur puis retrouve ou crée sa liaison locale selon les règles existantes, ouvre une session locale bornée à une heure et redirige vers le retour local whitelisté sans paramètre OAuth.
+
+Il n’existe aucun cookie WordPress partagé, iframe silencieuse, accès implicite aux abonnements, Stripe, Tokens, Pro, Date ou profils publics. Le retour local est comparé exactement à la liste configurée et à l’origine locale. Les erreurs, state altérés/expirés ou codes rejoués ne créent ni session ni liaison et ne mettent aucune donnée sensible dans l’URL ou l’audit.
+
 ## Navigation Faluss (FI-07)
 
 `Navigation Faluss` est un widget Elementor à placer manuellement dans le modèle Header choisi par l’administrateur. Il ne crée ni page, ni menu, ni modèle Elementor et ne remplace pas The Plus Popup Builder / Off Canvas ou un autre widget de navigation existant.
