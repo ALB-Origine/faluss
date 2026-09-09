@@ -10,12 +10,15 @@ final class Faluss_Subscriptions_Admin {
     const PAGE = 'faluss-subscriptions';
     const NONCE = 'faluss_subscriptions_admin';
     const POST_ACTION = 'faluss_subscriptions_admin';
+    const SANDBOX_CHECKOUT_POST_ACTION = 'faluss_subscriptions_sandbox_checkout';
+    const SANDBOX_CHECKOUT_INTENT = 'sandbox_checkout';
 
     public static function boot() {
         add_action( 'admin_init', array( __CLASS__, 'ensure_capability' ) );
         add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
         add_action( 'admin_post_' . self::POST_ACTION, array( __CLASS__, 'handle_post' ) );
+        add_action( 'admin_post_' . self::SANDBOX_CHECKOUT_POST_ACTION, array( __CLASS__, 'handle_sandbox_checkout_post' ) );
     }
 
     /** Repair the administrator capability after an upgrade without granting it to another role. */
@@ -102,12 +105,10 @@ final class Faluss_Subscriptions_Admin {
             $result = Faluss_Subscriptions_Schema::install();
             if ( $result ) { Faluss_Subscriptions_Audit::record( $actor_user_id, 'schema_diagnostic_run', null, 'admin', array(), array( 'ready' => true ), null ); }
             $tab = 'diagnostics';
-        } elseif ( 'sandbox_checkout' === $action ) {
-            $period = self::post_value( 'period', 16 );
-            if ( 'test' !== Faluss_Subscriptions_Stripe_Config::mode() ) { $result = new WP_Error( 'sandbox_test_only' ); }
-            else { $result = Faluss_Subscriptions_Billing::create_checkout( $member_faluss_id, $period ); }
+        } elseif ( self::SANDBOX_CHECKOUT_INTENT === $action ) {
+            // A stale sandbox form must never fall through the general mutation route.
+            $result = new WP_Error( 'sandbox_checkout_legacy_route' );
             $tab = 'sandbox';
-            if ( is_array( $result ) && ! empty( $result['url'] ) ) { wp_redirect( esc_url_raw( $result['url'] ) ); exit; }
         } elseif ( 'sandbox_portal' === $action ) {
             if ( 'test' !== Faluss_Subscriptions_Stripe_Config::mode() ) { $result = new WP_Error( 'sandbox_test_only' ); }
             else { $result = Faluss_Subscriptions_Billing::create_portal( $member_faluss_id ); }
@@ -127,6 +128,42 @@ final class Faluss_Subscriptions_Admin {
         }
         self::queue_result_notice( $actor_user_id, $action, $result, $member_faluss_id );
         self::redirect_after_post( $tab );
+    }
+
+    /**
+     * Dedicated admin-post route for the Stripe test Checkout. It is intentionally
+     * outside the administrative entitlement router: opening Checkout must never
+     * create an entitlement, trial or Pro decision.
+     */
+    public static function handle_sandbox_checkout_post() {
+        $actor_user_id = get_current_user_id();
+        $member_faluss_id = self::post_value( 'faluss_id', 36 );
+        $intent = self::post_value( 'faluss_subscriptions_intent', 64 );
+        if ( 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) {
+            self::record_failed_action( $actor_user_id, self::SANDBOX_CHECKOUT_INTENT, $member_faluss_id, 'sandbox_checkout_invalid_request' );
+            wp_die( esc_html__( 'Accès refusé.', 'faluss-subscriptions' ), 403 );
+        }
+        if ( ! current_user_can( self::CAPABILITY ) ) {
+            self::record_failed_action( $actor_user_id, self::SANDBOX_CHECKOUT_INTENT, $member_faluss_id, 'sandbox_checkout_forbidden' );
+            wp_die( esc_html__( 'Accès refusé.', 'faluss-subscriptions' ), 403 );
+        }
+        if ( self::SANDBOX_CHECKOUT_INTENT !== $intent ) {
+            $result = new WP_Error( 'sandbox_checkout_invalid_intent' );
+        } elseif ( ! self::valid_nonce() ) {
+            $result = new WP_Error( 'sandbox_checkout_invalid_nonce' );
+        } elseif ( 'test' !== Faluss_Subscriptions_Stripe_Config::mode() ) {
+            $result = new WP_Error( 'sandbox_test_only' );
+        } else {
+            check_admin_referer( self::NONCE );
+            nocache_headers();
+            $result = Faluss_Subscriptions_Billing::create_checkout( $member_faluss_id, self::post_value( 'period', 16 ) );
+        }
+        if ( is_array( $result ) && ! empty( $result['url'] ) ) {
+            wp_redirect( esc_url_raw( $result['url'] ) );
+            exit;
+        }
+        self::queue_result_notice( $actor_user_id, self::SANDBOX_CHECKOUT_INTENT, $result, $member_faluss_id );
+        self::redirect_after_post( 'sandbox' );
     }
 
     /** Public so diagnostics and the HTML/POST contract share the exact routed action. */
@@ -175,6 +212,11 @@ final class Faluss_Subscriptions_Admin {
         if ( is_wp_error( $result ) || false === $result || null === $result ) {
             $code = is_wp_error( $result ) ? $result->get_error_code() : ( 'run_migration' === $action ? 'schema_migration_failed' : 'operation_failed' );
             self::record_failed_action( $actor_user_id, $action, $context['faluss_id'] ?? null, $code );
+            if ( self::SANDBOX_CHECKOUT_INTENT === $action ) {
+                $context['cause'] = self::safe_checkout_rejection_code( $code );
+                Faluss_Subscriptions_Admin_Notices::add( $actor_user_id, 'error', 'stripe_checkout_rejected', $context );
+                return;
+            }
             Faluss_Subscriptions_Admin_Notices::add( $actor_user_id, 'error', $code, $context );
             return;
         }
@@ -194,10 +236,25 @@ final class Faluss_Subscriptions_Admin {
 
     private static function record_failed_action( $actor_user_id, $action, $faluss_id, $code ) {
         if ( Faluss_Subscriptions_Schema::is_ready() ) {
+            if ( self::SANDBOX_CHECKOUT_INTENT === $action ) {
+                Faluss_Subscriptions_Audit::record( $actor_user_id, 'stripe_checkout_rejected', self::valid_faluss_id( $faluss_id ) ? $faluss_id : null, 'sandbox', array(), array( 'operation' => self::SANDBOX_CHECKOUT_INTENT, 'cause' => self::safe_checkout_rejection_code( $code ) ), null );
+                return;
+            }
             $traced_outcomes = array( 'admin_grant_failed', 'admin_grant_forbidden', 'admin_grant_invalid_nonce', 'admin_grant_invalid_subject', 'admin_grant_invalid_expiration', 'admin_grant_persistence_failed', 'admin_grant_resolution_failed' );
             $trace = in_array( $code, $traced_outcomes, true ) ? $code : 'admin_grant_failed';
             Faluss_Subscriptions_Audit::record( $actor_user_id, $trace, self::valid_faluss_id( $faluss_id ) ? $faluss_id : null, 'admin', array(), array( 'operation' => sanitize_key( $action ), 'outcome' => sanitize_key( $code ) ), null );
         }
+    }
+
+    /** Keep sandbox failures diagnosable without recording provider data or arbitrary error text. */
+    private static function safe_checkout_rejection_code( $code ) {
+        $allowed = array(
+            'sandbox_checkout_invalid_request', 'sandbox_checkout_forbidden', 'sandbox_checkout_invalid_intent', 'sandbox_checkout_invalid_nonce', 'sandbox_checkout_legacy_route', 'sandbox_test_only',
+            'checkout_invalid', 'checkout_busy', 'checkout_subscription_exists', 'checkout_trial_already_used', 'checkout_entropy_failed', 'checkout_session_invalid', 'checkout_conflict', 'checkout_record_failed',
+            'billing_customer_invalid', 'billing_customer_conflict', 'stripe_customer_invalid', 'stripe_tax_not_enabled', 'stripe_price_not_configured', 'stripe_product_not_configured', 'stripe_price_unavailable', 'stripe_price_catalogue_mismatch',
+            'stripe_secret_key_invalid', 'stripe_live_disabled', 'stripe_sdk_collision', 'stripe_sdk_missing', 'stripe_sdk_invalid', 'stripe_client_unavailable', 'stripe_transport_failed',
+        );
+        return in_array( $code, $allowed, true ) ? $code : 'stripe_checkout_unavailable';
     }
 
     private static function tabs( $active ) {
@@ -287,13 +344,17 @@ final class Faluss_Subscriptions_Admin {
         $test = 'test' === Faluss_Subscriptions_Stripe_Config::mode();
         echo '<section class="faluss-subscriptions-admin__panel"><h2>' . esc_html__( 'Sandbox Stripe test', 'faluss-subscriptions' ) . '</h2><p>' . esc_html__( 'Cet outil crée uniquement une session Checkout Stripe test après validation serveur du catalogue. Il ne doit jamais être utilisé en live.', 'faluss-subscriptions' ) . '</p>';
         if ( ! $test ) { echo '<div class="notice notice-error"><p>' . esc_html__( 'La sandbox est verrouillée hors du mode test.', 'faluss-subscriptions' ) . '</p></div></section>'; return; }
-        echo self::mutation_form_open( 'sandbox_checkout', 'faluss-subscriptions-admin__form' ) . '<input type="hidden" name="action" value="' . esc_attr( self::POST_ACTION ) . '"><input type="hidden" name="faluss_subscriptions_action" value="sandbox_checkout"><input type="hidden" name="return_tab" value="sandbox"><label>' . esc_html__( 'Faluss ID', 'faluss-subscriptions' ) . '<input name="faluss_id" type="text" required pattern="[a-fA-F0-9-]{36}" autocomplete="off"></label><p><label>' . esc_html__( 'Périodicité', 'faluss-subscriptions' ) . '<select name="period"><option value="monthly">' . esc_html__( 'Mensuel', 'faluss-subscriptions' ) . '</option><option value="annual">' . esc_html__( 'Annuel', 'faluss-subscriptions' ) . '</option></select></label></p>'; wp_nonce_field( self::NONCE ); echo '<button type="submit" class="button button-primary">' . esc_html__( 'Ouvrir Checkout test', 'faluss-subscriptions' ) . '</button></form>';
+        echo self::sandbox_checkout_form_open() . '<input type="hidden" name="action" value="' . esc_attr( self::SANDBOX_CHECKOUT_POST_ACTION ) . '"><input type="hidden" name="faluss_subscriptions_intent" value="' . esc_attr( self::SANDBOX_CHECKOUT_INTENT ) . '"><label>' . esc_html__( 'Faluss ID', 'faluss-subscriptions' ) . '<input name="faluss_id" type="text" required pattern="[a-fA-F0-9-]{36}" autocomplete="off"></label><p><label>' . esc_html__( 'Périodicité', 'faluss-subscriptions' ) . '<select name="period"><option value="monthly">' . esc_html__( 'Mensuel', 'faluss-subscriptions' ) . '</option><option value="annual">' . esc_html__( 'Annuel', 'faluss-subscriptions' ) . '</option></select></label></p>'; wp_nonce_field( self::NONCE ); echo '<button type="submit" class="button button-primary">' . esc_html__( 'Ouvrir Checkout test', 'faluss-subscriptions' ) . '</button></form>';
         echo self::mutation_form_open( 'sandbox_portal', 'faluss-subscriptions-admin__form' ) . '<input type="hidden" name="action" value="' . esc_attr( self::POST_ACTION ) . '"><input type="hidden" name="faluss_subscriptions_action" value="sandbox_portal"><input type="hidden" name="return_tab" value="sandbox"><label>' . esc_html__( 'Faluss ID du Customer existant', 'faluss-subscriptions' ) . '<input name="faluss_id" type="text" required pattern="[a-fA-F0-9-]{36}" autocomplete="off"></label>'; wp_nonce_field( self::NONCE ); echo '<button type="submit" class="button">' . esc_html__( 'Ouvrir le Customer Portal test', 'faluss-subscriptions' ) . '</button></form></section>';
     }
 
     /** Every mutation has its own explicit admin-post target; it is never nested in the member search form. */
     private static function mutation_form_open( $mutation, $class = '' ) {
         return '<form method="post" action="' . esc_url( self::admin_post_url() ) . '" data-faluss-subscriptions-mutation="' . esc_attr( $mutation ) . '"' . ( '' !== $class ? ' class="' . esc_attr( $class ) . '"' : '' ) . '>';
+    }
+
+    private static function sandbox_checkout_form_open() {
+        return '<form method="post" action="' . esc_url( self::admin_post_url() ) . '" data-faluss-subscriptions-mutation="' . esc_attr( self::SANDBOX_CHECKOUT_INTENT ) . '" class="faluss-subscriptions-admin__form">';
     }
 
     private static function events() {
@@ -341,6 +402,7 @@ final class Faluss_Subscriptions_Admin {
 
     private static function notice_message( $code, $context ) {
         if ( 'pro_granted' === $code ) { return sprintf( __( 'Faluss Pro a été attribué jusqu’au %s.', 'faluss-subscriptions' ), self::notice_date( $context['expires_at'] ?? '' ) ); }
+        if ( 'stripe_checkout_rejected' === $code ) { return sprintf( __( 'Checkout test a été refusé avant toute modification de droit. Cause sûre : %s. Consultez Audit.', 'faluss-subscriptions' ), self::safe_checkout_rejection_code( $context['cause'] ?? '' ) ); }
         $messages = array(
             'pro_revoked' => __( 'L’attribution Faluss Pro a été révoquée.', 'faluss-subscriptions' ),
             'trial_override_recorded' => __( 'La dérogation d’éligibilité a été enregistrée. Elle n’active pas un essai.', 'faluss-subscriptions' ),
@@ -365,8 +427,29 @@ final class Faluss_Subscriptions_Admin {
             'trial_override_audit_failed' => __( 'La dérogation n’a pas été enregistrée car son audit n’a pas pu être écrit.', 'faluss-subscriptions' ),
             'trial_already_used' => __( 'La dérogation ne peut pas modifier un essai déjà consommé.', 'faluss-subscriptions' ),
             'sandbox_test_only' => __( 'La sandbox Checkout est disponible uniquement en mode Stripe test.', 'faluss-subscriptions' ),
+            'sandbox_checkout_invalid_request' => __( 'Checkout test a été refusé : la requête doit être envoyée depuis la sandbox.', 'faluss-subscriptions' ),
+            'sandbox_checkout_forbidden' => __( 'Checkout test a été refusé : votre compte ne possède pas cette capacité.', 'faluss-subscriptions' ),
+            'sandbox_checkout_invalid_intent' => __( 'Checkout test a été refusé : l’intention de la demande est invalide. Rechargez la sandbox.', 'faluss-subscriptions' ),
+            'sandbox_checkout_invalid_nonce' => __( 'Checkout test a été refusé : la confirmation de sécurité a expiré. Rechargez la sandbox.', 'faluss-subscriptions' ),
+            'sandbox_checkout_legacy_route' => __( 'Checkout test a été refusé : rechargez la sandbox pour utiliser son action dédiée.', 'faluss-subscriptions' ),
             'stripe_tax_not_enabled' => __( 'Checkout test reste verrouillé tant que Stripe Tax n’est pas explicitement activé côté serveur.', 'faluss-subscriptions' ),
             'stripe_price_catalogue_mismatch' => __( 'Checkout a été refusé : le Price Stripe ne correspond pas au catalogue Faluss Pro TTC attendu.', 'faluss-subscriptions' ),
+            'stripe_price_not_configured' => __( 'Checkout test a été refusé : le Price Stripe sélectionné n’est pas configuré côté serveur.', 'faluss-subscriptions' ),
+            'stripe_product_not_configured' => __( 'Checkout test a été refusé : le produit Faluss Pro n’est pas configuré côté serveur.', 'faluss-subscriptions' ),
+            'stripe_price_unavailable' => __( 'Checkout test a été refusé : le Price Stripe ne peut pas être relu. Consultez la configuration et Stripe test.', 'faluss-subscriptions' ),
+            'stripe_secret_key_invalid' => __( 'Checkout test a été refusé : la clé Stripe test n’est pas disponible côté serveur.', 'faluss-subscriptions' ),
+            'stripe_sdk_collision' => __( 'Checkout test a été refusé : un autre SDK Stripe est déjà chargé.', 'faluss-subscriptions' ),
+            'stripe_sdk_missing' => __( 'Checkout test a été refusé : le SDK Stripe livré est introuvable.', 'faluss-subscriptions' ),
+            'stripe_sdk_invalid' => __( 'Checkout test a été refusé : le SDK Stripe livré est incomplet.', 'faluss-subscriptions' ),
+            'stripe_client_unavailable' => __( 'Checkout test a été refusé : le client Stripe ne peut pas être initialisé.', 'faluss-subscriptions' ),
+            'stripe_transport_failed' => __( 'Checkout test a été refusé : Stripe test n’a pas répondu de manière exploitable.', 'faluss-subscriptions' ),
+            'checkout_invalid' => __( 'Checkout test a été refusé : le Faluss ID ou la périodicité est invalide.', 'faluss-subscriptions' ),
+            'checkout_busy' => __( 'Checkout test est déjà en cours pour ce Faluss ID. Réessayez dans quelques instants.', 'faluss-subscriptions' ),
+            'checkout_subscription_exists' => __( 'Checkout test a été refusé : un abonnement actif existe déjà pour ce Faluss ID.', 'faluss-subscriptions' ),
+            'checkout_trial_already_used' => __( 'Checkout test a été refusé : l’essai de ce Faluss ID a déjà été consommé.', 'faluss-subscriptions' ),
+            'checkout_conflict' => __( 'Checkout test a été refusé : une session concurrente existe déjà. Rechargez la sandbox.', 'faluss-subscriptions' ),
+            'checkout_record_failed' => __( 'Checkout test a été refusé : la session locale n’a pas pu être enregistrée.', 'faluss-subscriptions' ),
+            'checkout_session_invalid' => __( 'Checkout test a été refusé : Stripe n’a pas fourni de session Checkout valide.', 'faluss-subscriptions' ),
             'stripe_event_retry_requires_provider_delivery' => __( 'Le payload brut n’est pas conservé : demandez une nouvelle livraison Stripe plutôt que de retraiter des données non vérifiables.', 'faluss-subscriptions' ),
         );
         return $messages[ $code ] ?? __( 'L’action n’a pas pu être appliquée. Aucun droit n’a été modifié.', 'faluss-subscriptions' );

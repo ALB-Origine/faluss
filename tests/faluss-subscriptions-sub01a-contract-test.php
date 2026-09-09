@@ -20,7 +20,7 @@ $documentation = file_get_contents( $root . '/docs/FALUSS_SUBSCRIPTIONS.md' );
 $persistence_contract = file_get_contents( $root . '/tests/faluss-subscriptions-sub01a-persistence-contract-test.php' );
 $admin_post_contract = file_get_contents( $root . '/tests/faluss-subscriptions-sub01a-admin-post-contract-test.php' );
 
-sub01a_assert( false !== strpos( $bootstrap, 'Plugin Name: Faluss Subscriptions' ) && false !== strpos( $bootstrap, "FALUSS_SUBSCRIPTIONS_VERSION', '0.2.0'" ), 'SUB-01B requires the standalone Faluss Subscriptions plugin at 0.2.0.' );
+sub01a_assert( false !== strpos( $bootstrap, 'Plugin Name: Faluss Subscriptions' ) && false !== strpos( $bootstrap, "FALUSS_SUBSCRIPTIONS_VERSION', '0.2.1'" ), 'SUB-01B requires the standalone Faluss Subscriptions plugin at 0.2.1.' );
 sub01a_assert( false !== strpos( $schema, 'RENAME TABLE' ) && false !== strpos( $schema, 'temporary_tables' ) && false !== strpos( $schema, 'current_schema_ready' ) && false !== strpos( $schema, 'GET_LOCK' ), 'Installation must be atomic, verified, locked and replayable.' );
 foreach ( array( 'faluss_subscriptions', 'faluss_subscription_trials', 'faluss_entitlements', 'faluss_subscription_events', 'faluss_subscription_audit', 'ENGINE=InnoDB' ) as $needle ) { sub01a_assert( false !== strpos( $schema, $needle ), 'Missing dedicated subscription schema invariant: ' . $needle ); }
 sub01a_assert( false !== strpos( $schema, 'trial_faluss_unique' ) && false !== strpos( $schema, 'trial_payment_fingerprint_unique' ) && false !== strpos( $schema, 'trial_override_reference_unique' ), 'Trial identity, derived payment fingerprint and administrative override must be uniquely constrained.' );
