@@ -33,6 +33,7 @@ $identity_session_source = file_get_contents( $root . '/plugins/faluss-identity/
 $passwordless_source = file_get_contents( $root . '/plugins/faluss-identity/includes/class-faluss-identity-passwordless.php' );
 $authorization_source = file_get_contents( $root . '/plugins/faluss-identity/includes/class-faluss-identity-authorization.php' );
 $client_source = file_get_contents( $root . '/plugins/faluss-identity-client/includes/class-faluss-identity-client.php' );
+$client_admin_source = file_get_contents( $root . '/plugins/faluss-identity-client/includes/class-faluss-identity-client-admin.php' );
 
 foreach ( array( 'const TTL = 3600', 'auth_cookie_expiration', "array( 'subscriber' )", 'get_active_for_wp_user' ) as $needle ) {
     fi06_sso_assert( false !== strpos( $identity_session_source, $needle ), 'Identity one-hour member-session invariant is missing: ' . $needle );
@@ -110,6 +111,7 @@ fi06_sso_assert( strpos( $client_source, 'if ( null === $row || ! self::is_opaqu
 fi06_sso_assert( false !== strpos( $client_source, "self::redirect_to_local( \$row['redirect_url'] );" ) && false === strpos( $client_source, "local_notice( 'authenticated'" ), 'A successful callback removes OAuth parameters by redirecting directly to a local return.' );
 fi06_sso_assert( false === strpos( $identity_session_source . $authorization_source . $client_source, 'Faluss_Subscriptions' ), 'FI-06 does not couple Identity SSO or member sessions to subscriptions.' );
 fi06_sso_assert( false === strpos( $authorization_source . $client_source, 'access_token' ) && false === strpos( $authorization_source . $client_source, 'refresh_token' ), 'The SSO flow does not introduce bearer-token persistence.' );
+fi06_sso_assert( false !== strpos( $client_admin_source, "isset(\$a['user'],\$a['pass'])" ) && false !== strpos( $client_admin_source, "\$ap===\$bp" ), 'The configured local-return whitelist rejects credentials and a different port.' );
 
 $protocol = file_get_contents( $root . '/docs/IDENTITY_PROTOCOL.md' );
 $client_docs = file_get_contents( $root . '/docs/IDENTITY_CLIENT_INSTALLATION.md' );
