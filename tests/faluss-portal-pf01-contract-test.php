@@ -60,7 +60,7 @@ $documentation = file_get_contents( $root . '/docs/FALUSS_PORTAL.md' );
 $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 
-foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.0'", 'class-faluss-portal.php' ) as $needle ) {
+foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.1'", 'class-faluss-portal.php' ) as $needle ) {
     pf01_assert( false !== strpos( $bootstrap, $needle ), 'PF-01 requires an isolated versioned Faluss Portal plugin: ' . $needle );
 }
 foreach ( array( "add_shortcode( self::SHORTCODE", "[faluss_portal]", 'Faluss_Identity_Client_Schema::tables()', 'WHERE wp_user_id = %d', "array( 'subscriber' )", 'Faluss_Identity_Client::button' ) as $needle ) {
@@ -69,6 +69,7 @@ foreach ( array( "add_shortcode( self::SHORTCODE", "[faluss_portal]", 'Faluss_Id
 pf01_assert( false === strpos( $source, '$_GET[\'faluss_id\']' ) && false === strpos( $source, '$_POST[\'faluss_id\']' ), 'A browser-supplied Faluss ID must never select portal data.' );
 pf01_assert( false === strpos( $source, 'CREATE TABLE' ) && false === strpos( $source, 'INSERT INTO' ) && false === strpos( $source, 'update_user_meta' ), 'PF-01 must not introduce a portal table, write an identity link or persist a universal profile.' );
 pf01_assert( false === strpos( $source, 'wp_ajax_' ) && false === strpos( $source, 'register_rest_route' ), 'The member portal must not expose an anonymous browser data or billing route.' );
+pf01_assert( false === strpos( $source, 'Token_Engine_Service::balance' ) && false === strpos( $source, 'Token_Engine_Schema' ) && false === strpos( $source, 'points_snapshot' ), 'PF-01 must not read, rename or display a historical Token Engine balance as PF.' );
 
 require_once $plugin . '/includes/class-faluss-portal.php';
 $snapshot_method = new ReflectionMethod( 'Faluss_Portal', 'subscription_snapshot' );
@@ -83,9 +84,10 @@ foreach ( array( 'Faluss_Subscriptions_Billing::create_portal', 'wp_verify_nonce
     pf01_assert( false !== strpos( $source, $needle ), 'The Customer Portal action must stay server-side, nonce-protected and return to the portal safely: ' . $needle );
 }
 pf01_assert( false !== strpos( $source, 'Aucune facture locale disponible' ) && false !== strpos( $source, 'Aucune donnée consolidée' ) && false !== strpos( $source, 'Aucun avantage non configuré n’est supposé' ), 'Billing and Analytics must use explicit empty states instead of fictitious data.' );
-foreach ( array( 'data-faluss-portal-master', 'data-faluss-portal-master-tab', 'data-faluss-portal-drawer', 'Points Faluss', 'profil universel', 'data-faluss-portal-profile-unavailable' ) as $needle ) {
+foreach ( array( 'data-faluss-portal-master', 'data-faluss-portal-master-tab', 'data-faluss-portal-drawer', 'Points Faluss bientôt disponibles', 'profil universel', 'data-faluss-portal-profile-unavailable' ) as $needle ) {
     pf01_assert( false !== strpos( $source, $needle ), 'Master Profile must use the agreed preparatory surface without a second identity model: ' . $needle );
 }
+pf01_assert( false === strpos( $source, "number_format_i18n( \$points" ) && false === strpos( $source, "\$points['balance']" ), 'The PF placeholder must never contain a numeric balance before an official PF ledger exists.' );
 foreach ( array( '--fp-sidebar-indicator-y', '--fp-tab-indicator-x', 'backdrop-filter', ':focus-visible', 'prefers-reduced-motion' ) as $needle ) {
     pf01_assert( false !== strpos( $css, $needle ), 'The shell must retain visual indicators, glass, keyboard focus and reduced-motion support: ' . $needle );
 }
@@ -94,7 +96,7 @@ foreach ( array( 'history.pushState', 'popstate', 'requestAnimationFrame', 'show
     pf01_assert( false !== strpos( $javascript, $needle ), 'Navigation and Master Profile must be progressive, animated and history-aware: ' . $needle );
 }
 pf01_assert( false === strpos( $javascript, 'fetch(' ) && false === strpos( $javascript, 'Stripe' ), 'The browser must not read Stripe or make a direct portal data call.' );
-foreach ( array( 'sources de vérité', 'Master Profile', 'Point Faluss', 'crée aucune', 'trialing', 'Customer Portal' ) as $needle ) {
+foreach ( array( 'sources de vérité', 'Master Profile', 'Point Faluss', 'faluss_pf', 'ALB / Alternative LAB', 'crée aucune', 'trialing', 'Customer Portal' ) as $needle ) {
     pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01 documentation is missing its architecture or data-boundary contract: ' . $needle );
 }
 pf01_assert( false !== strpos( $architecture, 'Faluss Portal' ) && false !== strpos( $data_model, '## Faluss Portal' ), 'Architecture and data-model documentation must register the new read-only portal boundary.' );

@@ -54,9 +54,12 @@ ONB-02 ne crée aucune table Faluss Link : `faluss_link_cards` porte les préfé
 
 La donnée `subject_id` reste générique. Le connecteur Faluss futur fournira un `faluss_id`, sans que cette table ne copie une identité, un e-mail ou des données métier.
 
-PF-01 emploie le libellé visible **Point Faluss (PF)** pour la projection de
-solde dans le portail. Cette évolution de vocabulaire ne renomme pas le code
-d'unité configurable, les lignes historiques ou les tables Token Engine.
+PF-01 réserve le libellé visible **Point Faluss (PF)**, mais ne projette aucun
+solde : aucun ledger Faluss explicitement identifié par un namespace ou code
+d'unité tel que `faluss_pf` n'existe encore. Un ledger ALB / Alternative LAB
+historique reste hors de cette surface et ne peut être converti, masqué ou
+affiché comme PF. Cette règle ne renomme ni code d'unité configurable, ni ligne
+historique, ni table Token Engine.
 
 ## Faluss Subscriptions
 
@@ -79,7 +82,7 @@ définis dans [`FALUSS_SUBSCRIPTIONS.md`](FALUSS_SUBSCRIPTIONS.md).
 ## Faluss Portal
 
 PF-01 n'ajoute aucune table. Le portail filtre la liaison client Identity par
-utilisateur WordPress courant, réduit la décision d'abonnement à des valeurs
-affichables et utilise le ledger Token Engine uniquement pour une projection
-de solde réelle. Il ne lit ni ne rend les références Stripe, les e-mails,
+utilisateur WordPress courant et réduit la décision d'abonnement à des valeurs
+affichables. Il ne lit aucun ledger Token Engine tant qu'une source PF officielle
+n'est pas définie, ni ne rend les références Stripe, les e-mails,
 adresses, cartes, sources de décision, payloads ou secrets.

@@ -193,14 +193,6 @@ final class Faluss_Portal {
         );
     }
 
-    /** @return array{available:bool,balance:int} */
-    private static function points_snapshot( $faluss_id ) {
-        if ( ! self::valid_faluss_id( $faluss_id ) || ! class_exists( 'Token_Engine_Schema' ) || ! class_exists( 'Token_Engine_Service' ) || ! Token_Engine_Schema::is_ready() ) {
-            return array( 'available' => false, 'balance' => 0 );
-        }
-        return array( 'available' => true, 'balance' => max( 0, (int) Token_Engine_Service::balance( $faluss_id ) ) );
-    }
-
     private static function access_gate() {
         $button = '';
         if ( class_exists( 'Faluss_Identity_Client' ) ) {
@@ -221,7 +213,6 @@ final class Faluss_Portal {
     private static function shell( $member ) {
         $route = self::route();
         $snapshot = self::subscription_snapshot( $member['faluss_id'] );
-        $points = self::points_snapshot( $member['faluss_id'] );
         $notice = self::consume_notice( $member['user']->ID );
         ob_start();
         ?>
@@ -247,17 +238,17 @@ final class Faluss_Portal {
                 </header>
                 <?php if ( is_array( $notice ) ) : ?><div class="faluss-portal__notice" role="status"><?php echo esc_html( $notice ); ?></div><?php endif; ?>
                 <div class="faluss-portal__content" data-faluss-portal-content>
-                    <?php self::render_panels( $route, $member, $snapshot, $points ); ?>
+                    <?php self::render_panels( $route, $snapshot ); ?>
                 </div>
             </main>
             <button class="faluss-portal__member-card" type="button" data-faluss-portal-profile-open aria-haspopup="dialog" aria-controls="faluss-portal-master-profile"><span class="faluss-portal__avatar" aria-hidden="true"></span><span class="faluss-portal__member-copy"><strong><?php echo esc_html( $member['name'] ); ?></strong><span>Profil Faluss</span></span><span class="faluss-portal__chevron" aria-hidden="true">⌄</span></button>
-            <?php self::master_profile( $member, $points ); ?>
+            <?php self::master_profile( $member ); ?>
         </section>
         <?php
         return (string) ob_get_clean();
     }
 
-    private static function render_panels( $route, $member, $snapshot, $points ) {
+    private static function render_panels( $route, $snapshot ) {
         foreach ( self::TABS as $section => $tabs ) {
             foreach ( $tabs as $tab ) {
                 $active = $section === $route['section'] && $tab === $route['tab'];
@@ -278,7 +269,6 @@ final class Faluss_Portal {
                 echo '</section>';
             }
         }
-        unset( $member, $points );
     }
 
     private static function home_panel( $tab, $snapshot ) {
@@ -369,7 +359,7 @@ final class Faluss_Portal {
         echo '<button type="submit" class="faluss-portal__button">' . esc_html( $label ) . '<span aria-hidden="true">↗</span></button></form>';
     }
 
-    private static function master_profile( $member, $points ) {
+    private static function master_profile( $member ) {
         ?>
         <dialog class="faluss-portal__master" id="faluss-portal-master-profile" data-faluss-portal-master aria-labelledby="faluss-portal-master-title">
             <div class="faluss-portal__master-surface">
@@ -382,7 +372,7 @@ final class Faluss_Portal {
                 <section class="faluss-portal__master-panel is-active" id="faluss-portal-master-panel-account" role="tabpanel" aria-labelledby="faluss-portal-master-tab-account" data-faluss-portal-master-panel="account">
                     <div class="faluss-portal__master-identity"><span class="faluss-portal__avatar faluss-portal__avatar--master" aria-hidden="true"></span><div><h1 id="faluss-portal-master-title"><?php echo esc_html( $member['name'] ); ?></h1><p>Profil Faluss vérifié</p></div></div>
                     <button class="faluss-portal__profile-edit" type="button" data-faluss-portal-profile-unavailable>✎ Modifier mon profil</button>
-                    <div class="faluss-portal__balance"><span>Points Faluss <small>PF</small></span><?php if ( $points['available'] ) : ?><strong><?php echo esc_html( number_format_i18n( $points['balance'] ) ); ?></strong><?php else : ?><em>Indisponible</em><?php endif; ?></div>
+                    <div class="faluss-portal__balance"><span>Points Faluss bientôt disponibles <small>PF</small></span></div>
                     <?php if ( '' !== $member['member_since'] ) : ?><p class="faluss-portal__member-since">Membre depuis <strong><?php echo esc_html( self::date_label( $member['member_since'] ) ); ?></strong></p><?php else : ?><p class="faluss-portal__member-since">Date d’adhésion indisponible.</p><?php endif; ?>
                 </section>
                 <section class="faluss-portal__master-panel" id="faluss-portal-master-panel-security" role="tabpanel" aria-labelledby="faluss-portal-master-tab-security" data-faluss-portal-master-panel="security" hidden><h2>Sécurité</h2><p>La sécurité de connexion, le passwordless et les sessions sont gérés par Faluss Identity. Ce portail ne les duplique pas.</p></section>

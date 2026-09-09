@@ -23,7 +23,7 @@ figé, positionnement absolu de page ou scroll imbriqué n'est utilisé.
 | Offre et état | `Faluss_Subscriptions_Resolver` | niveau, état normalisé, échéance et périodicité seulement | aucune |
 | Customer Portal | `Faluss_Subscriptions_Billing::create_portal()` | bouton uniquement si configuration et Customer locaux existent | session Stripe hébergée à la demande, sans stockage portail |
 | Factures | Faluss Subscriptions / Customer Portal Stripe | état vide tant qu'aucune projection locale autorisée n'existe | aucune |
-| Points Faluss | `Token_Engine_Service::balance()` si le schéma est prêt | solde réel ou état indisponible | aucune |
+| Points Faluss | aucune source PF officielle dans PF-01 | « Points Faluss bientôt disponibles », sans valeur | aucune |
 | Identité visuelle | identité WordPress locale minimale | nom d'affichage sûr ou « Membre Faluss », avatar neutre | aucune |
 | Apps, analytics, quêtes, boutique | contrats futurs propres aux applications | état vide explicite | aucune |
 
@@ -76,7 +76,7 @@ de données :
 
 | Onglet | Données PF-01 | Ce qui reste hors périmètre |
 | --- | --- | --- |
-| Mon compte | identité locale sûre, date de liaison, solde réel de Points Faluss si disponible | profil universel, handle universel, avatar universel, écriture de profil |
+| Mon compte | identité locale sûre, date de liaison et état PF à venir | profil universel, handle universel, avatar universel, écriture de profil |
 | Sécurité | rappel de l'autorité Faluss Identity | passwordless, sessions et e-mail |
 | Confidentialité | état préparatoire | consentements et règles de visibilité universelles |
 
@@ -95,11 +95,16 @@ PF-01 propose le modèle cible sans le persister :
 
 ## Point Faluss (PF)
 
-La dénomination visible introduite par PF-01 est **Point Faluss**, abréviation
-**PF**. Le portail l'emploie pour la projection de solde. Il ne renomme ni les
-transactions historiques, ni le code d'unité configurable de Token Engine, ni
-les schémas économiques existants. La migration sémantique globale de l'unité,
-si elle devient nécessaire, doit être un lot Token Engine dédié et audité.
+La dénomination future est **Point Faluss**, abréviation **PF**. PF-01 ne
+projette encore aucun solde sous ce nom : aucun ledger PF officiel, avec un
+namespace ou code d'unité dédié tel que `faluss_pf`, n'est actuellement défini.
+
+Un solde historique ALB / Alternative LAB ne peut jamais être lu, converti,
+masqué ou affiché comme PF. Le Master Profile indique donc seulement **Points
+Faluss bientôt disponibles**, sans valeur numérique. Toute lecture future devra
+vérifier explicitement une source de ledger Faluss PF identifiée ; elle fera
+l'objet d'un lot Token Engine dédié, documenté et contractuellement testé, sans
+migration implicite de transactions historiques.
 
 ## Interaction, accessibilité et repli
 
@@ -126,7 +131,9 @@ global de focus ou style Elementor ne s'applique à la page.
 6. Vérifier Facturation sans facture locale, puis le Customer Portal seulement
    pour un Customer réellement configuré ; son retour doit revenir à Paiement.
 7. Vérifier le Master Profile, Échap, retour navigateur, focus clavier,
-   `prefers-reduced-motion`, mobile et desktop.
+   `prefers-reduced-motion`, mobile et desktop. Le bloc PF doit afficher
+   « Points Faluss bientôt disponibles » sans montant, même si un ledger ALB
+   historique existe dans Token Engine.
 
 Une recette WordPress réelle et une recette Stripe ne font pas partie de la
 preuve statique PF-01 ; elles doivent être exécutées sur une installation de

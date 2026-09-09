@@ -23,9 +23,11 @@ Les installations WordPress, leurs tables `users`, leurs sessions et leurs bases
 `Faluss Portal` est une brique de rendu front-office de `faluss.com`, insérée
 par le shortcode `[faluss_portal]` sur `/mon-faluss/`. Il utilise la session
 locale issue de Faluss Identity Client comme unique point de départ puis ne
-projette que des lectures réduites de Faluss Subscriptions et Token Engine. Il
-ne possède ni table, ni identité, ni abonnement, ni solde, ni facture, ni
-profil universel. Son contrat détaillé et la matrice de sources de vérité sont
+projette que des lectures réduites de Faluss Subscriptions. Il ne lit aucun
+ledger Token Engine tant qu'un namespace PF officiel n'est pas défini : un
+solde ALB historique ne devient jamais Point Faluss. Il ne possède ni table,
+ni identité, ni abonnement, ni solde, ni facture, ni profil universel. Son
+contrat détaillé et la matrice de sources de vérité sont
 dans [`FALUSS_PORTAL.md`](FALUSS_PORTAL.md).
 
 ## Modèle Elementor de profil public
