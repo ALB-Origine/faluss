@@ -165,8 +165,20 @@ class Faluss_Subscriptions_Stripe_Adapter {
         try {
             return self::normalise( $callback( $this->client ) );
         } catch ( Exception $exception ) {
-            return new WP_Error( 'stripe_transport_failed', __( 'Stripe n’a pas répondu de manière exploitable.', 'faluss-subscriptions' ) );
+            return new WP_Error( self::safe_exception_code( $exception ), __( 'Stripe n’a pas répondu de manière exploitable.', 'faluss-subscriptions' ) );
         }
+    }
+
+    /**
+     * Convert only known provider errors to audited, non-sensitive outcomes.
+     * Provider messages, parameters and response bodies are deliberately never
+     * passed across this boundary.
+     */
+    private static function safe_exception_code( $exception ) {
+        if ( $exception instanceof \Stripe\Exception\InvalidRequestException && 'customer_tax_location_invalid' === $exception->getStripeCode() ) {
+            return 'stripe_customer_tax_location_invalid';
+        }
+        return 'stripe_transport_failed';
     }
 
     /** @return array<string,mixed> */

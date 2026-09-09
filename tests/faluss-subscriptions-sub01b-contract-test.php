@@ -31,14 +31,45 @@ require_once $plugin . '/includes/class-faluss-subscriptions-catalog.php';
 require_once $plugin . '/includes/class-faluss-subscriptions-stripe-config.php';
 require_once $plugin . '/includes/class-faluss-subscriptions-stripe-sdk.php';
 require_once $plugin . '/includes/class-faluss-subscriptions-billing.php';
+require_once $plugin . '/vendor/autoload.php';
+
+final class Faluss_Subscriptions_Tax_Location_Test_Sessions {
+    public function create( $parameters, $options ) {
+        throw \Stripe\Exception\InvalidRequestException::factory( 'Sensitive provider message that must not cross the adapter boundary.', 400, null, null, null, 'customer_tax_location_invalid' );
+    }
+}
+
+final class Faluss_Subscriptions_Tax_Location_Test_Client {
+    public $checkout;
+    public function __construct() {
+        $this->checkout = (object) array( 'sessions' => new Faluss_Subscriptions_Tax_Location_Test_Sessions() );
+    }
+}
+
+final class Faluss_Subscriptions_Transport_Test_Sessions {
+    public function create( $parameters, $options ) {
+        throw new Exception( 'Sensitive transport failure that must not cross the adapter boundary.' );
+    }
+}
+
+final class Faluss_Subscriptions_Transport_Test_Client {
+    public $checkout;
+    public function __construct() {
+        $this->checkout = (object) array( 'sessions' => new Faluss_Subscriptions_Transport_Test_Sessions() );
+    }
+}
 
 sub01b_assert( 'test' === Faluss_Subscriptions_Stripe_Config::mode(), 'Stripe mode must default to test without a server constant.' );
 sub01b_assert( '2025-03-31.basil' === Faluss_Subscriptions_Stripe_Config::API_VERSION && false !== strpos( $config, 'FALUSS_STRIPE_LIVE_ENABLED' ), 'The Stripe API version must be pinned and live must remain opt-in.' );
 foreach ( array( 'FALUSS_STRIPE_TEST_SECRET_KEY', 'FALUSS_STRIPE_TEST_WEBHOOK_SECRET', "'_PRICE_PRO_'", "'_PORTAL_CONFIGURATION_ID'" ) as $constant ) { sub01b_assert( false !== strpos( $config, $constant ), 'Required server-only Stripe configuration is missing: ' . $constant ); }
 sub01b_assert( isset( $composer['packages'][0]['name'], $composer['packages'][0]['version'] ) && 'stripe/stripe-php' === $composer['packages'][0]['name'] && 'v21.3.0' === $composer['packages'][0]['version'], 'The distributed lock file must pin the official Stripe SDK v21.3.0.' );
 sub01b_assert( false !== strpos( $sdk, 'stripe_sdk_collision' ) && false !== strpos( $sdk, 'vendor/autoload.php' ) && false !== strpos( $sdk, 'Webhook::constructEvent' ) && false !== strpos( $sdk, 'retrieve_event' ), 'The bundled SDK must fail closed on a WordPress collision, verify signatures and fetch canonical retry events.' );
+$tax_location_error = ( new Faluss_Subscriptions_Stripe_Adapter( new Faluss_Subscriptions_Tax_Location_Test_Client() ) )->create_checkout_session( array(), 'stripe-tax-test-idempotency-key' );
+$transport_error = ( new Faluss_Subscriptions_Stripe_Adapter( new Faluss_Subscriptions_Transport_Test_Client() ) )->create_checkout_session( array(), 'stripe-transport-test-idempotency-key' );
+sub01b_assert( is_wp_error( $tax_location_error ) && 'stripe_customer_tax_location_invalid' === $tax_location_error->get_error_code() && is_wp_error( $transport_error ) && 'stripe_transport_failed' === $transport_error->get_error_code(), 'The exact Stripe InvalidRequestException code must map safely without replacing unrelated transport failures.' );
 foreach ( array( "'unit_amount'", "'tax_behavior'", "'inclusive'", "'interval_count'", "'FALUSS_STRIPE_" ) as $needle ) { sub01b_assert( false !== strpos( $billing . $config, $needle ), 'Server-side Price validation is missing: ' . $needle ); }
-foreach ( array( "'mode' => 'subscription'", "'payment_method_types' => array( 'card' )", "'payment_method_collection' => 'always'", "'trial_period_days' => Faluss_Subscriptions_Catalog::TRIAL_DAYS", "'automatic_tax' => array( 'enabled' => true )", "'idempotency_key'" ) as $needle ) { sub01b_assert( false !== strpos( $billing . $sdk, $needle ), 'Checkout invariant is missing: ' . $needle ); }
+foreach ( array( "'mode' => 'subscription'", "'payment_method_types' => array( 'card' )", "'payment_method_collection' => 'always'", "'billing_address_collection' => 'required'", "'customer_update' => array( 'address' => 'auto' )", "'trial_period_days' => Faluss_Subscriptions_Catalog::TRIAL_DAYS", "'automatic_tax' => array( 'enabled' => true )", "'idempotency_key'" ) as $needle ) { sub01b_assert( false !== strpos( $billing . $sdk, $needle ), 'Checkout invariant is missing: ' . $needle ); }
+sub01b_assert( false !== strpos( $sdk, 'customer_tax_location_invalid' ) && false !== strpos( $sdk, 'stripe_customer_tax_location_invalid' ) && false !== strpos( $sdk, 'stripe_transport_failed' ), 'Stripe Tax address failures must have a dedicated safe classification and retain the transport fallback.' );
 sub01b_assert( false !== strpos( $billing, 'checkout_subscription_exists' ) && false !== strpos( $billing, 'checkout_trial_already_used' ) && false !== strpos( $billing, 'GET_LOCK' ), 'Checkout must serialize a subject and refuse duplicate subscription or trial.' );
 sub01b_assert( false !== strpos( $webhooks, 'file_get_contents( \'php://input\' )' ) && false !== strpos( $webhooks, 'stripe-signature' ) && false !== strpos( $webhooks, 'permission_callback' ) && false !== strpos( $webhooks, 'no-store, private' ), 'The webhook must use raw body, Stripe signature, public route permission and no-cache responses.' );
 foreach ( array( 'checkout.session.completed', 'customer.subscription.updated', 'invoice.paid', 'invoice.payment_failed', 'charge.refunded', 'charge.dispute.created' ) as $event_type ) { sub01b_assert( false !== strpos( $webhooks, $event_type ), 'Required Stripe event is not handled: ' . $event_type ); }

@@ -191,6 +191,17 @@ final class Faluss_Subscriptions_Sandbox_Rejected_Adapter extends Faluss_Subscri
     public function create_customer( $faluss_id ) { $this->calls[] = array( 'create_customer', $faluss_id ); return new WP_Error( 'unexpected_customer_creation' ); }
 }
 
+final class Faluss_Subscriptions_Sandbox_Tax_Location_Adapter extends Faluss_Subscriptions_Stripe_Adapter {
+    public $calls = array();
+    public function __construct() {}
+    public function retrieve_price( $price_id ) {
+        $this->calls[] = array( 'retrieve_price', $price_id );
+        return array( 'id' => $price_id, 'active' => true, 'currency' => 'eur', 'unit_amount' => 'price_sandboxannual' === $price_id ? 9900 : 999, 'tax_behavior' => 'inclusive', 'product' => 'prod_sandbox', 'recurring' => array( 'interval' => 'price_sandboxannual' === $price_id ? 'year' : 'month', 'interval_count' => 1 ) );
+    }
+    public function create_customer( $faluss_id ) { $this->calls[] = array( 'create_customer', $faluss_id ); return array( 'id' => 'cus_sandboxtaxlocation' ); }
+    public function create_checkout_session( $parameters, $idempotency_key ) { $this->calls[] = array( 'create_checkout_session', $parameters, $idempotency_key ); return new WP_Error( 'stripe_customer_tax_location_invalid' ); }
+}
+
 $_GET = array( 'page' => 'faluss-subscriptions', 'tab' => 'sandbox' );
 $_POST = array();
 $_SERVER['REQUEST_METHOD'] = 'GET';
@@ -216,6 +227,9 @@ sub01a_admin_assert( 'https://checkout.stripe.com/c/pay/cs_sandboxcheckout' === 
 sub01a_admin_assert( 1 === count( $wpdb->rows['customers'] ) && 1 === count( $wpdb->rows['checkout_sessions'] ) && 'open' === $wpdb->rows['checkout_sessions'][0]['session_status'], 'A successful sandbox Checkout must persist only its linked Customer and pending Checkout session.' );
 sub01a_admin_assert( 0 === count( array_filter( $wpdb->rows['entitlements'], static function( $row ) use ( $sandbox_member_id ) { return $sandbox_member_id === ( $row['faluss_id'] ?? '' ); } ) ) && 0 === count( array_filter( $wpdb->rows['trials'], static function( $row ) use ( $sandbox_member_id ) { return $sandbox_member_id === ( $row['faluss_id'] ?? '' ); } ) ) && 0 === count( array_filter( $wpdb->rows['subscriptions'], static function( $row ) use ( $sandbox_member_id ) { return $sandbox_member_id === ( $row['faluss_id'] ?? '' ); } ) ), 'Opening Checkout must not create an entitlement, active trial or subscription before a signed webhook.' );
 sub01a_admin_assert( in_array( 'stripe_checkout_created', array_column( $wpdb->rows['audit'], 'action' ), true ) && false !== strpos( implode( '|', array_column( $sub01a_stripe_adapter->calls, 0 ) ), 'create_checkout_session' ), 'A simulated Stripe session must be created and audited through the dedicated sandbox handler.' );
+$sandbox_checkout_calls = array_values( array_filter( $sub01a_stripe_adapter->calls, static function( $call ) { return 'create_checkout_session' === ( $call[0] ?? '' ); } ) );
+$sandbox_checkout_parameters = $sandbox_checkout_calls[0][1] ?? array();
+sub01a_admin_assert( 1 === count( $sandbox_checkout_calls ) && 'required' === ( $sandbox_checkout_parameters['billing_address_collection'] ?? '' ) && 'auto' === ( $sandbox_checkout_parameters['customer_update']['address'] ?? '' ) && ! empty( $sandbox_checkout_calls[0][2] ), 'Checkout must collect and persist the billing address on its linked Stripe Customer while retaining an idempotency key.' );
 
 $rejected_member_id = '77777777-7777-4777-8777-777777777777';
 $sub01a_stripe_adapter = new Faluss_Subscriptions_Sandbox_Rejected_Adapter();
@@ -231,6 +245,22 @@ $rejected_redirect = sub01a_dispatch_form(
 $rejected_audits = array_values( array_filter( $wpdb->rows['audit'], static function( $row ) use ( $rejected_member_id ) { return $rejected_member_id === ( $row['faluss_id'] ?? '' ); } ) );
 sub01a_admin_assert( false !== strpos( $rejected_redirect, 'page=faluss-subscriptions&tab=sandbox' ) && 1 === count( $rejected_audits ) && 'stripe_checkout_rejected' === $rejected_audits[0]['action'] && 'sandbox' === $rejected_audits[0]['source'] && 'stripe_price_catalogue_mismatch' === ( json_decode( $rejected_audits[0]['next_state'], true )['cause'] ?? '' ) && 'stripe_checkout_rejected' === ( $sub01a_transients['faluss_subscriptions_admin_notice_91']['code'] ?? '' ) && 'stripe_price_catalogue_mismatch' === ( $sub01a_transients['faluss_subscriptions_admin_notice_91']['context']['cause'] ?? '' ), 'A pre-Stripe Checkout rejection must be safely classified, audited and surfaced without an administrative-rights fallback.' );
 sub01a_admin_assert( 1 === count( $wpdb->rows['customers'] ) && 1 === count( $wpdb->rows['checkout_sessions'] ) && 0 === count( array_filter( $wpdb->rows['entitlements'], static function( $row ) use ( $rejected_member_id ) { return $rejected_member_id === ( $row['faluss_id'] ?? '' ); } ) ), 'A rejected sandbox Checkout must not create a Customer, Checkout, entitlement or right for its Faluss ID.' );
+
+$tax_location_member_id = '99999999-9999-4999-8999-999999999999';
+$sub01a_stripe_adapter = new Faluss_Subscriptions_Sandbox_Tax_Location_Adapter();
+$tax_location_redirect = sub01a_dispatch_form(
+    array(
+        'action' => sub01a_hidden_value( $sandbox_checkout_form, 'action' ),
+        'faluss_subscriptions_intent' => sub01a_hidden_value( $sandbox_checkout_form, 'faluss_subscriptions_intent' ),
+        'faluss_id' => $tax_location_member_id,
+        'period' => 'monthly',
+        '_wpnonce' => sub01a_hidden_value( $sandbox_checkout_form, '_wpnonce' ),
+    )
+);
+$tax_location_audits = array_values( array_filter( $wpdb->rows['audit'], static function( $row ) use ( $tax_location_member_id ) { return $tax_location_member_id === ( $row['faluss_id'] ?? '' ); } ) );
+$tax_location_audit = $tax_location_audits[0] ?? array();
+sub01a_admin_assert( false !== strpos( $tax_location_redirect, 'page=faluss-subscriptions&tab=sandbox' ) && 'stripe_checkout_rejected' === ( $tax_location_audit['action'] ?? '' ) && 'stripe_customer_tax_location_invalid' === ( json_decode( $tax_location_audit['next_state'] ?? '{}', true )['cause'] ?? '' ) && 'stripe_customer_tax_location_invalid' === ( $sub01a_transients['faluss_subscriptions_admin_notice_91']['context']['cause'] ?? '' ), 'The Stripe Tax Customer-address failure must remain a dedicated safe Checkout rejection.' );
+sub01a_admin_assert( 0 === count( array_filter( $wpdb->rows['entitlements'], static function( $row ) use ( $tax_location_member_id ) { return $tax_location_member_id === ( $row['faluss_id'] ?? '' ); } ) ) && 0 === count( array_filter( $wpdb->rows['trials'], static function( $row ) use ( $tax_location_member_id ) { return $tax_location_member_id === ( $row['faluss_id'] ?? '' ); } ) ) && 0 === count( array_filter( $wpdb->rows['subscriptions'], static function( $row ) use ( $tax_location_member_id ) { return $tax_location_member_id === ( $row['faluss_id'] ?? '' ); } ) ), 'A Stripe Tax Checkout rejection must never create a right before a signed webhook.' );
 
 $legacy_member_id = '88888888-8888-4888-8888-888888888888';
 $legacy_redirect = sub01a_dispatch_form(

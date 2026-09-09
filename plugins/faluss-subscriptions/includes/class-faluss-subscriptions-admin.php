@@ -252,7 +252,7 @@ final class Faluss_Subscriptions_Admin {
             'sandbox_checkout_invalid_request', 'sandbox_checkout_forbidden', 'sandbox_checkout_invalid_intent', 'sandbox_checkout_invalid_nonce', 'sandbox_checkout_legacy_route', 'sandbox_test_only',
             'checkout_invalid', 'checkout_busy', 'checkout_subscription_exists', 'checkout_trial_already_used', 'checkout_entropy_failed', 'checkout_session_invalid', 'checkout_conflict', 'checkout_record_failed',
             'billing_customer_invalid', 'billing_customer_conflict', 'stripe_customer_invalid', 'stripe_tax_not_enabled', 'stripe_price_not_configured', 'stripe_product_not_configured', 'stripe_price_unavailable', 'stripe_price_catalogue_mismatch',
-            'stripe_secret_key_invalid', 'stripe_live_disabled', 'stripe_sdk_collision', 'stripe_sdk_missing', 'stripe_sdk_invalid', 'stripe_client_unavailable', 'stripe_transport_failed',
+            'stripe_secret_key_invalid', 'stripe_live_disabled', 'stripe_sdk_collision', 'stripe_sdk_missing', 'stripe_sdk_invalid', 'stripe_client_unavailable', 'stripe_customer_tax_location_invalid', 'stripe_transport_failed',
         );
         return in_array( $code, $allowed, true ) ? $code : 'stripe_checkout_unavailable';
     }

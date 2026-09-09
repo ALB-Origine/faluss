@@ -48,7 +48,7 @@ Les équivalents LIVE sont nécessaires en live. Le live échoue fermé tant que
 
 Faluss_Subscriptions_Billing::create_checkout() est un service PHP privé pour un futur appelant authentifié. Il accepte un Faluss ID opaque et monthly/annual; un verrou MySQL par Faluss ID, les contraintes uniques et une clé d’idempotence Stripe évitent les créations concurrentes. Le Customer Stripe ne contient que le Faluss ID opaque en métadonnées; sa référence est locale et aucune adresse e-mail n’est stockée.
 
-Checkout est hébergé par Stripe : abonnement, un Price, quantité 1, carte obligatoire, adresse de facturation, automatic_tax, essai 15 jours et annulation sans moyen de paiement valide. Les retours succès/annulation sont une page technique interne no-store avec état opaque; ils n’accordent jamais de droit. Seul le webhook signé et relu peut le faire.
+Checkout est hébergé par Stripe : abonnement, un Price, quantité 1, carte obligatoire, adresse de facturation obligatoire et sauvegardée automatiquement sur le Customer Stripe pour Stripe Tax, automatic_tax, essai 15 jours et annulation sans moyen de paiement valide. Les retours succès/annulation sont une page technique interne no-store avec état opaque; ils n’accordent jamais de droit. Seul le webhook signé et relu peut le faire.
 
 Customer Portal est un service privé, limité au Customer Stripe relié au même Faluss ID. Résiliation/réactivation ne modifient que cancel_at_period_end; aucune baisse de Price, migration gratuite ou suppression immédiate n’est automatisée.
 

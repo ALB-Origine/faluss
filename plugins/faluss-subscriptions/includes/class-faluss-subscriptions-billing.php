@@ -182,7 +182,7 @@ final class Faluss_Subscriptions_Billing {
         $token = $state;
         return array(
             'mode' => 'subscription', 'customer' => $checkout['provider_customer_reference'], 'line_items' => array( array( 'price' => $price_id, 'quantity' => 1 ) ),
-            'payment_method_types' => array( 'card' ), 'payment_method_collection' => 'always', 'billing_address_collection' => 'required', 'automatic_tax' => array( 'enabled' => true ),
+            'payment_method_types' => array( 'card' ), 'payment_method_collection' => 'always', 'billing_address_collection' => 'required', 'customer_update' => array( 'address' => 'auto' ), 'automatic_tax' => array( 'enabled' => true ),
             'success_url' => add_query_arg( array( 'kind' => 'success', 'state' => $token, 'session_id' => '{CHECKOUT_SESSION_ID}' ), $base ),
             'cancel_url' => add_query_arg( array( 'kind' => 'cancel', 'state' => $token ), $base ),
             'client_reference_id' => $checkout['checkout_uuid'],
