@@ -136,7 +136,7 @@ final class Faluss_Subscriptions_Repository {
             || $customer_reference !== ( $checkout['provider_customer_reference'] ?? '' ) || empty( $checkout['provider_session_reference'] ) ) {
             return self::error( 'checkout_subscription_link_invalid' );
         }
-        if ( $subscription_reference === ( $checkout['provider_subscription_reference'] ?? '' ) && in_array( $checkout['session_status'] ?? '', array( 'completed', 'trial_ineligible' ), true ) ) { return $checkout; }
+        if ( $subscription_reference === ( $checkout['provider_subscription_reference'] ?? '' ) && in_array( $checkout['session_status'] ?? '', array( 'completed', 'trial_ineligible_pending', 'trial_ineligible' ), true ) ) { return $checkout; }
         if ( ! in_array( $checkout['session_status'] ?? '', array( 'open', 'completed' ), true ) ) { return self::error( 'checkout_subscription_link_invalid' ); }
         if ( ! empty( $checkout['provider_subscription_reference'] ) && $subscription_reference !== ( $checkout['provider_subscription_reference'] ?? '' ) ) {
             return self::error( 'checkout_subscription_link_conflict' );
@@ -146,13 +146,51 @@ final class Faluss_Subscriptions_Repository {
     }
 
     /**
-     * Retains a safe, local idempotence marker after a demonstrated
-     * cross-identity trial collision has requested remote cancellation.
-     * No entitlement or provider payload is persisted here.
+     * Atomically claims an already-linked Checkout before a worker can ask
+     * Stripe to cancel an ineligible trial. The conditional status update is
+     * the durable cross-request mutex: exactly one worker can move completed
+     * to trial_ineligible_pending for one Checkout/subscription pair.
+     *
+     * @return array{claimed:bool,checkout:array<string,mixed>}|WP_Error
+     */
+    public static function claim_checkout_trial_ineligibility( $checkout_uuid, $faluss_id, $customer_reference, $subscription_reference ) {
+        global $wpdb;
+        $checkout = self::checkout_for_uuid( $checkout_uuid );
+        $faluss_id = self::valid_faluss_id( $faluss_id ) ? strtolower( $faluss_id ) : '';
+        $customer_reference = self::bounded( $customer_reference, 191 );
+        $subscription_reference = self::bounded( $subscription_reference, 191 );
+        if ( ! is_array( $checkout ) || '' === $faluss_id || '' === $customer_reference || '' === $subscription_reference
+            || 'stripe' !== ( $checkout['provider'] ?? '' ) || $faluss_id !== ( $checkout['faluss_id'] ?? '' )
+            || $customer_reference !== ( $checkout['provider_customer_reference'] ?? '' ) || $subscription_reference !== ( $checkout['provider_subscription_reference'] ?? '' ) ) {
+            return self::error( 'checkout_trial_ineligible_invalid' );
+        }
+        $written = $wpdb->update(
+            Faluss_Subscriptions_Schema::checkout_sessions_table(),
+            array( 'session_status' => 'trial_ineligible_pending', 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ),
+            array( 'id' => (int) $checkout['id'], 'session_status' => 'completed' )
+        );
+        if ( false === $written ) { return self::error( 'checkout_trial_ineligible_claim_failed' ); }
+        $current = self::checkout_for_uuid( $checkout_uuid );
+        if ( ! is_array( $current ) || $faluss_id !== ( $current['faluss_id'] ?? '' ) || $customer_reference !== ( $current['provider_customer_reference'] ?? '' ) || $subscription_reference !== ( $current['provider_subscription_reference'] ?? '' ) ) {
+            return self::error( 'checkout_trial_ineligible_claim_failed' );
+        }
+        if ( 1 === (int) $written && 'trial_ineligible_pending' === ( $current['session_status'] ?? '' ) ) {
+            return array( 'claimed' => true, 'checkout' => $current );
+        }
+        if ( in_array( $current['session_status'] ?? '', array( 'trial_ineligible_pending', 'trial_ineligible' ), true ) ) {
+            return array( 'claimed' => false, 'checkout' => $current );
+        }
+        return self::error( 'checkout_trial_ineligible_claim_failed' );
+    }
+
+    /**
+     * Finalizes the durable claim after its single Stripe cancellation attempt.
+     * A failed or already-completed provider request remains terminal locally:
+     * replaying signed webhooks must not issue another remote DELETE.
      *
      * @return array<string,mixed>|WP_Error
      */
-    public static function mark_checkout_trial_ineligible( $checkout_uuid, $faluss_id, $customer_reference, $subscription_reference ) {
+    public static function finalize_checkout_trial_ineligibility( $checkout_uuid, $faluss_id, $customer_reference, $subscription_reference ) {
         global $wpdb;
         $checkout = self::checkout_for_uuid( $checkout_uuid );
         $faluss_id = self::valid_faluss_id( $faluss_id ) ? strtolower( $faluss_id ) : '';
@@ -164,9 +202,16 @@ final class Faluss_Subscriptions_Repository {
             return self::error( 'checkout_trial_ineligible_invalid' );
         }
         if ( 'trial_ineligible' === ( $checkout['session_status'] ?? '' ) ) { return $checkout; }
-        if ( 'completed' !== ( $checkout['session_status'] ?? '' ) ) { return self::error( 'checkout_trial_ineligible_invalid' ); }
-        $written = $wpdb->update( Faluss_Subscriptions_Schema::checkout_sessions_table(), array( 'session_status' => 'trial_ineligible', 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => (int) $checkout['id'] ) );
-        return false === $written ? self::error( 'checkout_trial_ineligible_failed' ) : ( self::checkout_for_uuid( $checkout_uuid ) ?: self::error( 'checkout_trial_ineligible_failed' ) );
+        if ( 'trial_ineligible_pending' !== ( $checkout['session_status'] ?? '' ) ) { return self::error( 'checkout_trial_ineligible_invalid' ); }
+        $written = $wpdb->update(
+            Faluss_Subscriptions_Schema::checkout_sessions_table(),
+            array( 'session_status' => 'trial_ineligible', 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ),
+            array( 'id' => (int) $checkout['id'], 'session_status' => 'trial_ineligible_pending' )
+        );
+        if ( false === $written ) { return self::error( 'checkout_trial_ineligible_failed' ); }
+        $current = self::checkout_for_uuid( $checkout_uuid );
+        if ( is_array( $current ) && 'trial_ineligible' === ( $current['session_status'] ?? '' ) ) { return $current; }
+        return self::error( 'checkout_trial_ineligible_failed' );
     }
 
     /**

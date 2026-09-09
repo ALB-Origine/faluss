@@ -34,6 +34,10 @@ final class Faluss_Subscriptions_Provisioning_Adapter extends Faluss_Subscriptio
 	public $customer = array();
 	public $checkout_session = array();
 	public $cancelled = 0;
+	public $cancel_error_code = '';
+	public $concurrent_delivery = false;
+	public $delivering_cancellation = false;
+	public $concurrent_result = null;
 
 	public function __construct() {}
 
@@ -52,7 +56,18 @@ final class Faluss_Subscriptions_Provisioning_Adapter extends Faluss_Subscriptio
 	public function retrieve_payment_method( $payment_method_id ) { return self::id( $this->payment_method ) === $payment_method_id ? $this->payment_method : new WP_Error( 'stripe_payment_method_missing' ); }
 	public function retrieve_customer( $customer_id ) { return self::id( $this->customer ) === $customer_id ? $this->customer : new WP_Error( 'stripe_customer_missing' ); }
 	public function retrieve_checkout_session( $session_id ) { return self::id( $this->checkout_session ) === $session_id ? $this->checkout_session : new WP_Error( 'stripe_checkout_missing' ); }
-	public function cancel_now( $subscription_id ) { ++$this->cancelled; return array( 'id' => $subscription_id ); }
+	public function cancel_now( $subscription_id ) {
+		++$this->cancelled;
+		// Re-enter while the outer worker still owns the remote cancellation.
+		// This simulates a separately delivered, legitimate Stripe event that
+		// races exactly at the former DELETE-before-marker window.
+		if ( $this->concurrent_delivery && ! $this->delivering_cancellation ) {
+			$this->delivering_cancellation = true;
+			$this->concurrent_result = Faluss_Subscriptions_Billing::apply_stripe_subscription( $this->subscription, 'customer.subscription.updated' );
+			$this->delivering_cancellation = false;
+		}
+		return '' !== $this->cancel_error_code ? new WP_Error( $this->cancel_error_code ) : array( 'id' => $subscription_id );
+	}
 	private static function id( $record ) { return is_array( $record ) ? (string) ( $record['id'] ?? '' ) : ''; }
 }
 
@@ -96,6 +111,10 @@ function sub01b_provision_audits( $faluss_id, $action ) {
 	return array_values( array_filter( $wpdb->rows['audit'], static function( $row ) use ( $faluss_id, $action ) {
 		return $faluss_id === ( $row['faluss_id'] ?? '' ) && $action === ( $row['action'] ?? '' );
 	} ) );
+}
+
+function sub01b_provision_audit_justifications( $faluss_id, $action ) {
+	return array_values( array_map( static function( $row ) { return (string) ( $row['justification'] ?? '' ); }, sub01b_provision_audits( $faluss_id, $action ) ) );
 }
 
 $sub01b_provision_adapter = new Faluss_Subscriptions_Provisioning_Adapter();
@@ -171,12 +190,31 @@ sub01b_provision_assert( is_array( $ineligible_checkout ) && is_array( Faluss_Su
 $sub01b_provision_adapter->subscription = sub01b_provision_subscription( $ineligible_id, $ineligible_customer, 'sub_trialfingerprintsecond', '', 'trialing', $ineligible_checkout['checkout_uuid'] );
 $sub01b_provision_adapter->customer = array( 'id' => $ineligible_customer, 'invoice_settings' => array( 'default_payment_method' => 'pm_trialfingerprintsecond' ) );
 $sub01b_provision_adapter->payment_method = array( 'id' => 'pm_trialfingerprintsecond', 'customer' => $ineligible_customer, 'card' => array( 'fingerprint' => 'FpSharedTrialCard' ) );
+$sub01b_provision_adapter->concurrent_delivery = true;
 $ineligible = Faluss_Subscriptions_Billing::apply_stripe_subscription( $sub01b_provision_adapter->subscription, 'customer.subscription.created' );
+$sub01b_provision_adapter->concurrent_delivery = false;
 $cancellation_audits = sub01b_provision_audits( $ineligible_id, 'stripe_subscription_canceled_for_trial_ineligibility' );
 $cancellation_state = $cancellation_audits ? json_decode( $cancellation_audits[0]['next_state'] ?? '{}', true ) : array();
-sub01b_provision_assert( is_wp_error( $ineligible ) && 'payment_fingerprint_already_consumed' === $ineligible->get_error_code() && $cancellation_count + 1 === $sub01b_provision_adapter->cancelled && 1 === count( $cancellation_audits ) && array( 'payment_fingerprint_already_consumed' ) === sub01b_provision_audit_reasons( $ineligible_id ) && 'payment_fingerprint_already_consumed' === ( $cancellation_state['reason'] ?? '' ) && 'requested' === ( $cancellation_state['outcome'] ?? '' ) && 0 === sub01b_provision_count( 'trials', $ineligible_id ) && 0 === sub01b_provision_count( 'subscriptions', $ineligible_id ), 'Only a cross-identity reused verified payment fingerprint may request one remote cancellation, with a safe reason and no right.' );
+sub01b_provision_assert( is_wp_error( $ineligible ) && is_array( $sub01b_provision_adapter->concurrent_result ) && 'payment_fingerprint_already_consumed' === $ineligible->get_error_code() && $cancellation_count + 1 === $sub01b_provision_adapter->cancelled && 1 === count( $cancellation_audits ) && array( 'payment_fingerprint_already_consumed' ) === sub01b_provision_audit_reasons( $ineligible_id ) && array( 'payment_fingerprint_already_consumed' ) === sub01b_provision_audit_justifications( $ineligible_id, 'stripe_trial_refused' ) && array( 'payment_fingerprint_already_consumed' ) === sub01b_provision_audit_justifications( $ineligible_id, 'stripe_subscription_canceled_for_trial_ineligibility' ) && 'payment_fingerprint_already_consumed' === ( $cancellation_state['reason'] ?? '' ) && 'requested' === ( $cancellation_state['outcome'] ?? '' ) && 'trial_ineligible' === ( Faluss_Subscriptions_Repository::checkout_for_uuid( $ineligible_checkout['checkout_uuid'] )['session_status'] ?? '' ) && 0 === sub01b_provision_count( 'trials', $ineligible_id ) && 0 === sub01b_provision_count( 'subscriptions', $ineligible_id ), 'Concurrent deliveries for the same ineligible Checkout must acquire one durable claim, issue one DELETE and audit one non-empty safe reason.' );
 $ineligible_replay = Faluss_Subscriptions_Billing::apply_stripe_subscription( $sub01b_provision_adapter->subscription, 'customer.subscription.updated' );
 sub01b_provision_assert( is_array( $ineligible_replay ) && $cancellation_count + 1 === $sub01b_provision_adapter->cancelled && 1 === count( sub01b_provision_audits( $ineligible_id, 'stripe_subscription_canceled_for_trial_ineligibility' ) ) && 1 === count( sub01b_provision_audit_reasons( $ineligible_id ) ), 'A second legitimate event for an already rejected local Checkout must reuse the safe ineligibility decision without another cancellation or refusal audit.' );
+
+$not_found_id = 'abababab-1111-4111-8111-111111111111';
+$not_found_customer = 'cus_trialalreadycanceled';
+Faluss_Subscriptions_Repository::record_customer( $not_found_id, 'stripe', $not_found_customer, 'test' );
+$not_found_checkout = Faluss_Subscriptions_Repository::create_checkout( array( 'faluss_id' => $not_found_id, 'billing_interval' => 'monthly', 'provider_customer_reference' => $not_found_customer, 'opaque_state' => str_repeat( 'b', 64 ), 'idempotency_key' => str_repeat( 'c', 64 ) ) );
+sub01b_provision_assert( is_array( $not_found_checkout ) && is_array( Faluss_Subscriptions_Repository::mark_checkout_provider_session( $not_found_checkout['id'], 'cs_trialalreadycanceled', gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS ) ) ), 'A recovered Stripe 404 case still requires the matching local Checkout.' );
+$sub01b_provision_adapter->subscription = sub01b_provision_subscription( $not_found_id, $not_found_customer, 'sub_trialalreadycanceled', '', 'trialing', $not_found_checkout['checkout_uuid'] );
+$sub01b_provision_adapter->customer = array( 'id' => $not_found_customer, 'invoice_settings' => array( 'default_payment_method' => 'pm_trialalreadycanceled' ) );
+$sub01b_provision_adapter->payment_method = array( 'id' => 'pm_trialalreadycanceled', 'customer' => $not_found_customer, 'card' => array( 'fingerprint' => 'FpSharedTrialCard' ) );
+$sub01b_provision_adapter->cancel_error_code = 'stripe_subscription_not_found';
+$not_found_cancellations = $sub01b_provision_adapter->cancelled;
+$not_found = Faluss_Subscriptions_Billing::apply_stripe_subscription( $sub01b_provision_adapter->subscription, 'customer.subscription.updated' );
+$not_found_audits = sub01b_provision_audits( $not_found_id, 'stripe_subscription_canceled_for_trial_ineligibility' );
+$not_found_state = $not_found_audits ? json_decode( $not_found_audits[0]['next_state'] ?? '{}', true ) : array();
+$not_found_replay = Faluss_Subscriptions_Billing::apply_stripe_subscription( $sub01b_provision_adapter->subscription, 'invoice.paid' );
+$sub01b_provision_adapter->cancel_error_code = '';
+sub01b_provision_assert( is_wp_error( $not_found ) && is_array( $not_found_replay ) && $not_found_cancellations + 1 === $sub01b_provision_adapter->cancelled && 1 === count( $not_found_audits ) && 'already_canceled' === ( $not_found_state['outcome'] ?? '' ) && array( 'payment_fingerprint_already_consumed' ) === sub01b_provision_audit_justifications( $not_found_id, 'stripe_subscription_canceled_for_trial_ineligibility' ) && 'trial_ineligible' === ( Faluss_Subscriptions_Repository::checkout_for_uuid( $not_found_checkout['checkout_uuid'] )['session_status'] ?? '' ) && 0 === sub01b_provision_count( 'trials', $not_found_id ) && 0 === sub01b_provision_count( 'subscriptions', $not_found_id ), 'A known recovered Stripe 404 must be terminal for its one durable claim, without a retry DELETE, duplicate audit or entitlement.' );
 
 $transient_id = '99999999-1111-4111-8111-111111111111';
 $transient_customer = 'cus_transientunlinked';
@@ -199,9 +237,10 @@ $sub01b_provision_adapter->subscription = sub01b_provision_subscription( $cancel
 $sub01b_provision_adapter->customer = array( 'id' => $canceled_customer, 'invoice_settings' => array() );
 $sub01b_provision_adapter->payment_method = array();
 $sub01b_provision_adapter->checkout_session = array( 'id' => $canceled_session, 'status' => 'complete', 'customer' => $canceled_customer, 'subscription' => $canceled_subscription );
+$canceled_cancellations = $sub01b_provision_adapter->cancelled;
 $canceled_reconciled = Faluss_Subscriptions_Billing::reconcile_checkout( $canceled_session );
 $canceled_decision = Faluss_Subscriptions_Resolver::resolve_for_faluss_id( $canceled_id );
-sub01b_provision_assert( is_array( $canceled_reconciled ) && 'free' === $canceled_decision['level'] && false === $canceled_decision['entitlements']['faluss.pro'] && $cancellation_count + 1 === $sub01b_provision_adapter->cancelled && 0 === sub01b_provision_count( 'entitlements', $canceled_id ), 'A Stripe subscription now confirmed canceled must remain free after reconciliation and never receive an artificial entitlement or another remote cancellation.' );
+sub01b_provision_assert( is_array( $canceled_reconciled ) && 'free' === $canceled_decision['level'] && false === $canceled_decision['entitlements']['faluss.pro'] && $canceled_cancellations === $sub01b_provision_adapter->cancelled && 0 === sub01b_provision_count( 'entitlements', $canceled_id ), 'A Stripe subscription now confirmed canceled must remain free after reconciliation and never receive an artificial entitlement or another remote cancellation.' );
 sub01b_provision_assert( false === strpos( json_encode( $wpdb->rows['audit'] ), 'FpTrial' ) && false === strpos( json_encode( $wpdb->rows['audit'] ), 'pm_trial' ), 'Trial audits must contain only safe reason codes, never a payment fingerprint or PaymentMethod reference.' );
 
 echo "SUB-01B provisioning contract: OK\n";

@@ -154,7 +154,7 @@ final class Faluss_Subscriptions_Billing {
         // can become effective, so a mismatched local relation fails closed.
         $linked = self::link_checkout_from_subscription( $subscription, $faluss_id, $customer_reference, $subscription_reference );
         if ( is_wp_error( $linked ) ) { return $linked; }
-        if ( is_array( $linked ) && 'trial_ineligible' === ( $linked['session_status'] ?? '' ) ) {
+        if ( is_array( $linked ) && in_array( $linked['session_status'] ?? '', array( 'trial_ineligible_pending', 'trial_ineligible' ), true ) ) {
             return $linked;
         }
         $trial_starts = self::timestamp_to_utc( $subscription['trial_start'] ?? null );
@@ -305,18 +305,41 @@ final class Faluss_Subscriptions_Billing {
     }
     private static function refuse_trial( $adapter, $subscription, $faluss_id, $reason, $cancel = false, $checkout = null ) {
         $safe_reason = in_array( $reason, array( 'trial_already_consumed', 'payment_proof_missing', 'payment_fingerprint_missing', 'payment_fingerprint_already_consumed', 'trial_window_invalid', 'trial_activation_failed' ), true ) ? $reason : 'trial_activation_failed';
-        if ( $cancel && 'payment_fingerprint_already_consumed' === $safe_reason && is_array( $checkout ) ) { self::cancel_for_trial_ineligibility( $adapter, $subscription, $faluss_id, $safe_reason, $checkout ); }
-        Faluss_Subscriptions_Audit::record( 0, 'stripe_trial_refused', $faluss_id, 'billing', array(), array( 'reason' => $safe_reason ), null );
+        $record_refusal = true;
+        if ( $cancel && 'payment_fingerprint_already_consumed' === $safe_reason && is_array( $checkout ) ) {
+            $cancellation = self::cancel_for_trial_ineligibility( $adapter, $subscription, $faluss_id, $safe_reason, $checkout );
+            if ( is_wp_error( $cancellation ) ) { return $cancellation; }
+            // A worker that lost the durable claim has observed the exact same
+            // Checkout/subscription decision. It must neither call Stripe nor
+            // duplicate its refusal audit.
+            $record_refusal = ! empty( $cancellation['claimed'] );
+        }
+        if ( $record_refusal ) {
+            Faluss_Subscriptions_Audit::record( 0, 'stripe_trial_refused', $faluss_id, 'billing', array(), array( 'reason' => $safe_reason ), $safe_reason );
+        }
         return self::error( $safe_reason );
     }
     private static function cancel_for_trial_ineligibility( $adapter, $subscription, $faluss_id, $reason, $checkout ) {
         $subscription_reference = self::id( $subscription['id'] ?? '' );
-        if ( '' === $subscription_reference ) { return; }
+        $checkout_uuid = (string) ( $checkout['checkout_uuid'] ?? '' );
+        $customer_reference = (string) ( $checkout['provider_customer_reference'] ?? '' );
+        if ( '' === $subscription_reference || '' === $checkout_uuid || '' === $customer_reference ) { return self::error( 'checkout_trial_ineligible_invalid' ); }
+
+        // Claim before the provider call. The conditional repository update is
+        // the only cross-request gate around Stripe's destructive endpoint.
+        $claim = Faluss_Subscriptions_Repository::claim_checkout_trial_ineligibility( $checkout_uuid, $faluss_id, $customer_reference, $subscription_reference );
+        if ( is_wp_error( $claim ) ) { return $claim; }
+        if ( empty( $claim['claimed'] ) ) { return $claim; }
+
         $result = $adapter->cancel_now( $subscription_reference );
-        if ( ! is_wp_error( $result ) ) {
-            Faluss_Subscriptions_Repository::mark_checkout_trial_ineligible( (string) ( $checkout['checkout_uuid'] ?? '' ), $faluss_id, (string) ( $checkout['provider_customer_reference'] ?? '' ), $subscription_reference );
-        }
-        Faluss_Subscriptions_Audit::record( 0, 'stripe_subscription_canceled_for_trial_ineligibility', $faluss_id, 'billing', array(), array( 'reason' => $reason, 'outcome' => is_wp_error( $result ) ? 'request_failed' : 'requested' ), null );
+        // A resource_missing/404 from Stripe can only be a recovery outcome for
+        // this already-claimed attempt; it is never retried from another local
+        // webhook worker.
+        $outcome = ! is_wp_error( $result ) ? 'requested' : ( 'stripe_subscription_not_found' === $result->get_error_code() ? 'already_canceled' : 'request_failed' );
+        $finalized = Faluss_Subscriptions_Repository::finalize_checkout_trial_ineligibility( $checkout_uuid, $faluss_id, $customer_reference, $subscription_reference );
+        if ( is_wp_error( $finalized ) ) { return $finalized; }
+        Faluss_Subscriptions_Audit::record( 0, 'stripe_subscription_canceled_for_trial_ineligibility', $faluss_id, 'billing', array(), array( 'reason' => $reason, 'outcome' => $outcome ), $reason );
+        return array( 'claimed' => true, 'checkout' => $finalized );
     }
     private static function valid_local_checkout( $checkout ) { return is_array( $checkout ) && 'stripe' === ( $checkout['provider'] ?? '' ) && Faluss_Subscriptions_Catalog::PRO === ( $checkout['plan_key'] ?? '' ) && in_array( $checkout['session_status'] ?? '', array( 'open', 'completed' ), true ) && self::faluss_id( $checkout['faluss_id'] ?? '' ); }
     private static function valid_completed_checkout_session( $session, $checkout, $session_reference ) { return is_array( $session ) && self::id( $session['id'] ?? '' ) === $session_reference && 'complete' === ( $session['status'] ?? '' ) && self::id( $session['customer'] ?? '' ) === ( $checkout['provider_customer_reference'] ?? '' ); }

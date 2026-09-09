@@ -183,6 +183,13 @@ class Faluss_Subscriptions_Stripe_Adapter {
         if ( $exception instanceof \Stripe\Exception\InvalidRequestException && 'customer_tax_location_invalid' === $exception->getStripeCode() ) {
             return 'stripe_customer_tax_location_invalid';
         }
+        if ( $exception instanceof \Stripe\Exception\InvalidRequestException
+            && ( 'resource_missing' === $exception->getStripeCode() || ( method_exists( $exception, 'getHttpStatus' ) && 404 === (int) $exception->getHttpStatus() ) ) ) {
+            // A claimed cancellation can be resumed after Stripe has already
+            // removed the subscription. Keep that terminal provider result
+            // distinguishable from a transport failure without exposing it.
+            return 'stripe_subscription_not_found';
+        }
         return 'stripe_transport_failed';
     }
 
