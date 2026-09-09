@@ -7,7 +7,7 @@ faluss.me
   └── Faluss Identity (autorité d'identité) + profil public + Token Engine Connector
 
 faluss.com
-  └── Faluss Hub (compte et vues transverses) + Faluss Subscriptions (niveaux Gratuit/Pro) + Token Engine (ledger économique central)
+  └── Faluss Portal (shell membre privé PF-01) + Faluss Subscriptions (niveaux Gratuit/Pro) + Token Engine (ledger économique central)
 
 pro.faluss.com
   └── Altlab Platform + Faluss Identity Client + Token Engine Connector (futur usage)
@@ -17,6 +17,16 @@ date.faluss.com
 ```
 
 Les installations WordPress, leurs tables `users`, leurs sessions et leurs bases de données restent séparées. Les sites peuvent être sur le même serveur, mais ne se font pas confiance par défaut.
+
+## Faluss Portal PF-01
+
+`Faluss Portal` est une brique de rendu front-office de `faluss.com`, insérée
+par le shortcode `[faluss_portal]` sur `/mon-faluss/`. Il utilise la session
+locale issue de Faluss Identity Client comme unique point de départ puis ne
+projette que des lectures réduites de Faluss Subscriptions et Token Engine. Il
+ne possède ni table, ni identité, ni abonnement, ni solde, ni facture, ni
+profil universel. Son contrat détaillé et la matrice de sources de vérité sont
+dans [`FALUSS_PORTAL.md`](FALUSS_PORTAL.md).
 
 ## Modèle Elementor de profil public
 
@@ -53,7 +63,7 @@ pourra agrèger ultérieurement des projections minimales, par exemple « Pro
 activé ». Une donnée ne remonte jamais par défaut : chaque projection est
 spécifiée, validée et révocable.
 
-Faluss Identity ne porte ni abonnement, ni portefeuille ALB ni cosmétique. Faluss.me consommera ultérieurement des droits d’abonnement et un inventaire cosmétique propres à sa carte publique ; les objets acquis avec ALB ou progression restent possédés, tandis que les avantages inclus à l’abonnement sont temporaires.
+Faluss Identity ne porte ni abonnement, ni portefeuille Point Faluss (PF) ni cosmétique. Faluss.me consommera ultérieurement des droits d’abonnement et un inventaire cosmétique propres à sa carte publique ; les objets acquis avec des Points Faluss ou de la progression restent possédés, tandis que les avantages inclus à l’abonnement sont temporaires.
 
 SUB-01B ajoute dans Faluss Subscriptions l’adaptateur Stripe central serveur :
 Customer lié au Faluss ID opaque, Checkout et Customer Portal hébergés, webhook
