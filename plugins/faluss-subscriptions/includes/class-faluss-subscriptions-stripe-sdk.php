@@ -144,6 +144,11 @@ class Faluss_Subscriptions_Stripe_Adapter {
     }
 
     /** @return array<string,mixed>|WP_Error */
+    public function retrieve_customer( $customer_id ) {
+        return $this->call( static function( $client ) use ( $customer_id ) { return $client->customers->retrieve( $customer_id, array() ); } );
+    }
+
+    /** @return array<string,mixed>|WP_Error */
     public function create_portal_session( $parameters ) {
         return $this->call( static function( $client ) use ( $parameters ) { return $client->billingPortal->sessions->create( $parameters ); } );
     }

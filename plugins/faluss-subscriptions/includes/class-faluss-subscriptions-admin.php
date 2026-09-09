@@ -12,6 +12,7 @@ final class Faluss_Subscriptions_Admin {
     const POST_ACTION = 'faluss_subscriptions_admin';
     const SANDBOX_CHECKOUT_POST_ACTION = 'faluss_subscriptions_sandbox_checkout';
     const SANDBOX_CHECKOUT_INTENT = 'sandbox_checkout';
+    const SANDBOX_RECONCILE_INTENT = 'sandbox_reconcile_checkout';
     const SANDBOX_TAB = 'sandbox-test';
 
     public static function boot() {
@@ -49,7 +50,7 @@ final class Faluss_Subscriptions_Admin {
         $tab = self::tab();
         echo '<div class="wrap faluss-subscriptions-admin">';
         echo '<h1>' . esc_html__( 'Abonnements Faluss', 'faluss-subscriptions' ) . '</h1>';
-        echo '<p class="description">' . esc_html__( 'Autorité centrale des droits Gratuit/Pro. Stripe reste limité au mode test et aux outils administrateur dans SUB-01B.', 'faluss-subscriptions' ) . '</p>';
+        echo '<p class="description">' . esc_html__( 'Autorité centrale des droits Gratuit/Faluss Max. Stripe reste limité au mode test et aux outils administrateur dans SUB-01B.', 'faluss-subscriptions' ) . '</p>';
         self::notice( $notice );
         self::tabs( $tab );
         if ( 'configuration' === $tab ) { self::configuration(); }
@@ -109,12 +110,16 @@ final class Faluss_Subscriptions_Admin {
         } elseif ( self::SANDBOX_CHECKOUT_INTENT === $action ) {
             // A stale sandbox form must never fall through the general mutation route.
             $result = new WP_Error( 'sandbox_checkout_legacy_route' );
-            $tab = 'sandbox';
+            $tab = self::SANDBOX_TAB;
         } elseif ( 'sandbox_portal' === $action ) {
             if ( 'test' !== Faluss_Subscriptions_Stripe_Config::mode() ) { $result = new WP_Error( 'sandbox_test_only' ); }
             else { $result = Faluss_Subscriptions_Billing::create_portal( $member_faluss_id ); }
-            $tab = 'sandbox';
+            $tab = self::SANDBOX_TAB;
             if ( is_array( $result ) && ! empty( $result['url'] ) ) { wp_redirect( esc_url_raw( $result['url'] ) ); exit; }
+        } elseif ( self::SANDBOX_RECONCILE_INTENT === $action ) {
+            if ( 'test' !== Faluss_Subscriptions_Stripe_Config::mode() ) { $result = new WP_Error( 'sandbox_test_only' ); }
+            else { $result = Faluss_Subscriptions_Billing::reconcile_checkout( self::post_value( 'checkout_session_reference', 191 ) ); }
+            $tab = self::SANDBOX_TAB;
         } elseif ( 'resync_subscription' === $action ) {
             $result = Faluss_Subscriptions_Billing::resync( self::post_value( 'subscription_reference', 191 ) );
             $tab = 'subscriptions';
@@ -223,6 +228,10 @@ final class Faluss_Subscriptions_Admin {
                 Faluss_Subscriptions_Admin_Notices::add( $actor_user_id, 'error', 'stripe_checkout_rejected', $context );
                 return;
             }
+            if ( self::SANDBOX_RECONCILE_INTENT === $action ) {
+                Faluss_Subscriptions_Admin_Notices::add( $actor_user_id, 'error', 'stripe_checkout_reconciliation_failed', array( 'cause' => self::safe_checkout_reconciliation_code( $code ) ) );
+                return;
+            }
             Faluss_Subscriptions_Admin_Notices::add( $actor_user_id, 'error', $code, $context );
             return;
         }
@@ -235,6 +244,8 @@ final class Faluss_Subscriptions_Admin {
             Faluss_Subscriptions_Admin_Notices::add( $actor_user_id, 'warning', 'trial_override_recorded', $context );
         } elseif ( 'run_migration' === $action ) {
             Faluss_Subscriptions_Admin_Notices::add( $actor_user_id, 'success', 'migration_verified' );
+        } elseif ( self::SANDBOX_RECONCILE_INTENT === $action ) {
+            Faluss_Subscriptions_Admin_Notices::add( $actor_user_id, 'success', 'stripe_checkout_reconciled' );
         } else {
             Faluss_Subscriptions_Admin_Notices::add( $actor_user_id, 'success', 'saved', $context );
         }
@@ -244,6 +255,10 @@ final class Faluss_Subscriptions_Admin {
         if ( Faluss_Subscriptions_Schema::is_ready() ) {
             if ( self::SANDBOX_CHECKOUT_INTENT === $action ) {
                 Faluss_Subscriptions_Audit::record( $actor_user_id, 'stripe_checkout_rejected', self::valid_faluss_id( $faluss_id ) ? $faluss_id : null, 'sandbox', array(), array( 'operation' => self::SANDBOX_CHECKOUT_INTENT, 'cause' => self::safe_checkout_rejection_code( $code ) ), null );
+                return;
+            }
+            if ( self::SANDBOX_RECONCILE_INTENT === $action ) {
+                Faluss_Subscriptions_Audit::record( $actor_user_id, 'stripe_checkout_reconciliation_failed', null, 'sandbox', array(), array( 'operation' => self::SANDBOX_RECONCILE_INTENT, 'cause' => self::safe_checkout_reconciliation_code( $code ) ), null );
                 return;
             }
             $traced_outcomes = array( 'admin_grant_failed', 'admin_grant_forbidden', 'admin_grant_invalid_nonce', 'admin_grant_invalid_subject', 'admin_grant_invalid_expiration', 'admin_grant_persistence_failed', 'admin_grant_resolution_failed' );
@@ -261,6 +276,11 @@ final class Faluss_Subscriptions_Admin {
             'stripe_secret_key_invalid', 'stripe_live_disabled', 'stripe_sdk_collision', 'stripe_sdk_missing', 'stripe_sdk_invalid', 'stripe_client_unavailable', 'stripe_customer_tax_location_invalid', 'stripe_transport_failed',
         );
         return in_array( $code, $allowed, true ) ? $code : 'stripe_checkout_unavailable';
+    }
+
+    private static function safe_checkout_reconciliation_code( $code ) {
+        $allowed = array( 'sandbox_test_only', 'checkout_reconciliation_invalid', 'checkout_reconciliation_incomplete', 'payment_proof_missing', 'payment_fingerprint_missing', 'trial_window_invalid', 'trial_already_consumed', 'trial_activation_failed', 'stripe_subscription_identity_mismatch', 'stripe_subscription_price_mismatch', 'stripe_price_catalogue_mismatch', 'stripe_price_unavailable', 'stripe_transport_failed', 'stripe_customer_tax_location_invalid' );
+        return in_array( $code, $allowed, true ) ? $code : 'checkout_reconciliation_unavailable';
     }
 
     private static function tabs( $active ) {
@@ -351,6 +371,7 @@ final class Faluss_Subscriptions_Admin {
         echo '<section class="faluss-subscriptions-admin__panel"><h2>' . esc_html__( 'Sandbox Stripe test', 'faluss-subscriptions' ) . '</h2><p>' . esc_html__( 'Cet outil crée uniquement une session Checkout Stripe test après validation serveur du catalogue. Il ne doit jamais être utilisé en live.', 'faluss-subscriptions' ) . '</p>';
         if ( ! $test ) { echo '<div class="notice notice-error"><p>' . esc_html__( 'La sandbox est verrouillée hors du mode test.', 'faluss-subscriptions' ) . '</p></div></section>'; return; }
         echo self::sandbox_checkout_form_open() . '<input type="hidden" name="action" value="' . esc_attr( self::SANDBOX_CHECKOUT_POST_ACTION ) . '"><input type="hidden" name="faluss_subscriptions_intent" value="' . esc_attr( self::SANDBOX_CHECKOUT_INTENT ) . '"><label>' . esc_html__( 'Faluss ID', 'faluss-subscriptions' ) . '<input name="faluss_id" type="text" required pattern="[a-fA-F0-9-]{36}" autocomplete="off"></label><p><label>' . esc_html__( 'Périodicité', 'faluss-subscriptions' ) . '<select name="period"><option value="monthly">' . esc_html__( 'Mensuel', 'faluss-subscriptions' ) . '</option><option value="annual">' . esc_html__( 'Annuel', 'faluss-subscriptions' ) . '</option></select></label></p>'; wp_nonce_field( self::NONCE ); echo '<button type="submit" class="button button-primary">' . esc_html__( 'Ouvrir Checkout test', 'faluss-subscriptions' ) . '</button></form>';
+        echo self::mutation_form_open( self::SANDBOX_RECONCILE_INTENT, 'faluss-subscriptions-admin__form' ) . '<input type="hidden" name="action" value="' . esc_attr( self::POST_ACTION ) . '"><input type="hidden" name="faluss_subscriptions_action" value="' . esc_attr( self::SANDBOX_RECONCILE_INTENT ) . '"><input type="hidden" name="return_tab" value="' . esc_attr( self::SANDBOX_TAB ) . '"><label>' . esc_html__( 'Session Checkout test existante', 'faluss-subscriptions' ) . '<input name="checkout_session_reference" type="text" required pattern="cs_[A-Za-z0-9_]+" autocomplete="off"></label>'; wp_nonce_field( self::NONCE ); echo '<button type="submit" class="button">' . esc_html__( 'Réconcilier le Checkout test', 'faluss-subscriptions' ) . '</button></form>';
         echo self::mutation_form_open( 'sandbox_portal', 'faluss-subscriptions-admin__form' ) . '<input type="hidden" name="action" value="' . esc_attr( self::POST_ACTION ) . '"><input type="hidden" name="faluss_subscriptions_action" value="sandbox_portal"><input type="hidden" name="return_tab" value="' . esc_attr( self::SANDBOX_TAB ) . '"><label>' . esc_html__( 'Faluss ID du Customer existant', 'faluss-subscriptions' ) . '<input name="faluss_id" type="text" required pattern="[a-fA-F0-9-]{36}" autocomplete="off"></label>'; wp_nonce_field( self::NONCE ); echo '<button type="submit" class="button">' . esc_html__( 'Ouvrir le Customer Portal test', 'faluss-subscriptions' ) . '</button></form></section>';
     }
 
@@ -416,6 +437,8 @@ final class Faluss_Subscriptions_Admin {
             'checkout_return_invalid' => __( 'Le retour Checkout test ne peut pas être vérifié. Aucun droit n’a été modifié.', 'faluss-subscriptions' ),
             'checkout_return_expired' => __( 'Le retour Checkout test a expiré. Aucun droit n’a été modifié.', 'faluss-subscriptions' ),
             'checkout_return_session_invalid' => __( 'Le retour Checkout test ne correspond pas à une session locale valide. Aucun droit n’a été modifié.', 'faluss-subscriptions' ),
+            'stripe_checkout_reconciled' => __( 'Le Checkout test a été relu côté Stripe. L’état affiché provient maintenant de la souscription canonique validée.', 'faluss-subscriptions' ),
+            'stripe_checkout_reconciliation_failed' => sprintf( __( 'Le Checkout test n’a pas pu être réconcilié. Cause sûre : %s.', 'faluss-subscriptions' ), self::safe_checkout_reconciliation_code( $context['cause'] ?? '' ) ),
             'trial_override_recorded' => __( 'La dérogation d’éligibilité a été enregistrée. Elle n’active pas un essai.', 'faluss-subscriptions' ),
             'migration_verified' => __( 'La migration et les tables Faluss Subscriptions ont été vérifiées.', 'faluss-subscriptions' ),
             'schema_migration_failed' => __( 'La migration n’a pas été appliquée car un schéma incomplet ou divergent existe. Consultez Diagnostics.', 'faluss-subscriptions' ),

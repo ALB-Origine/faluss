@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /** Deterministic, read-time resolution. No cron is required for expiration. */
 final class Faluss_Subscriptions_Resolver {
-    const CALCULATION_VERSION = '1';
+    const CALCULATION_VERSION = '2';
 
     /** @return array<string,mixed> */
     public static function resolve_for_faluss_id( $faluss_id, $now = null ) {
@@ -55,7 +55,11 @@ final class Faluss_Subscriptions_Resolver {
         foreach ( (array) $subscriptions as $subscription ) {
             $state = $subscription['normalized_state'] ?? '';
             $source = array( 'source' => 'subscription', 'reference' => $subscription['subscription_uuid'] ?? '', 'expires_at' => null );
-            if ( in_array( $state, array( 'active', 'canceling' ), true ) && self::future( $subscription['period_ends_at'] ?? null, $now ) ) {
+            $verified_trial = self::verified_trial_for_subscription( $trials, $subscription, $now );
+            if ( 'trialing' === $state && is_array( $verified_trial ) ) {
+                $source['expires_at'] = $verified_trial['expires_at'];
+                $candidates[] = array( 'priority' => 200, 'state' => 'trialing', 'expires_at' => $verified_trial['expires_at'], 'source' => $source, 'reason' => 'subscription_trialing' );
+            } elseif ( in_array( $state, array( 'active', 'canceling' ), true ) && self::future( $subscription['period_ends_at'] ?? null, $now ) ) {
                 $source['expires_at'] = $subscription['period_ends_at'];
                 $candidates[] = array( 'priority' => 200, 'state' => $state, 'expires_at' => $subscription['period_ends_at'], 'source' => $source, 'reason' => 'subscription_' . $state );
             } elseif ( 'past_due' === $state && self::future( self::past_due_grace_end( $subscription ), $now ) ) {
@@ -102,6 +106,15 @@ final class Faluss_Subscriptions_Resolver {
         $maximum = gmdate( 'Y-m-d H:i:s', strtotime( '+' . Faluss_Subscriptions_Catalog::GRACE_DAYS . ' days', strtotime( $started ) ) );
         $requested = $subscription['grace_ends_at'] ?? null;
         return is_string( $requested ) && '' !== $requested && strcmp( $requested, $maximum ) < 0 ? $requested : $maximum;
+    }
+    /** A trialing subscription is effective only with its matching verified card trial. */
+    private static function verified_trial_for_subscription( $trials, $subscription, $now ) {
+        $reference = $subscription['provider_subscription_reference'] ?? '';
+        if ( ! is_string( $reference ) || '' === $reference ) { return null; }
+        foreach ( (array) $trials as $trial ) {
+            if ( is_array( $trial ) && 'trialing' === ( $trial['trial_state'] ?? '' ) && empty( $trial['revoked_at'] ) && self::future( $trial['expires_at'] ?? null, $now ) && $reference === ( $trial['verification_reference'] ?? '' ) ) { return $trial; }
+        }
+        return null;
     }
     private static function started( $value, $now ) { return is_string( $value ) && '' !== $value && strcmp( $value, $now ) <= 0; }
     private static function future( $value, $now ) { return is_string( $value ) && '' !== $value && strcmp( $value, $now ) > 0; }

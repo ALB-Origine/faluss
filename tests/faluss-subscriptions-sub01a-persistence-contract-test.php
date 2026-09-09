@@ -59,7 +59,9 @@ final class Faluss_Subscriptions_Test_Wpdb {
         elseif ( preg_match( "/admin_override_reference='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'admin_override_reference', stripslashes( $matches[1] ) ); }
         elseif ( preg_match( "/return_state_hash='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'return_state_hash', stripslashes( $matches[1] ) ); }
         elseif ( preg_match( "/provider_session_reference='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'provider_session_reference', stripslashes( $matches[1] ) ); }
+        elseif ( preg_match( "/provider_subscription_reference='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'provider_subscription_reference', stripslashes( $matches[1] ) ); }
         elseif ( preg_match( "/provider_customer_reference='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'provider_customer_reference', stripslashes( $matches[1] ) ); }
+        elseif ( preg_match( "/payment_fingerprint_hash='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'payment_fingerprint_hash', stripslashes( $matches[1] ) ); }
         elseif ( preg_match( "/faluss_id='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'faluss_id', stripslashes( $matches[1] ) ); }
         elseif ( preg_match( '/id=(\\d+)/', $query, $matches ) ) { $row = $this->first( $key, 'id', (int) $matches[1] ); }
         if ( $row && false !== strpos( $query, "source='admin_grant'" ) && 'admin_grant' !== ( $row['source'] ?? '' ) ) { return null; }
@@ -96,6 +98,7 @@ final class Faluss_Subscriptions_Test_Wpdb {
         foreach ( $this->rows[ $key ] as $row ) {
             if ( 'entitlements' === $key && ( $row['source_reference'] ?? '' ) === ( $data['source_reference'] ?? '' ) ) { return false; }
             if ( 'trials' === $key && ( ( $row['faluss_id'] ?? '' ) === ( $data['faluss_id'] ?? '' ) || ( ! empty( $data['admin_override_reference'] ) && ( $row['admin_override_reference'] ?? '' ) === $data['admin_override_reference'] ) ) ) { return false; }
+            if ( 'subscriptions' === $key && ( ( $row['provider'] ?? '' ) === ( $data['provider'] ?? '' ) && ( $row['provider_subscription_reference'] ?? '' ) === ( $data['provider_subscription_reference'] ?? '' ) ) ) { return false; }
         }
         $data['id'] = $this->next_id[ $key ]++;
         $this->insert_id = $data['id'];

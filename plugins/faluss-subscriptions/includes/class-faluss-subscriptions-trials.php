@@ -36,8 +36,12 @@ final class Faluss_Subscriptions_Trials {
                 return self::error( 'trial_payment_method_already_used' );
             }
             if ( is_array( $existing ) && 'eligible' !== (string) $existing['trial_state'] ) {
-                $wpdb->query( 'ROLLBACK' );
-                return self::error( 'trial_already_used' );
+                $same_verified_trial = 'trialing' === (string) $existing['trial_state']
+                    && $verification_reference === (string) ( $existing['verification_reference'] ?? '' )
+                    && hash_equals( (string) ( $existing['payment_fingerprint_hash'] ?? '' ), $fingerprint_hash )
+                    && self::future( $existing['expires_at'] ?? null, $now );
+                $wpdb->query( 'COMMIT' );
+                return $same_verified_trial ? $existing : self::error( 'trial_already_used' );
             }
             $data = array(
                 'eligibility_status' => is_array( $existing ) && 'admin_override' === ( $existing['eligibility_status'] ?? '' ) ? 'admin_override' : 'eligible',
@@ -123,6 +127,7 @@ final class Faluss_Subscriptions_Trials {
     private static function faluss_id( $value ) { return is_string( $value ) && 1 === preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $value ) ? strtolower( $value ) : ''; }
     private static function bounded( $value, $length ) { $value = is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : ''; return function_exists( 'mb_substr' ) ? mb_substr( trim( $value ), 0, $length ) : substr( trim( $value ), 0, $length ); }
     private static function utc( $value ) { if ( ! is_string( $value ) || '' === trim( $value ) ) { return null; } try { return ( new DateTimeImmutable( $value, new DateTimeZone( 'UTC' ) ) )->setTimezone( new DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' ); } catch ( Exception $exception ) { return null; } }
+    private static function future( $value, $now ) { return is_string( $value ) && '' !== $value && strcmp( $value, $now ) > 0; }
     private static function audit_state( $trial ) { return is_array( $trial ) ? array_intersect_key( $trial, array_flip( array( 'trial_state', 'eligibility_status', 'activated_at', 'expires_at', 'revoked_at' ) ) ) : array(); }
     private static function error( $code ) { return new WP_Error( $code, __( 'L’essai ne peut pas être modifié.', 'faluss-subscriptions' ) ); }
 }

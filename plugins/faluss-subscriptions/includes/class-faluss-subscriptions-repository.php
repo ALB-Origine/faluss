@@ -109,6 +109,22 @@ final class Faluss_Subscriptions_Repository {
         return is_array( $row ) ? $row : null;
     }
 
+    /**
+     * Locates only a locally-created, still-open Stripe Checkout for a known
+     * Customer. This enables a later signed customer/payment event to resume
+     * verification without trusting the event snapshot or a browser return.
+     *
+     * @return array<string,mixed>|null
+     */
+    public static function open_checkout_for_customer_reference( $reference ) {
+        global $wpdb;
+        $reference = self::bounded( $reference, 191 );
+        if ( '' === $reference ) { return null; }
+        $table = Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::checkout_sessions_table() );
+        $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE provider='stripe' AND provider_customer_reference=%s AND session_status='open' ORDER BY id DESC LIMIT 1", $reference ), ARRAY_A );
+        return is_array( $row ) ? $row : null;
+    }
+
     /** @return array<string,mixed>|WP_Error */
     public static function create_checkout( $record ) {
         global $wpdb;

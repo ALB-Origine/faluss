@@ -92,6 +92,19 @@ final class Faluss_Subscriptions_Webhooks {
                 foreach ( Faluss_Subscriptions_Repository::subscriptions_for_faluss_id( (string) $customer['faluss_id'] ) as $record ) {
                     if ( 'stripe' === ( $record['provider'] ?? '' ) ) { return $adapter->retrieve_subscription( self::id( $record['provider_subscription_reference'] ?? '' ) ); }
                 }
+                // The first signed delivery may legitimately precede Stripe's
+                // Customer default-PaymentMethod projection. When its later
+                // customer/payment event arrives, recover only through the
+                // matching local Checkout and re-read both current objects.
+                $checkout = Faluss_Subscriptions_Repository::open_checkout_for_customer_reference( $customer_reference );
+                $session_reference = is_array( $checkout ) ? self::id( $checkout['provider_session_reference'] ?? '' ) : '';
+                if ( '' !== $session_reference ) {
+                    $session = $adapter->retrieve_checkout_session( $session_reference );
+                    if ( is_wp_error( $session ) ) { return $session; }
+                    if ( is_array( $session ) && 'complete' === ( $session['status'] ?? '' ) && $customer_reference === self::id( $session['customer'] ?? '' ) ) {
+                        return $adapter->retrieve_subscription( self::id( $session['subscription'] ?? '' ) );
+                    }
+                }
             }
         }
         // A member with no local Stripe subscription has no entitlement to alter.
