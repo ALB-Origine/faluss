@@ -29,7 +29,7 @@ final class Faluss_Subscriptions_Catalog {
             ),
             self::PRO => array(
                 'key' => self::PRO,
-                'public_name' => 'Faluss Pro',
+                'public_name' => 'Faluss Max',
                 'currency' => 'EUR',
                 'periods' => array(
                     'monthly' => array( 'amount_cents' => 999 ),

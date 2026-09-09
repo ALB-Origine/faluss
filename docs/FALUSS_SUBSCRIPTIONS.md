@@ -2,26 +2,26 @@
 
 ## Autorité centrale et frontières
 
-Faluss Subscriptions, installé exclusivement sur faluss.com, est l’autorité centrale des niveaux Gratuit/Pro, essais, abonnements Stripe, attributions administratives, audit et résolution. Sa clé métier est le faluss_id opaque de Faluss Identity : il ne crée ni identité, session, e-mail, donnée de carte publique, Token Engine ou projection Link.
+Faluss Subscriptions, installé exclusivement sur faluss.com, est l’autorité centrale des niveaux Gratuit/Faluss Max, essais, abonnements Stripe, attributions administratives, audit et résolution. Sa clé métier est le faluss_id opaque de Faluss Identity : il ne crée ni identité, session, e-mail, donnée de carte publique, Token Engine ou projection Link.
 
 | Système | Responsabilité | Hors responsabilité |
 |---|---|---|
-| Faluss Identity | identité, session, Faluss ID | paiement, droit Pro |
-| Faluss Subscriptions | catalogue, Stripe, essai, droit Pro, audit | contenu Link et Token Engine |
+| Faluss Identity | identité, session, Faluss ID | paiement, droit Faluss Max |
+| Faluss Subscriptions | catalogue, Stripe, essai, droit Faluss Max, audit | contenu Link et Token Engine |
 | Faluss Link / produits | appliquer une décision contractuelle future | calculer ou stocker l’abonnement |
 | Stripe | Checkout, Customer Portal, paiement | identité Faluss et autorisation produit |
 
 SUB-01B ne crée aucun bouton de vente, bannière, shortcode, AJAX ou route REST anonyme de Checkout. Les accès sont des services PHP privés et l’administration WordPress protégée. Aucun consommateur Faluss n’est encore relié à ce droit : les fonctions Link restent inchangées. Token Engine ne reçoit aucune écriture ni projection. FL-21 reste le lot séparé qui pourra consommer explicitement une décision de droit validée.
 
-## Catalogue Faluss Pro
+## Catalogue Faluss Max
 
 | Clé | Offre | Période | Prix TTC | Devise | Essai | Carte |
 |---|---|---:|---:|---|---:|---|
 | free | Faluss Gratuit | — | 0 | EUR | 0 | non |
-| pro | Faluss Pro | mensuel | 999 centimes | EUR | 15 jours | obligatoire |
-| pro | Faluss Pro | annuel | 9900 centimes | EUR | 15 jours | obligatoire |
+| pro | Faluss Max | mensuel | 999 centimes | EUR | 15 jours | obligatoire |
+| pro | Faluss Max | annuel | 9900 centimes | EUR | 15 jours | obligatoire |
 
-Avant Checkout et avant qu’un webhook puisse affecter un droit, le serveur relit le Price Stripe. Il refuse un Price inactif ou divergent : EUR, montant exact, intervalle month/year avec quantité 1, taxe TTC inclusive et même Product Faluss Pro. Les prix ne sont jamais modifiables dans WordPress.
+Avant Checkout et avant qu’un webhook puisse affecter un droit, le serveur relit le Price Stripe. Il refuse un Price inactif ou divergent : EUR, montant exact, intervalle month/year avec quantité 1, taxe TTC inclusive et même Product Faluss Max. Les prix ne sont jamais modifiables dans WordPress. `pro` reste exclusivement la clé technique de plan et d’entitlement existante.
 
 ## SDK et configuration serveur
 
@@ -42,13 +42,13 @@ define( 'FALUSS_STRIPE_TAX_ENABLED', true );
 
 Les équivalents LIVE sont nécessaires en live. Le live échoue fermé tant que FALUSS_STRIPE_LIVE_ENABLED n’est pas exactement true; test est le défaut. L’administration n’affiche que des booléens de disponibilité, le mode et la version d’API.
 
-**Mise en service test :** créer le Product Faluss Pro, les deux Prices TTC, activer Stripe Tax, configurer un Customer Portal sans changement libre de Price, déclarer les constantes et enregistrer le webhook. Pour une rotation, remplacer la constante hors Git, déployer, contrôler l’onglet Configuration puis envoyer un événement test signé. Pour l’arrêt d’urgence, retirer LIVE_ENABLED ou passer en test : Checkout et webhooks échouent fermé sans supprimer l’historique.
+**Mise en service test :** créer le Product Faluss Max, les deux Prices TTC, activer Stripe Tax, configurer un Customer Portal sans changement libre de Price, déclarer les constantes et enregistrer le webhook. Pour une rotation, remplacer la constante hors Git, déployer, contrôler l’onglet Configuration puis envoyer un événement test signé. Pour l’arrêt d’urgence, retirer LIVE_ENABLED ou passer en test : Checkout et webhooks échouent fermé sans supprimer l’historique.
 
 ## Checkout, Customer, portail et retour
 
 Faluss_Subscriptions_Billing::create_checkout() est un service PHP privé pour un futur appelant authentifié. Il accepte un Faluss ID opaque et monthly/annual; un verrou MySQL par Faluss ID, les contraintes uniques et une clé d’idempotence Stripe évitent les créations concurrentes. Le Customer Stripe ne contient que le Faluss ID opaque en métadonnées; sa référence est locale et aucune adresse e-mail n’est stockée.
 
-Checkout est hébergé par Stripe : abonnement, un Price, quantité 1, carte obligatoire, adresse de facturation obligatoire et sauvegardée automatiquement sur le Customer Stripe pour Stripe Tax, automatic_tax, essai 15 jours et annulation sans moyen de paiement valide. Les retours succès/annulation sont une page technique interne no-store avec état opaque; ils n’accordent jamais de droit. Seul le webhook signé et relu peut le faire.
+Checkout est hébergé par Stripe : abonnement, un Price, quantité 1, carte obligatoire, adresse de facturation obligatoire et sauvegardée automatiquement sur le Customer Stripe pour Stripe Tax, automatic_tax, essai 15 jours et annulation sans moyen de paiement valide. Le retour navigateur est uniquement un contrôleur no-store : il valide le state opaque, l’expiration et, en succès, la session Checkout locale, puis effectue un PRG vers `wp-admin/admin.php?page=faluss-subscriptions&tab=sandbox-test` avec une notice à usage unique. Ni ce retour, ni sa notice ne décident d’un droit; seul le webhook signé et relu peut le faire. Tout retour invalide, expiré ou annulé suit le même PRG sûr sans donnée fournisseur dans l’URL finale.
 
 Customer Portal est un service privé, limité au Customer Stripe relié au même Faluss ID. Résiliation/réactivation ne modifient que cancel_at_period_end; aucune baisse de Price, migration gratuite ou suppression immédiate n’est automatisée.
 

@@ -12,6 +12,7 @@ final class Faluss_Subscriptions_Admin {
     const POST_ACTION = 'faluss_subscriptions_admin';
     const SANDBOX_CHECKOUT_POST_ACTION = 'faluss_subscriptions_sandbox_checkout';
     const SANDBOX_CHECKOUT_INTENT = 'sandbox_checkout';
+    const SANDBOX_TAB = 'sandbox-test';
 
     public static function boot() {
         add_action( 'admin_init', array( __CLASS__, 'ensure_capability' ) );
@@ -57,7 +58,7 @@ final class Faluss_Subscriptions_Admin {
         elseif ( 'subscriptions' === $tab ) { self::subscriptions(); }
         elseif ( 'events' === $tab ) { self::events(); }
         elseif ( 'audit' === $tab ) { self::audit(); }
-        elseif ( 'sandbox' === $tab ) { self::sandbox(); }
+        elseif ( self::SANDBOX_TAB === $tab ) { self::sandbox(); }
         else { self::diagnostics(); }
         echo '</div>';
     }
@@ -163,12 +164,17 @@ final class Faluss_Subscriptions_Admin {
             exit;
         }
         self::queue_result_notice( $actor_user_id, self::SANDBOX_CHECKOUT_INTENT, $result, $member_faluss_id );
-        self::redirect_after_post( 'sandbox' );
+        self::redirect_after_post( self::SANDBOX_TAB );
     }
 
     /** Public so diagnostics and the HTML/POST contract share the exact routed action. */
     public static function admin_post_url() {
         return admin_url( 'admin-post.php' );
+    }
+
+    /** Fixed internal destination for Stripe's sandbox browser return. */
+    public static function sandbox_url() {
+        return add_query_arg( array( 'page' => self::PAGE, 'tab' => self::SANDBOX_TAB ), admin_url( 'admin.php' ) );
     }
 
     private static function valid_nonce() {
@@ -258,7 +264,7 @@ final class Faluss_Subscriptions_Admin {
     }
 
     private static function tabs( $active ) {
-        $tabs = array( 'configuration' => __( 'Configuration Stripe', 'faluss-subscriptions' ), 'catalogue' => __( 'Catalogue', 'faluss-subscriptions' ), 'member' => __( 'Membre', 'faluss-subscriptions' ), 'subscriptions' => __( 'Abonnements', 'faluss-subscriptions' ), 'events' => __( 'Événements', 'faluss-subscriptions' ), 'sandbox' => __( 'Sandbox test', 'faluss-subscriptions' ), 'audit' => __( 'Audit', 'faluss-subscriptions' ), 'diagnostics' => __( 'Diagnostics', 'faluss-subscriptions' ) );
+        $tabs = array( 'configuration' => __( 'Configuration Stripe', 'faluss-subscriptions' ), 'catalogue' => __( 'Catalogue', 'faluss-subscriptions' ), 'member' => __( 'Membre', 'faluss-subscriptions' ), 'subscriptions' => __( 'Abonnements', 'faluss-subscriptions' ), 'events' => __( 'Événements', 'faluss-subscriptions' ), self::SANDBOX_TAB => __( 'Sandbox test', 'faluss-subscriptions' ), 'audit' => __( 'Audit', 'faluss-subscriptions' ), 'diagnostics' => __( 'Diagnostics', 'faluss-subscriptions' ) );
         echo '<nav class="nav-tab-wrapper" aria-label="' . esc_attr__( 'Sections des abonnements', 'faluss-subscriptions' ) . '">';
         foreach ( $tabs as $slug => $label ) {
             $url = add_query_arg( array( 'page' => self::PAGE, 'tab' => $slug ), admin_url( 'admin.php' ) );
@@ -282,7 +288,7 @@ final class Faluss_Subscriptions_Admin {
 
     private static function configuration() {
         $config = Faluss_Subscriptions_Stripe_Config::diagnostics();
-        $labels = array( 'secret_configured' => __( 'Clé serveur', 'faluss-subscriptions' ), 'webhook_configured' => __( 'Secret webhook', 'faluss-subscriptions' ), 'monthly_price_configured' => __( 'Price mensuel', 'faluss-subscriptions' ), 'annual_price_configured' => __( 'Price annuel', 'faluss-subscriptions' ), 'product_configured' => __( 'Produit Faluss Pro', 'faluss-subscriptions' ), 'portal_configured' => __( 'Customer Portal', 'faluss-subscriptions' ), 'tax_enabled' => __( 'Stripe Tax explicite', 'faluss-subscriptions' ) );
+        $labels = array( 'secret_configured' => __( 'Clé serveur', 'faluss-subscriptions' ), 'webhook_configured' => __( 'Secret webhook', 'faluss-subscriptions' ), 'monthly_price_configured' => __( 'Price mensuel', 'faluss-subscriptions' ), 'annual_price_configured' => __( 'Price annuel', 'faluss-subscriptions' ), 'product_configured' => __( 'Produit Faluss Max', 'faluss-subscriptions' ), 'portal_configured' => __( 'Customer Portal', 'faluss-subscriptions' ), 'tax_enabled' => __( 'Stripe Tax explicite', 'faluss-subscriptions' ) );
         echo '<section class="faluss-subscriptions-admin__panel"><h2>' . esc_html__( 'Configuration Stripe', 'faluss-subscriptions' ) . '</h2><p>' . esc_html__( 'Aucune valeur secrète ni identifiant de paiement n’est affiché ou modifiable ici.', 'faluss-subscriptions' ) . '</p><dl class="faluss-subscriptions-admin__definition"><dt>' . esc_html__( 'Mode', 'faluss-subscriptions' ) . '</dt><dd><code>' . esc_html( $config['mode'] ) . '</code></dd><dt>' . esc_html__( 'API Stripe épinglée', 'faluss-subscriptions' ) . '</dt><dd><code>' . esc_html( $config['api_version'] ) . '</code></dd><dt>' . esc_html__( 'Live explicitement autorisé', 'faluss-subscriptions' ) . '</dt><dd>' . esc_html( $config['live_allowed'] ? __( 'Oui', 'faluss-subscriptions' ) : __( 'Non', 'faluss-subscriptions' ) ) . '</dd></dl><table class="widefat striped"><thead><tr><th>' . esc_html__( 'Élément', 'faluss-subscriptions' ) . '</th><th>' . esc_html__( 'État', 'faluss-subscriptions' ) . '</th></tr></thead><tbody>';
         foreach ( $labels as $key => $label ) { echo '<tr><td>' . esc_html( $label ) . '</td><td>' . esc_html( ! empty( $config[ $key ] ) ? __( 'Configuré', 'faluss-subscriptions' ) : __( 'Non configuré', 'faluss-subscriptions' ) ) . '</td></tr>'; }
         echo '</tbody></table><p class="description">' . esc_html__( 'La connectivité et la conformité effective des Price sont vérifiées côté serveur juste avant Checkout ; aucune requête Stripe n’est faite en chargeant cette page.', 'faluss-subscriptions' ) . '</p></section>';
@@ -302,14 +308,14 @@ final class Faluss_Subscriptions_Admin {
         $decision = Faluss_Subscriptions_Resolver::resolve_for_faluss_id( $faluss_id );
         $trial = Faluss_Subscriptions_Repository::trial_for_faluss_id( $faluss_id );
         $entitlements = Faluss_Subscriptions_Repository::entitlements_for_faluss_id( $faluss_id );
-        echo '<section class="faluss-subscriptions-admin__panel"><h2>' . esc_html__( 'Droits calculés', 'faluss-subscriptions' ) . '</h2><dl class="faluss-subscriptions-admin__definition"><dt>' . esc_html__( 'Niveau effectif', 'faluss-subscriptions' ) . '</dt><dd><strong>' . esc_html( 'pro' === $decision['level'] ? 'Faluss Pro' : 'Faluss Gratuit' ) . '</strong></dd><dt>' . esc_html__( 'État', 'faluss-subscriptions' ) . '</dt><dd>' . esc_html( $decision['state'] ) . '</dd><dt>' . esc_html__( 'Raison', 'faluss-subscriptions' ) . '</dt><dd><code>' . esc_html( $decision['reason'] ) . '</code></dd><dt>' . esc_html__( 'Expiration retenue', 'faluss-subscriptions' ) . '</dt><dd>' . esc_html( $decision['expires_at'] ?: '—' ) . '</dd></dl>';
+        echo '<section class="faluss-subscriptions-admin__panel"><h2>' . esc_html__( 'Droits calculés', 'faluss-subscriptions' ) . '</h2><dl class="faluss-subscriptions-admin__definition"><dt>' . esc_html__( 'Niveau effectif', 'faluss-subscriptions' ) . '</dt><dd><strong>' . esc_html( 'pro' === $decision['level'] ? 'Faluss Max' : 'Faluss Gratuit' ) . '</strong></dd><dt>' . esc_html__( 'État', 'faluss-subscriptions' ) . '</dt><dd>' . esc_html( $decision['state'] ) . '</dd><dt>' . esc_html__( 'Raison', 'faluss-subscriptions' ) . '</dt><dd><code>' . esc_html( $decision['reason'] ) . '</code></dd><dt>' . esc_html__( 'Expiration retenue', 'faluss-subscriptions' ) . '</dt><dd>' . esc_html( $decision['expires_at'] ?: '—' ) . '</dd></dl>';
         echo '<h3>' . esc_html__( 'Sources retenues', 'faluss-subscriptions' ) . '</h3><pre>' . esc_html( wp_json_encode( $decision['effective_sources'], JSON_PRETTY_PRINT ) ) . '</pre></section>';
         echo '<section class="faluss-subscriptions-admin__panel"><h2>' . esc_html__( 'Essai', 'faluss-subscriptions' ) . '</h2>';
         if ( is_array( $trial ) ) { echo '<p><strong>' . esc_html( $trial['trial_state'] ) . '</strong> — ' . esc_html( $trial['eligibility_status'] ) . ( ! empty( $trial['expires_at'] ) ? ' — ' . esc_html( sprintf( __( 'expire : %s UTC', 'faluss-subscriptions' ), $trial['expires_at'] ) ) : '' ) . '</p>'; } else { echo '<p>' . esc_html__( 'Aucun essai enregistré.', 'faluss-subscriptions' ) . '</p>'; }
         self::form( 'override_trial_eligibility', $faluss_id, __( 'Dérogation d’éligibilité à l’essai', 'faluss-subscriptions' ), __( 'Justification obligatoire. Cette dérogation ne remplace jamais la preuve serveur d’un moyen de paiement.', 'faluss-subscriptions' ), false );
         echo '</section>';
         echo '<section class="faluss-subscriptions-admin__panel"><h2>' . esc_html__( 'Attribution administrative', 'faluss-subscriptions' ) . '</h2>';
-        self::form( 'grant_pro', $faluss_id, __( 'Attribuer Faluss Pro temporairement', 'faluss-subscriptions' ), __( 'Une attribution est séparée d’un essai et d’un abonnement fournisseur.', 'faluss-subscriptions' ), true );
+        self::form( 'grant_pro', $faluss_id, __( 'Attribuer Faluss Max temporairement', 'faluss-subscriptions' ), __( 'Une attribution est séparée d’un essai et d’un abonnement fournisseur.', 'faluss-subscriptions' ), true );
         if ( $entitlements ) { echo '<h3>' . esc_html__( 'Attributions enregistrées', 'faluss-subscriptions' ) . '</h3><table class="widefat striped"><thead><tr><th>' . esc_html__( 'Source', 'faluss-subscriptions' ) . '</th><th>' . esc_html__( 'État', 'faluss-subscriptions' ) . '</th><th>' . esc_html__( 'Expiration UTC', 'faluss-subscriptions' ) . '</th><th>' . esc_html__( 'Action', 'faluss-subscriptions' ) . '</th></tr></thead><tbody>'; foreach ( $entitlements as $entitlement ) { echo '<tr><td>' . esc_html( $entitlement['source'] ) . '</td><td>' . esc_html( $entitlement['status'] ) . '</td><td>' . esc_html( $entitlement['expires_at'] ?: '—' ) . '</td><td>'; if ( 'admin_grant' === $entitlement['source'] && 'active' === $entitlement['status'] ) { self::revoke_form( $entitlement, $faluss_id ); } else { echo '—'; } echo '</td></tr>'; } echo '</tbody></table>'; }
         echo '</section>';
     }
@@ -345,7 +351,7 @@ final class Faluss_Subscriptions_Admin {
         echo '<section class="faluss-subscriptions-admin__panel"><h2>' . esc_html__( 'Sandbox Stripe test', 'faluss-subscriptions' ) . '</h2><p>' . esc_html__( 'Cet outil crée uniquement une session Checkout Stripe test après validation serveur du catalogue. Il ne doit jamais être utilisé en live.', 'faluss-subscriptions' ) . '</p>';
         if ( ! $test ) { echo '<div class="notice notice-error"><p>' . esc_html__( 'La sandbox est verrouillée hors du mode test.', 'faluss-subscriptions' ) . '</p></div></section>'; return; }
         echo self::sandbox_checkout_form_open() . '<input type="hidden" name="action" value="' . esc_attr( self::SANDBOX_CHECKOUT_POST_ACTION ) . '"><input type="hidden" name="faluss_subscriptions_intent" value="' . esc_attr( self::SANDBOX_CHECKOUT_INTENT ) . '"><label>' . esc_html__( 'Faluss ID', 'faluss-subscriptions' ) . '<input name="faluss_id" type="text" required pattern="[a-fA-F0-9-]{36}" autocomplete="off"></label><p><label>' . esc_html__( 'Périodicité', 'faluss-subscriptions' ) . '<select name="period"><option value="monthly">' . esc_html__( 'Mensuel', 'faluss-subscriptions' ) . '</option><option value="annual">' . esc_html__( 'Annuel', 'faluss-subscriptions' ) . '</option></select></label></p>'; wp_nonce_field( self::NONCE ); echo '<button type="submit" class="button button-primary">' . esc_html__( 'Ouvrir Checkout test', 'faluss-subscriptions' ) . '</button></form>';
-        echo self::mutation_form_open( 'sandbox_portal', 'faluss-subscriptions-admin__form' ) . '<input type="hidden" name="action" value="' . esc_attr( self::POST_ACTION ) . '"><input type="hidden" name="faluss_subscriptions_action" value="sandbox_portal"><input type="hidden" name="return_tab" value="sandbox"><label>' . esc_html__( 'Faluss ID du Customer existant', 'faluss-subscriptions' ) . '<input name="faluss_id" type="text" required pattern="[a-fA-F0-9-]{36}" autocomplete="off"></label>'; wp_nonce_field( self::NONCE ); echo '<button type="submit" class="button">' . esc_html__( 'Ouvrir le Customer Portal test', 'faluss-subscriptions' ) . '</button></form></section>';
+        echo self::mutation_form_open( 'sandbox_portal', 'faluss-subscriptions-admin__form' ) . '<input type="hidden" name="action" value="' . esc_attr( self::POST_ACTION ) . '"><input type="hidden" name="faluss_subscriptions_action" value="sandbox_portal"><input type="hidden" name="return_tab" value="' . esc_attr( self::SANDBOX_TAB ) . '"><label>' . esc_html__( 'Faluss ID du Customer existant', 'faluss-subscriptions' ) . '<input name="faluss_id" type="text" required pattern="[a-fA-F0-9-]{36}" autocomplete="off"></label>'; wp_nonce_field( self::NONCE ); echo '<button type="submit" class="button">' . esc_html__( 'Ouvrir le Customer Portal test', 'faluss-subscriptions' ) . '</button></form></section>';
     }
 
     /** Every mutation has its own explicit admin-post target; it is never nested in the member search form. */
@@ -401,10 +407,15 @@ final class Faluss_Subscriptions_Admin {
     }
 
     private static function notice_message( $code, $context ) {
-        if ( 'pro_granted' === $code ) { return sprintf( __( 'Faluss Pro a été attribué jusqu’au %s.', 'faluss-subscriptions' ), self::notice_date( $context['expires_at'] ?? '' ) ); }
+        if ( 'pro_granted' === $code ) { return sprintf( __( 'Faluss Max a été attribué jusqu’au %s.', 'faluss-subscriptions' ), self::notice_date( $context['expires_at'] ?? '' ) ); }
         if ( 'stripe_checkout_rejected' === $code ) { return sprintf( __( 'Checkout test a été refusé avant toute modification de droit. Cause sûre : %s. Consultez Audit.', 'faluss-subscriptions' ), self::safe_checkout_rejection_code( $context['cause'] ?? '' ) ); }
         $messages = array(
-            'pro_revoked' => __( 'L’attribution Faluss Pro a été révoquée.', 'faluss-subscriptions' ),
+            'pro_revoked' => __( 'L’attribution Faluss Max a été révoquée.', 'faluss-subscriptions' ),
+            'checkout_return_completed' => __( 'Checkout test est terminé. L’état définitif dépend de la confirmation Stripe signée.', 'faluss-subscriptions' ),
+            'checkout_return_cancelled' => __( 'Checkout test a été annulé. Aucun droit n’est déterminé par ce retour navigateur.', 'faluss-subscriptions' ),
+            'checkout_return_invalid' => __( 'Le retour Checkout test ne peut pas être vérifié. Aucun droit n’a été modifié.', 'faluss-subscriptions' ),
+            'checkout_return_expired' => __( 'Le retour Checkout test a expiré. Aucun droit n’a été modifié.', 'faluss-subscriptions' ),
+            'checkout_return_session_invalid' => __( 'Le retour Checkout test ne correspond pas à une session locale valide. Aucun droit n’a été modifié.', 'faluss-subscriptions' ),
             'trial_override_recorded' => __( 'La dérogation d’éligibilité a été enregistrée. Elle n’active pas un essai.', 'faluss-subscriptions' ),
             'migration_verified' => __( 'La migration et les tables Faluss Subscriptions ont été vérifiées.', 'faluss-subscriptions' ),
             'schema_migration_failed' => __( 'La migration n’a pas été appliquée car un schéma incomplet ou divergent existe. Consultez Diagnostics.', 'faluss-subscriptions' ),
@@ -415,7 +426,7 @@ final class Faluss_Subscriptions_Admin {
             'admin_grant_invalid_subject' => __( 'L’attribution n’a pas été enregistrée : le Faluss ID est invalide.', 'faluss-subscriptions' ),
             'admin_grant_invalid_expiration' => __( 'L’attribution n’a pas été enregistrée : choisissez une expiration future valide.', 'faluss-subscriptions' ),
             'admin_grant_persistence_failed' => __( 'L’attribution n’a pas été enregistrée : sa persistance n’a pas pu être vérifiée.', 'faluss-subscriptions' ),
-            'admin_grant_resolution_failed' => __( 'L’attribution n’a pas été enregistrée : le droit Pro n’a pas pu être résolu.', 'faluss-subscriptions' ),
+            'admin_grant_resolution_failed' => __( 'L’attribution n’a pas été enregistrée : le droit Faluss Max n’a pas pu être résolu.', 'faluss-subscriptions' ),
             'admin_grant_reference_conflict' => __( 'Cette demande est déjà associée à un autre membre. Rechargez la page avant de réessayer.', 'faluss-subscriptions' ),
             'admin_grant_audit_failed' => __( 'L’attribution n’a pas été enregistrée car son audit n’a pas pu être écrit.', 'faluss-subscriptions' ),
             'admin_grant_revoke_invalid' => __( 'La révocation n’a pas été enregistrée : vérifiez sa justification.', 'faluss-subscriptions' ),
@@ -433,9 +444,9 @@ final class Faluss_Subscriptions_Admin {
             'sandbox_checkout_invalid_nonce' => __( 'Checkout test a été refusé : la confirmation de sécurité a expiré. Rechargez la sandbox.', 'faluss-subscriptions' ),
             'sandbox_checkout_legacy_route' => __( 'Checkout test a été refusé : rechargez la sandbox pour utiliser son action dédiée.', 'faluss-subscriptions' ),
             'stripe_tax_not_enabled' => __( 'Checkout test reste verrouillé tant que Stripe Tax n’est pas explicitement activé côté serveur.', 'faluss-subscriptions' ),
-            'stripe_price_catalogue_mismatch' => __( 'Checkout a été refusé : le Price Stripe ne correspond pas au catalogue Faluss Pro TTC attendu.', 'faluss-subscriptions' ),
+            'stripe_price_catalogue_mismatch' => __( 'Checkout a été refusé : le Price Stripe ne correspond pas au catalogue Faluss Max TTC attendu.', 'faluss-subscriptions' ),
             'stripe_price_not_configured' => __( 'Checkout test a été refusé : le Price Stripe sélectionné n’est pas configuré côté serveur.', 'faluss-subscriptions' ),
-            'stripe_product_not_configured' => __( 'Checkout test a été refusé : le produit Faluss Pro n’est pas configuré côté serveur.', 'faluss-subscriptions' ),
+            'stripe_product_not_configured' => __( 'Checkout test a été refusé : le produit Faluss Max n’est pas configuré côté serveur.', 'faluss-subscriptions' ),
             'stripe_price_unavailable' => __( 'Checkout test a été refusé : le Price Stripe ne peut pas être relu. Consultez la configuration et Stripe test.', 'faluss-subscriptions' ),
             'stripe_secret_key_invalid' => __( 'Checkout test a été refusé : la clé Stripe test n’est pas disponible côté serveur.', 'faluss-subscriptions' ),
             'stripe_sdk_collision' => __( 'Checkout test a été refusé : un autre SDK Stripe est déjà chargé.', 'faluss-subscriptions' ),
@@ -462,7 +473,7 @@ final class Faluss_Subscriptions_Admin {
 
     private static function notice_faluss_id( $notice ) { return is_array( $notice ) && is_array( $notice['context'] ?? null ) && self::valid_faluss_id( $notice['context']['faluss_id'] ?? '' ) ? $notice['context']['faluss_id'] : ''; }
     private static function tab() { return self::valid_tab( self::get_value( 'tab', 32 ) ); }
-    private static function valid_tab( $tab ) { return in_array( $tab, array( 'configuration', 'catalogue', 'member', 'subscriptions', 'events', 'sandbox', 'audit', 'diagnostics' ), true ) ? $tab : 'configuration'; }
+    private static function valid_tab( $tab ) { if ( 'sandbox' === $tab ) { $tab = self::SANDBOX_TAB; } return in_array( $tab, array( 'configuration', 'catalogue', 'member', 'subscriptions', 'events', self::SANDBOX_TAB, 'audit', 'diagnostics' ), true ) ? $tab : 'configuration'; }
     private static function get_value( $key, $length ) { return isset( $_GET[ $key ] ) ? self::bounded( $_GET[ $key ], $length ) : ''; }
     private static function post_value( $key, $length ) { return isset( $_POST[ $key ] ) ? self::bounded( $_POST[ $key ], $length ) : ''; }
     private static function bounded( $value, $length ) { $value = is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : ''; return function_exists( 'mb_substr' ) ? mb_substr( trim( $value ), 0, $length ) : substr( trim( $value ), 0, $length ); }

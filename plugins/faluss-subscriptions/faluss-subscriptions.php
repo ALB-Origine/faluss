@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Faluss Subscriptions
  * Description: Autorité centrale des abonnements, essais et droits Faluss.
- * Version: 0.2.2
+ * Version: 0.2.3
  * Requires PHP: 8.2
  */
 
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'FALUSS_SUBSCRIPTIONS_FILE', __FILE__ );
 define( 'FALUSS_SUBSCRIPTIONS_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FALUSS_SUBSCRIPTIONS_URL', plugin_dir_url( __FILE__ ) );
-define( 'FALUSS_SUBSCRIPTIONS_VERSION', '0.2.2' );
+define( 'FALUSS_SUBSCRIPTIONS_VERSION', '0.2.3' );
 
 require_once FALUSS_SUBSCRIPTIONS_DIR . 'includes/class-faluss-subscriptions-schema.php';
 require_once FALUSS_SUBSCRIPTIONS_DIR . 'includes/class-faluss-subscriptions-catalog.php';

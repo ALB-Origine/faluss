@@ -127,7 +127,7 @@ $_SERVER['REQUEST_METHOD'] = 'GET';
 ob_start();
 Faluss_Subscriptions_Admin::render_page();
 $success_html = ob_get_clean();
-sub01a_admin_assert( false !== strpos( $success_html, 'Faluss Pro a été attribué jusqu’au' ), 'The redirected member page must show one visible success notice.' );
+sub01a_admin_assert( false !== strpos( $success_html, 'Faluss Max a été attribué jusqu’au' ), 'The redirected member page must show one visible success notice.' );
 $revoke_form = sub01a_find_form( $success_html, 'revoke_grant' );
 sub01a_admin_assert( '' !== $revoke_form && false !== strpos( $revoke_form, 'action="https://example.test/wp-admin/admin-post.php"' ) && false !== strpos( $revoke_form, 'type="submit"' ), 'The rendered revoke form must independently post to admin-post.php.' );
 $revoke_redirect = sub01a_dispatch_form(
@@ -243,7 +243,7 @@ $rejected_redirect = sub01a_dispatch_form(
     )
 );
 $rejected_audits = array_values( array_filter( $wpdb->rows['audit'], static function( $row ) use ( $rejected_member_id ) { return $rejected_member_id === ( $row['faluss_id'] ?? '' ); } ) );
-sub01a_admin_assert( false !== strpos( $rejected_redirect, 'page=faluss-subscriptions&tab=sandbox' ) && 1 === count( $rejected_audits ) && 'stripe_checkout_rejected' === $rejected_audits[0]['action'] && 'sandbox' === $rejected_audits[0]['source'] && 'stripe_price_catalogue_mismatch' === ( json_decode( $rejected_audits[0]['next_state'], true )['cause'] ?? '' ) && 'stripe_checkout_rejected' === ( $sub01a_transients['faluss_subscriptions_admin_notice_91']['code'] ?? '' ) && 'stripe_price_catalogue_mismatch' === ( $sub01a_transients['faluss_subscriptions_admin_notice_91']['context']['cause'] ?? '' ), 'A pre-Stripe Checkout rejection must be safely classified, audited and surfaced without an administrative-rights fallback.' );
+sub01a_admin_assert( false !== strpos( $rejected_redirect, 'page=faluss-subscriptions&tab=sandbox-test' ) && 1 === count( $rejected_audits ) && 'stripe_checkout_rejected' === $rejected_audits[0]['action'] && 'sandbox' === $rejected_audits[0]['source'] && 'stripe_price_catalogue_mismatch' === ( json_decode( $rejected_audits[0]['next_state'], true )['cause'] ?? '' ) && 'stripe_checkout_rejected' === ( $sub01a_transients['faluss_subscriptions_admin_notice_91']['code'] ?? '' ) && 'stripe_price_catalogue_mismatch' === ( $sub01a_transients['faluss_subscriptions_admin_notice_91']['context']['cause'] ?? '' ), 'A pre-Stripe Checkout rejection must be safely classified, audited and surfaced without an administrative-rights fallback.' );
 sub01a_admin_assert( 1 === count( $wpdb->rows['customers'] ) && 1 === count( $wpdb->rows['checkout_sessions'] ) && 0 === count( array_filter( $wpdb->rows['entitlements'], static function( $row ) use ( $rejected_member_id ) { return $rejected_member_id === ( $row['faluss_id'] ?? '' ); } ) ), 'A rejected sandbox Checkout must not create a Customer, Checkout, entitlement or right for its Faluss ID.' );
 
 $tax_location_member_id = '99999999-9999-4999-8999-999999999999';
@@ -259,7 +259,7 @@ $tax_location_redirect = sub01a_dispatch_form(
 );
 $tax_location_audits = array_values( array_filter( $wpdb->rows['audit'], static function( $row ) use ( $tax_location_member_id ) { return $tax_location_member_id === ( $row['faluss_id'] ?? '' ); } ) );
 $tax_location_audit = $tax_location_audits[0] ?? array();
-sub01a_admin_assert( false !== strpos( $tax_location_redirect, 'page=faluss-subscriptions&tab=sandbox' ) && 'stripe_checkout_rejected' === ( $tax_location_audit['action'] ?? '' ) && 'stripe_customer_tax_location_invalid' === ( json_decode( $tax_location_audit['next_state'] ?? '{}', true )['cause'] ?? '' ) && 'stripe_customer_tax_location_invalid' === ( $sub01a_transients['faluss_subscriptions_admin_notice_91']['context']['cause'] ?? '' ), 'The Stripe Tax Customer-address failure must remain a dedicated safe Checkout rejection.' );
+sub01a_admin_assert( false !== strpos( $tax_location_redirect, 'page=faluss-subscriptions&tab=sandbox-test' ) && 'stripe_checkout_rejected' === ( $tax_location_audit['action'] ?? '' ) && 'stripe_customer_tax_location_invalid' === ( json_decode( $tax_location_audit['next_state'] ?? '{}', true )['cause'] ?? '' ) && 'stripe_customer_tax_location_invalid' === ( $sub01a_transients['faluss_subscriptions_admin_notice_91']['context']['cause'] ?? '' ), 'The Stripe Tax Customer-address failure must remain a dedicated safe Checkout rejection.' );
 sub01a_admin_assert( 0 === count( array_filter( $wpdb->rows['entitlements'], static function( $row ) use ( $tax_location_member_id ) { return $tax_location_member_id === ( $row['faluss_id'] ?? '' ); } ) ) && 0 === count( array_filter( $wpdb->rows['trials'], static function( $row ) use ( $tax_location_member_id ) { return $tax_location_member_id === ( $row['faluss_id'] ?? '' ); } ) ) && 0 === count( array_filter( $wpdb->rows['subscriptions'], static function( $row ) use ( $tax_location_member_id ) { return $tax_location_member_id === ( $row['faluss_id'] ?? '' ); } ) ), 'A Stripe Tax Checkout rejection must never create a right before a signed webhook.' );
 
 $legacy_member_id = '88888888-8888-4888-8888-888888888888';
@@ -273,6 +273,6 @@ $legacy_redirect = sub01a_dispatch_form(
     )
 );
 $legacy_audits = array_values( array_filter( $wpdb->rows['audit'], static function( $row ) use ( $legacy_member_id ) { return $legacy_member_id === ( $row['faluss_id'] ?? '' ); } ) );
-sub01a_admin_assert( false !== strpos( $legacy_redirect, 'page=faluss-subscriptions&tab=sandbox' ) && 1 === count( $legacy_audits ) && 'stripe_checkout_rejected' === $legacy_audits[0]['action'] && 'sandbox_checkout_legacy_route' === ( json_decode( $legacy_audits[0]['next_state'], true )['cause'] ?? '' ) && 0 === count( array_filter( $wpdb->rows['entitlements'], static function( $row ) use ( $legacy_member_id ) { return $legacy_member_id === ( $row['faluss_id'] ?? '' ); } ) ), 'The former shared sandbox operation must be rejected and can never fall through to admin_grant.' );
+sub01a_admin_assert( false !== strpos( $legacy_redirect, 'page=faluss-subscriptions&tab=sandbox-test' ) && 1 === count( $legacy_audits ) && 'stripe_checkout_rejected' === $legacy_audits[0]['action'] && 'sandbox_checkout_legacy_route' === ( json_decode( $legacy_audits[0]['next_state'], true )['cause'] ?? '' ) && 0 === count( array_filter( $wpdb->rows['entitlements'], static function( $row ) use ( $legacy_member_id ) { return $legacy_member_id === ( $row['faluss_id'] ?? '' ); } ) ), 'The former shared sandbox operation must be rejected and can never fall through to admin_grant.' );
 
 echo "SUB-01A admin-post contract: OK\n";

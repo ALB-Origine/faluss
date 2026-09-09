@@ -67,7 +67,7 @@ final class Faluss_Subscriptions_Notifications {
             // server integration may provide it transiently; it is never stored.
             $recipient = function_exists( 'apply_filters' ) ? apply_filters( 'faluss_subscriptions_transactional_recipient', '', $row['faluss_id'], $row['notification_type'] ) : '';
             if ( ! is_string( $recipient ) || ! is_email( $recipient ) ) { continue; }
-            $subject = __( 'Information Faluss Pro', 'faluss-subscriptions' );
+            $subject = __( 'Information Faluss Max', 'faluss-subscriptions' );
             $body = self::message( $row['notification_type'] );
             if ( wp_mail( $recipient, $subject, $body ) ) {
                 $wpdb->update( Faluss_Subscriptions_Schema::notifications_table(), array( 'status' => 'sent', 'sent_at' => gmdate( 'Y-m-d H:i:s' ), 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => (int) $row['id'], 'status' => 'pending' ) );
@@ -77,16 +77,16 @@ final class Faluss_Subscriptions_Notifications {
 
     private static function message( $type ) {
         $messages = array(
-            'trial_started' => __( 'Votre essai Faluss Pro a commencé.', 'faluss-subscriptions' ),
-            'payment_problem' => __( 'Votre paiement Faluss Pro demande une mise à jour.', 'faluss-subscriptions' ),
-            'payment_confirmed' => __( 'Votre paiement Faluss Pro a été confirmé.', 'faluss-subscriptions' ),
-            'cancellation_recorded' => __( 'Votre résiliation Faluss Pro prendra effet à la fin de la période en cours.', 'faluss-subscriptions' ),
-            'rights_ended' => __( 'Vos droits Faluss Pro sont arrivés à échéance.', 'faluss-subscriptions' ),
-            'trial_reminder_j7' => __( 'Votre essai Faluss Pro se termine dans 7 jours.', 'faluss-subscriptions' ),
-            'trial_reminder_j3' => __( 'Votre essai Faluss Pro se termine dans 3 jours.', 'faluss-subscriptions' ),
-            'trial_reminder_j1' => __( 'Votre essai Faluss Pro se termine demain.', 'faluss-subscriptions' ),
+            'trial_started' => __( 'Votre essai Faluss Max a commencé.', 'faluss-subscriptions' ),
+            'payment_problem' => __( 'Votre paiement Faluss Max demande une mise à jour.', 'faluss-subscriptions' ),
+            'payment_confirmed' => __( 'Votre paiement Faluss Max a été confirmé.', 'faluss-subscriptions' ),
+            'cancellation_recorded' => __( 'Votre résiliation Faluss Max prendra effet à la fin de la période en cours.', 'faluss-subscriptions' ),
+            'rights_ended' => __( 'Vos droits Faluss Max sont arrivés à échéance.', 'faluss-subscriptions' ),
+            'trial_reminder_j7' => __( 'Votre essai Faluss Max se termine dans 7 jours.', 'faluss-subscriptions' ),
+            'trial_reminder_j3' => __( 'Votre essai Faluss Max se termine dans 3 jours.', 'faluss-subscriptions' ),
+            'trial_reminder_j1' => __( 'Votre essai Faluss Max se termine demain.', 'faluss-subscriptions' ),
         );
-        return $messages[ $type ] ?? __( 'Votre situation Faluss Pro a changé.', 'faluss-subscriptions' );
+        return $messages[ $type ] ?? __( 'Votre situation Faluss Max a changé.', 'faluss-subscriptions' );
     }
 
     /** A database advisory lock prevents two WP-Cron workers reconciling together. */

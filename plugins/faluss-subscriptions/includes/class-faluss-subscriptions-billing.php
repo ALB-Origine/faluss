@@ -219,5 +219,5 @@ final class Faluss_Subscriptions_Billing {
     private static function random_state() { try { return bin2hex( random_bytes( 32 ) ); } catch ( Exception $exception ) { return ''; } }
     private static function acquire_lock( $faluss_id ) { global $wpdb; return 1 === (int) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s,%d)', 'faluss_sub_billing_' . substr( hash( 'sha256', $faluss_id ), 0, 32 ), 10 ) ); }
     private static function release_lock( $faluss_id ) { global $wpdb; $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', 'faluss_sub_billing_' . substr( hash( 'sha256', $faluss_id ), 0, 32 ) ) ); }
-    private static function error( $code ) { return new WP_Error( $code, __( 'La facturation Faluss Pro ne peut pas être traitée.', 'faluss-subscriptions' ) ); }
+    private static function error( $code ) { return new WP_Error( $code, __( 'La facturation Faluss Max ne peut pas être traitée.', 'faluss-subscriptions' ) ); }
 }
