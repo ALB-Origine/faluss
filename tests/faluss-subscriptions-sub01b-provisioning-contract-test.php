@@ -56,14 +56,16 @@ final class Faluss_Subscriptions_Provisioning_Adapter extends Faluss_Subscriptio
 	private static function id( $record ) { return is_array( $record ) ? (string) ( $record['id'] ?? '' ) : ''; }
 }
 
-function sub01b_provision_subscription( $faluss_id, $customer, $subscription, $payment_method = '' ) {
+function sub01b_provision_subscription( $faluss_id, $customer, $subscription, $payment_method = '', $status = 'trialing', $checkout_uuid = '' ) {
 	$now = time();
+	$metadata = array( 'faluss_id' => $faluss_id );
+	if ( '' !== $checkout_uuid ) { $metadata['faluss_billing_session'] = $checkout_uuid; }
 	return array(
 		'id' => $subscription,
 		'customer' => $customer,
-		'metadata' => array( 'faluss_id' => $faluss_id ),
+		'metadata' => $metadata,
 		'items' => array( 'data' => array( array( 'price' => array( 'id' => 'price_trialmonthly', 'recurring' => array( 'interval' => 'month' ) ) ) ) ),
-		'status' => 'trialing',
+		'status' => $status,
 		'trial_start' => $now - 60,
 		'trial_end' => $now + 1295940,
 		'current_period_start' => $now - 60,
@@ -89,20 +91,33 @@ function sub01b_provision_audit_reasons( $faluss_id ) {
 	return $reasons;
 }
 
+function sub01b_provision_audits( $faluss_id, $action ) {
+	global $wpdb;
+	return array_values( array_filter( $wpdb->rows['audit'], static function( $row ) use ( $faluss_id, $action ) {
+		return $faluss_id === ( $row['faluss_id'] ?? '' ) && $action === ( $row['action'] ?? '' );
+	} ) );
+}
+
 $sub01b_provision_adapter = new Faluss_Subscriptions_Provisioning_Adapter();
 $faluss_id = 'aaaaaaaa-1111-4111-8111-111111111111';
 $customer = 'cus_trialvalid';
 $subscription = 'sub_trialvalid';
-$sub01b_provision_adapter->subscription = sub01b_provision_subscription( $faluss_id, $customer, $subscription );
+$initial_checkout = null;
+Faluss_Subscriptions_Repository::record_customer( $faluss_id, 'stripe', $customer, 'test' );
+$initial_checkout = Faluss_Subscriptions_Repository::create_checkout( array( 'faluss_id' => $faluss_id, 'billing_interval' => 'monthly', 'provider_customer_reference' => $customer, 'opaque_state' => str_repeat( 'a', 64 ), 'idempotency_key' => str_repeat( 'b', 64 ) ) );
+sub01b_provision_assert( is_array( $initial_checkout ) && is_array( Faluss_Subscriptions_Repository::mark_checkout_provider_session( $initial_checkout['id'], 'cs_trialvalid', gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS ) ) ), 'A first signed trial contract requires one locally-created Checkout session.' );
+$sub01b_provision_adapter->subscription = sub01b_provision_subscription( $faluss_id, $customer, $subscription, '', 'trialing', $initial_checkout['checkout_uuid'] );
 $sub01b_provision_adapter->customer = array( 'id' => $customer, 'invoice_settings' => array( 'default_payment_method' => 'pm_trialvalid' ) );
 $sub01b_provision_adapter->payment_method = array( 'id' => 'pm_trialvalid', 'customer' => $customer, 'card' => array( 'fingerprint' => 'FpTrialValid1234' ) );
-Faluss_Subscriptions_Repository::record_customer( $faluss_id, 'stripe', $customer, 'test' );
 $first = Faluss_Subscriptions_Billing::apply_stripe_subscription( $sub01b_provision_adapter->subscription, 'checkout.session.completed' );
+$sub01b_provision_adapter->customer = array( 'id' => $customer, 'invoice_settings' => array( 'default_payment_method' => 'pm_trialvalid_replayed' ) );
+$sub01b_provision_adapter->payment_method = array( 'id' => 'pm_trialvalid_replayed', 'customer' => $customer, 'card' => array( 'fingerprint' => 'FpTrialRepresentationChanged' ) );
 $second = Faluss_Subscriptions_Billing::apply_stripe_subscription( $sub01b_provision_adapter->subscription, 'customer.subscription.created' );
 $decision = Faluss_Subscriptions_Resolver::resolve_for_faluss_id( $faluss_id );
 sub01b_provision_assert( is_array( $first ) && is_array( $second ) && 'pro' === $decision['level'] && 'trialing' === $decision['state'] && 'subscription_trialing' === $decision['reason'], 'A signed Stripe trialing subscription with a verified payment method must resolve Faluss Max as technical pro.' );
-sub01b_provision_assert( 1 === sub01b_provision_count( 'trials', $faluss_id ) && 1 === sub01b_provision_count( 'subscriptions', $faluss_id ) && 0 === $sub01b_provision_adapter->cancelled && array() === sub01b_provision_audit_reasons( $faluss_id ) && 1 === count( array_filter( $wpdb->rows['audit'], static function( $row ) use ( $faluss_id ) { return $faluss_id === ( $row['faluss_id'] ?? '' ) && 'stripe_subscription_synced' === ( $row['action'] ?? '' ); } ) ) && 0 === count( array_filter( $wpdb->rows['audit'], static function( $row ) use ( $faluss_id ) { return $faluss_id === ( $row['faluss_id'] ?? '' ) && 'provider_subscription_updated' === ( $row['action'] ?? '' ); } ) ), 'Multiple legitimate events for one Checkout must keep one canonical trial/subscription decision without refusal, cancellation or duplicate subscription write.' );
+sub01b_provision_assert( 1 === sub01b_provision_count( 'trials', $faluss_id ) && 1 === sub01b_provision_count( 'subscriptions', $faluss_id ) && 0 === $sub01b_provision_adapter->cancelled && array() === sub01b_provision_audit_reasons( $faluss_id ) && 1 === count( sub01b_provision_audits( $faluss_id, 'stripe_subscription_synced' ) ) && 0 === count( sub01b_provision_audits( $faluss_id, 'provider_subscription_updated' ) ) && 1 === count( array_filter( $wpdb->rows['notifications'], static function( $row ) use ( $faluss_id ) { return $faluss_id === ( $row['faluss_id'] ?? '' ) && 'trial_started' === ( $row['notification_type'] ?? '' ); } ) ), 'Multiple legitimate events for one Checkout must reuse one verified trial/subscription decision without refusal, cancellation, duplicate write or duplicate notification.' );
 sub01b_provision_assert( 1 === count( array_filter( $wpdb->rows['audit'], static function( $row ) use ( $faluss_id ) { return $faluss_id === ( $row['faluss_id'] ?? '' ) && 'trial_activated' === ( $row['action'] ?? '' ); } ) ), 'The same provider subscription must activate its verified trial once only.' );
+sub01b_provision_assert( $subscription === ( Faluss_Subscriptions_Repository::checkout_for_uuid( $initial_checkout['checkout_uuid'] )['provider_subscription_reference'] ?? '' ) && 'completed' === ( Faluss_Subscriptions_Repository::checkout_for_uuid( $initial_checkout['checkout_uuid'] )['session_status'] ?? '' ), 'A verified Stripe subscription must be linked to its local Checkout once, without relying on the browser return.' );
 
 $proof_missing_id = 'bbbbbbbb-1111-4111-8111-111111111111';
 $proof_missing_customer = 'cus_trialmissing';
@@ -137,6 +152,56 @@ $sub01b_provision_adapter->checkout_session = array( 'id' => $reconcile_session,
 $reconciled = Faluss_Subscriptions_Billing::reconcile_checkout( $reconcile_session );
 $reconcile_decision = Faluss_Subscriptions_Resolver::resolve_for_faluss_id( $reconcile_id );
 sub01b_provision_assert( is_array( $reconciled ) && 'pro' === $reconcile_decision['level'] && 'trialing' === $reconcile_decision['state'] && 0 === sub01b_provision_count( 'entitlements', $reconcile_id ), 'A completed local Checkout may be safely reconciled from Stripe into a valid trial without an administrative grant.' );
+sub01b_provision_assert( $reconcile_subscription === ( Faluss_Subscriptions_Repository::checkout_for_uuid( $checkout['checkout_uuid'] )['provider_subscription_reference'] ?? '' ) && 'completed' === ( Faluss_Subscriptions_Repository::checkout_for_uuid( $checkout['checkout_uuid'] )['session_status'] ?? '' ), 'Reconciliation must persist the server-verified Stripe subscription relationship on the existing Checkout.' );
+
+$cancellation_count = $sub01b_provision_adapter->cancelled;
+$shared_fingerprint_id = 'eeeeeeee-1111-4111-8111-111111111111';
+$shared_fingerprint_customer = 'cus_trialfingerprintfirst';
+Faluss_Subscriptions_Repository::record_customer( $shared_fingerprint_id, 'stripe', $shared_fingerprint_customer, 'test' );
+$sub01b_provision_adapter->subscription = sub01b_provision_subscription( $shared_fingerprint_id, $shared_fingerprint_customer, 'sub_trialfingerprintfirst' );
+$sub01b_provision_adapter->customer = array( 'id' => $shared_fingerprint_customer, 'invoice_settings' => array( 'default_payment_method' => 'pm_trialfingerprintfirst' ) );
+$sub01b_provision_adapter->payment_method = array( 'id' => 'pm_trialfingerprintfirst', 'customer' => $shared_fingerprint_customer, 'card' => array( 'fingerprint' => 'FpSharedTrialCard' ) );
+sub01b_provision_assert( is_array( Faluss_Subscriptions_Billing::apply_stripe_subscription( $sub01b_provision_adapter->subscription, 'checkout.session.completed' ) ), 'The first identity may activate a verified trial from its attached card.' );
+
+$ineligible_id = 'ffffffff-1111-4111-8111-111111111111';
+$ineligible_customer = 'cus_trialfingerprintsecond';
+Faluss_Subscriptions_Repository::record_customer( $ineligible_id, 'stripe', $ineligible_customer, 'test' );
+$ineligible_checkout = Faluss_Subscriptions_Repository::create_checkout( array( 'faluss_id' => $ineligible_id, 'billing_interval' => 'monthly', 'provider_customer_reference' => $ineligible_customer, 'opaque_state' => str_repeat( 'c', 64 ), 'idempotency_key' => str_repeat( 'd', 64 ) ) );
+sub01b_provision_assert( is_array( $ineligible_checkout ) && is_array( Faluss_Subscriptions_Repository::mark_checkout_provider_session( $ineligible_checkout['id'], 'cs_trialfingerprintsecond', gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS ) ) ), 'A demonstrated trial-ineligibility cancellation requires the matching local Checkout.' );
+$sub01b_provision_adapter->subscription = sub01b_provision_subscription( $ineligible_id, $ineligible_customer, 'sub_trialfingerprintsecond', '', 'trialing', $ineligible_checkout['checkout_uuid'] );
+$sub01b_provision_adapter->customer = array( 'id' => $ineligible_customer, 'invoice_settings' => array( 'default_payment_method' => 'pm_trialfingerprintsecond' ) );
+$sub01b_provision_adapter->payment_method = array( 'id' => 'pm_trialfingerprintsecond', 'customer' => $ineligible_customer, 'card' => array( 'fingerprint' => 'FpSharedTrialCard' ) );
+$ineligible = Faluss_Subscriptions_Billing::apply_stripe_subscription( $sub01b_provision_adapter->subscription, 'customer.subscription.created' );
+$cancellation_audits = sub01b_provision_audits( $ineligible_id, 'stripe_subscription_canceled_for_trial_ineligibility' );
+$cancellation_state = $cancellation_audits ? json_decode( $cancellation_audits[0]['next_state'] ?? '{}', true ) : array();
+sub01b_provision_assert( is_wp_error( $ineligible ) && 'payment_fingerprint_already_consumed' === $ineligible->get_error_code() && $cancellation_count + 1 === $sub01b_provision_adapter->cancelled && 1 === count( $cancellation_audits ) && array( 'payment_fingerprint_already_consumed' ) === sub01b_provision_audit_reasons( $ineligible_id ) && 'payment_fingerprint_already_consumed' === ( $cancellation_state['reason'] ?? '' ) && 'requested' === ( $cancellation_state['outcome'] ?? '' ) && 0 === sub01b_provision_count( 'trials', $ineligible_id ) && 0 === sub01b_provision_count( 'subscriptions', $ineligible_id ), 'Only a cross-identity reused verified payment fingerprint may request one remote cancellation, with a safe reason and no right.' );
+$ineligible_replay = Faluss_Subscriptions_Billing::apply_stripe_subscription( $sub01b_provision_adapter->subscription, 'customer.subscription.updated' );
+sub01b_provision_assert( is_array( $ineligible_replay ) && $cancellation_count + 1 === $sub01b_provision_adapter->cancelled && 1 === count( sub01b_provision_audits( $ineligible_id, 'stripe_subscription_canceled_for_trial_ineligibility' ) ) && 1 === count( sub01b_provision_audit_reasons( $ineligible_id ) ), 'A second legitimate event for an already rejected local Checkout must reuse the safe ineligibility decision without another cancellation or refusal audit.' );
+
+$transient_id = '99999999-1111-4111-8111-111111111111';
+$transient_customer = 'cus_transientunlinked';
+Faluss_Subscriptions_Repository::record_customer( $transient_id, 'stripe', $transient_customer, 'test' );
+$transient_subscription = sub01b_provision_subscription( $transient_id, $transient_customer, 'sub_transientunlinked' );
+$transient_cancellations = $sub01b_provision_adapter->cancelled;
+$sub01b_provision_adapter->customer = array( 'id' => $transient_customer, 'invoice_settings' => array( 'default_payment_method' => 'pm_transientunlinked' ) );
+$sub01b_provision_adapter->payment_method = array( 'id' => 'pm_transientunlinked', 'customer' => $transient_customer, 'card' => array( 'fingerprint' => 'FpSharedTrialCard' ) );
+$transient = Faluss_Subscriptions_Billing::apply_stripe_subscription( $transient_subscription, 'customer.subscription.updated' );
+sub01b_provision_assert( is_wp_error( $transient ) && 'payment_fingerprint_already_consumed' === $transient->get_error_code() && $transient_cancellations === $sub01b_provision_adapter->cancelled && 0 === count( sub01b_provision_audits( $transient_id, 'stripe_subscription_canceled_for_trial_ineligibility' ) ) && 0 === sub01b_provision_count( 'trials', $transient_id ), 'An absent or transient local Checkout relation must fail closed without prematurely cancelling a remote Stripe subscription.' );
+
+$canceled_id = '12121212-1111-4111-8111-111111111111';
+$canceled_customer = 'cus_trialcanceled';
+$canceled_session = 'cs_trialcanceled';
+$canceled_subscription = 'sub_trialcanceled';
+Faluss_Subscriptions_Repository::record_customer( $canceled_id, 'stripe', $canceled_customer, 'test' );
+$canceled_checkout = Faluss_Subscriptions_Repository::create_checkout( array( 'faluss_id' => $canceled_id, 'billing_interval' => 'monthly', 'provider_customer_reference' => $canceled_customer, 'opaque_state' => str_repeat( 'f', 64 ), 'idempotency_key' => str_repeat( 'a', 64 ) ) );
+sub01b_provision_assert( is_array( $canceled_checkout ) && is_array( Faluss_Subscriptions_Repository::mark_checkout_provider_session( $canceled_checkout['id'], $canceled_session, gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS ) ) ) && is_array( Faluss_Subscriptions_Trials::activate_verified_trial( $canceled_id, $canceled_subscription, 'FpCanceledTrial1', gmdate( 'Y-m-d H:i:s' ) ) ), 'The canceled-subscription contract requires one previously verified local trial and Checkout.' );
+$sub01b_provision_adapter->subscription = sub01b_provision_subscription( $canceled_id, $canceled_customer, $canceled_subscription, '', 'canceled', $canceled_checkout['checkout_uuid'] );
+$sub01b_provision_adapter->customer = array( 'id' => $canceled_customer, 'invoice_settings' => array() );
+$sub01b_provision_adapter->payment_method = array();
+$sub01b_provision_adapter->checkout_session = array( 'id' => $canceled_session, 'status' => 'complete', 'customer' => $canceled_customer, 'subscription' => $canceled_subscription );
+$canceled_reconciled = Faluss_Subscriptions_Billing::reconcile_checkout( $canceled_session );
+$canceled_decision = Faluss_Subscriptions_Resolver::resolve_for_faluss_id( $canceled_id );
+sub01b_provision_assert( is_array( $canceled_reconciled ) && 'free' === $canceled_decision['level'] && false === $canceled_decision['entitlements']['faluss.pro'] && $cancellation_count + 1 === $sub01b_provision_adapter->cancelled && 0 === sub01b_provision_count( 'entitlements', $canceled_id ), 'A Stripe subscription now confirmed canceled must remain free after reconciliation and never receive an artificial entitlement or another remote cancellation.' );
 sub01b_provision_assert( false === strpos( json_encode( $wpdb->rows['audit'] ), 'FpTrial' ) && false === strpos( json_encode( $wpdb->rows['audit'] ), 'pm_trial' ), 'Trial audits must contain only safe reason codes, never a payment fingerprint or PaymentMethod reference.' );
 
 echo "SUB-01B provisioning contract: OK\n";

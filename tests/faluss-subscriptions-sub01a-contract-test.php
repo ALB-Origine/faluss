@@ -21,7 +21,7 @@ $persistence_contract = file_get_contents( $root . '/tests/faluss-subscriptions-
 $admin_post_contract = file_get_contents( $root . '/tests/faluss-subscriptions-sub01a-admin-post-contract-test.php' );
 $returns_contract = file_get_contents( $root . '/tests/faluss-subscriptions-sub01b-returns-contract-test.php' );
 
-sub01a_assert( false !== strpos( $bootstrap, 'Plugin Name: Faluss Subscriptions' ) && false !== strpos( $bootstrap, "FALUSS_SUBSCRIPTIONS_VERSION', '0.2.4'" ), 'SUB-01B requires the standalone Faluss Subscriptions plugin at 0.2.4.' );
+sub01a_assert( false !== strpos( $bootstrap, 'Plugin Name: Faluss Subscriptions' ) && false !== strpos( $bootstrap, "FALUSS_SUBSCRIPTIONS_VERSION', '0.2.5'" ), 'SUB-01B requires the standalone Faluss Subscriptions plugin at 0.2.5.' );
 sub01a_assert( false !== strpos( $schema, 'RENAME TABLE' ) && false !== strpos( $schema, 'temporary_tables' ) && false !== strpos( $schema, 'current_schema_ready' ) && false !== strpos( $schema, 'GET_LOCK' ), 'Installation must be atomic, verified, locked and replayable.' );
 foreach ( array( 'faluss_subscriptions', 'faluss_subscription_trials', 'faluss_entitlements', 'faluss_subscription_events', 'faluss_subscription_audit', 'ENGINE=InnoDB' ) as $needle ) { sub01a_assert( false !== strpos( $schema, $needle ), 'Missing dedicated subscription schema invariant: ' . $needle ); }
 sub01a_assert( false !== strpos( $schema, 'trial_faluss_unique' ) && false !== strpos( $schema, 'trial_payment_fingerprint_unique' ) && false !== strpos( $schema, 'trial_override_reference_unique' ), 'Trial identity, derived payment fingerprint and administrative override must be uniquely constrained.' );
@@ -49,6 +49,8 @@ $trial = Faluss_Subscriptions_Resolver::resolve_records( array(), array( array( 
 sub01a_assert( 'pro' === $trial['level'] && 'trialing' === $trial['state'], 'A valid trial must resolve to Pro.' );
 $trial_expired = Faluss_Subscriptions_Resolver::resolve_records( array(), array( array( 'trial_state' => 'trialing', 'expires_at' => $now, 'trial_uuid' => 'trial-b' ) ), array(), $now );
 sub01a_assert( 'free' === $trial_expired['level'] && 'trial_expired' === $trial_expired['reason'], 'An exact trial expiration must resolve to Gratuit without cron.' );
+$canceled_provider_trial = Faluss_Subscriptions_Resolver::resolve_records( array( array( 'provider' => 'stripe', 'provider_subscription_reference' => 'sub-canceled', 'normalized_state' => 'expired', 'provider_status' => 'canceled', 'subscription_uuid' => 'sub-canceled-local' ) ), array( array( 'trial_state' => 'trialing', 'expires_at' => '2026-09-23 12:00:00', 'verification_reference' => 'sub-canceled', 'trial_uuid' => 'trial-canceled' ) ), array(), $now );
+sub01a_assert( 'free' === $canceled_provider_trial['level'] && false === $canceled_provider_trial['entitlements']['faluss.pro'], 'A Stripe subscription confirmed canceled must suppress its matching trial and never resolve Faluss Max.' );
 $active = Faluss_Subscriptions_Resolver::resolve_records( array( array( 'normalized_state' => 'active', 'period_ends_at' => '2026-10-08 12:00:00', 'subscription_uuid' => 'sub-a' ) ), array(), array(), $now );
 sub01a_assert( 'pro' === $active['level'] && 'active' === $active['state'], 'An active subscription must resolve to Pro.' );
 $canceling = Faluss_Subscriptions_Resolver::resolve_records( array( array( 'normalized_state' => 'canceling', 'period_ends_at' => '2026-10-08 12:00:00', 'subscription_uuid' => 'sub-b' ) ), array(), array(), $now );

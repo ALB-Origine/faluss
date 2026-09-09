@@ -58,6 +58,7 @@ final class Faluss_Subscriptions_Test_Wpdb {
         if ( preg_match( "/source_reference='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'source_reference', stripslashes( $matches[1] ) ); }
         elseif ( preg_match( "/admin_override_reference='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'admin_override_reference', stripslashes( $matches[1] ) ); }
         elseif ( preg_match( "/return_state_hash='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'return_state_hash', stripslashes( $matches[1] ) ); }
+        elseif ( preg_match( "/checkout_uuid='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'checkout_uuid', stripslashes( $matches[1] ) ); }
         elseif ( preg_match( "/provider_session_reference='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'provider_session_reference', stripslashes( $matches[1] ) ); }
         elseif ( preg_match( "/provider_subscription_reference='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'provider_subscription_reference', stripslashes( $matches[1] ) ); }
         elseif ( preg_match( "/provider_customer_reference='([^']+)'/", $query, $matches ) ) { $row = $this->first( $key, 'provider_customer_reference', stripslashes( $matches[1] ) ); }

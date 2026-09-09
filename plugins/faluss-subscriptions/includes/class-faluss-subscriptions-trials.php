@@ -31,17 +31,25 @@ final class Faluss_Subscriptions_Trials {
             $trials = Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::trials_table() );
             $existing = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . $trials . ' WHERE faluss_id=%s FOR UPDATE', $faluss_id ), ARRAY_A );
             $used_payment = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . $trials . ' WHERE payment_fingerprint_hash=%s FOR UPDATE', $fingerprint_hash ), ARRAY_A );
+            // Stripe legitimately delivers more than one signed event for a
+            // subscription. Once this Faluss ID and provider subscription
+            // pair has passed payment verification, replay that canonical
+            // decision even if Stripe now exposes the payment method through
+            // a different object representation. It is not a new trial.
+            if ( is_array( $existing )
+                && 'trialing' === (string) $existing['trial_state']
+                && $verification_reference === (string) ( $existing['verification_reference'] ?? '' )
+                && self::future( $existing['expires_at'] ?? null, $now ) ) {
+                $wpdb->query( 'COMMIT' );
+                return $existing;
+            }
             if ( is_array( $used_payment ) && ( ! is_array( $existing ) || (int) $used_payment['id'] !== (int) $existing['id'] ) ) {
                 $wpdb->query( 'ROLLBACK' );
                 return self::error( 'trial_payment_method_already_used' );
             }
             if ( is_array( $existing ) && 'eligible' !== (string) $existing['trial_state'] ) {
-                $same_verified_trial = 'trialing' === (string) $existing['trial_state']
-                    && $verification_reference === (string) ( $existing['verification_reference'] ?? '' )
-                    && hash_equals( (string) ( $existing['payment_fingerprint_hash'] ?? '' ), $fingerprint_hash )
-                    && self::future( $existing['expires_at'] ?? null, $now );
                 $wpdb->query( 'COMMIT' );
-                return $same_verified_trial ? $existing : self::error( 'trial_already_used' );
+                return self::error( 'trial_already_used' );
             }
             $data = array(
                 'eligibility_status' => is_array( $existing ) && 'admin_override' === ( $existing['eligibility_status'] ?? '' ) ? 'admin_override' : 'eligible',

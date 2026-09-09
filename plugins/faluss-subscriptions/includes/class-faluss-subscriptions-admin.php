@@ -279,7 +279,7 @@ final class Faluss_Subscriptions_Admin {
     }
 
     private static function safe_checkout_reconciliation_code( $code ) {
-        $allowed = array( 'sandbox_test_only', 'checkout_reconciliation_invalid', 'checkout_reconciliation_incomplete', 'payment_proof_missing', 'payment_fingerprint_missing', 'trial_window_invalid', 'trial_already_consumed', 'trial_activation_failed', 'stripe_subscription_identity_mismatch', 'stripe_subscription_price_mismatch', 'stripe_price_catalogue_mismatch', 'stripe_price_unavailable', 'stripe_transport_failed', 'stripe_customer_tax_location_invalid' );
+        $allowed = array( 'sandbox_test_only', 'checkout_reconciliation_invalid', 'checkout_reconciliation_incomplete', 'checkout_subscription_link_invalid', 'checkout_subscription_link_conflict', 'checkout_subscription_link_failed', 'payment_proof_missing', 'payment_fingerprint_missing', 'payment_fingerprint_already_consumed', 'trial_window_invalid', 'trial_already_consumed', 'trial_activation_failed', 'stripe_subscription_identity_mismatch', 'stripe_subscription_price_mismatch', 'stripe_price_catalogue_mismatch', 'stripe_price_unavailable', 'stripe_transport_failed', 'stripe_customer_tax_location_invalid' );
         return in_array( $code, $allowed, true ) ? $code : 'checkout_reconciliation_unavailable';
     }
 

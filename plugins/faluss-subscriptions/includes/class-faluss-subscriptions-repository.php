@@ -109,6 +109,66 @@ final class Faluss_Subscriptions_Repository {
         return is_array( $row ) ? $row : null;
     }
 
+    /** @return array<string,mixed>|null */
+    public static function checkout_for_uuid( $checkout_uuid ) {
+        global $wpdb;
+        $checkout_uuid = self::bounded( $checkout_uuid, 36 );
+        if ( ! self::valid_uuid( $checkout_uuid ) ) { return null; }
+        $table = Faluss_Subscriptions_Schema::quote_identifier( Faluss_Subscriptions_Schema::checkout_sessions_table() );
+        $row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . $table . ' WHERE checkout_uuid=%s LIMIT 1', strtolower( $checkout_uuid ) ), ARRAY_A );
+        return is_array( $row ) ? $row : null;
+    }
+
+    /**
+     * Link a locally-created Checkout only after trusted server code has
+     * revalidated the matching Stripe Customer and subscription.
+     *
+     * @return array<string,mixed>|WP_Error
+     */
+    public static function link_checkout_subscription( $checkout_uuid, $faluss_id, $customer_reference, $subscription_reference ) {
+        global $wpdb;
+        $checkout = self::checkout_for_uuid( $checkout_uuid );
+        $faluss_id = self::valid_faluss_id( $faluss_id ) ? strtolower( $faluss_id ) : '';
+        $customer_reference = self::bounded( $customer_reference, 191 );
+        $subscription_reference = self::bounded( $subscription_reference, 191 );
+        if ( ! is_array( $checkout ) || '' === $faluss_id || '' === $customer_reference || '' === $subscription_reference
+            || 'stripe' !== ( $checkout['provider'] ?? '' ) || $faluss_id !== ( $checkout['faluss_id'] ?? '' )
+            || $customer_reference !== ( $checkout['provider_customer_reference'] ?? '' ) || empty( $checkout['provider_session_reference'] ) ) {
+            return self::error( 'checkout_subscription_link_invalid' );
+        }
+        if ( $subscription_reference === ( $checkout['provider_subscription_reference'] ?? '' ) && in_array( $checkout['session_status'] ?? '', array( 'completed', 'trial_ineligible' ), true ) ) { return $checkout; }
+        if ( ! in_array( $checkout['session_status'] ?? '', array( 'open', 'completed' ), true ) ) { return self::error( 'checkout_subscription_link_invalid' ); }
+        if ( ! empty( $checkout['provider_subscription_reference'] ) && $subscription_reference !== ( $checkout['provider_subscription_reference'] ?? '' ) ) {
+            return self::error( 'checkout_subscription_link_conflict' );
+        }
+        $written = $wpdb->update( Faluss_Subscriptions_Schema::checkout_sessions_table(), array( 'provider_subscription_reference' => $subscription_reference, 'session_status' => 'completed', 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => (int) $checkout['id'] ) );
+        return false === $written ? self::error( 'checkout_subscription_link_failed' ) : ( self::checkout_for_uuid( $checkout_uuid ) ?: self::error( 'checkout_subscription_link_failed' ) );
+    }
+
+    /**
+     * Retains a safe, local idempotence marker after a demonstrated
+     * cross-identity trial collision has requested remote cancellation.
+     * No entitlement or provider payload is persisted here.
+     *
+     * @return array<string,mixed>|WP_Error
+     */
+    public static function mark_checkout_trial_ineligible( $checkout_uuid, $faluss_id, $customer_reference, $subscription_reference ) {
+        global $wpdb;
+        $checkout = self::checkout_for_uuid( $checkout_uuid );
+        $faluss_id = self::valid_faluss_id( $faluss_id ) ? strtolower( $faluss_id ) : '';
+        $customer_reference = self::bounded( $customer_reference, 191 );
+        $subscription_reference = self::bounded( $subscription_reference, 191 );
+        if ( ! is_array( $checkout ) || '' === $faluss_id || '' === $customer_reference || '' === $subscription_reference
+            || 'stripe' !== ( $checkout['provider'] ?? '' ) || $faluss_id !== ( $checkout['faluss_id'] ?? '' )
+            || $customer_reference !== ( $checkout['provider_customer_reference'] ?? '' ) || $subscription_reference !== ( $checkout['provider_subscription_reference'] ?? '' ) ) {
+            return self::error( 'checkout_trial_ineligible_invalid' );
+        }
+        if ( 'trial_ineligible' === ( $checkout['session_status'] ?? '' ) ) { return $checkout; }
+        if ( 'completed' !== ( $checkout['session_status'] ?? '' ) ) { return self::error( 'checkout_trial_ineligible_invalid' ); }
+        $written = $wpdb->update( Faluss_Subscriptions_Schema::checkout_sessions_table(), array( 'session_status' => 'trial_ineligible', 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => (int) $checkout['id'] ) );
+        return false === $written ? self::error( 'checkout_trial_ineligible_failed' ) : ( self::checkout_for_uuid( $checkout_uuid ) ?: self::error( 'checkout_trial_ineligible_failed' ) );
+    }
+
     /**
      * Locates only a locally-created, still-open Stripe Checkout for a known
      * Customer. This enables a later signed customer/payment event to resume
@@ -245,6 +305,7 @@ final class Faluss_Subscriptions_Repository {
         return (array) $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Faluss_Subscriptions_Schema::quote_identifier( $table ) . ' WHERE faluss_id=%s ORDER BY ' . $order, strtolower( $faluss_id ) ), ARRAY_A );
     }
     private static function valid_faluss_id( $value ) { return is_string( $value ) && 1 === preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $value ); }
+    private static function valid_uuid( $value ) { return is_string( $value ) && 1 === preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $value ); }
     private static function valid_provider( $value ) { return is_string( $value ) && 1 === preg_match( '/^[a-z][a-z0-9_-]{1,31}$/i', $value ); }
     private static function valid_hash( $value ) { return is_string( $value ) && 1 === preg_match( '/^[a-f0-9]{64}$/i', $value ); }
     private static function bounded( $value, $length ) { $value = is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : ''; return function_exists( 'mb_substr' ) ? mb_substr( trim( $value ), 0, $length ) : substr( trim( $value ), 0, $length ); }

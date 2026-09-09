@@ -46,7 +46,7 @@ final class Faluss_Subscriptions_Resolver {
             $candidates[] = array( 'priority' => $priority, 'state' => 'admin_grant' === ( $entitlement['source'] ?? '' ) ? 'comped' : 'active', 'expires_at' => $entitlement['expires_at'] ?? null, 'source' => self::source( $entitlement, 'pro' ), 'reason' => 'entitlement_active' );
         }
         foreach ( (array) $trials as $trial ) {
-            if ( 'trialing' === ( $trial['trial_state'] ?? '' ) && self::future( $trial['expires_at'] ?? null, $now ) && empty( $trial['revoked_at'] ) ) {
+            if ( 'trialing' === ( $trial['trial_state'] ?? '' ) && self::future( $trial['expires_at'] ?? null, $now ) && empty( $trial['revoked_at'] ) && ! self::trial_canceled_by_provider( $subscriptions, $trial ) ) {
                 $candidates[] = array( 'priority' => 100, 'state' => 'trialing', 'expires_at' => $trial['expires_at'], 'source' => array( 'source' => 'trial', 'reference' => $trial['trial_uuid'] ?? '', 'expires_at' => $trial['expires_at'] ), 'reason' => 'trial_valid' );
             } elseif ( ! empty( $trial['expires_at'] ) && ! self::future( $trial['expires_at'], $now ) ) {
                 $reasons[] = 'trial_expired';
@@ -115,6 +115,15 @@ final class Faluss_Subscriptions_Resolver {
             if ( is_array( $trial ) && 'trialing' === ( $trial['trial_state'] ?? '' ) && empty( $trial['revoked_at'] ) && self::future( $trial['expires_at'] ?? null, $now ) && $reference === ( $trial['verification_reference'] ?? '' ) ) { return $trial; }
         }
         return null;
+    }
+    /** A canceled Stripe subscription invalidates only its matching trial. */
+    private static function trial_canceled_by_provider( $subscriptions, $trial ) {
+        $reference = $trial['verification_reference'] ?? '';
+        if ( ! is_string( $reference ) || '' === $reference ) { return false; }
+        foreach ( (array) $subscriptions as $subscription ) {
+            if ( is_array( $subscription ) && 'stripe' === ( $subscription['provider'] ?? '' ) && 'canceled' === ( $subscription['provider_status'] ?? '' ) && $reference === ( $subscription['provider_subscription_reference'] ?? '' ) ) { return true; }
+        }
+        return false;
     }
     private static function started( $value, $now ) { return is_string( $value ) && '' !== $value && strcmp( $value, $now ) <= 0; }
     private static function future( $value, $now ) { return is_string( $value ) && '' !== $value && strcmp( $value, $now ) > 0; }

@@ -128,6 +128,8 @@ final class Faluss_Subscriptions_Billing {
         if ( is_wp_error( $subscription ) ) { return $subscription; }
         $record = self::apply_stripe_subscription( $subscription, 'checkout_reconciliation' );
         if ( is_wp_error( $record ) ) { return $record; }
+        $linked = Faluss_Subscriptions_Repository::link_checkout_subscription( (string) $checkout['checkout_uuid'], (string) $checkout['faluss_id'], (string) $checkout['provider_customer_reference'], $subscription_reference );
+        if ( is_wp_error( $linked ) ) { return $linked; }
         Faluss_Subscriptions_Audit::record( 0, 'stripe_checkout_reconciled', (string) $checkout['faluss_id'], 'billing', array(), array( 'checkout_uuid' => $checkout['checkout_uuid'] ), null );
         return $record;
     }
@@ -146,11 +148,20 @@ final class Faluss_Subscriptions_Billing {
         $price = self::validated_subscription_price( $adapter, $subscription, $period );
         if ( is_wp_error( $price ) ) { return $price; }
         $normalized = self::normalise_state( $subscription );
+        $subscription_reference = self::id( $subscription['id'] ?? '' );
+        // The Customer, subscription metadata and Price are now server-read
+        // and validated. Persist the durable Checkout relation before a trial
+        // can become effective, so a mismatched local relation fails closed.
+        $linked = self::link_checkout_from_subscription( $subscription, $faluss_id, $customer_reference, $subscription_reference );
+        if ( is_wp_error( $linked ) ) { return $linked; }
+        if ( is_array( $linked ) && 'trial_ineligible' === ( $linked['session_status'] ?? '' ) ) {
+            return $linked;
+        }
         $trial_starts = self::timestamp_to_utc( $subscription['trial_start'] ?? null );
         $trial_ends = self::timestamp_to_utc( $subscription['trial_end'] ?? null );
         if ( 'trialing' === $normalized ) {
             if ( ! self::valid_trial_window( $trial_starts, $trial_ends ) ) {
-                return self::refuse_trial( $adapter, $subscription, $faluss_id, 'trial_window_invalid', true );
+                return self::refuse_trial( $adapter, $subscription, $faluss_id, 'trial_window_invalid' );
             }
             $proof = self::trial_payment_proof( $adapter, $subscription );
             if ( is_wp_error( $proof ) ) {
@@ -161,11 +172,20 @@ final class Faluss_Subscriptions_Billing {
             }
             $trial = Faluss_Subscriptions_Trials::activate_verified_trial( $faluss_id, self::id( $subscription['id'] ?? '' ), $proof['fingerprint'], $trial_starts );
             if ( is_wp_error( $trial ) ) {
-                $reason = in_array( $trial->get_error_code(), array( 'trial_already_used', 'trial_payment_method_already_used' ), true ) ? 'trial_already_consumed' : 'trial_activation_failed';
-                return self::refuse_trial( $adapter, $subscription, $faluss_id, $reason, true );
+                $reason = 'trial_activation_failed';
+                $cancel = false;
+                if ( 'trial_payment_method_already_used' === $trial->get_error_code() ) {
+                    $reason = 'payment_fingerprint_already_consumed';
+                    // A valid local Checkout association makes this a
+                    // demonstrated cross-identity collision rather than a
+                    // transient Stripe delivery or missing local relation.
+                    $cancel = is_array( $linked ) && 'completed' === ( $linked['session_status'] ?? '' );
+                } elseif ( 'trial_already_used' === $trial->get_error_code() ) {
+                    $reason = 'trial_already_consumed';
+                }
+                return self::refuse_trial( $adapter, $subscription, $faluss_id, $reason, $cancel, $linked );
             }
         }
-        $subscription_reference = self::id( $subscription['id'] ?? '' );
         $existing = self::subscription_for_reference( $faluss_id, $subscription_reference );
         // Different signed Stripe event IDs can resolve to the exact same
         // current trial. Keep event-level idempotence in Webhooks, and avoid a
@@ -277,16 +297,32 @@ final class Faluss_Subscriptions_Billing {
         $fingerprint = self::fingerprint( $method['card']['fingerprint'] ?? '' );
         return '' === $fingerprint ? self::error( 'payment_fingerprint_missing' ) : array( 'fingerprint' => $fingerprint );
     }
-    private static function refuse_trial( $adapter, $subscription, $faluss_id, $reason, $cancel ) {
-        $safe_reason = in_array( $reason, array( 'trial_already_consumed', 'payment_proof_missing', 'payment_fingerprint_missing', 'trial_window_invalid', 'trial_activation_failed' ), true ) ? $reason : 'trial_activation_failed';
-        if ( $cancel ) { $adapter->cancel_now( self::id( $subscription['id'] ?? '' ) ); }
+    private static function link_checkout_from_subscription( $subscription, $faluss_id, $customer_reference, $subscription_reference ) {
+        $metadata = is_array( $subscription['metadata'] ?? null ) ? $subscription['metadata'] : array();
+        $checkout_uuid = self::uuid( $metadata['faluss_billing_session'] ?? '' );
+        if ( '' === $checkout_uuid ) { return null; }
+        return Faluss_Subscriptions_Repository::link_checkout_subscription( $checkout_uuid, $faluss_id, $customer_reference, $subscription_reference );
+    }
+    private static function refuse_trial( $adapter, $subscription, $faluss_id, $reason, $cancel = false, $checkout = null ) {
+        $safe_reason = in_array( $reason, array( 'trial_already_consumed', 'payment_proof_missing', 'payment_fingerprint_missing', 'payment_fingerprint_already_consumed', 'trial_window_invalid', 'trial_activation_failed' ), true ) ? $reason : 'trial_activation_failed';
+        if ( $cancel && 'payment_fingerprint_already_consumed' === $safe_reason && is_array( $checkout ) ) { self::cancel_for_trial_ineligibility( $adapter, $subscription, $faluss_id, $safe_reason, $checkout ); }
         Faluss_Subscriptions_Audit::record( 0, 'stripe_trial_refused', $faluss_id, 'billing', array(), array( 'reason' => $safe_reason ), null );
         return self::error( $safe_reason );
     }
-    private static function valid_local_checkout( $checkout ) { return is_array( $checkout ) && 'stripe' === ( $checkout['provider'] ?? '' ) && Faluss_Subscriptions_Catalog::PRO === ( $checkout['plan_key'] ?? '' ) && 'open' === ( $checkout['session_status'] ?? '' ) && self::faluss_id( $checkout['faluss_id'] ?? '' ); }
+    private static function cancel_for_trial_ineligibility( $adapter, $subscription, $faluss_id, $reason, $checkout ) {
+        $subscription_reference = self::id( $subscription['id'] ?? '' );
+        if ( '' === $subscription_reference ) { return; }
+        $result = $adapter->cancel_now( $subscription_reference );
+        if ( ! is_wp_error( $result ) ) {
+            Faluss_Subscriptions_Repository::mark_checkout_trial_ineligible( (string) ( $checkout['checkout_uuid'] ?? '' ), $faluss_id, (string) ( $checkout['provider_customer_reference'] ?? '' ), $subscription_reference );
+        }
+        Faluss_Subscriptions_Audit::record( 0, 'stripe_subscription_canceled_for_trial_ineligibility', $faluss_id, 'billing', array(), array( 'reason' => $reason, 'outcome' => is_wp_error( $result ) ? 'request_failed' : 'requested' ), null );
+    }
+    private static function valid_local_checkout( $checkout ) { return is_array( $checkout ) && 'stripe' === ( $checkout['provider'] ?? '' ) && Faluss_Subscriptions_Catalog::PRO === ( $checkout['plan_key'] ?? '' ) && in_array( $checkout['session_status'] ?? '', array( 'open', 'completed' ), true ) && self::faluss_id( $checkout['faluss_id'] ?? '' ); }
     private static function valid_completed_checkout_session( $session, $checkout, $session_reference ) { return is_array( $session ) && self::id( $session['id'] ?? '' ) === $session_reference && 'complete' === ( $session['status'] ?? '' ) && self::id( $session['customer'] ?? '' ) === ( $checkout['provider_customer_reference'] ?? '' ); }
     private static function payment_method_id( $value ) { return is_array( $value ) ? self::id( $value['id'] ?? '' ) : self::id( $value ); }
     private static function fingerprint( $value ) { return is_string( $value ) && 1 === preg_match( '/^[A-Za-z0-9_-]{8,191}$/', $value ) ? $value : ''; }
+    private static function uuid( $value ) { return is_string( $value ) && 1 === preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $value ) ? strtolower( $value ) : ''; }
     private static function valid_trial_window( $start, $end ) { return $start && $end && 1296000 === strtotime( $end ) - strtotime( $start ); }
     private static function return_url( $kind ) { return add_query_arg( array( 'faluss_subscriptions_return' => sanitize_key( $kind ) ), home_url( '/' ) ); }
     private static function stripe_url( $url ) { $parts = wp_parse_url( (string) $url ); return is_array( $parts ) && 'https' === ( $parts['scheme'] ?? '' ) && isset( $parts['host'] ) && 1 === preg_match( '/(^|\\.)stripe\.com$/', strtolower( $parts['host'] ) ); }
