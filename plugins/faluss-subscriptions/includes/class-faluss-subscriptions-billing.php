@@ -165,10 +165,18 @@ final class Faluss_Subscriptions_Billing {
                 return self::refuse_trial( $adapter, $subscription, $faluss_id, $reason, true );
             }
         }
+        $subscription_reference = self::id( $subscription['id'] ?? '' );
+        $existing = self::subscription_for_reference( $faluss_id, $subscription_reference );
+        // Different signed Stripe event IDs can resolve to the exact same
+        // current trial. Keep event-level idempotence in Webhooks, and avoid a
+        // second canonical subscription write and notification here as well.
+        if ( 'trialing' === $normalized && self::same_trialing_subscription( $existing, $subscription, $customer_reference, $period, $trial_starts, $trial_ends ) ) {
+            return $existing;
+        }
         $failed_at = in_array( $event_type, array( 'invoice.payment_failed', 'invoice.payment_action_required' ), true ) ? gmdate( 'Y-m-d H:i:s' ) : null;
         $record = Faluss_Subscriptions_Repository::upsert_provider_subscription( array(
             'faluss_id' => $faluss_id, 'provider' => self::PROVIDER, 'provider_customer_reference' => $customer_reference,
-            'provider_subscription_reference' => self::id( $subscription['id'] ?? '' ), 'plan_key' => Faluss_Subscriptions_Catalog::PRO,
+            'provider_subscription_reference' => $subscription_reference, 'plan_key' => Faluss_Subscriptions_Catalog::PRO,
             'billing_interval' => $period, 'provider_status' => self::id( $subscription['status'] ?? '' ), 'normalized_state' => $normalized,
             'trial_starts_at' => $trial_starts, 'trial_ends_at' => $trial_ends,
             'period_starts_at' => self::timestamp_to_utc( $subscription['current_period_start'] ?? null ), 'period_ends_at' => self::timestamp_to_utc( $subscription['current_period_end'] ?? null ),
@@ -224,6 +232,20 @@ final class Faluss_Subscriptions_Billing {
     }
 
     private static function subscription_for_reference( $faluss_id, $reference ) { foreach ( Faluss_Subscriptions_Repository::subscriptions_for_faluss_id( $faluss_id ) as $subscription ) { if ( self::PROVIDER === ( $subscription['provider'] ?? '' ) && $reference === ( $subscription['provider_subscription_reference'] ?? '' ) ) { return $subscription; } } return null; }
+    /** The subscription was already synchronised from the same current Stripe trial. */
+    private static function same_trialing_subscription( $record, $subscription, $customer_reference, $period, $trial_starts, $trial_ends ) {
+        return is_array( $record )
+            && self::PROVIDER === ( $record['provider'] ?? '' )
+            && 'trialing' === ( $record['normalized_state'] ?? '' )
+            && $customer_reference === ( $record['provider_customer_reference'] ?? '' )
+            && $period === ( $record['billing_interval'] ?? '' )
+            && self::id( $subscription['status'] ?? '' ) === ( $record['provider_status'] ?? '' )
+            && $trial_starts === ( $record['trial_starts_at'] ?? null )
+            && $trial_ends === ( $record['trial_ends_at'] ?? null )
+            && self::timestamp_to_utc( $subscription['current_period_start'] ?? null ) === ( $record['period_starts_at'] ?? null )
+            && self::timestamp_to_utc( $subscription['current_period_end'] ?? null ) === ( $record['period_ends_at'] ?? null )
+            && (int) ! empty( $subscription['cancel_at_period_end'] ) === (int) ( $record['cancel_at_period_end'] ?? 0 );
+    }
     private static function subscription_period( $subscription ) { $items = $subscription['items']['data'] ?? array(); $price = is_array( $items ) && ! empty( $items[0]['price'] ) ? $items[0]['price'] : array(); return 'year' === ( $price['recurring']['interval'] ?? '' ) ? 'annual' : 'monthly'; }
     /** Revalidate the configured Price before an event can affect a central right. */
     private static function validated_subscription_price( $adapter, $subscription, $period ) {

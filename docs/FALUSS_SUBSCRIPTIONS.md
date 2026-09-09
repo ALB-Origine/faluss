@@ -70,7 +70,7 @@ La résolution UTC et à lecture conserve l’ordre : révocation conformité, a
 
 ### Provisionnement d’essai et reprise sûre (0.2.4)
 
-Une livraison Stripe signée relit toujours la souscription, le Price, le Customer et le moyen de paiement courants avant de décider. Deux événements Stripe distincts mais légitimes pour la même souscription (`checkout.session.completed`, puis `customer.subscription.created` par exemple) réemploient la même décision d’essai vérifiée; ils ne consomment donc pas l’essai une seconde fois et ne déclenchent pas d’annulation.
+Une livraison Stripe signée relit toujours la souscription, le Price, le Customer et le moyen de paiement courants avant de décider. Deux événements Stripe distincts mais légitimes pour la même souscription (`checkout.session.completed`, puis `customer.subscription.created` par exemple) réemploient la même décision d’essai vérifiée; ils ne consomment donc pas l’essai une seconde fois, ne déclenchent pas d’annulation et ne réécrivent pas une souscription `trialing` déjà synchronisée à l’identique.
 
 Le code antérieur ne relisait que `subscription.default_payment_method` et considérait une seconde livraison comme un nouvel essai. Il pouvait ainsi refuser ou annuler une souscription `trialing` pourtant valide. Les audits historiques `payment_or_window_invalid` sont volontairement trop réduits pour distinguer rétrospectivement, sans conserver de donnée Stripe sensible, une fenêtre invalide d’une empreinte absente. Les nouveaux refus enregistrent seulement l’un des motifs sûrs `trial_already_consumed`, `payment_proof_missing`, `payment_fingerprint_missing`, `trial_window_invalid` ou `trial_activation_failed`.
 
