@@ -95,10 +95,20 @@ foreach ( array( "self::render_app_card( \$app, 'compact' )", "self::render_app_
 }
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-card\s*\{[^}]*linear-gradient\([^}]*linear-gradient\(/s', $css ), 'The canonical card must stack a dark glass gradient above the accent-white-accent gradient.' );
 ap01_assert( false !== strpos( $css, 'var(--faluss-app-accent)' ) && false !== strpos( $css, 'overflow: hidden' ), 'The shared card must remain variable-driven and horizontally bounded.' );
-ap01_assert( 1 === preg_match( '/\.faluss-portal__app-card\s*\{[^}]*--faluss-app-logo-size:\s*58px;[^}]*--faluss-app-head-size:\s*72px;[^}]*--faluss-app-open-size:\s*72px;/s', $css ), 'AP-01A must define one canonical desktop logo, header and action geometry for every application.' );
-ap01_assert( 1 === preg_match( '/\.faluss-portal__app-card\s*\{[^}]*--faluss-app-logo-size:\s*46px;[^}]*--faluss-app-head-size:\s*52px;[^}]*--faluss-app-open-size:\s*52px;/s', $css ), 'AP-01A must resize the same shared geometry at the mobile breakpoint.' );
-ap01_assert( 1 === preg_match( '/\.faluss-portal__app-logo\s*\{[^}]*width:\s*var\(--faluss-app-logo-size\);[^}]*height:\s*var\(--faluss-app-logo-size\);/s', $css ) && 1 === preg_match( '/\.faluss-portal__app-logo img\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*object-fit:\s*contain;/s', $css ), 'Every logo, including the empty Fans slot, must use one square wrapper and contain sizing without per-app dimensions.' );
-ap01_assert( 0 === preg_match( '/data-faluss-app="(?:hub|me|date|fans|pro)"[^\{]*\.faluss-portal__app-logo\s*\{/s', $css ), 'No application may receive a logo-specific sizing correction.' );
+foreach ( array(
+    'hub'  => array( '18px', '22px' ),
+    'me'   => array( '12.43px', '23px' ),
+    'date' => array( '23px', '23px' ),
+    'pro'  => array( '21.28px', '23px' ),
+) as $slug => $size ) {
+    $mobile_rule = '/@media \(max-width:\s*720px\).*?\.faluss-portal__app-card\[data-faluss-app="' . preg_quote( $slug, '/' ) . '"\]\s*\{([^}]*)\}/s';
+    ap01_assert( 1 === preg_match( $mobile_rule, $css, $mobile_match ) && false !== strpos( $mobile_match[1], '--faluss-app-symbol-width: ' . $size[0] ) && false !== strpos( $mobile_match[1], '--faluss-app-symbol-height: ' . $size[1] ), 'AP-01B must expose the exact mobile rendered-symbol dimensions for ' . $slug . '.' );
+}
+ap01_assert( 1 === preg_match( '/\.faluss-portal__app-logo\s*\{[^}]*width:\s*var\(--faluss-app-symbol-width\);[^}]*height:\s*var\(--faluss-app-symbol-height\);[^}]*place-items:\s*center;[^}]*overflow:\s*hidden;[^}]*line-height:\s*0;/s', $css ), 'The logo column must expose the actual per-app visual bounds and remove image baseline drift.' );
+ap01_assert( 1 === preg_match( '/\.faluss-portal__app-logo img\s*\{[^}]*display:\s*block;[^}]*width:\s*var\(--faluss-app-asset-width\);[^}]*height:\s*var\(--faluss-app-asset-height\);[^}]*max-width:\s*none;[^}]*max-height:\s*none;[^}]*object-fit:\s*contain;[^}]*line-height:\s*0;/s', $css ), 'No global image sizing may override the measured symbol asset dimensions.' );
+ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s*\{[^}]*--faluss-app-symbol-width:\s*12\.43px;[^}]*--faluss-app-symbol-height:\s*23px;[^}]*--faluss-app-asset-width:\s*42\.36px;[^}]*--faluss-app-asset-height:\s*42\.36px;/s', $css ), 'Faluss Me must correct only its own official asset padding inside the measured visible wrapper.' );
+ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s+\.faluss-portal__app-logo img\s*\{[^}]*position:\s*absolute;[^}]*inset-inline-start:\s*calc\(\(var\(--faluss-app-symbol-width\) - var\(--faluss-app-asset-width\)\) \/ 2\);[^}]*inset-block-start:\s*calc\(\(var\(--faluss-app-symbol-height\) - var\(--faluss-app-asset-height\)\) \/ 2\);/s', $css ), 'Faluss Me must center its padded official source locally rather than inherit the browser safe-alignment fallback.' );
+ap01_assert( 0 === preg_match( '/\.faluss-portal__app-logo(?:\s+img)?\s*\{[^}]*transform:/s', $css ), 'AP-01B must not use a generic logo translation.' );
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-head\s*\{[^}]*min-height:\s*var\(--faluss-app-head-size\);[^}]*align-items:\s*center;/s', $css ) && 1 === preg_match( '/\.faluss-portal__app-card--compact\s*\{[^}]*display:\s*grid;[^}]*align-content:\s*center;/s', $css ), 'The single shared header must center logo, identity and compact action vertically in both card variants.' );
 ap01_assert( 1 === substr_count( $source, '<div class="faluss-portal__app-head">' ), 'Mes apps and Explorer must keep one canonical header emitted by the shared renderer.' );
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-action\s*\{[^}]*display:\s*inline-grid;[^}]*place-items:\s*center;[^}]*border:\s*0 !important;[^}]*outline:\s*0 !important;[^}]*border-radius:\s*100px !important;[^}]*box-shadow:\s*none !important;/s', $css ), 'The real Hub action must remain a centered pill immune to Elementor and browser frames.' );
@@ -113,28 +123,16 @@ $official_assets = array(
     'faluss-date.png' => $root . '/plugins/faluss-link/assets/images/studio-ecosystem/faluss-studio-date.png',
     'faluss-pro.png'  => $root . '/plugins/faluss-link/assets/images/studio-ecosystem/faluss-studio-pro.png',
 );
-$normalized_asset_hashes = array(
-    'faluss-hub.png'  => 'b299ea3d026f092f964ad5cc0344669d7c06ef4c1c2f30b9c311efebfa408a14',
-    'faluss-date.png' => 'c4bcd913e796a06c6e0fb4ec83d01a27a3c0cb3c886449c36b4f636a8d5f1071',
-    'faluss-pro.png'  => 'a76465d852729d63cf75bac2d3ffeb6b2890d7be238440d1924ae8fc10e80385',
-);
 foreach ( $official_assets as $name => $source_asset ) {
     $portal_asset = $plugin . '/assets/images/apps/' . $name;
-    ap01_assert( is_file( $portal_asset ) && is_file( $source_asset ), 'The installable Portal ZIP must embed an official application asset: ' . $name );
-    if ( 'faluss-me.png' === $name ) {
-        ap01_assert( hash_file( 'sha256', $source_asset ) === hash_file( 'sha256', $portal_asset ), 'The Faluss Me reference asset must remain unchanged.' );
-        continue;
-    }
-    $dimensions = getimagesize( $portal_asset );
-    ap01_assert( is_array( $dimensions ) && 239 === $dimensions[0] && 239 === $dimensions[1], 'Each non-reference logo must use the same transparent canonical canvas: ' . $name );
-    ap01_assert( $normalized_asset_hashes[ $name ] === hash_file( 'sha256', $portal_asset ), 'The padded asset must preserve the reviewed official artwork and canonical canvas: ' . $name );
+    ap01_assert( is_file( $portal_asset ) && hash_file( 'sha256', $source_asset ) === hash_file( 'sha256', $portal_asset ), 'AP-01B must embed the unchanged official source asset and correct only its rendered box: ' . $name );
 }
 
 ap01_assert( 0 === preg_match( '/[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}/i', $explore_html . $published_owned_html ), 'No Faluss ID may be rendered in either Apps view.' );
 foreach ( array( 'faluss_id', 'provider_', 'stripe', 'customer', 'subscription' ) as $sensitive ) {
     ap01_assert( false === stripos( $explore_html . $published_owned_html, $sensitive ), 'Apps markup must not expose technical account or billing data: ' . $sensitive );
 }
-foreach ( array( 'AP-01', 'AP-01A', 'Faluss Hub', 'Faluss Me', 'Bientôt disponible', 'Aucun appel', 'inter-domaine', 'preuve locale', '--faluss-app-logo-size' ) as $needle ) {
+foreach ( array( 'AP-01', 'AP-01B', 'Faluss Hub', 'Faluss Me', 'Bientôt disponible', 'Aucun appel', 'inter-domaine', 'preuve locale', '--faluss-app-symbol-width' ) as $needle ) {
     ap01_assert( false !== strpos( $documentation, $needle ), 'AP-01 documentation must capture its registry and ownership boundary: ' . $needle );
 }
 

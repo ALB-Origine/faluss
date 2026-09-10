@@ -377,7 +377,10 @@ body.faluss-portal-page {
 .faluss-portal__app-card {
   --faluss-app-accent: #000000;
   --faluss-app-title-accent: #ffffff;
-  --faluss-app-logo-size: 58px;
+  --faluss-app-symbol-width: 29px;
+  --faluss-app-symbol-height: 29px;
+  --faluss-app-asset-width: var(--faluss-app-symbol-width);
+  --faluss-app-asset-height: var(--faluss-app-symbol-height);
   --faluss-app-head-size: 72px;
   --faluss-app-open-size: 72px;
   position: relative;
@@ -392,6 +395,10 @@ body.faluss-portal-page {
   color: #ffffff;
   isolation: isolate;
 }
+.faluss-portal__app-card[data-faluss-app="hub"] { --faluss-app-symbol-width: 22.7px; --faluss-app-symbol-height: 27.74px; }
+.faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 15.67px; --faluss-app-symbol-height: 29px; --faluss-app-asset-width: 53.45px; --faluss-app-asset-height: 53.45px; }
+.faluss-portal__app-card[data-faluss-app="date"] { --faluss-app-symbol-width: 29px; --faluss-app-symbol-height: 29px; }
+.faluss-portal__app-card[data-faluss-app="pro"] { --faluss-app-symbol-width: 26.84px; --faluss-app-symbol-height: 29px; }
 .faluss-portal__app-card--compact {
   display: grid;
   min-height: 156px;
@@ -408,23 +415,32 @@ body.faluss-portal-page {
   align-items: center;
   gap: clamp(18px, 3vw, 34px);
 }
-.faluss-portal__app-card--compact .faluss-portal__app-head { grid-template-columns: var(--faluss-app-logo-size) minmax(0, 1fr) var(--faluss-app-open-size); }
-.faluss-portal__app-card--explore .faluss-portal__app-head { grid-template-columns: var(--faluss-app-logo-size) minmax(0, 1fr); }
+.faluss-portal__app-card--compact .faluss-portal__app-head { grid-template-columns: var(--faluss-app-symbol-width) minmax(0, 1fr) var(--faluss-app-open-size); }
+.faluss-portal__app-card--explore .faluss-portal__app-head { grid-template-columns: var(--faluss-app-symbol-width) minmax(0, 1fr); }
 .faluss-portal__app-logo {
+  position: relative;
   display: grid;
-  width: var(--faluss-app-logo-size);
-  height: var(--faluss-app-logo-size);
+  width: var(--faluss-app-symbol-width);
+  height: var(--faluss-app-symbol-height);
   place-items: center;
+  overflow: hidden;
+  line-height: 0;
 }
 .faluss-portal__app-logo img {
   display: block;
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
+  width: var(--faluss-app-asset-width);
+  height: var(--faluss-app-asset-height);
+  max-width: none;
+  max-height: none;
   object-fit: contain;
+  line-height: 0;
   filter: invert(1);
   mix-blend-mode: screen;
+}
+.faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo img {
+  position: absolute;
+  inset-inline-start: calc((var(--faluss-app-symbol-width) - var(--faluss-app-asset-width)) / 2);
+  inset-block-start: calc((var(--faluss-app-symbol-height) - var(--faluss-app-asset-height)) / 2);
 }
 .faluss-portal__app-identity { display: grid; min-width: 0; align-content: center; align-self: center; gap: 2px; }
 .faluss-portal__app-name {
@@ -709,11 +725,16 @@ body.faluss-portal-page {
   .faluss-portal__content { margin-top: 52px; }
   .faluss-portal__apps { gap: 8px; margin-top: -44px; padding-bottom: 18px; }
   .faluss-portal__app-card {
-    --faluss-app-logo-size: 46px;
+    --faluss-app-symbol-width: 23px;
+    --faluss-app-symbol-height: 23px;
     --faluss-app-head-size: 52px;
     --faluss-app-open-size: 52px;
     border-radius: 27px;
   }
+  .faluss-portal__app-card[data-faluss-app="hub"] { --faluss-app-symbol-width: 18px; --faluss-app-symbol-height: 22px; }
+  .faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 12.43px; --faluss-app-symbol-height: 23px; --faluss-app-asset-width: 42.36px; --faluss-app-asset-height: 42.36px; }
+  .faluss-portal__app-card[data-faluss-app="date"] { --faluss-app-symbol-width: 23px; --faluss-app-symbol-height: 23px; }
+  .faluss-portal__app-card[data-faluss-app="pro"] { --faluss-app-symbol-width: 21.28px; --faluss-app-symbol-height: 23px; }
   .faluss-portal__app-card--compact { min-height: 116px; padding: 21px 20px; }
   .faluss-portal__app-card--explore { padding: 26px 22px 28px; }
   .faluss-portal__app-head { gap: 14px; }

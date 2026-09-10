@@ -219,17 +219,16 @@ mêmes variables CSS `--faluss-app-accent` et
 `--faluss-app-title-accent`. Explorer ajoute uniquement la description et son
 action d'état ; aucune seconde variante de données n'existe.
 
-AP-01A conserve ce renderer et ce registre sans variation : son header unique
+AP-01B conserve ce renderer et ce registre sans variation : son header unique
 aligne verticalement le logo, l'identité et, dans `Mes apps`, l'action de droite.
-La taille de chaque zone logo vient exclusivement de
-`--faluss-app-logo-size` (`58 px` sur desktop, `46 px` sur mobile), et l'image
-utilise `object-fit: contain` sans règle propre à une application. Le même
-header est repris dans Explorer avant la description et l'action d'état.
-Pour aligner l'occupation visuelle sur le symbole Me sans valeur CSS propre à
-chaque produit, les copies Portal de Hub, Date et Pro conservent leurs pixels
-officiels sans mise à l'échelle ni rognage au centre d'un même canevas PNG
-transparent de `239 × 239 px`. Le fichier Me de référence reste inchangé et la
-zone Fans reste vide tant qu'aucun logo officiel n'existe.
+Chaque symbole possède désormais ses limites visuelles mobiles explicites via
+`--faluss-app-symbol-width` et `--faluss-app-symbol-height` : Hub `18 × 22 px`,
+Me `12.43 × 23 px`, Date `23 × 23 px` et Pro `21.28 × 23 px`. Les fichiers
+officiels restent inchangés, `object-fit: contain` préserve leurs proportions et
+le canevas interne du symbole Me est centré puis masqué dans sa seule boîte
+visuelle, sans translation générique. Le header partagé centre cette boîte et
+le groupe titre/sous-titre ; Explorer place description et action après le
+header. La zone Fans reste vide tant qu'aucun logo officiel n'existe.
 `Vous êtes ici` emploie le même rayon effectif de `100 px` que les autres
 actions, y compris face aux états et pseudo-éléments injectés par le navigateur
 ou Elementor.
