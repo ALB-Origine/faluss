@@ -1,4 +1,4 @@
-# PF-01G - Faluss Portal Foundation
+# AP-01 - Apps Faluss dans Faluss Portal
 
 ## Statut et frontière
 
@@ -7,6 +7,12 @@ Il rend le shortcode `[faluss_portal]` destiné à la page privée
 `/mon-faluss/`. Le portail est une surface de lecture et de navigation : il ne
 crée aucune identité, donnée d'abonnement, transaction, facture, préférence
 transversale ou profil universel.
+
+AP-01 remplace uniquement les états vides des deux panneaux contextuels Apps
+par un registre serveur unique et un composant de carte partagé. Le shell
+PF-01G reste inchangé : sidebar, repli, indicateur actif, avatar, panneau gris,
+défilement, barre `Mes apps · Explorer`, Master Profile et projections métier
+conservent exactement leur structure antérieure.
 
 PF-01G aligne ce socle sur les frames et les captures réelles Shell, Master
 Profile, Abonnement et Facturation. Le shell conserve une sidebar, ses bulles
@@ -40,7 +46,8 @@ flottante n'est rendue dans le contenu.
 | Factures | Faluss Subscriptions / Customer Portal Stripe | état vide tant qu'aucune projection locale autorisée n'existe | aucune |
 | Points Faluss | aucune source PF officielle dans PF-01 | « Points Faluss bientôt disponibles », sans valeur | aucune |
 | Identité visuelle | identité WordPress locale minimale | nom d'affichage sûr ou « Membre Faluss », avatar neutre | aucune |
-| Apps, analytics, quêtes, boutique | contrats futurs propres aux applications | état vide explicite | aucune |
+| Apps Faluss | registre AP-01 local et preuve canonique de carte publiée lorsqu'elle existe localement | disponibilité, possession et application active séparées | aucune |
+| Analytics, quêtes, boutique | contrats futurs propres aux applications | état vide explicite | aucune |
 
 La vérification de session part toujours de la liaison locale `wp_user_id` de
 l'utilisateur courant. Le portail n'accepte jamais un Faluss ID venant d'une
@@ -82,8 +89,19 @@ lit ni n'écrit droit, essai, abonnement, audit ou état Stripe.
   sont réellement résolus.
 - **Accueil / Activité** et **Découvrir** restent explicites tant que les
   applications n'ont pas publié de contrat d'événements et d'activation.
-- **Apps Faluss / Mes apps** et **Explorer** ne rendent que des états vides
-  honnêtes tant qu'aucun contrat d'application officiel n'est disponible.
+- **Apps Faluss / Mes apps** rend Faluss Hub pour tout membre lié au portail.
+  Faluss Me n'y est ajouté que si l'API Identity canonique est chargée sur la
+  même instance et fournit une preuve locale d'une carte `published` appartenant
+  au même Faluss ID. En l'absence de cette preuve locale, aucune possession
+  Faluss Me n'est supposée. Date, Fans et Pro ne sont pas disponibles et ne
+  peuvent donc pas apparaître dans `Mes apps`.
+- **Apps Faluss / Explorer** présente les cinq entrées du registre partagé.
+  Faluss Hub est l'application active et affiche `Vous êtes ici` sans
+  navigation ; Faluss Me est la seule application disponible non active et son
+  lien est limité à `https://www.faluss.me/`. Date, Fans et Pro affichent
+  `Bientôt disponible` sans lien ni URL de production inventée. Aucun appel
+  inter-domaine, côté navigateur ou côté serveur, n'est effectué pour déduire
+  la possession.
 - **Analytics** rend des composants réutilisables de KPI, graphe, tableau et
   filtre à l'état vide. Le futur contrat par application devra fournir une
   date, une source, une métrique, une portée et l'autorisation de lecture ; il
@@ -191,6 +209,30 @@ et sans attendre un nouveau clic. PF-01G ne change ni la géométrie validée, n
 le retrait, ni le centrage, ni les tailles de labels héritées de PF-01E — dont
 `12.5 px` sur mobile.
 
+## Registre et carte Apps Faluss
+
+AP-01 définit une seule entrée par application avec son slug, son dérivé de nom,
+son asset officiel disponible, sa couleur, sa disponibilité, sa possession,
+son état actif, son titre court et sa description Explorer. `Mes apps` et
+`Explorer` passent tous deux ces mêmes entrées au même renderer de carte et aux
+mêmes variables CSS `--faluss-app-accent` et
+`--faluss-app-title-accent`. Explorer ajoute uniquement la description et son
+action d'état ; aucune seconde variante de données n'existe.
+
+Les assets Hub, Me, Date et Pro sont embarqués dans le dossier versionné du
+plugin Portal. Aucun logo Fans officiel n'existe encore : sa carte conserve la
+place structurelle du logo sans dessiner ni substituer un symbole. Les seules
+destinations autorisées sont l'accueil HTTPS Faluss Hub et Faluss Me ; chaque
+lien ouvre une nouvelle page avec `noopener noreferrer`. Les produits non
+disponibles n'ont aucune URL dans le registre.
+
+Les deux backgrounds de la carte sont partagés : le dégradé horizontal
+`couleur · blanc · couleur` est assombri par une couche glass linéaire afin de
+préserver la lecture. L'action `Vous êtes ici` reste locale et non
+décisionnaire ; son message `Impossible d’ouvrir, vous y êtes déjà` disparaît
+automatiquement en moins de trois secondes. Aucun Faluss ID, état Stripe,
+référence de compte ou autre donnée technique n'est rendu.
+
 ## Installation et recette technique
 
 1. Installer uniquement le ZIP `faluss-portal` puis l'activer sur faluss.com.
@@ -208,6 +250,11 @@ le retrait, ni le centrage, ni les tailles de labels héritées de PF-01E — do
    focus, `prefers-reduced-motion`, mobile et desktop. Le bloc PF doit afficher
    « Points Faluss bientôt disponibles » sans montant, même si un ledger ALB
    historique existe dans Token Engine.
+8. Ouvrir `Apps Faluss · Mes apps` : Faluss Hub doit être présent ; Faluss Me
+   ne doit apparaître que si une carte publiée est effectivement vérifiable sur
+   cette instance. Ouvrir `Explorer`, vérifier les cinq cartes, le lien officiel
+   Faluss Me, les trois états `Bientôt disponible` non cliquables et le message
+   temporaire de Faluss Hub. Vérifier enfin que seul le panneau gris défile.
 
 Une recette WordPress réelle et une recette Stripe ne font pas partie de la
 preuve statique PF-01 ; elles doivent être exécutées sur une installation de

@@ -57,6 +57,7 @@
     const dialog = root.querySelector('[data-faluss-portal-master]');
     const profileFeedback = root.querySelector('[data-faluss-portal-profile-feedback]');
     const drawer = root.querySelector('[data-faluss-portal-drawer-panel]');
+    const appCurrentTimers = new WeakMap();
 
     const placeIndicators = () => {
       const sideLink = root.querySelector(`[data-faluss-portal-sidebar-item][data-faluss-portal-nav="${state.section}"]`);
@@ -212,6 +213,22 @@
     };
 
     root.addEventListener('click', (event) => {
+      const currentApp = event.target.closest('[data-faluss-app-current]');
+      if (currentApp && root.contains(currentApp)) {
+        event.preventDefault();
+        const card = currentApp.closest('[data-faluss-app-card]');
+        const message = card && card.querySelector('[data-faluss-app-current-message]');
+        if (message) {
+          const previousTimer = appCurrentTimers.get(message);
+          if (previousTimer) window.clearTimeout(previousTimer);
+          message.hidden = false;
+          appCurrentTimers.set(message, window.setTimeout(() => {
+            message.hidden = true;
+            appCurrentTimers.delete(message);
+          }, 2800));
+        }
+        return;
+      }
       const navigationLink = event.target.closest('[data-faluss-portal-nav]');
       if (navigationLink && root.contains(navigationLink)) {
         event.preventDefault();

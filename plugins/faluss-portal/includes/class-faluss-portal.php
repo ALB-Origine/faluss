@@ -5,7 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * PF-01G front-office boundary.
+ * AP-01 front-office boundary.
  *
  * This plugin deliberately owns neither identity nor subscription data. It
  * starts with the local, authenticated Identity Client link and projects only
@@ -290,7 +290,7 @@ final class Faluss_Portal {
                 <?php endforeach; ?>
                 <?php if ( is_string( $notice ) && '' !== $notice ) : ?><div class="faluss-portal__notice" role="status"><?php echo esc_html( $notice ); ?></div><?php endif; ?>
                 <div class="faluss-portal__content" data-faluss-portal-content>
-                    <?php self::render_panels( $route, $snapshot ); ?>
+                    <?php self::render_panels( $route, $snapshot, $member ); ?>
                 </div>
             </main>
             <?php self::master_profile( $member ); ?>
@@ -299,7 +299,7 @@ final class Faluss_Portal {
         return (string) ob_get_clean();
     }
 
-    private static function render_panels( $route, $snapshot ) {
+    private static function render_panels( $route, $snapshot, $member ) {
         foreach ( self::TABS as $section => $tabs ) {
             foreach ( $tabs as $tab ) {
                 $active = $section === $route['section'] && $tab === $route['tab'];
@@ -307,7 +307,7 @@ final class Faluss_Portal {
                 if ( 'home' === $section ) {
                     self::home_panel( $tab, $snapshot );
                 } elseif ( 'apps' === $section ) {
-                    self::apps_panel( $tab );
+                    self::apps_panel( $tab, $member['faluss_id'] );
                 } elseif ( 'analytics' === $section ) {
                     self::analytics_panel( $tab );
                 } elseif ( 'subscription' === $section ) {
@@ -324,14 +324,186 @@ final class Faluss_Portal {
         }
     }
 
-    private static function apps_panel( $tab ) {
+    private static function apps_panel( $tab, $faluss_id ) {
+        $apps = self::app_registry( $faluss_id );
         if ( 'explore' === $tab ) {
-            echo '<div class="faluss-portal__intro"><p class="faluss-portal__eyebrow">Apps Faluss</p><h1>Explorer</h1><p>Les applications publiées seront présentées ici depuis leur source officielle.</p></div>';
-            self::empty_state( 'Catalogue en préparation', 'Aucune application ni destination de démonstration n’est créée dans ce portail.' );
+            echo '<div class="faluss-portal__apps faluss-portal__apps--explore" data-faluss-apps-view="explore">';
+            foreach ( $apps as $app ) {
+                self::render_app_card( $app, 'explore' );
+            }
+            echo '</div>';
             return;
         }
-        echo '<div class="faluss-portal__intro"><p class="faluss-portal__eyebrow">Apps Faluss</p><h1>Mes apps</h1><p>Cette vue accueillera uniquement les applications réellement liées à votre identité Faluss.</p></div>';
-        self::empty_state( 'Aucune application consolidée', 'Les applications Faluss restent autonomes tant qu’un contrat de liaison n’est pas activé.' );
+
+        echo '<div class="faluss-portal__apps faluss-portal__apps--owned" data-faluss-apps-view="my-apps">';
+        foreach ( $apps as $app ) {
+            if ( empty( $app['available'] ) || empty( $app['owned'] ) ) {
+                continue;
+            }
+            self::render_app_card( $app, 'compact' );
+        }
+        echo '</div>';
+    }
+
+    /**
+     * Single AP-01 application registry. Availability, ownership and the
+     * currently open application deliberately remain separate facts.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private static function app_registry( $faluss_id ) {
+        $assets = FALUSS_PORTAL_URL . 'assets/images/apps/';
+        return array(
+            array(
+                'slug'        => 'hub',
+                'name'        => 'Hub',
+                'logo'        => $assets . 'faluss-hub.png',
+                'accent'      => '#000000',
+                'title_color' => '#FFFFFF',
+                'url'         => 'https://faluss.com/',
+                'available'   => true,
+                'owned'       => self::valid_faluss_id( $faluss_id ),
+                'active'      => true,
+                'short_title' => 'Portail Central',
+                'description' => 'Gérez vos applications et comptes Faluss depuis un espace unique. Retrouvez votre activité, vos préférences et les données que chaque service vous autorise à consulter.',
+            ),
+            array(
+                'slug'        => 'me',
+                'name'        => 'Me',
+                'logo'        => $assets . 'faluss-me.png',
+                'accent'      => '#EE4A4A',
+                'title_color' => '#EE4A4A',
+                'url'         => 'https://www.faluss.me/',
+                'available'   => true,
+                'owned'       => self::has_published_faluss_me_card( $faluss_id ),
+                'active'      => false,
+                'short_title' => 'Link Identité',
+                'description' => 'La vitrine tout-en-un pensée pour votre bio. Partagez votre identité, vos liens et ce que vous proposez depuis un espace entièrement personnalisable et gratuit.',
+            ),
+            array(
+                'slug'        => 'date',
+                'name'        => 'Date',
+                'logo'        => $assets . 'faluss-date.png',
+                'accent'      => '#8649EF',
+                'title_color' => '#8649EF',
+                'url'         => '',
+                'available'   => false,
+                'owned'       => false,
+                'active'      => false,
+                'short_title' => 'Rencontre Notée',
+                'description' => 'Pas de faux-semblants : découvrez, rencontrez, notez l’expérience et donnez une chance à l’inconnu.',
+            ),
+            array(
+                'slug'        => 'fans',
+                'name'        => 'Fans',
+                'logo'        => '',
+                'accent'      => '#51EEB7',
+                'title_color' => '#51EEB7',
+                'url'         => '',
+                'available'   => false,
+                'owned'       => false,
+                'active'      => false,
+                'short_title' => 'Visibilité Améliorée',
+                'description' => 'Fidéliser une communauté et la faire grandir demande du travail. Faluss Fans réunira les outils pour la développer et la récompenser.',
+            ),
+            array(
+                'slug'        => 'pro',
+                'name'        => 'Pro',
+                'logo'        => $assets . 'faluss-pro.png',
+                'accent'      => '#EF8851',
+                'title_color' => '#EF8851',
+                'url'         => '',
+                'available'   => false,
+                'owned'       => false,
+                'active'      => false,
+                'short_title' => 'Ambition++',
+                'description' => 'Un espace conçu pour apprendre, évoluer, créer et transformer cette ambition en une valeur réelle pour les autres.',
+            ),
+        );
+    }
+
+    /** A published Faluss.me card is accepted only from the local Identity API. */
+    private static function has_published_faluss_me_card( $faluss_id ) {
+        if ( ! self::valid_faluss_id( $faluss_id )
+            || ! class_exists( 'Faluss_Identity_Public_Profile' )
+            || ! method_exists( 'Faluss_Identity_Public_Profile', 'studio_profile' ) ) {
+            return false;
+        }
+        $profile = Faluss_Identity_Public_Profile::studio_profile( $faluss_id );
+        return is_array( $profile )
+            && isset( $profile['faluss_id'] )
+            && is_string( $profile['faluss_id'] )
+            && hash_equals( strtolower( $faluss_id ), strtolower( $profile['faluss_id'] ) )
+            && 'published' === ( $profile['publication_status'] ?? '' )
+            && is_string( $profile['public_slug'] ?? null )
+            && '' !== trim( $profile['public_slug'] );
+    }
+
+    /** @param array<string,mixed> $app */
+    private static function render_app_card( $app, $variant ) {
+        $compact = 'compact' === $variant;
+        $url = self::validated_app_url( $app );
+        $state = ! empty( $app['active'] ) ? 'active' : ( ! empty( $app['available'] ) && '' !== $url ? 'available' : 'unavailable' );
+        $compact_link = $compact && '' !== $url;
+        $classes = 'faluss-portal__app-card faluss-portal__app-card--' . ( $compact ? 'compact' : 'explore' );
+        $style = '--faluss-app-accent:' . $app['accent'] . ';--faluss-app-title-accent:' . $app['title_color'] . ';';
+        $card_label = 'Faluss ' . $app['name'];
+        if ( $compact_link ) {
+            echo '<a class="' . esc_attr( $classes ) . '" data-faluss-app-card data-faluss-app="' . esc_attr( $app['slug'] ) . '" data-faluss-app-state="' . esc_attr( $state ) . '" style="' . esc_attr( $style ) . '" href="' . esc_url( $url ) . '" target="_blank" rel="noopener noreferrer" aria-label="' . esc_attr( 'Ouvrir ' . $card_label ) . '">';
+        } else {
+            echo '<article class="' . esc_attr( $classes ) . '" data-faluss-app-card data-faluss-app="' . esc_attr( $app['slug'] ) . '" data-faluss-app-state="' . esc_attr( $state ) . '" style="' . esc_attr( $style ) . '">';
+        }
+
+        echo '<div class="faluss-portal__app-head">';
+        echo '<span class="faluss-portal__app-logo" role="img" aria-label="' . esc_attr( '' !== $app['logo'] ? 'Logo ' . $card_label : 'Logo ' . $card_label . ' non disponible' ) . '">';
+        if ( '' !== $app['logo'] ) {
+            echo '<img src="' . esc_url( $app['logo'] ) . '" alt="">';
+        }
+        echo '</span>';
+        echo '<span class="faluss-portal__app-identity"><span class="faluss-portal__app-name"><span>Faluss</span> <span class="faluss-portal__app-derivative">' . esc_html( $app['name'] ) . '</span></span><span class="faluss-portal__app-subtitle">' . esc_html( $compact ? 'M’y rendre' : $app['short_title'] ) . '</span></span>';
+        if ( $compact ) {
+            echo '<span class="faluss-portal__app-open" aria-hidden="true">' . self::external_link_icon() . '</span>';
+        }
+        echo '</div>';
+
+        if ( ! $compact ) {
+            echo '<p class="faluss-portal__app-description">' . esc_html( $app['description'] ) . '</p><div class="faluss-portal__app-action-row">';
+            if ( 'active' === $state ) {
+                echo '<button class="faluss-portal__app-action" type="button" data-faluss-app-current aria-describedby="faluss-app-current-message">Vous êtes ici</button><span class="faluss-portal__app-current-message" id="faluss-app-current-message" data-faluss-app-current-message role="status" hidden>Impossible d’ouvrir, vous y êtes déjà</span>';
+            } elseif ( 'available' === $state ) {
+                echo '<a class="faluss-portal__app-action" href="' . esc_url( $url ) . '" target="_blank" rel="noopener noreferrer">Visiter</a>';
+            } else {
+                echo '<span class="faluss-portal__app-action faluss-portal__app-action--unavailable" aria-disabled="true">Bientôt disponible</span>';
+            }
+            echo '</div>';
+        }
+
+        echo $compact_link ? '</a>' : '</article>';
+    }
+
+    /** @param array<string,mixed> $app */
+    private static function validated_app_url( $app ) {
+        if ( empty( $app['available'] ) || ! is_string( $app['url'] ?? null ) || ! is_string( $app['slug'] ?? null ) ) {
+            return '';
+        }
+        $allowed = array(
+            'hub' => 'https://faluss.com/',
+            'me'  => 'https://www.faluss.me/',
+        );
+        $expected = $allowed[ $app['slug'] ] ?? '';
+        $parts = wp_parse_url( $app['url'] );
+        if ( '' === $expected
+            || ! hash_equals( $expected, $app['url'] )
+            || ! is_array( $parts )
+            || 'https' !== ( $parts['scheme'] ?? '' )
+            || empty( $parts['host'] ) ) {
+            return '';
+        }
+        return $app['url'];
+    }
+
+    private static function external_link_icon() {
+        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>';
     }
 
     private static function home_panel( $tab, $snapshot ) {
