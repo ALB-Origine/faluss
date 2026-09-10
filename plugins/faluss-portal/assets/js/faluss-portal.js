@@ -37,6 +37,9 @@
   };
 
   const initialise = (root) => {
+    if (document.body.classList.contains('faluss-portal-page')) {
+      document.documentElement.classList.add('faluss-portal-page');
+    }
     const state = {
       section: root.dataset.section || 'home',
       tab: root.dataset.tab || 'view',
@@ -62,18 +65,12 @@
         root.style.setProperty('--fp-sidebar-indicator-y', `${target.top}px`);
         root.style.setProperty('--fp-sidebar-indicator-h', `${target.height}px`);
       }
-      const tabGroup = root.querySelector(`[data-faluss-portal-tabs="${state.section}"]`);
-      const tabIndicator = tabGroup && tabGroup.querySelector('.faluss-portal__tab-indicator');
-      const tabLinks = tabGroup ? [...tabGroup.querySelectorAll('.faluss-portal__tab')] : [];
+    };
+
+    const syncTabGroup = (group) => {
+      const tabLinks = [...group.querySelectorAll('.faluss-portal__tab')];
       const activeIndex = tabLinks.findIndex((link) => link.dataset.falussPortalTab === state.tab);
-      if (tabIndicator && tabLinks.length && activeIndex >= 0) {
-        const styles = window.getComputedStyle(tabGroup);
-        const insetStart = Number.parseFloat(styles.paddingLeft) || 0;
-        const insetEnd = Number.parseFloat(styles.paddingRight) || 0;
-        const segmentWidth = Math.max(0, tabGroup.clientWidth - insetStart - insetEnd) / tabLinks.length;
-        root.style.setProperty('--fp-tab-indicator-x', `${activeIndex * segmentWidth}px`);
-        root.style.setProperty('--fp-tab-indicator-w', `${segmentWidth}px`);
-      }
+      group.dataset.activeIndex = String(Math.max(0, activeIndex));
     };
 
     const setSidebarCollapsed = (collapsed, persist = true) => {
@@ -111,6 +108,7 @@
         const active = group.dataset.falussPortalTabs === state.section;
         group.classList.toggle('is-active', active);
         group.hidden = !active;
+        syncTabGroup(group);
       });
       panels.forEach((panel) => {
         const active = panel.dataset.falussPortalPanel === `${state.section}:${state.tab}`;

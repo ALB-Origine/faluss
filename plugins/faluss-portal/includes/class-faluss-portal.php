@@ -5,7 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * PF-01F front-office boundary.
+ * PF-01G front-office boundary.
  *
  * This plugin deliberately owns neither identity nor subscription data. It
  * starts with the local, authenticated Identity Client link and projects only
@@ -71,6 +71,7 @@ final class Faluss_Portal {
         add_action( 'template_redirect', array( __CLASS__, 'intercept_customer_portal_return' ), -1 );
         add_filter( 'option_faluss_identity_client_settings', array( __CLASS__, 'include_portal_return' ) );
         add_filter( 'show_admin_bar', array( __CLASS__, 'filter_member_admin_bar' ), PHP_INT_MAX );
+        add_filter( 'body_class', array( __CLASS__, 'filter_portal_body_class' ) );
     }
 
     /**
@@ -98,6 +99,15 @@ final class Faluss_Portal {
             return $show;
         }
         return false;
+    }
+
+    /** Lock the host document only where the full-viewport portal is rendered. */
+    public static function filter_portal_body_class( $classes ) {
+        $classes = is_array( $classes ) ? $classes : array();
+        if ( ! is_admin() && is_page( 'mon-faluss' ) ) {
+            $classes[] = 'faluss-portal-page';
+        }
+        return array_values( array_unique( $classes ) );
     }
 
     public static function register_assets() {
@@ -270,7 +280,8 @@ final class Faluss_Portal {
                     <button class="faluss-portal__sidebar-chevron-control" type="button" data-faluss-portal-sidebar-toggle data-chevron-direction="left" aria-controls="faluss-portal-sidebar" aria-expanded="true"><?php echo self::chevron_icon(); ?><span class="screen-reader-text">Replier la navigation</span></button>
                 </div>
                 <?php foreach ( self::TABS as $section => $tabs ) : ?>
-                    <nav class="faluss-portal__tabs<?php echo $section === $route['section'] ? ' is-active' : ''; ?>" data-faluss-portal-tabs="<?php echo esc_attr( $section ); ?>" aria-label="<?php echo esc_attr( 'Navigation ' . self::SECTION_LABELS[ $section ] ); ?>"<?php echo $section === $route['section'] ? '' : ' hidden'; ?>>
+                    <?php $active_tab_index = $section === $route['section'] ? array_search( $route['tab'], $tabs, true ) : 0; ?>
+                    <nav class="faluss-portal__tabs<?php echo $section === $route['section'] ? ' is-active' : ''; ?>" data-faluss-portal-tabs="<?php echo esc_attr( $section ); ?>" data-tab-count="<?php echo esc_attr( (string) count( $tabs ) ); ?>" data-active-index="<?php echo esc_attr( (string) ( false === $active_tab_index ? 0 : $active_tab_index ) ); ?>" aria-label="<?php echo esc_attr( 'Navigation ' . self::SECTION_LABELS[ $section ] ); ?>"<?php echo $section === $route['section'] ? '' : ' hidden'; ?>>
                         <span class="faluss-portal__tab-indicator" aria-hidden="true"></span>
                         <?php foreach ( $tabs as $tab ) : ?>
                             <a class="faluss-portal__tab<?php echo $section === $route['section'] && $tab === $route['tab'] ? ' is-active' : ''; ?>" href="<?php echo esc_url( self::portal_url( $section, $tab ) ); ?>" data-faluss-portal-nav="<?php echo esc_attr( $section ); ?>" data-faluss-portal-tab="<?php echo esc_attr( $tab ); ?>"<?php echo $section === $route['section'] && $tab === $route['tab'] ? ' aria-current="page"' : ''; ?>><?php echo esc_html( self::TAB_LABELS[ $tab ] ); ?></a>

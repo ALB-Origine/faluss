@@ -23,8 +23,10 @@ class WP_User {
 }
 $pf01_is_admin = false;
 $pf01_is_logged_in = false;
+$pf01_is_portal_page = true;
 $pf01_current_user = new WP_User();
 function is_admin() { global $pf01_is_admin; return $pf01_is_admin; }
+function is_page( $slug ) { global $pf01_is_portal_page; return $pf01_is_portal_page && 'mon-faluss' === $slug; }
 function is_user_logged_in() { global $pf01_is_logged_in; return $pf01_is_logged_in; }
 function wp_get_current_user() { global $pf01_current_user; return $pf01_current_user; }
 function user_can( $user, $capability ) { return ! empty( $user->capabilities[ $capability ] ); }
@@ -86,7 +88,7 @@ $documentation = file_get_contents( $root . '/docs/FALUSS_PORTAL.md' );
 $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 
-foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.6'", 'class-faluss-portal.php' ) as $needle ) {
+foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.7'", 'class-faluss-portal.php' ) as $needle ) {
     pf01_assert( false !== strpos( $bootstrap, $needle ), 'PF-01 requires an isolated versioned Faluss Portal plugin: ' . $needle );
 }
 foreach ( array( "add_shortcode( self::SHORTCODE", "[faluss_portal]", 'Faluss_Identity_Client_Schema::tables()', 'WHERE wp_user_id = %d', "array( 'subscriber' )", 'Faluss_Identity_Client::button' ) as $needle ) {
@@ -99,12 +101,20 @@ pf01_assert( false === strpos( $source, "'redirect_url' => self::portal_url(" ),
 foreach ( array( "add_filter( 'show_admin_bar'", 'filter_member_admin_bar', "user_can( \$user, 'manage_options' )", "user_can( \$user, 'edit_posts' )" ) as $needle ) {
     pf01_assert( false !== strpos( $source, $needle ), 'PF-01B must hide the front-office admin bar only for non-privileged members: ' . $needle );
 }
+foreach ( array( "add_filter( 'body_class'", 'filter_portal_body_class', "is_page( 'mon-faluss' )", 'faluss-portal-page' ) as $needle ) {
+    pf01_assert( false !== strpos( $source, $needle ), 'PF-01G must lock the host document only on the real portal page: ' . $needle );
+}
 pf01_assert( false === strpos( $source, '$_GET[\'faluss_id\']' ) && false === strpos( $source, '$_POST[\'faluss_id\']' ), 'A browser-supplied Faluss ID must never select portal data.' );
 pf01_assert( false === strpos( $source, 'CREATE TABLE' ) && false === strpos( $source, 'INSERT INTO' ) && false === strpos( $source, 'update_user_meta' ), 'PF-01 must not introduce a portal table, write an identity link or persist a universal profile.' );
 pf01_assert( false === strpos( $source, 'wp_ajax_' ) && false === strpos( $source, 'register_rest_route' ), 'The member portal must not expose an anonymous browser data or billing route.' );
 pf01_assert( false === strpos( $source, 'Token_Engine_Service::balance' ) && false === strpos( $source, 'Token_Engine_Schema' ) && false === strpos( $source, 'points_snapshot' ), 'PF-01 must not read, rename or display a historical Token Engine balance as PF.' );
 
 require_once $plugin . '/includes/class-faluss-portal.php';
+$body_classes = Faluss_Portal::filter_portal_body_class( array( 'existing-class' ) );
+pf01_assert( in_array( 'existing-class', $body_classes, true ) && in_array( 'faluss-portal-page', $body_classes, true ), 'The portal page class must be additive on /mon-faluss/.' );
+$pf01_is_portal_page = false;
+pf01_assert( ! in_array( 'faluss-portal-page', Faluss_Portal::filter_portal_body_class( array() ), true ), 'The document scroll lock must not leak to another front-office page.' );
+$pf01_is_portal_page = true;
 $return_settings = Faluss_Portal::include_portal_return( array( 'return_urls' => array( 'https://faluss.com/' ) ) );
 $return_settings = Faluss_Portal::include_portal_return( $return_settings );
 pf01_assert( in_array( 'https://faluss.com/mon-faluss/', $return_settings['return_urls'], true ), 'The portal must append the exact local SSO destination at read time.' );
@@ -149,7 +159,7 @@ foreach ( array( "'home'         => array( 'view', 'activity', 'discover' )", "'
 }
 pf01_assert( 3 === substr_count( $source, 'data-faluss-portal-sidebar-item' ) && false === strpos( $source, "self::icon( 'home' )" ), 'The Faluss wordmark must be the only Home sidebar control, followed by Apps and the five-item section loop.' );
 pf01_assert( false === strpos( $source, "number_format_i18n( \$points" ) && false === strpos( $source, "\$points['balance']" ), 'The PF placeholder must never contain a numeric balance before an official PF ledger exists.' );
-foreach ( array( '--fp-sidebar-indicator-y', '--fp-tab-indicator-x', 'backdrop-filter', ':focus-visible', 'prefers-reduced-motion', 'aspect-ratio: 1', 'position: fixed', 'grid-template-columns: 30px minmax(0, 1fr) 30px', 'margin-top: auto' ) as $needle ) {
+foreach ( array( '--fp-sidebar-indicator-y', '--fp-tab-inset', 'backdrop-filter', ':focus-visible', 'prefers-reduced-motion', 'aspect-ratio: 1', 'position: fixed', 'grid-template-columns: 30px minmax(0, 1fr) 30px', 'margin-top: auto' ) as $needle ) {
     pf01_assert( false !== strpos( $css, $needle ), 'The shell must retain visual indicators, footer glass, local focus control and reduced-motion support: ' . $needle );
 }
 pf01_assert( false !== strpos( $css, 'outline: 0 !important') && false !== strpos( $css, '-webkit-tap-highlight-color: transparent !important') && false !== strpos( $css, '.faluss-portal.faluss-portal .faluss-portal__sidebar-chevron-cell:focus-within') && false !== strpos( $css, '.faluss-portal.faluss-portal .faluss-portal__sidebar-avatar-cell:focus-within') && false !== strpos( $css, '.faluss-portal.faluss-portal .faluss-portal__master-chevron-cell:focus-within') && false === strpos( $css, 'outline: 2px') && false === strpos( $css, 'outline: 3px'), 'PF-01E must override browser, Safari and Elementor focus/tap frames on controls and their cells inside the portal.' );
@@ -179,21 +189,30 @@ foreach ( array( 'faluss-portal__sidebar-chevron-control', 'faluss-portal__maste
     pf01_assert( false !== strpos( $control_rule, 'width: 30px' ) && false !== strpos( $control_rule, 'height: 30px' ) && false !== strpos( $control_rule, 'background: transparent !important' ), 'Each chevron must have a transparent exact 30px hit area: ' . $control );
 }
 pf01_assert( false !== strpos( $css, '.faluss-portal__sidebar-avatar-trigger .faluss-portal__avatar--sidebar { width: 44px; height: 44px; flex-basis: 44px; }' ) && false !== strpos( $css, '.faluss-portal__sidebar-avatar-trigger .faluss-portal__avatar--sidebar { width: 42px; height: 42px; flex-basis: 42px; }' ), 'The avatar must match the mobile navigation bubble at both responsive breakpoints.' );
-pf01_assert( 1 === preg_match( '/\.faluss-portal\s*\{[^}]*height:\s*100svh;[^}]*overflow:\s*hidden;/s', $css ) && 1 === preg_match( '/\.faluss-portal__main\s*\{[^}]*height:\s*100svh;[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;/s', $css ) && 1 === preg_match( '/\.faluss-portal__sidebar\s*\{[^}]*position:\s*sticky;[^}]*height:\s*100svh;[^}]*overflow:\s*hidden;/s', $css ), 'The viewport shell must keep the sticky sidebar fixed while only the gray panel scrolls vertically.' );
+pf01_assert( 1 === preg_match( '/html\.faluss-portal-page,\s*body\.faluss-portal-page\s*\{[^}]*height:\s*100%;[^}]*overflow:\s*hidden;[^}]*overscroll-behavior:\s*none;/s', $css ), 'PF-01G must prevent the WordPress document from becoming the portal scroller.' );
+pf01_assert( 1 === preg_match( '/\.faluss-portal\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\);[^}]*height:\s*100svh;[^}]*max-height:\s*100svh;[^}]*overflow:\s*hidden;/s', $css ) && 1 === preg_match( '/\.faluss-portal__main\s*\{[^}]*height:\s*100%;[^}]*max-height:\s*100%;[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;/s', $css ) && 1 === preg_match( '/\.faluss-portal__sidebar\s*\{[^}]*position:\s*sticky;[^}]*height:\s*100%;[^}]*overflow:\s*hidden;/s', $css ), 'Every section must share the same bounded shell with the gray panel as its only vertical scroller.' );
+pf01_assert( false !== strpos( $javascript, "document.body.classList.contains('faluss-portal-page')" ) && false !== strpos( $javascript, "document.documentElement.classList.add('faluss-portal-page')" ) && false === strpos( $javascript, "document.body.classList.add('faluss-portal-page')" ), 'The V1 shell may mirror the route class to html only on the real portal page.' );
 pf01_assert( false !== strpos( $css, '.faluss-portal__sidebar-avatar-trigger .faluss-portal__avatar--sidebar {' ) && false !== strpos( $css, 'width: 48px;' ) && false !== strpos( $css, 'height: 48px;' ), 'The desktop avatar must match the 48px desktop navigation bubbles.' );
 pf01_assert( 1 === preg_match( '/\.faluss-portal__profile-edit\s*\{[^}]*width:\s*100%;[^}]*border:\s*0;[^}]*border-radius:\s*999px;[^}]*background:\s*#000;[^}]*color:\s*#fff;/s', $css ), 'The Master Profile edit CTA must use the full-width black Faluss primary treatment.' );
 $tabs_rule = preg_match( '/\.faluss-portal__tabs\s*\{([^}]*)\}/s', $css, $tabs_match ) ? $tabs_match[1] : '';
 pf01_assert( false !== strpos( $tabs_rule, 'width: calc(100% - var(--fp-context-edge) - var(--fp-context-edge))') && false !== strpos( $tabs_rule, 'margin-inline: auto'), 'The contextual bar must fill the gray content panel with symmetric local margins.' );
 pf01_assert( false === strpos( $tabs_rule, '100vw') && false === strpos( $tabs_rule, '50vw') && false === strpos( $tabs_rule, '--fp-sidebar') && false === strpos( $tabs_rule, 'translateX'), 'The contextual bar must never be positioned from the viewport or sidebar.' );
-pf01_assert( false === strpos( $source, 'faluss-portal__header' ) && 1 === preg_match( '/<main class="faluss-portal__main">.*?<\?php foreach \( self::TABS as \$section => \$tabs \) : \?>\s*<nav class="faluss-portal__tabs/s', $source ), 'Every contextual bar must be rendered directly under the gray main content panel.' );
+pf01_assert( false === strpos( $source, 'faluss-portal__header' ) && 1 === preg_match( '/<main class="faluss-portal__main">.*?<\?php foreach \( self::TABS as \$section => \$tabs \) : \?>\s*<\?php \$active_tab_index.*?\?>\s*<nav class="faluss-portal__tabs/s', $source ), 'Every contextual bar must be rendered directly under the gray main content panel.' );
 pf01_assert( false !== strpos( $css, 'padding: max(50px, calc(env(safe-area-inset-top) + 42px)) 0'), 'The mobile contextual bar must clear the locally centered sidebar toggle cell without changing horizontal geometry.' );
-pf01_assert( 1 === preg_match( '/\.faluss-portal__tab\s*\{[^}]*flex:\s*1 1 0;[^}]*min-width:\s*0;/s', $css ), 'All contextual labels must receive equal segments independent of label length.' );
+pf01_assert( 1 === preg_match( '/\.faluss-portal__tabs\s*\{[^}]*display:\s*grid;[^}]*width:\s*calc\(100% - var\(--fp-context-edge\) - var\(--fp-context-edge\)\);/s', $css ), 'The contextual bar must use its unchanged local width as a stable grid container.' );
+foreach ( array( 'data-tab-count="2"', 'data-tab-count="3"', 'data-tab-count="4"', 'repeat(2, minmax(0, 1fr))', 'repeat(3, minmax(0, 1fr))', 'repeat(4, minmax(0, 1fr))' ) as $needle ) {
+    pf01_assert( false !== strpos( $source . $css, $needle ), 'PF-01G must provide equal CSS grids for every contextual group size: ' . $needle );
+}
+pf01_assert( 1 === preg_match( '/\.faluss-portal__tab\s*\{[^}]*display:\s*grid;[^}]*min-width:\s*0;[^}]*place-items:\s*center;/s', $css ), 'Each contextual label must remain centered in its equal grid segment.' );
+pf01_assert( 1 === preg_match( '/\.faluss-portal__tab-indicator\s*\{[^}]*position:\s*relative;[^}]*grid-column:\s*1;[^}]*grid-row:\s*1;[^}]*min-width:\s*0;/s', $css ), 'The contextual pill must occupy one grid segment without an independently measured width.' );
 pf01_assert( false !== strpos( $css, 'font-size: clamp(17px, calc(2vw + 2px), 24px)' ) && false !== strpos( $css, 'font-size: 12.5px' ), 'PF-01E must add exactly 2px to contextual labels without changing their segment geometry.' );
 pf01_assert( false !== strpos( $css, '.faluss-portal :where(button, a)') && 0 === preg_match( '/\.faluss-portal a\s*\{[^}]*font:\s*inherit/s', $css ), 'The portal reset must not outrank contextual tab typography.' );
 pf01_assert( false === strpos( $css, '.faluss-portal__tabs[data-faluss-portal-tabs="analytics"]') && false === strpos( $css, '.faluss-portal__tabs[data-faluss-portal-tabs="settings"]'), 'No label-length-specific contextual geometry may compress a section.' );
-foreach ( array( 'tabGroup.clientWidth', 'tabLinks.length', 'activeIndex * segmentWidth' ) as $needle ) {
-    pf01_assert( false !== strpos( $javascript, $needle ), 'The black indicator must use only the local equal-segment bar geometry: ' . $needle );
+foreach ( array( 'syncTabGroup', 'group.dataset.activeIndex', 'data-active-index="1"', 'data-active-index="2"', 'data-active-index="3"', 'translate3d(100%', 'translate3d(200%', 'translate3d(300%' ) as $needle ) {
+    pf01_assert( false !== strpos( $javascript . $css, $needle ), 'The black pill must be driven only by the active equal segment: ' . $needle );
 }
+pf01_assert( false === strpos( $javascript, 'tabGroup.clientWidth' ) && false === strpos( $javascript, 'segmentWidth' ) && false === strpos( $css, '--fp-tab-indicator-x' ) && false === strpos( $css, '--fp-tab-indicator-w' ), 'PF-01G must remove the stale one-frame tab measurements that caused deformation during sidebar transitions.' );
+pf01_assert( 0 === preg_match( '/\.faluss-portal__tab-indicator\s*\{[^}]*transition:[^;}]*width/s', $css ) && false === strpos( $css, 'transition: all' ), 'The pill width must track its grid segment synchronously and no portal transition may animate all properties.' );
 pf01_assert( false === strpos( $css, '--fp-sidebar-current-width') && false === strpos( $css, '--fp-header-safe'), 'PF-01D must remove the old viewport/sidebar header compensation variables.' );
 foreach ( array( 'faluss-portal__master-tab-indicator', 'data-active-index="1"', 'data-active-index="2"', 'translate3d(100%', 'translate3d(200%' ) as $needle ) {
     pf01_assert( false !== strpos( $source . $css, $needle ), 'Master Profile tabs must share one transform-driven black indicator: ' . $needle );
@@ -212,8 +231,8 @@ pf01_assert( false === strpos( $javascript, 'fetch(' ) && false === strpos( $jav
 foreach ( array( 'sources de vérité', 'Master Profile', 'Point Faluss', 'faluss_pf', 'ALB / Alternative LAB', 'crée aucune', 'trialing', 'Customer Portal' ) as $needle ) {
     pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01 documentation is missing its architecture or data-boundary contract: ' . $needle );
 }
-foreach ( array( 'PF-01F', 'cellule du', 'chevron retour', '`10 px` vers la gauche', 'Aucune carte membre basse', 'composants distincts', '30 × 30 px', 'margin-top: auto', 'retrait symétrique de `18 px`', 'flex: 1 1 0', '100svh', 'seul défilement vertical', '`2 px`' ) as $needle ) {
-    pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01F documentation must capture the approved local-panel visual and interaction boundary: ' . $needle );
+foreach ( array( 'PF-01G', 'cellule du', 'chevron retour', '`10 px` vers la gauche', 'Aucune carte membre basse', 'composants distincts', '30 × 30 px', 'margin-top: auto', 'retrait symétrique de `18 px`', 'repeat(n, minmax(0, 1fr))', '100svh', 'seul défilement vertical', 'tailles de labels héritées de PF-01E' ) as $needle ) {
+    pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01G documentation must capture the common shell scroller and stable equal-grid tabs: ' . $needle );
 }
 pf01_assert( false !== strpos( $architecture, 'Faluss Portal' ) && false !== strpos( $data_model, '## Faluss Portal' ), 'Architecture and data-model documentation must register the new read-only portal boundary.' );
 pf01_assert( 0 === preg_match( '/(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{10,}/', $source . $javascript . $css ), 'PF-01 must not contain a Stripe key.' );

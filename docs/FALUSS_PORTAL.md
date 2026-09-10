@@ -1,4 +1,4 @@
-# PF-01F - Faluss Portal Foundation
+# PF-01G - Faluss Portal Foundation
 
 ## Statut et frontière
 
@@ -8,13 +8,17 @@ Il rend le shortcode `[faluss_portal]` destiné à la page privée
 crée aucune identité, donnée d'abonnement, transaction, facture, préférence
 transversale ou profil universel.
 
-PF-01F aligne ce socle sur les frames et les captures réelles Shell, Master
+PF-01G aligne ce socle sur les frames et les captures réelles Shell, Master
 Profile, Abonnement et Facturation. Le shell conserve une sidebar, ses bulles
 monochromes, l'indicateur vertical noir, les pills contextuelles noires, le
 panneau clair et l'accès profil par l'avatar de sidebar uniquement. La mise en oeuvre reste une grille
 responsive : aucun cadre figé ou positionnement absolu de page n'est utilisé.
-La grille est limitée à `100svh` ; la sidebar reste immobile et non défilante,
-tandis que le seul défilement vertical du shell appartient au panneau gris.
+La grille est limitée à `100svh` et sa ligne commune utilise
+`minmax(0, 1fr)`. La classe de page `faluss-portal-page`, ajoutée uniquement à
+`/mon-faluss/`, verrouille le défilement du document WordPress/Elementor. La
+sidebar et son avatar restent ainsi immobiles et non défilants dans toutes les
+sections, tandis que le seul défilement vertical du shell appartient au panneau
+gris, avant comme après repli de la sidebar.
 
 La hiérarchie de navigation est contractuelle : le mot-symbole Faluss ouvre
 `Accueil`, suivi de `Apps Faluss`, puis du seul séparateur, puis `Analytics`,
@@ -165,7 +169,7 @@ centré et reprend exactement le diamètre des bulles de navigation du breakpoin
 courant (`48 px`, `44 px` sur mobile, `42 px` sur écran bas).
 
 Les contrôles actifs ne changent pas la couleur de leurs icônes. Les éléments
-interactifs restent sémantiques, mais PF-01F neutralise explicitement et
+interactifs restent sémantiques, mais PF-01G conserve la neutralisation explicite et
 uniquement dans le portail les contours, ombres, bordures colorées et
 `-webkit-tap-highlight-color` injectés par le navigateur, Safari ou Elementor
 sur les cellules, contrôles, icônes, avatar, pseudo-éléments et états `hover`,
@@ -176,12 +180,16 @@ les technologies d'assistance, sans habillage visuel parasite.
 Le header contextuel est un enfant direct du panneau gris. Sa barre utilise
 `100%` de la largeur locale du panneau, avec un retrait symétrique de `18 px`,
 et `margin-inline: auto`. Elle ne contient aucune largeur ou translation liée
-au viewport ou à la sidebar. Tous ses segments utilisent `flex: 1 1 0` : Vue,
-Performance, Revenus et Sources reçoivent donc la même largeur, indépendamment
-de leurs libellés. L'indicateur noir calcule son déplacement uniquement depuis
-la largeur intérieure de cette barre locale. PF-01F ne change ni cette
-géométrie, ni le retrait, ni le centrage : seuls les labels gagnent exactement
-`2 px`, dont `12.5 px` sur mobile, sans règle particulière pour Analytics.
+au viewport ou à la sidebar. PF-01G remplace la mesure JavaScript ponctuelle par
+une grille CSS locale `repeat(n, minmax(0, 1fr))`, pour les groupes de deux,
+trois ou quatre onglets. Vue, Performance, Revenus et Sources reçoivent donc la
+même largeur, indépendamment de leurs libellés. Le curseur noir est découplé
+des labels : sa largeur dépend du nombre de segments et son déplacement du seul
+`data-active-index`. Il suit ainsi chaque image de la transition de largeur du
+panneau, sans mesure liée au viewport, sans transition de largeur indépendante
+et sans attendre un nouveau clic. PF-01G ne change ni la géométrie validée, ni
+le retrait, ni le centrage, ni les tailles de labels héritées de PF-01E — dont
+`12.5 px` sur mobile.
 
 ## Installation et recette technique
 
