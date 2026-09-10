@@ -86,7 +86,7 @@ $documentation = file_get_contents( $root . '/docs/FALUSS_PORTAL.md' );
 $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 
-foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.5'", 'class-faluss-portal.php' ) as $needle ) {
+foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.6'", 'class-faluss-portal.php' ) as $needle ) {
     pf01_assert( false !== strpos( $bootstrap, $needle ), 'PF-01 requires an isolated versioned Faluss Portal plugin: ' . $needle );
 }
 foreach ( array( "add_shortcode( self::SHORTCODE", "[faluss_portal]", 'Faluss_Identity_Client_Schema::tables()', 'WHERE wp_user_id = %d', "array( 'subscriber' )", 'Faluss_Identity_Client::button' ) as $needle ) {
@@ -166,7 +166,8 @@ foreach ( array( 'faluss-portal__sidebar-chevron-cell', 'faluss-portal__sidebar-
 pf01_assert( false === strpos( $source . $css, 'faluss-portal__chevron-button' ) && false === strpos( $source . $css, 'faluss-portal__member-compact' ), 'The former shared chevron and navigation-bubble avatar templates must be absent.' );
 pf01_assert( 1 === preg_match( '/\.faluss-portal__sidebar-chevron-cell\s*\{[^}]*display:\s*grid;[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*place-items:\s*center;/s', $css ), 'The independent sidebar chevron cell must own the local placement geometry.' );
 pf01_assert( 1 === preg_match( '/\.faluss-portal__sidebar-avatar-cell\s*\{[^}]*display:\s*grid;[^}]*margin-top:\s*auto;[^}]*place-items:\s*center;/s', $css ), 'The independent bottom sidebar cell must push and center the avatar.' );
-pf01_assert( 1 === preg_match( '/\.faluss-portal__master-chevron-cell\s*\{[^}]*display:\s*grid;[^}]*width:\s*30px;[^}]*height:\s*30px;[^}]*place-items:\s*center;/s', $css ), 'The independent Master Profile return cell must center its 30px control.' );
+pf01_assert( 1 === preg_match( '/\.faluss-portal__master-chevron-cell\s*\{[^}]*display:\s*grid;[^}]*width:\s*30px;[^}]*height:\s*30px;[^}]*place-items:\s*center;[^}]*transform:\s*translateX\(-10px\);/s', $css ), 'PF-01F must move only the centered Master Profile return cell 10px left.' );
+pf01_assert( 1 === substr_count( $css, 'transform: translateX(-10px);' ), 'PF-01F must apply its exact 10px offset once and only to the Master Profile return cell.' );
 foreach ( array( 'faluss-portal__sidebar-chevron-control', 'faluss-portal__master-chevron-control', 'faluss-portal__sidebar-avatar-trigger' ) as $control ) {
     $control_rule = preg_match( '/\.' . preg_quote( $control, '/' ) . '\s*\{([^}]*)\}/s', $css, $control_match ) ? $control_match[1] : '';
     pf01_assert( false !== strpos( $control_rule, 'display: grid' ) && false !== strpos( $control_rule, 'place-items: center' ), 'Each independent control must center its own visual: ' . $control );
@@ -211,8 +212,8 @@ pf01_assert( false === strpos( $javascript, 'fetch(' ) && false === strpos( $jav
 foreach ( array( 'sources de vérité', 'Master Profile', 'Point Faluss', 'faluss_pf', 'ALB / Alternative LAB', 'crée aucune', 'trialing', 'Customer Portal' ) as $needle ) {
     pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01 documentation is missing its architecture or data-boundary contract: ' . $needle );
 }
-foreach ( array( 'PF-01E', 'Aucune carte membre basse', 'composants distincts', '30 × 30 px', 'margin-top: auto', 'retrait symétrique de `18 px`', 'flex: 1 1 0', '100svh', 'seul défilement vertical', '`2 px`' ) as $needle ) {
-    pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01E documentation must capture the approved local-panel visual and interaction boundary: ' . $needle );
+foreach ( array( 'PF-01F', 'cellule du', 'chevron retour', '`10 px` vers la gauche', 'Aucune carte membre basse', 'composants distincts', '30 × 30 px', 'margin-top: auto', 'retrait symétrique de `18 px`', 'flex: 1 1 0', '100svh', 'seul défilement vertical', '`2 px`' ) as $needle ) {
+    pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01F documentation must capture the approved local-panel visual and interaction boundary: ' . $needle );
 }
 pf01_assert( false !== strpos( $architecture, 'Faluss Portal' ) && false !== strpos( $data_model, '## Faluss Portal' ), 'Architecture and data-model documentation must register the new read-only portal boundary.' );
 pf01_assert( 0 === preg_match( '/(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{10,}/', $source . $javascript . $css ), 'PF-01 must not contain a Stripe key.' );

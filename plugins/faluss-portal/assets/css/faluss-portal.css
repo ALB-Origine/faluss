@@ -371,7 +371,7 @@
 .faluss-portal__master::backdrop { background: rgba(8,8,8,.2); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
 .faluss-portal__master-surface { position: relative; display: flex; height: 100%; flex-direction: column; padding: 36px clamp(24px, 6vw, 64px) 28px; overflow: hidden; }
 .faluss-portal__master-header { display: grid; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: center; gap: 14px; }
-.faluss-portal__master-chevron-cell { display: grid; width: 30px; height: 30px; place-items: center; border: 0 !important; outline: 0 !important; background: transparent !important; box-shadow: none !important; -webkit-tap-highlight-color: transparent; }
+.faluss-portal__master-chevron-cell { display: grid; width: 30px; height: 30px; place-items: center; transform: translateX(-10px); border: 0 !important; outline: 0 !important; background: transparent !important; box-shadow: none !important; -webkit-tap-highlight-color: transparent; }
 .faluss-portal__master-header-spacer { display: block; width: 30px; height: 30px; }
 .faluss-portal__master-tabs { position: relative; display: flex; width: min(650px, 100%); max-width: 100%; justify-self: center; padding: 6px; overflow: hidden; border: 1px solid var(--fp-line); border-radius: 999px; background: rgba(255,255,255,.26); scrollbar-width: none; }
 .faluss-portal__master-tabs::-webkit-scrollbar { display: none; }

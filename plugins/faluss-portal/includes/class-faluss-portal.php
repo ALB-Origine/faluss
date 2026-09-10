@@ -5,7 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * PF-01E front-office boundary.
+ * PF-01F front-office boundary.
  *
  * This plugin deliberately owns neither identity nor subscription data. It
  * starts with the local, authenticated Identity Client link and projects only

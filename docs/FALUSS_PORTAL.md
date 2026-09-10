@@ -1,4 +1,4 @@
-# PF-01E - Faluss Portal Foundation
+# PF-01F - Faluss Portal Foundation
 
 ## Statut et frontière
 
@@ -8,7 +8,7 @@ Il rend le shortcode `[faluss_portal]` destiné à la page privée
 crée aucune identité, donnée d'abonnement, transaction, facture, préférence
 transversale ou profil universel.
 
-PF-01E aligne ce socle sur les frames et les captures réelles Shell, Master
+PF-01F aligne ce socle sur les frames et les captures réelles Shell, Master
 Profile, Abonnement et Facturation. Le shell conserve une sidebar, ses bulles
 monochromes, l'indicateur vertical noir, les pills contextuelles noires, le
 panneau clair et l'accès profil par l'avatar de sidebar uniquement. La mise en oeuvre reste une grille
@@ -104,7 +104,9 @@ Il monte depuis le bas à l'ouverture et redescend à la fermeture ; l'opacité
 n'est jamais le mécanisme de transition. Ses trois onglets partagent un unique
 indicateur noir déplacé par `transform` et ne créent aucune copie de données.
 Son en-tête utilise une grille symétrique — chevron transparent, tabs
-centrés, réserve droite équivalente. En PF-01E, son CTA profil adopte le bouton primaire noir Faluss.com,
+centrés, réserve droite équivalente. PF-01F décale uniquement la cellule du
+chevron retour de `10 px` vers la gauche, sans modifier la grille symétrique ni
+la géométrie et le centrage des onglets. Son CTA profil conserve le bouton primaire noir Faluss.com,
 pleine largeur, avec icône et texte blancs :
 
 | Onglet | Données PF-01 | Ce qui reste hors périmètre |
@@ -163,7 +165,7 @@ centré et reprend exactement le diamètre des bulles de navigation du breakpoin
 courant (`48 px`, `44 px` sur mobile, `42 px` sur écran bas).
 
 Les contrôles actifs ne changent pas la couleur de leurs icônes. Les éléments
-interactifs restent sémantiques, mais PF-01E neutralise explicitement et
+interactifs restent sémantiques, mais PF-01F neutralise explicitement et
 uniquement dans le portail les contours, ombres, bordures colorées et
 `-webkit-tap-highlight-color` injectés par le navigateur, Safari ou Elementor
 sur les cellules, contrôles, icônes, avatar, pseudo-éléments et états `hover`,
@@ -177,7 +179,7 @@ et `margin-inline: auto`. Elle ne contient aucune largeur ou translation liée
 au viewport ou à la sidebar. Tous ses segments utilisent `flex: 1 1 0` : Vue,
 Performance, Revenus et Sources reçoivent donc la même largeur, indépendamment
 de leurs libellés. L'indicateur noir calcule son déplacement uniquement depuis
-la largeur intérieure de cette barre locale. PF-01E ne change ni cette
+la largeur intérieure de cette barre locale. PF-01F ne change ni cette
 géométrie, ni le retrait, ni le centrage : seuls les labels gagnent exactement
 `2 px`, dont `12.5 px` sur mobile, sans règle particulière pour Analytics.
 
