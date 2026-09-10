@@ -219,14 +219,17 @@ mêmes variables CSS `--faluss-app-accent` et
 `--faluss-app-title-accent`. Explorer ajoute uniquement la description et son
 action d'état ; aucune seconde variante de données n'existe.
 
-AP-01B conserve ce renderer et ce registre sans variation : son header unique
+AP-01C conserve ce renderer et ce registre sans variation : son header unique
 aligne verticalement le logo, l'identité et, dans `Mes apps`, l'action de droite.
 Chaque symbole possède désormais ses limites visuelles mobiles explicites via
 `--faluss-app-symbol-width` et `--faluss-app-symbol-height` : Hub `18 × 22 px`,
 Me `12.43 × 23 px`, Date `23 × 23 px` et Pro `21.28 × 23 px`. Les fichiers
 officiels restent inchangés, `object-fit: contain` préserve leurs proportions et
 le canevas interne du symbole Me est centré puis masqué dans sa seule boîte
-visuelle, sans translation générique. Le header partagé centre cette boîte et
+visuelle, sans translation générique. Son décalage local emploie des offsets
+numériques explicites, plutôt qu'une division `calc()`, afin de ne jamais
+retomber sur l'alignement de repli qui rogne le glyphe hors de sa boîte. Le
+header partagé centre cette boîte et
 le groupe titre/sous-titre ; Explorer place description et action après le
 header. La zone Fans reste vide tant qu'aucun logo officiel n'existe.
 `Vous êtes ici` emploie le même rayon effectif de `100 px` que les autres

@@ -102,13 +102,15 @@ foreach ( array(
     'pro'  => array( '21.28px', '23px' ),
 ) as $slug => $size ) {
     $mobile_rule = '/@media \(max-width:\s*720px\).*?\.faluss-portal__app-card\[data-faluss-app="' . preg_quote( $slug, '/' ) . '"\]\s*\{([^}]*)\}/s';
-    ap01_assert( 1 === preg_match( $mobile_rule, $css, $mobile_match ) && false !== strpos( $mobile_match[1], '--faluss-app-symbol-width: ' . $size[0] ) && false !== strpos( $mobile_match[1], '--faluss-app-symbol-height: ' . $size[1] ), 'AP-01B must expose the exact mobile rendered-symbol dimensions for ' . $slug . '.' );
+    ap01_assert( 1 === preg_match( $mobile_rule, $css, $mobile_match ) && false !== strpos( $mobile_match[1], '--faluss-app-symbol-width: ' . $size[0] ) && false !== strpos( $mobile_match[1], '--faluss-app-symbol-height: ' . $size[1] ), 'AP-01C must preserve the exact mobile rendered-symbol dimensions for ' . $slug . '.' );
 }
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-logo\s*\{[^}]*width:\s*var\(--faluss-app-symbol-width\);[^}]*height:\s*var\(--faluss-app-symbol-height\);[^}]*place-items:\s*center;[^}]*overflow:\s*hidden;[^}]*line-height:\s*0;/s', $css ), 'The logo column must expose the actual per-app visual bounds and remove image baseline drift.' );
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-logo img\s*\{[^}]*display:\s*block;[^}]*width:\s*var\(--faluss-app-asset-width\);[^}]*height:\s*var\(--faluss-app-asset-height\);[^}]*max-width:\s*none;[^}]*max-height:\s*none;[^}]*object-fit:\s*contain;[^}]*line-height:\s*0;/s', $css ), 'No global image sizing may override the measured symbol asset dimensions.' );
 ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s*\{[^}]*--faluss-app-symbol-width:\s*12\.43px;[^}]*--faluss-app-symbol-height:\s*23px;[^}]*--faluss-app-asset-width:\s*42\.36px;[^}]*--faluss-app-asset-height:\s*42\.36px;/s', $css ), 'Faluss Me must correct only its own official asset padding inside the measured visible wrapper.' );
-ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s+\.faluss-portal__app-logo img\s*\{[^}]*position:\s*absolute;[^}]*inset-inline-start:\s*calc\(\(var\(--faluss-app-symbol-width\) - var\(--faluss-app-asset-width\)\) \/ 2\);[^}]*inset-block-start:\s*calc\(\(var\(--faluss-app-symbol-height\) - var\(--faluss-app-asset-height\)\) \/ 2\);/s', $css ), 'Faluss Me must center its padded official source locally rather than inherit the browser safe-alignment fallback.' );
-ap01_assert( 0 === preg_match( '/\.faluss-portal__app-logo(?:\s+img)?\s*\{[^}]*transform:/s', $css ), 'AP-01B must not use a generic logo translation.' );
+ap01_assert( 1 === preg_match( '/@media \(max-width:\s*720px\).*?data-faluss-app="me"\]\s*\{[^}]*--faluss-app-me-asset-left:\s*-14\.965px;[^}]*--faluss-app-me-asset-top:\s*-9\.68px;/s', $css ), 'Faluss Me must retain its exact mobile local offset inside the visible symbol bounds.' );
+ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s+\.faluss-portal__app-logo img\s*\{[^}]*position:\s*absolute;[^}]*left:\s*var\(--faluss-app-me-asset-left\);[^}]*top:\s*var\(--faluss-app-me-asset-top\);/s', $css ), 'Faluss Me must use explicit local offsets rather than the clipping fallback alignment.' );
+ap01_assert( false === strpos( $css, ' / 2)' ), 'AP-01C must not depend on a runtime calc division for the Faluss Me clipping path.' );
+ap01_assert( 0 === preg_match( '/\.faluss-portal__app-logo(?:\s+img)?\s*\{[^}]*transform:/s', $css ), 'AP-01C must not use a generic logo translation.' );
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-head\s*\{[^}]*min-height:\s*var\(--faluss-app-head-size\);[^}]*align-items:\s*center;/s', $css ) && 1 === preg_match( '/\.faluss-portal__app-card--compact\s*\{[^}]*display:\s*grid;[^}]*align-content:\s*center;/s', $css ), 'The single shared header must center logo, identity and compact action vertically in both card variants.' );
 ap01_assert( 1 === substr_count( $source, '<div class="faluss-portal__app-head">' ), 'Mes apps and Explorer must keep one canonical header emitted by the shared renderer.' );
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-action\s*\{[^}]*display:\s*inline-grid;[^}]*place-items:\s*center;[^}]*border:\s*0 !important;[^}]*outline:\s*0 !important;[^}]*border-radius:\s*100px !important;[^}]*box-shadow:\s*none !important;/s', $css ), 'The real Hub action must remain a centered pill immune to Elementor and browser frames.' );
@@ -125,14 +127,15 @@ $official_assets = array(
 );
 foreach ( $official_assets as $name => $source_asset ) {
     $portal_asset = $plugin . '/assets/images/apps/' . $name;
-    ap01_assert( is_file( $portal_asset ) && hash_file( 'sha256', $source_asset ) === hash_file( 'sha256', $portal_asset ), 'AP-01B must embed the unchanged official source asset and correct only its rendered box: ' . $name );
+    ap01_assert( is_file( $portal_asset ) && hash_file( 'sha256', $source_asset ) === hash_file( 'sha256', $portal_asset ), 'AP-01C must embed the unchanged official source asset and correct only its rendered box: ' . $name );
 }
+ap01_assert( 1 === substr_count( $published_owned_html, 'src="https://faluss.com/wp-content/plugins/faluss-portal/assets/images/apps/faluss-me.png"' ) && 1 === substr_count( $explore_html, 'src="https://faluss.com/wp-content/plugins/faluss-portal/assets/images/apps/faluss-me.png"' ), 'AP-01C must render the official Faluss Me image in both owned and Explorer cards.' );
 
 ap01_assert( 0 === preg_match( '/[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}/i', $explore_html . $published_owned_html ), 'No Faluss ID may be rendered in either Apps view.' );
 foreach ( array( 'faluss_id', 'provider_', 'stripe', 'customer', 'subscription' ) as $sensitive ) {
     ap01_assert( false === stripos( $explore_html . $published_owned_html, $sensitive ), 'Apps markup must not expose technical account or billing data: ' . $sensitive );
 }
-foreach ( array( 'AP-01', 'AP-01B', 'Faluss Hub', 'Faluss Me', 'Bientôt disponible', 'Aucun appel', 'inter-domaine', 'preuve locale', '--faluss-app-symbol-width' ) as $needle ) {
+foreach ( array( 'AP-01', 'AP-01C', 'Faluss Hub', 'Faluss Me', 'Bientôt disponible', 'Aucun appel', 'inter-domaine', 'preuve locale', '--faluss-app-symbol-width', 'alignement de repli' ) as $needle ) {
     ap01_assert( false !== strpos( $documentation, $needle ), 'AP-01 documentation must capture its registry and ownership boundary: ' . $needle );
 }
 

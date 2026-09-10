@@ -396,7 +396,7 @@ body.faluss-portal-page {
   isolation: isolate;
 }
 .faluss-portal__app-card[data-faluss-app="hub"] { --faluss-app-symbol-width: 22.7px; --faluss-app-symbol-height: 27.74px; }
-.faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 15.67px; --faluss-app-symbol-height: 29px; --faluss-app-asset-width: 53.45px; --faluss-app-asset-height: 53.45px; }
+.faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 15.67px; --faluss-app-symbol-height: 29px; --faluss-app-asset-width: 53.45px; --faluss-app-asset-height: 53.45px; --faluss-app-me-asset-left: -18.89px; --faluss-app-me-asset-top: -12.225px; }
 .faluss-portal__app-card[data-faluss-app="date"] { --faluss-app-symbol-width: 29px; --faluss-app-symbol-height: 29px; }
 .faluss-portal__app-card[data-faluss-app="pro"] { --faluss-app-symbol-width: 26.84px; --faluss-app-symbol-height: 29px; }
 .faluss-portal__app-card--compact {
@@ -439,8 +439,8 @@ body.faluss-portal-page {
 }
 .faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo img {
   position: absolute;
-  inset-inline-start: calc((var(--faluss-app-symbol-width) - var(--faluss-app-asset-width)) / 2);
-  inset-block-start: calc((var(--faluss-app-symbol-height) - var(--faluss-app-asset-height)) / 2);
+  left: var(--faluss-app-me-asset-left);
+  top: var(--faluss-app-me-asset-top);
 }
 .faluss-portal__app-identity { display: grid; min-width: 0; align-content: center; align-self: center; gap: 2px; }
 .faluss-portal__app-name {
@@ -732,7 +732,7 @@ body.faluss-portal-page {
     border-radius: 27px;
   }
   .faluss-portal__app-card[data-faluss-app="hub"] { --faluss-app-symbol-width: 18px; --faluss-app-symbol-height: 22px; }
-  .faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 12.43px; --faluss-app-symbol-height: 23px; --faluss-app-asset-width: 42.36px; --faluss-app-asset-height: 42.36px; }
+  .faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 12.43px; --faluss-app-symbol-height: 23px; --faluss-app-asset-width: 42.36px; --faluss-app-asset-height: 42.36px; --faluss-app-me-asset-left: -14.965px; --faluss-app-me-asset-top: -9.68px; }
   .faluss-portal__app-card[data-faluss-app="date"] { --faluss-app-symbol-width: 23px; --faluss-app-symbol-height: 23px; }
   .faluss-portal__app-card[data-faluss-app="pro"] { --faluss-app-symbol-width: 21.28px; --faluss-app-symbol-height: 23px; }
   .faluss-portal__app-card--compact { min-height: 116px; padding: 21px 20px; }
