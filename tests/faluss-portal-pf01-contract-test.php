@@ -86,7 +86,7 @@ $documentation = file_get_contents( $root . '/docs/FALUSS_PORTAL.md' );
 $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 
-foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.2'", 'class-faluss-portal.php' ) as $needle ) {
+foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.3'", 'class-faluss-portal.php' ) as $needle ) {
     pf01_assert( false !== strpos( $bootstrap, $needle ), 'PF-01 requires an isolated versioned Faluss Portal plugin: ' . $needle );
 }
 foreach ( array( "add_shortcode( self::SHORTCODE", "[faluss_portal]", 'Faluss_Identity_Client_Schema::tables()', 'WHERE wp_user_id = %d', "array( 'subscriber' )", 'Faluss_Identity_Client::button' ) as $needle ) {
@@ -149,17 +149,39 @@ foreach ( array( "'home'         => array( 'view', 'activity', 'discover' )", "'
 }
 pf01_assert( 3 === substr_count( $source, 'data-faluss-portal-sidebar-item' ) && false === strpos( $source, "self::icon( 'home' )" ), 'The Faluss wordmark must be the only Home sidebar control, followed by Apps and the five-item section loop.' );
 pf01_assert( false === strpos( $source, "number_format_i18n( \$points" ) && false === strpos( $source, "\$points['balance']" ), 'The PF placeholder must never contain a numeric balance before an official PF ledger exists.' );
-foreach ( array( '--fp-sidebar-indicator-y', '--fp-tab-indicator-x', 'backdrop-filter', ':focus-visible', 'prefers-reduced-motion', 'aspect-ratio: 1', 'position: fixed', 'grid-template-columns: 48px minmax(0, 1fr) 48px', 'margin-top: auto' ) as $needle ) {
-    pf01_assert( false !== strpos( $css, $needle ), 'The shell must retain visual indicators, glass, keyboard focus and reduced-motion support: ' . $needle );
+foreach ( array( '--fp-sidebar-indicator-y', '--fp-tab-indicator-x', 'backdrop-filter', ':focus-visible', 'prefers-reduced-motion', 'aspect-ratio: 1', 'position: fixed', 'grid-template-columns: 30px minmax(0, 1fr) 30px', 'margin-top: auto' ) as $needle ) {
+    pf01_assert( false !== strpos( $css, $needle ), 'The shell must retain visual indicators, footer glass, local focus control and reduced-motion support: ' . $needle );
 }
-pf01_assert( false === strpos( $css, 'outline: 3px solid #ff') && false === strpos( $css, 'outline: 3px solid var(--fp-accent)'), 'Keyboard focus must stay neutral and must never inherit the coral accent.' );
+pf01_assert( false !== strpos( $css, 'outline: 0') && false === strpos( $css, 'outline: 2px') && false === strpos( $css, 'outline: 3px'), 'PF-01C must render no browser, Elementor or product focus outline.' );
 pf01_assert( 0 === preg_match( '/faluss-portal__nav-link(?:\\:hover|\\.is-active)\\s*\\{[^}]*background/s', $css ), 'Sidebar state must move only the indicator and outline, never recolour an icon bubble.' );
+pf01_assert( false === strpos( $source, 'faluss-portal__member-card' ) && false === strpos( $css, '.faluss-portal__member-card' ), 'PF-01C must remove the lower member card from markup and every viewport.' );
+pf01_assert( false !== strpos( $source, 'data-faluss-portal-profile-open' ) && false !== strpos( $source, 'faluss-portal__member-compact' ), 'The sidebar avatar must remain the sole Master Profile entry point.' );
+foreach ( array( 'top: 7px', 'left: 7px', 'width: 30px', 'height: 30px', 'border-radius: 100px', 'data-chevron-direction="left"', 'faluss-portal__chevron-path--right' ) as $needle ) {
+    pf01_assert( false !== strpos( $source . $css, $needle ), 'The shell and profile must share the exact non-rotating 30 px chevron geometry: ' . $needle );
+}
+pf01_assert( false === strpos( $css, 'rotate(' ), 'Neither shell chevron may rotate when the sidebar changes state.' );
+foreach ( array( 'width: 100vw', '--fp-sidebar-current-width', '--fp-header-safe', 'align-items: center', 'justify-content: center', 'line-height: 1' ) as $needle ) {
+    pf01_assert( false !== strpos( $css, $needle ), 'The contextual header must be viewport-centred, responsive and vertically balanced: ' . $needle );
+}
+foreach ( array( 'faluss-portal__master-tab-indicator', 'data-active-index="1"', 'data-active-index="2"', 'translate3d(100%', 'translate3d(200%' ) as $needle ) {
+    pf01_assert( false !== strpos( $source . $css, $needle ), 'Master Profile tabs must share one transform-driven black indicator: ' . $needle );
+}
+pf01_assert( 1 === substr_count( $source, 'faluss-portal__master-tab-indicator' ), 'Only one Master Profile tab indicator may be rendered.' );
+pf01_assert( false === strpos( $css, '.faluss-portal__master-tabs button.is-active { background: #000' ), 'Master Profile tabs must not toggle three independent active backgrounds.' );
+foreach ( array( "dialog.classList.add('is-open')", "dialog.classList.add('is-closing')", 'transitionend', '110dvh', 'cubic-bezier(.55,.05,.85,.35)', 'cubic-bezier(.15,.85,.35,1)' ) as $needle ) {
+    pf01_assert( false !== strpos( $javascript . $css, $needle ), 'Master Profile must enter from below Slow-to-Fast and leave below Fast-to-Slow: ' . $needle );
+}
+pf01_assert( false === strpos( $javascript, '.focus(' ) && false === strpos( $css, '.faluss-portal__master.is-entering' ), 'Profile and drawer opening must not force focus or use the old fade state.' );
+pf01_assert( 0 === preg_match( '/faluss-portal__master[^\n{]*\{[^}]*opacity/s', $css ), 'Master Profile motion must not rely on opacity fading.' );
 foreach ( array( 'history.pushState', 'popstate', 'requestAnimationFrame', 'showModal', 'closeProfile', 'setMasterTab', 'falussPortalSidebarCollapsed', 'aria-expanded', 'localStorage.setItem' ) as $needle ) {
     pf01_assert( false !== strpos( $javascript, $needle ), 'Navigation and Master Profile must be progressive, animated and history-aware: ' . $needle );
 }
 pf01_assert( false === strpos( $javascript, 'fetch(' ) && false === strpos( $javascript, 'Stripe' ), 'The browser must not read Stripe or make a direct portal data call.' );
 foreach ( array( 'sources de vérité', 'Master Profile', 'Point Faluss', 'faluss_pf', 'ALB / Alternative LAB', 'crée aucune', 'trialing', 'Customer Portal' ) as $needle ) {
     pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01 documentation is missing its architecture or data-boundary contract: ' . $needle );
+}
+foreach ( array( 'PF-01C', 'Aucune carte membre basse', 'unique', '30 × 30 px', '7 px', 'centrés sur la fenêtre complète' ) as $needle ) {
+    pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01C documentation must capture the approved visual and interaction boundary: ' . $needle );
 }
 pf01_assert( false !== strpos( $architecture, 'Faluss Portal' ) && false !== strpos( $data_model, '## Faluss Portal' ), 'Architecture and data-model documentation must register the new read-only portal boundary.' );
 pf01_assert( 0 === preg_match( '/(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{10,}/', $source . $javascript . $css ), 'PF-01 must not contain a Stripe key.' );

@@ -41,7 +41,10 @@
       section: root.dataset.section || 'home',
       tab: root.dataset.tab || 'view',
       profilePushed: false,
-      suppressDialogClose: false
+      suppressDialogClose: false,
+      profileTransition: 0,
+      profileCloseTimer: 0,
+      profileCloseHandler: null
     };
     const navigation = [...root.querySelectorAll('[data-faluss-portal-nav]')];
     const panels = [...root.querySelectorAll('[data-faluss-portal-panel]')];
@@ -76,6 +79,7 @@
       if (sidebarToggle) {
         sidebarToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
         sidebarToggle.setAttribute('aria-label', collapsed ? 'Afficher la navigation' : 'Replier la navigation');
+        sidebarToggle.dataset.chevronDirection = collapsed ? 'right' : 'left';
         const label = sidebarToggle.querySelector('.screen-reader-text');
         if (label) label.textContent = collapsed ? 'Afficher la navigation' : 'Replier la navigation';
       }
@@ -119,35 +123,62 @@
 
     const openProfile = (updateHistory) => {
       if (!dialog) return;
-      dialog.classList.add('is-entering');
+      state.profileTransition += 1;
+      window.clearTimeout(state.profileCloseTimer);
+      if (state.profileCloseHandler) dialog.removeEventListener('transitionend', state.profileCloseHandler);
+      state.profileCloseHandler = null;
+      dialog.classList.remove('is-open', 'is-closing');
       if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
       else dialog.setAttribute('open', 'open');
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => dialog.classList.remove('is-entering')));
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => dialog.classList.add('is-open')));
       root.classList.add('has-master-open');
       if (updateHistory) {
         state.profilePushed = true;
         history.pushState({ falussPortal: true, falussPortalProfile: true }, '', routeURL(window.location.href, state, true));
       }
-      const target = dialog.querySelector('[data-faluss-portal-master-tab].is-active');
-      if (target) target.focus({ preventScroll: true });
     };
 
     const closeProfile = (updateHistory) => {
-      if (!dialog) return;
-      state.suppressDialogClose = true;
-      if (typeof dialog.close === 'function' && dialog.open) dialog.close();
-      else dialog.removeAttribute('open');
-      root.classList.remove('has-master-open');
-      state.suppressDialogClose = false;
+      if (!dialog || !dialog.open) return;
+      const transition = state.profileTransition + 1;
+      state.profileTransition = transition;
+      window.clearTimeout(state.profileCloseTimer);
+      dialog.classList.remove('is-open');
+      dialog.classList.add('is-closing');
       if (updateHistory) {
         const url = routeURL(window.location.href, state, false);
         history.replaceState({ falussPortal: true }, '', url);
       }
+      const finish = () => {
+        if (state.profileTransition !== transition || !dialog.open) return;
+        window.clearTimeout(state.profileCloseTimer);
+        if (state.profileCloseHandler) dialog.removeEventListener('transitionend', state.profileCloseHandler);
+        state.profileCloseHandler = null;
+        state.suppressDialogClose = true;
+        if (typeof dialog.close === 'function') dialog.close();
+        else dialog.removeAttribute('open');
+        dialog.classList.remove('is-closing');
+        root.classList.remove('has-master-open');
+        state.suppressDialogClose = false;
+      };
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        finish();
+        return;
+      }
+      state.profileCloseHandler = (event) => {
+        if (event.target === dialog && event.propertyName === 'transform') finish();
+      };
+      dialog.addEventListener('transitionend', state.profileCloseHandler);
+      state.profileCloseTimer = window.setTimeout(finish, 520);
     };
 
     const setMasterTab = (tab) => {
       if (!dialog) return;
-      dialog.querySelectorAll('[data-faluss-portal-master-tab]').forEach((button) => {
+      const masterTabs = [...dialog.querySelectorAll('[data-faluss-portal-master-tab]')];
+      const activeIndex = masterTabs.findIndex((button) => button.dataset.falussPortalMasterTab === tab);
+      const masterSwitcher = dialog.querySelector('.faluss-portal__master-tabs');
+      if (masterSwitcher) masterSwitcher.dataset.activeIndex = String(Math.max(0, activeIndex));
+      masterTabs.forEach((button) => {
         const active = button.dataset.falussPortalMasterTab === tab;
         button.classList.toggle('is-active', active);
         button.setAttribute('aria-selected', active ? 'true' : 'false');
@@ -172,7 +203,6 @@
       title.textContent = message[0];
       copy.textContent = message[1];
       drawer.hidden = false;
-      drawer.querySelector('button').focus({ preventScroll: true });
       if (name === 'premium') {
         window.setTimeout(() => {
           closeProfile(false);
@@ -248,6 +278,7 @@
     }
     const initialRoute = routeFromLocation(state);
     activate(initialRoute, false);
+    setMasterTab('account');
     if (new URLSearchParams(window.location.search).get('faluss_portal_profile') === '1') openProfile(false);
   };
 

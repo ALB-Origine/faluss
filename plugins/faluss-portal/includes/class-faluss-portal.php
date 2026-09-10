@@ -5,7 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * PF-01B front-office boundary.
+ * PF-01C front-office boundary.
  *
  * This plugin deliberately owns neither identity nor subscription data. It
  * starts with the local, authenticated Identity Client link and projects only
@@ -261,10 +261,10 @@ final class Faluss_Portal {
                         <a class="faluss-portal__nav-link<?php echo $section === $route['section'] ? ' is-active' : ''; ?>" href="<?php echo esc_url( self::portal_url( $section, self::TABS[ $section ][0] ) ); ?>" data-faluss-portal-nav="<?php echo esc_attr( $section ); ?>" data-faluss-portal-tab="<?php echo esc_attr( self::TABS[ $section ][0] ); ?>" data-faluss-portal-sidebar-item<?php echo $section === $route['section'] ? ' aria-current="page"' : ''; ?>><span class="faluss-portal__nav-icon" aria-hidden="true"><?php echo self::icon( $section ); ?></span><span class="screen-reader-text"><?php echo esc_html( self::SECTION_LABELS[ $section ] ); ?></span></a>
                     <?php endforeach; ?>
                 </nav>
-                <button class="faluss-portal__member-compact" type="button" data-faluss-portal-profile-open aria-label="Ouvrir le profil membre"><span class="faluss-portal__avatar faluss-portal__avatar--small" aria-hidden="true"></span></button>
+                <button class="faluss-portal__member-compact" type="button" data-faluss-portal-profile-open aria-haspopup="dialog" aria-controls="faluss-portal-master-profile" aria-label="Ouvrir le profil membre"><span class="faluss-portal__avatar faluss-portal__avatar--small" aria-hidden="true"></span></button>
             </aside>
             <main class="faluss-portal__main">
-                <button class="faluss-portal__sidebar-toggle" type="button" data-faluss-portal-sidebar-toggle aria-controls="faluss-portal-sidebar" aria-expanded="true"><span aria-hidden="true">‹</span><span class="screen-reader-text">Replier la navigation</span></button>
+                <button class="faluss-portal__chevron-button faluss-portal__sidebar-toggle" type="button" data-faluss-portal-sidebar-toggle data-chevron-direction="left" aria-controls="faluss-portal-sidebar" aria-expanded="true"><?php echo self::chevron_icon(); ?><span class="screen-reader-text">Replier la navigation</span></button>
                 <header class="faluss-portal__header">
                     <?php foreach ( self::TABS as $section => $tabs ) : ?>
                         <nav class="faluss-portal__tabs<?php echo $section === $route['section'] ? ' is-active' : ''; ?>" data-faluss-portal-tabs="<?php echo esc_attr( $section ); ?>" aria-label="<?php echo esc_attr( 'Navigation ' . self::SECTION_LABELS[ $section ] ); ?>"<?php echo $section === $route['section'] ? '' : ' hidden'; ?>>
@@ -280,7 +280,6 @@ final class Faluss_Portal {
                     <?php self::render_panels( $route, $snapshot ); ?>
                 </div>
             </main>
-            <button class="faluss-portal__member-card" type="button" data-faluss-portal-profile-open aria-haspopup="dialog" aria-controls="faluss-portal-master-profile"><span class="faluss-portal__avatar" aria-hidden="true"></span><span class="faluss-portal__member-copy"><strong><?php echo esc_html( $member['name'] ); ?></strong><?php if ( '' !== $member['handle'] ) : ?><span>@<?php echo esc_html( $member['handle'] ); ?></span><?php endif; ?></span><span class="faluss-portal__chevron" aria-hidden="true">⌄</span></button>
             <?php self::master_profile( $member ); ?>
         </section>
         <?php
@@ -415,8 +414,9 @@ final class Faluss_Portal {
         <dialog class="faluss-portal__master" id="faluss-portal-master-profile" data-faluss-portal-master aria-labelledby="faluss-portal-master-title">
             <div class="faluss-portal__master-surface">
                 <header class="faluss-portal__master-header">
-                    <button class="faluss-portal__master-close" type="button" data-faluss-portal-profile-close aria-label="Fermer mon profil">←</button>
+                    <button class="faluss-portal__chevron-button faluss-portal__master-close" type="button" data-faluss-portal-profile-close data-chevron-direction="left" aria-label="Fermer mon profil"><?php echo self::chevron_icon(); ?></button>
                     <nav class="faluss-portal__master-tabs" aria-label="Profil membre" role="tablist">
+                        <span class="faluss-portal__master-tab-indicator" aria-hidden="true"></span>
                         <button class="is-active" id="faluss-portal-master-tab-account" type="button" role="tab" data-faluss-portal-master-tab="account" aria-controls="faluss-portal-master-panel-account" aria-selected="true">Mon compte</button>
                         <button id="faluss-portal-master-tab-security" type="button" role="tab" data-faluss-portal-master-tab="security" aria-controls="faluss-portal-master-panel-security" aria-selected="false">Sécurité</button>
                         <button id="faluss-portal-master-tab-privacy" type="button" role="tab" data-faluss-portal-master-tab="privacy" aria-controls="faluss-portal-master-panel-privacy" aria-selected="false">Confidentialité</button>
@@ -549,6 +549,11 @@ final class Faluss_Portal {
             'help' => '<circle cx="12" cy="12" r="8"/><path d="M9.5 9a2.6 2.6 0 1 1 4.4 1.9c-1.3 1.2-1.9 1.7-1.9 3.1M12 17h.01"/>',
         );
         return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">' . ( $paths[ $section ] ?? '' ) . '</svg>';
+    }
+
+    /** Shared, non-rotating chevron used by the shell and Master Profile. */
+    private static function chevron_icon() {
+        return '<svg class="faluss-portal__chevron-icon" viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path class="faluss-portal__chevron-path faluss-portal__chevron-path--left" d="M18 9l-6 6 6 6"/><path class="faluss-portal__chevron-path faluss-portal__chevron-path--right" d="M12 9l6 6-6 6"/></svg>';
     }
 
     private static function valid_faluss_id( $value ) {

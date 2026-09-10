@@ -1,4 +1,4 @@
-# PF-01B - Faluss Portal Foundation
+# PF-01C - Faluss Portal Foundation
 
 ## Statut et frontière
 
@@ -8,10 +8,10 @@ Il rend le shortcode `[faluss_portal]` destiné à la page privée
 crée aucune identité, donnée d'abonnement, transaction, facture, préférence
 transversale ou profil universel.
 
-PF-01B aligne ce socle sur les frames et les captures réelles Shell, Master
+PF-01C aligne ce socle sur les frames et les captures réelles Shell, Master
 Profile, Abonnement et Facturation. Le shell conserve une sidebar, ses bulles
 monochromes, l'indicateur vertical noir, les pills contextuelles noires, le
-panneau clair et la carte membre glass. La mise en oeuvre reste une grille
+panneau clair et l'accès profil par l'avatar de sidebar uniquement. La mise en oeuvre reste une grille
 responsive : aucun cadre figé, positionnement absolu de page ou scroll imbriqué
 n'est utilisé.
 
@@ -20,8 +20,9 @@ La hiérarchie de navigation est contractuelle : le mot-symbole Faluss ouvre
 `Abonnement`, `Facturation`, `Paramètres` et `Aide`. Le mot-symbole remplace le
 bouton Accueil ; aucun second bouton Accueil n'est rendu. L'indicateur actif est
 une barre noire fixée au bord gauche de l'écran et déplacée physiquement vers
-le contrôle actif. Sur desktop, l'avatar seul reste au bas de la sidebar ; sur
-mobile, la carte membre glass horizontale occupe le bas du contenu.
+le contrôle actif. Sur desktop comme sur mobile, l'avatar seul reste au bas de
+la sidebar. Aucune carte membre basse, mini-card de profil ou surface glass
+flottante n'est rendue dans le contenu.
 
 ## Accès et sources de vérité
 
@@ -95,10 +96,13 @@ lit ni n'écrit droit, essai, abonnement, audit ou état Stripe.
 
 ## Master Profile préparatoire
 
-Le Master Profile est une surface immersive locale, ouverte depuis la carte
-membre sans changement de page. Le dialogue gère Échap, focus, historique,
-fermeture et réduction de mouvement. Ses trois onglets ne créent aucune copie
-de données. Son en-tête utilise une grille symétrique — flèche ronde, tabs
+Le Master Profile est une surface immersive locale, ouverte depuis la bulle
+avatar de sidebar sans changement de page. Le dialogue gère Échap, historique,
+fermeture et réduction de mouvement, sans déplacer programmatiquement le focus.
+Il monte depuis le bas à l'ouverture et redescend à la fermeture ; l'opacité
+n'est jamais le mécanisme de transition. Ses trois onglets partagent un unique
+indicateur noir déplacé par `transform` et ne créent aucune copie de données.
+Son en-tête utilise une grille symétrique — flèche ronde, tabs
 centrés, réserve droite équivalente — et son CTA profil conserve l'accent rouge
 avec un texte blanc :
 
@@ -149,11 +153,16 @@ Le bouton rond situé dans le panneau principal replie la sidebar et étend la
 surface de contenu sans rechargement. Son état `aria-expanded`, son libellé et
 la préférence locale `falussPortalSidebarCollapsed` restent synchronisés. Un
 refus de `localStorage` n'empêche pas le contrôle de fonctionner pendant la
-page courante.
+page courante. Ce bouton et le retour du Master Profile emploient le même
+chevron statique `30 × 30 px`, à bordure neutre et sans rotation. Le contrôle
+de sidebar est placé à `7 px` du haut et de la gauche du panneau principal.
 
 Les contrôles actifs ne changent pas la couleur de leurs icônes. Les éléments
-interactifs ont un focus sombre `:focus-visible` local au portail ; aucun reset
-global de focus ou style Elementor ne s'applique à la page.
+interactifs restent sémantiques, mais PF-01C neutralise localement tout rendu
+visuel de `:focus`, `:focus-visible` et les contaminations Elementor associées.
+Aucun script ne force le focus à l'ouverture du profil. Les tabs contextuels
+occupent une largeur responsive et sont centrés sur la fenêtre complète, pas
+sur la seule colonne restante après la sidebar.
 
 ## Installation et recette technique
 
@@ -168,8 +177,8 @@ global de focus ou style Elementor ne s'applique à la page.
    ni identifiant Stripe ne doit apparaître dans le DOM, l'URL ou la notice.
 6. Vérifier Facturation sans facture locale, puis le Customer Portal seulement
    pour un Customer réellement configuré ; son retour doit revenir à Paiement.
-7. Vérifier le Master Profile, Échap, retour navigateur, focus clavier,
-   `prefers-reduced-motion`, mobile et desktop. Le bloc PF doit afficher
+7. Vérifier le Master Profile, Échap, retour navigateur, absence de rendu de
+   focus, `prefers-reduced-motion`, mobile et desktop. Le bloc PF doit afficher
    « Points Faluss bientôt disponibles » sans montant, même si un ledger ALB
    historique existe dans Token Engine.
 
