@@ -219,6 +219,21 @@ mêmes variables CSS `--faluss-app-accent` et
 `--faluss-app-title-accent`. Explorer ajoute uniquement la description et son
 action d'état ; aucune seconde variante de données n'existe.
 
+AP-01A conserve ce renderer et ce registre sans variation : son header unique
+aligne verticalement le logo, l'identité et, dans `Mes apps`, l'action de droite.
+La taille de chaque zone logo vient exclusivement de
+`--faluss-app-logo-size` (`58 px` sur desktop, `46 px` sur mobile), et l'image
+utilise `object-fit: contain` sans règle propre à une application. Le même
+header est repris dans Explorer avant la description et l'action d'état.
+Pour aligner l'occupation visuelle sur le symbole Me sans valeur CSS propre à
+chaque produit, les copies Portal de Hub, Date et Pro conservent leurs pixels
+officiels sans mise à l'échelle ni rognage au centre d'un même canevas PNG
+transparent de `239 × 239 px`. Le fichier Me de référence reste inchangé et la
+zone Fans reste vide tant qu'aucun logo officiel n'existe.
+`Vous êtes ici` emploie le même rayon effectif de `100 px` que les autres
+actions, y compris face aux états et pseudo-éléments injectés par le navigateur
+ou Elementor.
+
 Les assets Hub, Me, Date et Pro sont embarqués dans le dossier versionné du
 plugin Portal. Aucun logo Fans officiel n'existe encore : sa carte conserve la
 place structurelle du logo sans dessiner ni substituer un symbole. Les seules

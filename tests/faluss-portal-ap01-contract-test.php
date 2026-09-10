@@ -95,6 +95,14 @@ foreach ( array( "self::render_app_card( \$app, 'compact' )", "self::render_app_
 }
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-card\s*\{[^}]*linear-gradient\([^}]*linear-gradient\(/s', $css ), 'The canonical card must stack a dark glass gradient above the accent-white-accent gradient.' );
 ap01_assert( false !== strpos( $css, 'var(--faluss-app-accent)' ) && false !== strpos( $css, 'overflow: hidden' ), 'The shared card must remain variable-driven and horizontally bounded.' );
+ap01_assert( 1 === preg_match( '/\.faluss-portal__app-card\s*\{[^}]*--faluss-app-logo-size:\s*58px;[^}]*--faluss-app-head-size:\s*72px;[^}]*--faluss-app-open-size:\s*72px;/s', $css ), 'AP-01A must define one canonical desktop logo, header and action geometry for every application.' );
+ap01_assert( 1 === preg_match( '/\.faluss-portal__app-card\s*\{[^}]*--faluss-app-logo-size:\s*46px;[^}]*--faluss-app-head-size:\s*52px;[^}]*--faluss-app-open-size:\s*52px;/s', $css ), 'AP-01A must resize the same shared geometry at the mobile breakpoint.' );
+ap01_assert( 1 === preg_match( '/\.faluss-portal__app-logo\s*\{[^}]*width:\s*var\(--faluss-app-logo-size\);[^}]*height:\s*var\(--faluss-app-logo-size\);/s', $css ) && 1 === preg_match( '/\.faluss-portal__app-logo img\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*object-fit:\s*contain;/s', $css ), 'Every logo, including the empty Fans slot, must use one square wrapper and contain sizing without per-app dimensions.' );
+ap01_assert( 0 === preg_match( '/data-faluss-app="(?:hub|me|date|fans|pro)"[^\{]*\.faluss-portal__app-logo\s*\{/s', $css ), 'No application may receive a logo-specific sizing correction.' );
+ap01_assert( 1 === preg_match( '/\.faluss-portal__app-head\s*\{[^}]*min-height:\s*var\(--faluss-app-head-size\);[^}]*align-items:\s*center;/s', $css ) && 1 === preg_match( '/\.faluss-portal__app-card--compact\s*\{[^}]*display:\s*grid;[^}]*align-content:\s*center;/s', $css ), 'The single shared header must center logo, identity and compact action vertically in both card variants.' );
+ap01_assert( 1 === substr_count( $source, '<div class="faluss-portal__app-head">' ), 'Mes apps and Explorer must keep one canonical header emitted by the shared renderer.' );
+ap01_assert( 1 === preg_match( '/\.faluss-portal__app-action\s*\{[^}]*display:\s*inline-grid;[^}]*place-items:\s*center;[^}]*border:\s*0 !important;[^}]*outline:\s*0 !important;[^}]*border-radius:\s*100px !important;[^}]*box-shadow:\s*none !important;/s', $css ), 'The real Hub action must remain a centered pill immune to Elementor and browser frames.' );
+ap01_assert( false !== strpos( $css, '.faluss-portal__app-action::before' ) && false !== strpos( $css, '.faluss-portal__app-action::after { border-radius: 100px !important; }' ), 'The action pseudo-elements must inherit the same fully rounded geometry.' );
 ap01_assert( false !== strpos( $javascript, '[data-faluss-app-current]' ) && false !== strpos( $javascript, '2800' ) && false !== strpos( $javascript, 'message.hidden = true' ), 'The active-app message must be local and automatically disappear within three seconds.' );
 ap01_assert( false === strpos( $javascript, 'fetch(' ) && false === strpos( $javascript, 'XMLHttpRequest' ), 'Apps Faluss must make no browser request to infer ownership.' );
 ap01_assert( 1 === preg_match( '/private static function app_registry.*?private static function home_panel/s', $source, $apps_source ) && false === strpos( $apps_source[0], 'wp_remote_' ), 'The Apps registry and renderer must make no server-side cross-domain request.' );
@@ -105,16 +113,28 @@ $official_assets = array(
     'faluss-date.png' => $root . '/plugins/faluss-link/assets/images/studio-ecosystem/faluss-studio-date.png',
     'faluss-pro.png'  => $root . '/plugins/faluss-link/assets/images/studio-ecosystem/faluss-studio-pro.png',
 );
+$normalized_asset_hashes = array(
+    'faluss-hub.png'  => 'b299ea3d026f092f964ad5cc0344669d7c06ef4c1c2f30b9c311efebfa408a14',
+    'faluss-date.png' => 'c4bcd913e796a06c6e0fb4ec83d01a27a3c0cb3c886449c36b4f636a8d5f1071',
+    'faluss-pro.png'  => 'a76465d852729d63cf75bac2d3ffeb6b2890d7be238440d1924ae8fc10e80385',
+);
 foreach ( $official_assets as $name => $source_asset ) {
     $portal_asset = $plugin . '/assets/images/apps/' . $name;
-    ap01_assert( is_file( $portal_asset ) && hash_file( 'sha256', $source_asset ) === hash_file( 'sha256', $portal_asset ), 'The installable Portal ZIP must embed the unchanged official asset: ' . $name );
+    ap01_assert( is_file( $portal_asset ) && is_file( $source_asset ), 'The installable Portal ZIP must embed an official application asset: ' . $name );
+    if ( 'faluss-me.png' === $name ) {
+        ap01_assert( hash_file( 'sha256', $source_asset ) === hash_file( 'sha256', $portal_asset ), 'The Faluss Me reference asset must remain unchanged.' );
+        continue;
+    }
+    $dimensions = getimagesize( $portal_asset );
+    ap01_assert( is_array( $dimensions ) && 239 === $dimensions[0] && 239 === $dimensions[1], 'Each non-reference logo must use the same transparent canonical canvas: ' . $name );
+    ap01_assert( $normalized_asset_hashes[ $name ] === hash_file( 'sha256', $portal_asset ), 'The padded asset must preserve the reviewed official artwork and canonical canvas: ' . $name );
 }
 
 ap01_assert( 0 === preg_match( '/[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}/i', $explore_html . $published_owned_html ), 'No Faluss ID may be rendered in either Apps view.' );
 foreach ( array( 'faluss_id', 'provider_', 'stripe', 'customer', 'subscription' ) as $sensitive ) {
     ap01_assert( false === stripos( $explore_html . $published_owned_html, $sensitive ), 'Apps markup must not expose technical account or billing data: ' . $sensitive );
 }
-foreach ( array( 'AP-01', 'Faluss Hub', 'Faluss Me', 'Bientôt disponible', 'Aucun appel', 'inter-domaine', 'preuve locale' ) as $needle ) {
+foreach ( array( 'AP-01', 'AP-01A', 'Faluss Hub', 'Faluss Me', 'Bientôt disponible', 'Aucun appel', 'inter-domaine', 'preuve locale', '--faluss-app-logo-size' ) as $needle ) {
     ap01_assert( false !== strpos( $documentation, $needle ), 'AP-01 documentation must capture its registry and ownership boundary: ' . $needle );
 }
 

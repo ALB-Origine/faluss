@@ -377,6 +377,9 @@ body.faluss-portal-page {
 .faluss-portal__app-card {
   --faluss-app-accent: #000000;
   --faluss-app-title-accent: #ffffff;
+  --faluss-app-logo-size: 58px;
+  --faluss-app-head-size: 72px;
+  --faluss-app-open-size: 72px;
   position: relative;
   display: block;
   min-width: 0;
@@ -390,7 +393,9 @@ body.faluss-portal-page {
   isolation: isolate;
 }
 .faluss-portal__app-card--compact {
+  display: grid;
   min-height: 156px;
+  align-content: center;
   padding: clamp(25px, 4vw, 38px) clamp(28px, 5vw, 52px);
 }
 .faluss-portal__app-card--explore {
@@ -398,27 +403,30 @@ body.faluss-portal-page {
 }
 .faluss-portal__app-head {
   display: grid;
+  min-height: var(--faluss-app-head-size);
   min-width: 0;
   align-items: center;
   gap: clamp(18px, 3vw, 34px);
 }
-.faluss-portal__app-card--compact .faluss-portal__app-head { grid-template-columns: 58px minmax(0, 1fr) 72px; }
-.faluss-portal__app-card--explore .faluss-portal__app-head { grid-template-columns: 58px minmax(0, 1fr); }
+.faluss-portal__app-card--compact .faluss-portal__app-head { grid-template-columns: var(--faluss-app-logo-size) minmax(0, 1fr) var(--faluss-app-open-size); }
+.faluss-portal__app-card--explore .faluss-portal__app-head { grid-template-columns: var(--faluss-app-logo-size) minmax(0, 1fr); }
 .faluss-portal__app-logo {
   display: grid;
-  width: 58px;
-  height: 58px;
+  width: var(--faluss-app-logo-size);
+  height: var(--faluss-app-logo-size);
   place-items: center;
 }
 .faluss-portal__app-logo img {
   display: block;
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   filter: invert(1);
   mix-blend-mode: screen;
 }
-.faluss-portal__app-identity { display: grid; min-width: 0; gap: 2px; }
+.faluss-portal__app-identity { display: grid; min-width: 0; align-content: center; align-self: center; gap: 2px; }
 .faluss-portal__app-name {
   color: #ffffff;
   font-size: clamp(26px, 3.4vw, 36px);
@@ -434,8 +442,8 @@ body.faluss-portal-page {
 }
 .faluss-portal__app-open {
   display: grid;
-  width: 72px;
-  height: 72px;
+  width: var(--faluss-app-open-size);
+  height: var(--faluss-app-open-size);
   place-items: center;
   border-radius: 50%;
   background: rgba(255,255,255,.08);
@@ -469,7 +477,7 @@ body.faluss-portal-page {
   padding: 10px 24px;
   border: 0 !important;
   outline: 0 !important;
-  border-radius: 100px;
+  border-radius: 100px !important;
   background: var(--faluss-app-accent) !important;
   box-shadow: none !important;
   color: #ffffff !important;
@@ -481,7 +489,21 @@ body.faluss-portal-page {
   -webkit-appearance: none;
   appearance: none;
   -webkit-tap-highlight-color: transparent !important;
+  overflow: hidden;
 }
+.faluss-portal.faluss-portal .faluss-portal__app-action-row,
+.faluss-portal.faluss-portal .faluss-portal__app-action-row::before,
+.faluss-portal.faluss-portal .faluss-portal__app-action-row::after,
+.faluss-portal.faluss-portal .faluss-portal__app-action::before,
+.faluss-portal.faluss-portal .faluss-portal__app-action::after {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+.faluss-portal.faluss-portal .faluss-portal__app-action,
+.faluss-portal.faluss-portal .faluss-portal__app-action::before,
+.faluss-portal.faluss-portal .faluss-portal__app-action::after { border-radius: 100px !important; }
 .faluss-portal__app-action--unavailable { cursor: default; }
 .faluss-portal__app-card[data-faluss-app="fans"] .faluss-portal__app-action { color: #111111 !important; }
 .faluss-portal__app-current-message {
@@ -686,16 +708,17 @@ body.faluss-portal-page {
   .faluss-portal__tab { min-height: 36px; padding: 0; font-size: 12.5px; letter-spacing: -.03em; }
   .faluss-portal__content { margin-top: 52px; }
   .faluss-portal__apps { gap: 8px; margin-top: -44px; padding-bottom: 18px; }
-  .faluss-portal__app-card { border-radius: 27px; }
+  .faluss-portal__app-card {
+    --faluss-app-logo-size: 46px;
+    --faluss-app-head-size: 52px;
+    --faluss-app-open-size: 52px;
+    border-radius: 27px;
+  }
   .faluss-portal__app-card--compact { min-height: 116px; padding: 21px 20px; }
   .faluss-portal__app-card--explore { padding: 26px 22px 28px; }
-  .faluss-portal__app-card--compact .faluss-portal__app-head { grid-template-columns: 46px minmax(0, 1fr) 52px; }
-  .faluss-portal__app-card--explore .faluss-portal__app-head { grid-template-columns: 46px minmax(0, 1fr); }
   .faluss-portal__app-head { gap: 14px; }
-  .faluss-portal__app-logo { width: 46px; height: 46px; }
   .faluss-portal__app-name { font-size: 20px; }
   .faluss-portal__app-subtitle { font-size: 16px; }
-  .faluss-portal__app-open { width: 52px; height: 52px; }
   .faluss-portal__app-open svg { width: 22px; height: 22px; }
   .faluss-portal__app-description { margin: 24px 0 25px; font-size: 16.5px; line-height: 1.44; }
   .faluss-portal__app-action { min-width: 164px; min-height: 46px; font-size: 16px; }
