@@ -219,20 +219,22 @@ mêmes variables CSS `--faluss-app-accent` et
 `--faluss-app-title-accent`. Explorer ajoute uniquement la description et son
 action d'état ; aucune seconde variante de données n'existe.
 
-AP-01D conserve ce renderer et ce registre sans variation : son header unique
+AP-01E conserve ce renderer et ce registre sans variation : son header unique
 aligne verticalement le logo, l'identité et, dans `Mes apps`, l'action de droite.
 Les limites visuelles mobiles restent explicites pour Hub `18 × 22 px`, Date
 `23 × 23 px` et Pro `21.28 × 23 px`. La contrainte Me `12.43 × 23 px` est
 abandonnée : elle rognait son asset officiel transparent sur certains moteurs
-mobiles. Me rend désormais le canevas officiel entier, non déformé, dans une
-boîte de `40 × 40 px` sur mobile (`53 × 53 px` hors breakpoint mobile), sans
-fenêtre de découpe, position absolue ni offset. Sa colonne de mise en page
-reste distincte de la boîte de l'asset par
-`--faluss-app-logo-track-width` ; titre, sous-titre et action conservent donc
-leur position tandis que le centre visuel du glyphe reste aligné avec le groupe
-identité. `object-fit: contain` préserve les proportions. Explorer place
-description et action après le header. La zone Fans reste vide tant qu'aucun
-logo officiel n'existe.
+mobiles. Un seul track `--faluss-app-logo-column-width`, issu de la géométrie
+de Hub (`18 px` sur mobile), détermine désormais le début commun des identités
+Hub, Me, Date et Pro. Le canevas Me ne participe plus jamais à cette largeur :
+son wrapper conserve ce track, alors que l'image officielle entière est centrée
+dedans à `48 × 48 px` sur mobile (`53 × 53 px` hors breakpoint mobile). Ainsi,
+son glyphe peint reste dans l'espace logo compris avant l'identité, sans
+collision avec le texte et sans fenêtre de découpe, position absolue ni offset.
+`object-fit: contain` préserve les proportions et le centre vertical du glyphe
+reste aligné avec le groupe titre/sous-titre. Explorer place description et
+action après le header. La zone Fans reste vide tant qu'aucun logo officiel
+n'existe.
 `Vous êtes ici` emploie le même rayon effectif de `100 px` que les autres
 actions, y compris face aux états et pseudo-éléments injectés par le navigateur
 ou Elementor.

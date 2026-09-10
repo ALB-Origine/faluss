@@ -377,9 +377,9 @@ body.faluss-portal-page {
 .faluss-portal__app-card {
   --faluss-app-accent: #000000;
   --faluss-app-title-accent: #ffffff;
+  --faluss-app-logo-column-width: 22.7px;
   --faluss-app-symbol-width: 29px;
   --faluss-app-symbol-height: 29px;
-  --faluss-app-logo-track-width: var(--faluss-app-symbol-width);
   --faluss-app-asset-width: var(--faluss-app-symbol-width);
   --faluss-app-asset-height: var(--faluss-app-symbol-height);
   --faluss-app-head-size: 72px;
@@ -397,7 +397,7 @@ body.faluss-portal-page {
   isolation: isolate;
 }
 .faluss-portal__app-card[data-faluss-app="hub"] { --faluss-app-symbol-width: 22.7px; --faluss-app-symbol-height: 27.74px; }
-.faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 53px; --faluss-app-symbol-height: 53px; --faluss-app-logo-track-width: 15.67px; --faluss-app-asset-width: 53px; --faluss-app-asset-height: 53px; }
+.faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 22.7px; --faluss-app-symbol-height: 53px; --faluss-app-asset-width: 53px; --faluss-app-asset-height: 53px; }
 .faluss-portal__app-card[data-faluss-app="date"] { --faluss-app-symbol-width: 29px; --faluss-app-symbol-height: 29px; }
 .faluss-portal__app-card[data-faluss-app="pro"] { --faluss-app-symbol-width: 26.84px; --faluss-app-symbol-height: 29px; }
 .faluss-portal__app-card--compact {
@@ -416,8 +416,8 @@ body.faluss-portal-page {
   align-items: center;
   gap: clamp(18px, 3vw, 34px);
 }
-.faluss-portal__app-card--compact .faluss-portal__app-head { grid-template-columns: var(--faluss-app-logo-track-width) minmax(0, 1fr) var(--faluss-app-open-size); }
-.faluss-portal__app-card--explore .faluss-portal__app-head { grid-template-columns: var(--faluss-app-logo-track-width) minmax(0, 1fr); }
+.faluss-portal__app-card--compact .faluss-portal__app-head { grid-template-columns: var(--faluss-app-logo-column-width) minmax(0, 1fr) var(--faluss-app-open-size); }
+.faluss-portal__app-card--explore .faluss-portal__app-head { grid-template-columns: var(--faluss-app-logo-column-width) minmax(0, 1fr); }
 .faluss-portal__app-logo {
   position: relative;
   display: grid;
@@ -438,7 +438,8 @@ body.faluss-portal-page {
   filter: invert(1);
   mix-blend-mode: screen;
 }
-.faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo { overflow: visible; }
+.faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: visible; }
+.faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo img { justify-self: center; align-self: center; }
 .faluss-portal__app-identity { display: grid; min-width: 0; align-content: center; align-self: center; gap: 2px; }
 .faluss-portal__app-name {
   color: #ffffff;
@@ -722,6 +723,7 @@ body.faluss-portal-page {
   .faluss-portal__content { margin-top: 52px; }
   .faluss-portal__apps { gap: 8px; margin-top: -44px; padding-bottom: 18px; }
   .faluss-portal__app-card {
+    --faluss-app-logo-column-width: 18px;
     --faluss-app-symbol-width: 23px;
     --faluss-app-symbol-height: 23px;
     --faluss-app-head-size: 52px;
@@ -729,7 +731,7 @@ body.faluss-portal-page {
     border-radius: 27px;
   }
   .faluss-portal__app-card[data-faluss-app="hub"] { --faluss-app-symbol-width: 18px; --faluss-app-symbol-height: 22px; }
-  .faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 40px; --faluss-app-symbol-height: 40px; --faluss-app-logo-track-width: 12.43px; --faluss-app-asset-width: 40px; --faluss-app-asset-height: 40px; }
+  .faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 18px; --faluss-app-symbol-height: 48px; --faluss-app-asset-width: 48px; --faluss-app-asset-height: 48px; }
   .faluss-portal__app-card[data-faluss-app="date"] { --faluss-app-symbol-width: 23px; --faluss-app-symbol-height: 23px; }
   .faluss-portal__app-card[data-faluss-app="pro"] { --faluss-app-symbol-width: 21.28px; --faluss-app-symbol-height: 23px; }
   .faluss-portal__app-card--compact { min-height: 116px; padding: 21px 20px; }
