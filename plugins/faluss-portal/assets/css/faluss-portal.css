@@ -439,7 +439,7 @@ body.faluss-portal-page {
   mix-blend-mode: screen;
 }
 .faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: visible; }
-.faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo img { justify-self: center; align-self: center; }
+.faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo img { justify-self: center; align-self: center; transform: scale(1.5); transform-origin: center center; }
 .faluss-portal__app-identity { display: grid; min-width: 0; align-content: center; align-self: center; gap: 2px; }
 .faluss-portal__app-name {
   color: #ffffff;
