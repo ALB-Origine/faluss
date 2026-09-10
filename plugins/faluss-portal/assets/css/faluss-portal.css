@@ -379,6 +379,7 @@ body.faluss-portal-page {
   --faluss-app-title-accent: #ffffff;
   --faluss-app-symbol-width: 29px;
   --faluss-app-symbol-height: 29px;
+  --faluss-app-logo-track-width: var(--faluss-app-symbol-width);
   --faluss-app-asset-width: var(--faluss-app-symbol-width);
   --faluss-app-asset-height: var(--faluss-app-symbol-height);
   --faluss-app-head-size: 72px;
@@ -396,7 +397,7 @@ body.faluss-portal-page {
   isolation: isolate;
 }
 .faluss-portal__app-card[data-faluss-app="hub"] { --faluss-app-symbol-width: 22.7px; --faluss-app-symbol-height: 27.74px; }
-.faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 15.67px; --faluss-app-symbol-height: 29px; --faluss-app-asset-width: 53.45px; --faluss-app-asset-height: 53.45px; --faluss-app-me-asset-left: -18.89px; --faluss-app-me-asset-top: -12.225px; }
+.faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 53px; --faluss-app-symbol-height: 53px; --faluss-app-logo-track-width: 15.67px; --faluss-app-asset-width: 53px; --faluss-app-asset-height: 53px; }
 .faluss-portal__app-card[data-faluss-app="date"] { --faluss-app-symbol-width: 29px; --faluss-app-symbol-height: 29px; }
 .faluss-portal__app-card[data-faluss-app="pro"] { --faluss-app-symbol-width: 26.84px; --faluss-app-symbol-height: 29px; }
 .faluss-portal__app-card--compact {
@@ -415,8 +416,8 @@ body.faluss-portal-page {
   align-items: center;
   gap: clamp(18px, 3vw, 34px);
 }
-.faluss-portal__app-card--compact .faluss-portal__app-head { grid-template-columns: var(--faluss-app-symbol-width) minmax(0, 1fr) var(--faluss-app-open-size); }
-.faluss-portal__app-card--explore .faluss-portal__app-head { grid-template-columns: var(--faluss-app-symbol-width) minmax(0, 1fr); }
+.faluss-portal__app-card--compact .faluss-portal__app-head { grid-template-columns: var(--faluss-app-logo-track-width) minmax(0, 1fr) var(--faluss-app-open-size); }
+.faluss-portal__app-card--explore .faluss-portal__app-head { grid-template-columns: var(--faluss-app-logo-track-width) minmax(0, 1fr); }
 .faluss-portal__app-logo {
   position: relative;
   display: grid;
@@ -437,11 +438,7 @@ body.faluss-portal-page {
   filter: invert(1);
   mix-blend-mode: screen;
 }
-.faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo img {
-  position: absolute;
-  left: var(--faluss-app-me-asset-left);
-  top: var(--faluss-app-me-asset-top);
-}
+.faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo { overflow: visible; }
 .faluss-portal__app-identity { display: grid; min-width: 0; align-content: center; align-self: center; gap: 2px; }
 .faluss-portal__app-name {
   color: #ffffff;
@@ -732,7 +729,7 @@ body.faluss-portal-page {
     border-radius: 27px;
   }
   .faluss-portal__app-card[data-faluss-app="hub"] { --faluss-app-symbol-width: 18px; --faluss-app-symbol-height: 22px; }
-  .faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 12.43px; --faluss-app-symbol-height: 23px; --faluss-app-asset-width: 42.36px; --faluss-app-asset-height: 42.36px; --faluss-app-me-asset-left: -14.965px; --faluss-app-me-asset-top: -9.68px; }
+  .faluss-portal__app-card[data-faluss-app="me"] { --faluss-app-symbol-width: 40px; --faluss-app-symbol-height: 40px; --faluss-app-logo-track-width: 12.43px; --faluss-app-asset-width: 40px; --faluss-app-asset-height: 40px; }
   .faluss-portal__app-card[data-faluss-app="date"] { --faluss-app-symbol-width: 23px; --faluss-app-symbol-height: 23px; }
   .faluss-portal__app-card[data-faluss-app="pro"] { --faluss-app-symbol-width: 21.28px; --faluss-app-symbol-height: 23px; }
   .faluss-portal__app-card--compact { min-height: 116px; padding: 21px 20px; }

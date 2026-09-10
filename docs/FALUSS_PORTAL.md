@@ -219,19 +219,20 @@ mêmes variables CSS `--faluss-app-accent` et
 `--faluss-app-title-accent`. Explorer ajoute uniquement la description et son
 action d'état ; aucune seconde variante de données n'existe.
 
-AP-01C conserve ce renderer et ce registre sans variation : son header unique
+AP-01D conserve ce renderer et ce registre sans variation : son header unique
 aligne verticalement le logo, l'identité et, dans `Mes apps`, l'action de droite.
-Chaque symbole possède désormais ses limites visuelles mobiles explicites via
-`--faluss-app-symbol-width` et `--faluss-app-symbol-height` : Hub `18 × 22 px`,
-Me `12.43 × 23 px`, Date `23 × 23 px` et Pro `21.28 × 23 px`. Les fichiers
-officiels restent inchangés, `object-fit: contain` préserve leurs proportions et
-le canevas interne du symbole Me est centré puis masqué dans sa seule boîte
-visuelle, sans translation générique. Son décalage local emploie des offsets
-numériques explicites, plutôt qu'une division `calc()`, afin de ne jamais
-retomber sur l'alignement de repli qui rogne le glyphe hors de sa boîte. Le
-header partagé centre cette boîte et
-le groupe titre/sous-titre ; Explorer place description et action après le
-header. La zone Fans reste vide tant qu'aucun logo officiel n'existe.
+Les limites visuelles mobiles restent explicites pour Hub `18 × 22 px`, Date
+`23 × 23 px` et Pro `21.28 × 23 px`. La contrainte Me `12.43 × 23 px` est
+abandonnée : elle rognait son asset officiel transparent sur certains moteurs
+mobiles. Me rend désormais le canevas officiel entier, non déformé, dans une
+boîte de `40 × 40 px` sur mobile (`53 × 53 px` hors breakpoint mobile), sans
+fenêtre de découpe, position absolue ni offset. Sa colonne de mise en page
+reste distincte de la boîte de l'asset par
+`--faluss-app-logo-track-width` ; titre, sous-titre et action conservent donc
+leur position tandis que le centre visuel du glyphe reste aligné avec le groupe
+identité. `object-fit: contain` préserve les proportions. Explorer place
+description et action après le header. La zone Fans reste vide tant qu'aucun
+logo officiel n'existe.
 `Vous êtes ici` emploie le même rayon effectif de `100 px` que les autres
 actions, y compris face aux états et pseudo-éléments injectés par le navigateur
 ou Elementor.

@@ -97,20 +97,20 @@ ap01_assert( 1 === preg_match( '/\.faluss-portal__app-card\s*\{[^}]*linear-gradi
 ap01_assert( false !== strpos( $css, 'var(--faluss-app-accent)' ) && false !== strpos( $css, 'overflow: hidden' ), 'The shared card must remain variable-driven and horizontally bounded.' );
 foreach ( array(
     'hub'  => array( '18px', '22px' ),
-    'me'   => array( '12.43px', '23px' ),
     'date' => array( '23px', '23px' ),
     'pro'  => array( '21.28px', '23px' ),
 ) as $slug => $size ) {
     $mobile_rule = '/@media \(max-width:\s*720px\).*?\.faluss-portal__app-card\[data-faluss-app="' . preg_quote( $slug, '/' ) . '"\]\s*\{([^}]*)\}/s';
-    ap01_assert( 1 === preg_match( $mobile_rule, $css, $mobile_match ) && false !== strpos( $mobile_match[1], '--faluss-app-symbol-width: ' . $size[0] ) && false !== strpos( $mobile_match[1], '--faluss-app-symbol-height: ' . $size[1] ), 'AP-01C must preserve the exact mobile rendered-symbol dimensions for ' . $slug . '.' );
+    ap01_assert( 1 === preg_match( $mobile_rule, $css, $mobile_match ) && false !== strpos( $mobile_match[1], '--faluss-app-symbol-width: ' . $size[0] ) && false !== strpos( $mobile_match[1], '--faluss-app-symbol-height: ' . $size[1] ), 'AP-01D must preserve the exact mobile rendered-symbol dimensions for ' . $slug . '.' );
 }
+ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s*\{[^}]*--faluss-app-symbol-width:\s*53px;[^}]*--faluss-app-symbol-height:\s*53px;[^}]*--faluss-app-logo-track-width:\s*15\.67px;[^}]*--faluss-app-asset-width:\s*53px;[^}]*--faluss-app-asset-height:\s*53px;/s', $css ), 'AP-01D must give Faluss Me a complete desktop official asset box while retaining the existing identity-column track.' );
+ap01_assert( 1 === preg_match( '/@media \(max-width:\s*720px\).*?data-faluss-app="me"\]\s*\{[^}]*--faluss-app-symbol-width:\s*40px;[^}]*--faluss-app-symbol-height:\s*40px;[^}]*--faluss-app-logo-track-width:\s*12\.43px;[^}]*--faluss-app-asset-width:\s*40px;[^}]*--faluss-app-asset-height:\s*40px;/s', $css ), 'AP-01D must render the whole Faluss Me asset at mobile without treating 12.43px as its symbol width.' );
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-logo\s*\{[^}]*width:\s*var\(--faluss-app-symbol-width\);[^}]*height:\s*var\(--faluss-app-symbol-height\);[^}]*place-items:\s*center;[^}]*overflow:\s*hidden;[^}]*line-height:\s*0;/s', $css ), 'The logo column must expose the actual per-app visual bounds and remove image baseline drift.' );
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-logo img\s*\{[^}]*display:\s*block;[^}]*width:\s*var\(--faluss-app-asset-width\);[^}]*height:\s*var\(--faluss-app-asset-height\);[^}]*max-width:\s*none;[^}]*max-height:\s*none;[^}]*object-fit:\s*contain;[^}]*line-height:\s*0;/s', $css ), 'No global image sizing may override the measured symbol asset dimensions.' );
-ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s*\{[^}]*--faluss-app-symbol-width:\s*12\.43px;[^}]*--faluss-app-symbol-height:\s*23px;[^}]*--faluss-app-asset-width:\s*42\.36px;[^}]*--faluss-app-asset-height:\s*42\.36px;/s', $css ), 'Faluss Me must correct only its own official asset padding inside the measured visible wrapper.' );
-ap01_assert( 1 === preg_match( '/@media \(max-width:\s*720px\).*?data-faluss-app="me"\]\s*\{[^}]*--faluss-app-me-asset-left:\s*-14\.965px;[^}]*--faluss-app-me-asset-top:\s*-9\.68px;/s', $css ), 'Faluss Me must retain its exact mobile local offset inside the visible symbol bounds.' );
-ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s+\.faluss-portal__app-logo img\s*\{[^}]*position:\s*absolute;[^}]*left:\s*var\(--faluss-app-me-asset-left\);[^}]*top:\s*var\(--faluss-app-me-asset-top\);/s', $css ), 'Faluss Me must use explicit local offsets rather than the clipping fallback alignment.' );
-ap01_assert( false === strpos( $css, ' / 2)' ), 'AP-01C must not depend on a runtime calc division for the Faluss Me clipping path.' );
-ap01_assert( 0 === preg_match( '/\.faluss-portal__app-logo(?:\s+img)?\s*\{[^}]*transform:/s', $css ), 'AP-01C must not use a generic logo translation.' );
+ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s+\.faluss-portal__app-logo\s*\{[^}]*overflow:\s*visible;/s', $css ), 'AP-01D must exempt only the official Faluss Me canvas from the generic clipping box.' );
+ap01_assert( false === strpos( $css, 'faluss-app-me-asset-left' ) && false === strpos( $css, 'faluss-app-me-asset-top' ) && 0 === preg_match( '/data-faluss-app="me"\]\s+\.faluss-portal__app-logo img\s*\{[^}]*position:\s*absolute/s', $css ), 'AP-01D must remove every Faluss Me crop offset and absolute clipping path.' );
+ap01_assert( false !== strpos( $css, 'grid-template-columns: var(--faluss-app-logo-track-width) minmax(0, 1fr)' ), 'AP-01D must retain the title, subtitle and compact action columns while the Faluss Me asset box becomes wider.' );
+ap01_assert( 0 === preg_match( '/\.faluss-portal__app-logo(?:\s+img)?\s*\{[^}]*transform:/s', $css ), 'AP-01D must not use a generic logo translation.' );
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-head\s*\{[^}]*min-height:\s*var\(--faluss-app-head-size\);[^}]*align-items:\s*center;/s', $css ) && 1 === preg_match( '/\.faluss-portal__app-card--compact\s*\{[^}]*display:\s*grid;[^}]*align-content:\s*center;/s', $css ), 'The single shared header must center logo, identity and compact action vertically in both card variants.' );
 ap01_assert( 1 === substr_count( $source, '<div class="faluss-portal__app-head">' ), 'Mes apps and Explorer must keep one canonical header emitted by the shared renderer.' );
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-action\s*\{[^}]*display:\s*inline-grid;[^}]*place-items:\s*center;[^}]*border:\s*0 !important;[^}]*outline:\s*0 !important;[^}]*border-radius:\s*100px !important;[^}]*box-shadow:\s*none !important;/s', $css ), 'The real Hub action must remain a centered pill immune to Elementor and browser frames.' );
@@ -135,7 +135,7 @@ ap01_assert( 0 === preg_match( '/[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f
 foreach ( array( 'faluss_id', 'provider_', 'stripe', 'customer', 'subscription' ) as $sensitive ) {
     ap01_assert( false === stripos( $explore_html . $published_owned_html, $sensitive ), 'Apps markup must not expose technical account or billing data: ' . $sensitive );
 }
-foreach ( array( 'AP-01', 'AP-01C', 'Faluss Hub', 'Faluss Me', 'Bientôt disponible', 'Aucun appel', 'inter-domaine', 'preuve locale', '--faluss-app-symbol-width', 'alignement de repli' ) as $needle ) {
+foreach ( array( 'AP-01', 'AP-01D', 'Faluss Hub', 'Faluss Me', 'Bientôt disponible', 'Aucun appel', 'inter-domaine', 'preuve locale', '--faluss-app-logo-track-width', 'fenêtre de découpe' ) as $needle ) {
     ap01_assert( false !== strpos( $documentation, $needle ), 'AP-01 documentation must capture its registry and ownership boundary: ' . $needle );
 }
 
