@@ -86,7 +86,7 @@ $documentation = file_get_contents( $root . '/docs/FALUSS_PORTAL.md' );
 $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 
-foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.4'", 'class-faluss-portal.php' ) as $needle ) {
+foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.5'", 'class-faluss-portal.php' ) as $needle ) {
     pf01_assert( false !== strpos( $bootstrap, $needle ), 'PF-01 requires an isolated versioned Faluss Portal plugin: ' . $needle );
 }
 foreach ( array( "add_shortcode( self::SHORTCODE", "[faluss_portal]", 'Faluss_Identity_Client_Schema::tables()', 'WHERE wp_user_id = %d', "array( 'subscriber' )", 'Faluss_Identity_Client::button' ) as $needle ) {
@@ -152,26 +152,42 @@ pf01_assert( false === strpos( $source, "number_format_i18n( \$points" ) && fals
 foreach ( array( '--fp-sidebar-indicator-y', '--fp-tab-indicator-x', 'backdrop-filter', ':focus-visible', 'prefers-reduced-motion', 'aspect-ratio: 1', 'position: fixed', 'grid-template-columns: 30px minmax(0, 1fr) 30px', 'margin-top: auto' ) as $needle ) {
     pf01_assert( false !== strpos( $css, $needle ), 'The shell must retain visual indicators, footer glass, local focus control and reduced-motion support: ' . $needle );
 }
-pf01_assert( false !== strpos( $css, 'outline: 0 !important') && false !== strpos( $css, '-webkit-tap-highlight-color: transparent !important') && false !== strpos( $css, '.faluss-portal.faluss-portal .faluss-portal__sidebar-toggle-cell:focus-within') && false !== strpos( $css, '.faluss-portal.faluss-portal .faluss-portal__member-cell:focus-within') && false !== strpos( $css, '.faluss-portal.faluss-portal .faluss-portal__master-close-cell:focus-within') && false === strpos( $css, 'outline: 2px') && false === strpos( $css, 'outline: 3px'), 'PF-01D must override browser, Safari and Elementor focus/tap frames on controls and their cells inside the portal.' );
+pf01_assert( false !== strpos( $css, 'outline: 0 !important') && false !== strpos( $css, '-webkit-tap-highlight-color: transparent !important') && false !== strpos( $css, '.faluss-portal.faluss-portal .faluss-portal__sidebar-chevron-cell:focus-within') && false !== strpos( $css, '.faluss-portal.faluss-portal .faluss-portal__sidebar-avatar-cell:focus-within') && false !== strpos( $css, '.faluss-portal.faluss-portal .faluss-portal__master-chevron-cell:focus-within') && false === strpos( $css, 'outline: 2px') && false === strpos( $css, 'outline: 3px'), 'PF-01E must override browser, Safari and Elementor focus/tap frames on controls and their cells inside the portal.' );
 pf01_assert( 0 === preg_match( '/faluss-portal__nav-link(?:\\:hover|\\.is-active)\\s*\\{[^}]*background/s', $css ), 'Sidebar state must move only the indicator and outline, never recolour an icon bubble.' );
 pf01_assert( false === strpos( $source, 'faluss-portal__member-card' ) && false === strpos( $css, '.faluss-portal__member-card' ), 'PF-01C must remove the lower member card from markup and every viewport.' );
-pf01_assert( false !== strpos( $source, 'data-faluss-portal-profile-open' ) && false !== strpos( $source, 'faluss-portal__member-compact' ), 'The sidebar avatar must remain the sole Master Profile entry point.' );
+pf01_assert( false !== strpos( $source, 'data-faluss-portal-profile-open' ) && false !== strpos( $source, 'faluss-portal__sidebar-avatar-trigger' ), 'The independent sidebar avatar trigger must remain the sole Master Profile entry point.' );
 foreach ( array( 'width: 30px', 'height: 30px', 'border-radius: 100px', 'data-chevron-direction="left"', 'faluss-portal__chevron-path--right' ) as $needle ) {
-    pf01_assert( false !== strpos( $source . $css, $needle ), 'The shell and profile must share the exact non-rotating 30 px chevron geometry: ' . $needle );
+    pf01_assert( false !== strpos( $source . $css, $needle ), 'The two independent chevron controls must retain the exact non-rotating 30 px geometry: ' . $needle );
 }
 pf01_assert( false === strpos( $css, 'rotate(' ), 'Neither shell chevron may rotate when the sidebar changes state.' );
-foreach ( array( 'faluss-portal__sidebar-toggle-cell', 'faluss-portal__member-cell', 'faluss-portal__master-close-cell' ) as $needle ) {
-    pf01_assert( false !== strpos( $source . $css, $needle ), 'Each PF-01D control must be centered by its own layout cell: ' . $needle );
+foreach ( array( 'faluss-portal__sidebar-chevron-cell', 'faluss-portal__sidebar-avatar-cell', 'faluss-portal__master-chevron-cell', 'data-faluss-portal-control="sidebar-chevron"', 'data-faluss-portal-control="master-chevron"', 'data-faluss-portal-control="sidebar-avatar"' ) as $needle ) {
+    pf01_assert( false !== strpos( $source . $css, $needle ), 'Each PF-01E control must be centered by its own named layout cell: ' . $needle );
 }
-pf01_assert( 1 === preg_match( '/\.faluss-portal__sidebar-toggle-cell\s*\{[^}]*display:\s*grid;[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*place-items:\s*center;/s', $css ), 'The sidebar toggle cell must own the local placement geometry.' );
-pf01_assert( 1 === preg_match( '/\.faluss-portal__member-cell\s*\{[^}]*display:\s*grid;[^}]*margin-top:\s*auto;[^}]*place-items:\s*center;/s', $css ), 'The bottom sidebar cell must push and center the avatar.' );
-pf01_assert( 1 === preg_match( '/\.faluss-portal__master-close-cell\s*\{[^}]*display:\s*grid;[^}]*width:\s*30px;[^}]*height:\s*30px;[^}]*place-items:\s*center;/s', $css ), 'The Master Profile return cell must center its 30px button.' );
+pf01_assert( false === strpos( $source . $css, 'faluss-portal__chevron-button' ) && false === strpos( $source . $css, 'faluss-portal__member-compact' ), 'The former shared chevron and navigation-bubble avatar templates must be absent.' );
+pf01_assert( 1 === preg_match( '/\.faluss-portal__sidebar-chevron-cell\s*\{[^}]*display:\s*grid;[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*place-items:\s*center;/s', $css ), 'The independent sidebar chevron cell must own the local placement geometry.' );
+pf01_assert( 1 === preg_match( '/\.faluss-portal__sidebar-avatar-cell\s*\{[^}]*display:\s*grid;[^}]*margin-top:\s*auto;[^}]*place-items:\s*center;/s', $css ), 'The independent bottom sidebar cell must push and center the avatar.' );
+pf01_assert( 1 === preg_match( '/\.faluss-portal__master-chevron-cell\s*\{[^}]*display:\s*grid;[^}]*width:\s*30px;[^}]*height:\s*30px;[^}]*place-items:\s*center;/s', $css ), 'The independent Master Profile return cell must center its 30px control.' );
+foreach ( array( 'faluss-portal__sidebar-chevron-control', 'faluss-portal__master-chevron-control', 'faluss-portal__sidebar-avatar-trigger' ) as $control ) {
+    $control_rule = preg_match( '/\.' . preg_quote( $control, '/' ) . '\s*\{([^}]*)\}/s', $css, $control_match ) ? $control_match[1] : '';
+    pf01_assert( false !== strpos( $control_rule, 'display: grid' ) && false !== strpos( $control_rule, 'place-items: center' ), 'Each independent control must center its own visual: ' . $control );
+    pf01_assert( false !== strpos( $control_rule, 'border: 0 !important' ) && false !== strpos( $control_rule, 'outline: 0 !important' ) && false !== strpos( $control_rule, 'box-shadow: none !important' ) && false !== strpos( $control_rule, '-webkit-tap-highlight-color: transparent' ), 'Each independent control must defeat every injected frame: ' . $control );
+    pf01_assert( false === strpos( $control_rule, 'position:' ) && false === strpos( $control_rule, 'translate' ) && false === strpos( $control_rule, 'left:' ) && false === strpos( $control_rule, 'bottom:' ), 'A control visual must not be offset inside its own cell: ' . $control );
+}
+foreach ( array( 'faluss-portal__sidebar-chevron-control', 'faluss-portal__master-chevron-control' ) as $control ) {
+    $control_rule = preg_match( '/\.' . preg_quote( $control, '/' ) . '\s*\{([^}]*)\}/s', $css, $control_match ) ? $control_match[1] : '';
+    pf01_assert( false !== strpos( $control_rule, 'width: 30px' ) && false !== strpos( $control_rule, 'height: 30px' ) && false !== strpos( $control_rule, 'background: transparent !important' ), 'Each chevron must have a transparent exact 30px hit area: ' . $control );
+}
+pf01_assert( false !== strpos( $css, '.faluss-portal__sidebar-avatar-trigger .faluss-portal__avatar--sidebar { width: 44px; height: 44px; flex-basis: 44px; }' ) && false !== strpos( $css, '.faluss-portal__sidebar-avatar-trigger .faluss-portal__avatar--sidebar { width: 42px; height: 42px; flex-basis: 42px; }' ), 'The avatar must match the mobile navigation bubble at both responsive breakpoints.' );
+pf01_assert( 1 === preg_match( '/\.faluss-portal\s*\{[^}]*height:\s*100svh;[^}]*overflow:\s*hidden;/s', $css ) && 1 === preg_match( '/\.faluss-portal__main\s*\{[^}]*height:\s*100svh;[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;/s', $css ) && 1 === preg_match( '/\.faluss-portal__sidebar\s*\{[^}]*position:\s*sticky;[^}]*height:\s*100svh;[^}]*overflow:\s*hidden;/s', $css ), 'The viewport shell must keep the sticky sidebar fixed while only the gray panel scrolls vertically.' );
+pf01_assert( false !== strpos( $css, '.faluss-portal__sidebar-avatar-trigger .faluss-portal__avatar--sidebar {' ) && false !== strpos( $css, 'width: 48px;' ) && false !== strpos( $css, 'height: 48px;' ), 'The desktop avatar must match the 48px desktop navigation bubbles.' );
+pf01_assert( 1 === preg_match( '/\.faluss-portal__profile-edit\s*\{[^}]*width:\s*100%;[^}]*border:\s*0;[^}]*border-radius:\s*999px;[^}]*background:\s*#000;[^}]*color:\s*#fff;/s', $css ), 'The Master Profile edit CTA must use the full-width black Faluss primary treatment.' );
 $tabs_rule = preg_match( '/\.faluss-portal__tabs\s*\{([^}]*)\}/s', $css, $tabs_match ) ? $tabs_match[1] : '';
 pf01_assert( false !== strpos( $tabs_rule, 'width: calc(100% - var(--fp-context-edge) - var(--fp-context-edge))') && false !== strpos( $tabs_rule, 'margin-inline: auto'), 'The contextual bar must fill the gray content panel with symmetric local margins.' );
 pf01_assert( false === strpos( $tabs_rule, '100vw') && false === strpos( $tabs_rule, '50vw') && false === strpos( $tabs_rule, '--fp-sidebar') && false === strpos( $tabs_rule, 'translateX'), 'The contextual bar must never be positioned from the viewport or sidebar.' );
 pf01_assert( false === strpos( $source, 'faluss-portal__header' ) && 1 === preg_match( '/<main class="faluss-portal__main">.*?<\?php foreach \( self::TABS as \$section => \$tabs \) : \?>\s*<nav class="faluss-portal__tabs/s', $source ), 'Every contextual bar must be rendered directly under the gray main content panel.' );
 pf01_assert( false !== strpos( $css, 'padding: max(50px, calc(env(safe-area-inset-top) + 42px)) 0'), 'The mobile contextual bar must clear the locally centered sidebar toggle cell without changing horizontal geometry.' );
 pf01_assert( 1 === preg_match( '/\.faluss-portal__tab\s*\{[^}]*flex:\s*1 1 0;[^}]*min-width:\s*0;/s', $css ), 'All contextual labels must receive equal segments independent of label length.' );
+pf01_assert( false !== strpos( $css, 'font-size: clamp(17px, calc(2vw + 2px), 24px)' ) && false !== strpos( $css, 'font-size: 12.5px' ), 'PF-01E must add exactly 2px to contextual labels without changing their segment geometry.' );
 pf01_assert( false !== strpos( $css, '.faluss-portal :where(button, a)') && 0 === preg_match( '/\.faluss-portal a\s*\{[^}]*font:\s*inherit/s', $css ), 'The portal reset must not outrank contextual tab typography.' );
 pf01_assert( false === strpos( $css, '.faluss-portal__tabs[data-faluss-portal-tabs="analytics"]') && false === strpos( $css, '.faluss-portal__tabs[data-faluss-portal-tabs="settings"]'), 'No label-length-specific contextual geometry may compress a section.' );
 foreach ( array( 'tabGroup.clientWidth', 'tabLinks.length', 'activeIndex * segmentWidth' ) as $needle ) {
@@ -195,8 +211,8 @@ pf01_assert( false === strpos( $javascript, 'fetch(' ) && false === strpos( $jav
 foreach ( array( 'sources de vérité', 'Master Profile', 'Point Faluss', 'faluss_pf', 'ALB / Alternative LAB', 'crée aucune', 'trialing', 'Customer Portal' ) as $needle ) {
     pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01 documentation is missing its architecture or data-boundary contract: ' . $needle );
 }
-foreach ( array( 'PF-01D', 'Aucune carte membre basse', 'unique', '30 × 30 px', 'cellule locale', 'retrait symétrique de `18 px`', 'flex: 1 1 0' ) as $needle ) {
-    pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01D documentation must capture the approved local-panel visual and interaction boundary: ' . $needle );
+foreach ( array( 'PF-01E', 'Aucune carte membre basse', 'composants distincts', '30 × 30 px', 'margin-top: auto', 'retrait symétrique de `18 px`', 'flex: 1 1 0', '100svh', 'seul défilement vertical', '`2 px`' ) as $needle ) {
+    pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01E documentation must capture the approved local-panel visual and interaction boundary: ' . $needle );
 }
 pf01_assert( false !== strpos( $architecture, 'Faluss Portal' ) && false !== strpos( $data_model, '## Faluss Portal' ), 'Architecture and data-model documentation must register the new read-only portal boundary.' );
 pf01_assert( 0 === preg_match( '/(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{10,}/', $source . $javascript . $css ), 'PF-01 must not contain a Stripe key.' );

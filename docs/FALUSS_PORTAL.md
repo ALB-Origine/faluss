@@ -1,4 +1,4 @@
-# PF-01D - Faluss Portal Foundation
+# PF-01E - Faluss Portal Foundation
 
 ## Statut et frontière
 
@@ -8,12 +8,13 @@ Il rend le shortcode `[faluss_portal]` destiné à la page privée
 crée aucune identité, donnée d'abonnement, transaction, facture, préférence
 transversale ou profil universel.
 
-PF-01D aligne ce socle sur les frames et les captures réelles Shell, Master
+PF-01E aligne ce socle sur les frames et les captures réelles Shell, Master
 Profile, Abonnement et Facturation. Le shell conserve une sidebar, ses bulles
 monochromes, l'indicateur vertical noir, les pills contextuelles noires, le
 panneau clair et l'accès profil par l'avatar de sidebar uniquement. La mise en oeuvre reste une grille
-responsive : aucun cadre figé, positionnement absolu de page ou scroll imbriqué
-n'est utilisé.
+responsive : aucun cadre figé ou positionnement absolu de page n'est utilisé.
+La grille est limitée à `100svh` ; la sidebar reste immobile et non défilante,
+tandis que le seul défilement vertical du shell appartient au panneau gris.
 
 La hiérarchie de navigation est contractuelle : le mot-symbole Faluss ouvre
 `Accueil`, suivi de `Apps Faluss`, puis du seul séparateur, puis `Analytics`,
@@ -102,9 +103,9 @@ fermeture et réduction de mouvement, sans déplacer programmatiquement le focus
 Il monte depuis le bas à l'ouverture et redescend à la fermeture ; l'opacité
 n'est jamais le mécanisme de transition. Ses trois onglets partagent un unique
 indicateur noir déplacé par `transform` et ne créent aucune copie de données.
-Son en-tête utilise une grille symétrique — flèche ronde, tabs
-centrés, réserve droite équivalente — et son CTA profil conserve l'accent rouge
-avec un texte blanc :
+Son en-tête utilise une grille symétrique — chevron transparent, tabs
+centrés, réserve droite équivalente. En PF-01E, son CTA profil adopte le bouton primaire noir Faluss.com,
+pleine largeur, avec icône et texte blancs :
 
 | Onglet | Données PF-01 | Ce qui reste hors périmètre |
 | --- | --- | --- |
@@ -149,24 +150,26 @@ panneau sans rechargement, mettre à jour l'historique et déplacer les deux
 indicateurs par `transform`. Sans JavaScript, les mêmes liens rechargent la
 bonne vue. Les animations disparaissent sous `prefers-reduced-motion`.
 
-Le bouton rond situé dans le panneau principal replie la sidebar et étend la
+Le contrôle situé dans le panneau principal replie la sidebar et étend la
 surface de contenu sans rechargement. Son état `aria-expanded`, son libellé et
 la préférence locale `falussPortalSidebarCollapsed` restent synchronisés. Un
 refus de `localStorage` n'empêche pas le contrôle de fonctionner pendant la
-page courante. Ce bouton et le retour du Master Profile emploient le même
-chevron statique `30 × 30 px`, à bordure neutre et sans rotation. Le contrôle
-de sidebar est centré dans une cellule locale `44 × 44 px` ancrée en haut à
-gauche du panneau principal. La cellule, et jamais le bouton, gère sa position.
-Le retour du Master Profile et l'avatar bas suivent la même règle : une cellule
-de grille centre géométriquement le contrôle sans marge, translation ou offset
-porté par le bouton.
+page courante. Le chevron sidebar et le chevron retour du Master Profile sont
+deux composants distincts ; ils partagent uniquement le SVG statique noir,
+sans rotation. Chacun possède une zone transparente `30 × 30 px`, sans bordure,
+centrée par sa propre cellule en grille. Le déclencheur avatar est un troisième
+composant indépendant : sa cellule utilise `margin-top: auto`, son disque est
+centré et reprend exactement le diamètre des bulles de navigation du breakpoint
+courant (`48 px`, `44 px` sur mobile, `42 px` sur écran bas).
 
 Les contrôles actifs ne changent pas la couleur de leurs icônes. Les éléments
-interactifs restent sémantiques, mais PF-01D neutralise explicitement et
+interactifs restent sémantiques, mais PF-01E neutralise explicitement et
 uniquement dans le portail les contours, ombres, bordures colorées et
 `-webkit-tap-highlight-color` injectés par le navigateur, Safari ou Elementor
-sur `focus`, `focus-visible` et `active`. Aucun script ne force le focus à
-l'ouverture du profil.
+sur les cellules, contrôles, icônes, avatar, pseudo-éléments et états `hover`,
+`focus`, `focus-visible` et `active`. Aucun script ne force le focus à
+l'ouverture du profil. Les trois zones restent de vrais boutons libellés pour
+les technologies d'assistance, sans habillage visuel parasite.
 
 Le header contextuel est un enfant direct du panneau gris. Sa barre utilise
 `100%` de la largeur locale du panneau, avec un retrait symétrique de `18 px`,
@@ -174,7 +177,9 @@ et `margin-inline: auto`. Elle ne contient aucune largeur ou translation liée
 au viewport ou à la sidebar. Tous ses segments utilisent `flex: 1 1 0` : Vue,
 Performance, Revenus et Sources reçoivent donc la même largeur, indépendamment
 de leurs libellés. L'indicateur noir calcule son déplacement uniquement depuis
-la largeur intérieure de cette barre locale.
+la largeur intérieure de cette barre locale. PF-01E ne change ni cette
+géométrie, ni le retrait, ni le centrage : seuls les labels gagnent exactement
+`2 px`, dont `12.5 px` sur mobile, sans règle particulière pour Analytics.
 
 ## Installation et recette technique
 

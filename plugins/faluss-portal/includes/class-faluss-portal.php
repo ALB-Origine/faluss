@@ -5,7 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * PF-01D front-office boundary.
+ * PF-01E front-office boundary.
  *
  * This plugin deliberately owns neither identity nor subscription data. It
  * starts with the local, authenticated Identity Client link and projects only
@@ -261,13 +261,13 @@ final class Faluss_Portal {
                         <a class="faluss-portal__nav-link<?php echo $section === $route['section'] ? ' is-active' : ''; ?>" href="<?php echo esc_url( self::portal_url( $section, self::TABS[ $section ][0] ) ); ?>" data-faluss-portal-nav="<?php echo esc_attr( $section ); ?>" data-faluss-portal-tab="<?php echo esc_attr( self::TABS[ $section ][0] ); ?>" data-faluss-portal-sidebar-item<?php echo $section === $route['section'] ? ' aria-current="page"' : ''; ?>><span class="faluss-portal__nav-icon" aria-hidden="true"><?php echo self::icon( $section ); ?></span><span class="screen-reader-text"><?php echo esc_html( self::SECTION_LABELS[ $section ] ); ?></span></a>
                     <?php endforeach; ?>
                 </nav>
-                <div class="faluss-portal__member-cell">
-                    <button class="faluss-portal__member-compact" type="button" data-faluss-portal-profile-open aria-haspopup="dialog" aria-controls="faluss-portal-master-profile" aria-label="Ouvrir le profil membre"><span class="faluss-portal__avatar faluss-portal__avatar--small" aria-hidden="true"></span></button>
+                <div class="faluss-portal__sidebar-avatar-cell" data-faluss-portal-control="sidebar-avatar">
+                    <button class="faluss-portal__sidebar-avatar-trigger" type="button" data-faluss-portal-profile-open aria-haspopup="dialog" aria-controls="faluss-portal-master-profile" aria-label="Ouvrir le profil membre"><span class="faluss-portal__avatar faluss-portal__avatar--sidebar" aria-hidden="true"></span></button>
                 </div>
             </aside>
             <main class="faluss-portal__main">
-                <div class="faluss-portal__sidebar-toggle-cell">
-                    <button class="faluss-portal__chevron-button faluss-portal__sidebar-toggle" type="button" data-faluss-portal-sidebar-toggle data-chevron-direction="left" aria-controls="faluss-portal-sidebar" aria-expanded="true"><?php echo self::chevron_icon(); ?><span class="screen-reader-text">Replier la navigation</span></button>
+                <div class="faluss-portal__sidebar-chevron-cell" data-faluss-portal-control="sidebar-chevron">
+                    <button class="faluss-portal__sidebar-chevron-control" type="button" data-faluss-portal-sidebar-toggle data-chevron-direction="left" aria-controls="faluss-portal-sidebar" aria-expanded="true"><?php echo self::chevron_icon(); ?><span class="screen-reader-text">Replier la navigation</span></button>
                 </div>
                 <?php foreach ( self::TABS as $section => $tabs ) : ?>
                     <nav class="faluss-portal__tabs<?php echo $section === $route['section'] ? ' is-active' : ''; ?>" data-faluss-portal-tabs="<?php echo esc_attr( $section ); ?>" aria-label="<?php echo esc_attr( 'Navigation ' . self::SECTION_LABELS[ $section ] ); ?>"<?php echo $section === $route['section'] ? '' : ' hidden'; ?>>
@@ -416,8 +416,8 @@ final class Faluss_Portal {
         <dialog class="faluss-portal__master" id="faluss-portal-master-profile" data-faluss-portal-master aria-labelledby="faluss-portal-master-title">
             <div class="faluss-portal__master-surface">
                 <header class="faluss-portal__master-header">
-                    <span class="faluss-portal__master-close-cell">
-                        <button class="faluss-portal__chevron-button faluss-portal__master-close" type="button" data-faluss-portal-profile-close data-chevron-direction="left" aria-label="Fermer mon profil"><?php echo self::chevron_icon(); ?></button>
+                    <span class="faluss-portal__master-chevron-cell" data-faluss-portal-control="master-chevron">
+                        <button class="faluss-portal__master-chevron-control" type="button" data-faluss-portal-profile-close data-chevron-direction="left" aria-label="Fermer mon profil"><?php echo self::chevron_icon(); ?></button>
                     </span>
                     <nav class="faluss-portal__master-tabs" aria-label="Profil membre" role="tablist">
                         <span class="faluss-portal__master-tab-indicator" aria-hidden="true"></span>
