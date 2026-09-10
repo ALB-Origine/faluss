@@ -1,4 +1,4 @@
-# PF-01C - Faluss Portal Foundation
+# PF-01D - Faluss Portal Foundation
 
 ## Statut et frontière
 
@@ -8,7 +8,7 @@ Il rend le shortcode `[faluss_portal]` destiné à la page privée
 crée aucune identité, donnée d'abonnement, transaction, facture, préférence
 transversale ou profil universel.
 
-PF-01C aligne ce socle sur les frames et les captures réelles Shell, Master
+PF-01D aligne ce socle sur les frames et les captures réelles Shell, Master
 Profile, Abonnement et Facturation. Le shell conserve une sidebar, ses bulles
 monochromes, l'indicateur vertical noir, les pills contextuelles noires, le
 panneau clair et l'accès profil par l'avatar de sidebar uniquement. La mise en oeuvre reste une grille
@@ -155,14 +155,26 @@ la préférence locale `falussPortalSidebarCollapsed` restent synchronisés. Un
 refus de `localStorage` n'empêche pas le contrôle de fonctionner pendant la
 page courante. Ce bouton et le retour du Master Profile emploient le même
 chevron statique `30 × 30 px`, à bordure neutre et sans rotation. Le contrôle
-de sidebar est placé à `7 px` du haut et de la gauche du panneau principal.
+de sidebar est centré dans une cellule locale `44 × 44 px` ancrée en haut à
+gauche du panneau principal. La cellule, et jamais le bouton, gère sa position.
+Le retour du Master Profile et l'avatar bas suivent la même règle : une cellule
+de grille centre géométriquement le contrôle sans marge, translation ou offset
+porté par le bouton.
 
 Les contrôles actifs ne changent pas la couleur de leurs icônes. Les éléments
-interactifs restent sémantiques, mais PF-01C neutralise localement tout rendu
-visuel de `:focus`, `:focus-visible` et les contaminations Elementor associées.
-Aucun script ne force le focus à l'ouverture du profil. Les tabs contextuels
-occupent une largeur responsive et sont centrés sur la fenêtre complète, pas
-sur la seule colonne restante après la sidebar.
+interactifs restent sémantiques, mais PF-01D neutralise explicitement et
+uniquement dans le portail les contours, ombres, bordures colorées et
+`-webkit-tap-highlight-color` injectés par le navigateur, Safari ou Elementor
+sur `focus`, `focus-visible` et `active`. Aucun script ne force le focus à
+l'ouverture du profil.
+
+Le header contextuel est un enfant direct du panneau gris. Sa barre utilise
+`100%` de la largeur locale du panneau, avec un retrait symétrique de `18 px`,
+et `margin-inline: auto`. Elle ne contient aucune largeur ou translation liée
+au viewport ou à la sidebar. Tous ses segments utilisent `flex: 1 1 0` : Vue,
+Performance, Revenus et Sources reçoivent donc la même largeur, indépendamment
+de leurs libellés. L'indicateur noir calcule son déplacement uniquement depuis
+la largeur intérieure de cette barre locale.
 
 ## Installation et recette technique
 

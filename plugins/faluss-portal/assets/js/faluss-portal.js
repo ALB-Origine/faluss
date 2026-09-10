@@ -64,13 +64,15 @@
       }
       const tabGroup = root.querySelector(`[data-faluss-portal-tabs="${state.section}"]`);
       const tabIndicator = tabGroup && tabGroup.querySelector('.faluss-portal__tab-indicator');
-      const tabLink = root.querySelector(`.faluss-portal__tab[data-faluss-portal-nav="${state.section}"][data-faluss-portal-tab="${state.tab}"]`);
-      if (tabIndicator && tabLink) {
-        const parent = tabIndicator.parentElement.getBoundingClientRect();
-        const target = tabLink.getBoundingClientRect();
-        const inset = Number.parseFloat(window.getComputedStyle(tabIndicator.parentElement).paddingLeft) || 0;
-        root.style.setProperty('--fp-tab-indicator-x', `${target.left - parent.left - inset}px`);
-        root.style.setProperty('--fp-tab-indicator-w', `${target.width}px`);
+      const tabLinks = tabGroup ? [...tabGroup.querySelectorAll('.faluss-portal__tab')] : [];
+      const activeIndex = tabLinks.findIndex((link) => link.dataset.falussPortalTab === state.tab);
+      if (tabIndicator && tabLinks.length && activeIndex >= 0) {
+        const styles = window.getComputedStyle(tabGroup);
+        const insetStart = Number.parseFloat(styles.paddingLeft) || 0;
+        const insetEnd = Number.parseFloat(styles.paddingRight) || 0;
+        const segmentWidth = Math.max(0, tabGroup.clientWidth - insetStart - insetEnd) / tabLinks.length;
+        root.style.setProperty('--fp-tab-indicator-x', `${activeIndex * segmentWidth}px`);
+        root.style.setProperty('--fp-tab-indicator-w', `${segmentWidth}px`);
       }
     };
 
