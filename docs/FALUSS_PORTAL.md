@@ -1,4 +1,4 @@
-# PF-01 - Faluss Portal Foundation
+# PF-01B - Faluss Portal Foundation
 
 ## Statut et frontière
 
@@ -8,11 +8,20 @@ Il rend le shortcode `[faluss_portal]` destiné à la page privée
 crée aucune identité, donnée d'abonnement, transaction, facture, préférence
 transversale ou profil universel.
 
-La planche Shell, Master Profile, Abonnement et Facturation est sa référence
-visuelle. Le shell conserve une sidebar, ses bulles monochromes, l'indicateur
-vertical noir, les pills contextuelles noires, le panneau clair et la carte
-membre glass. La mise en oeuvre reste une grille responsive : aucun cadre
-figé, positionnement absolu de page ou scroll imbriqué n'est utilisé.
+PF-01B aligne ce socle sur les frames et les captures réelles Shell, Master
+Profile, Abonnement et Facturation. Le shell conserve une sidebar, ses bulles
+monochromes, l'indicateur vertical noir, les pills contextuelles noires, le
+panneau clair et la carte membre glass. La mise en oeuvre reste une grille
+responsive : aucun cadre figé, positionnement absolu de page ou scroll imbriqué
+n'est utilisé.
+
+La hiérarchie de navigation est contractuelle : le mot-symbole Faluss ouvre
+`Accueil`, suivi de `Apps Faluss`, puis du seul séparateur, puis `Analytics`,
+`Abonnement`, `Facturation`, `Paramètres` et `Aide`. Le mot-symbole remplace le
+bouton Accueil ; aucun second bouton Accueil n'est rendu. L'indicateur actif est
+une barre noire fixée au bord gauche de l'écran et déplacée physiquement vers
+le contrôle actif. Sur desktop, l'avatar seul reste au bas de la sidebar ; sur
+mobile, la carte membre glass horizontale occupe le bas du contenu.
 
 ## Accès et sources de vérité
 
@@ -33,6 +42,21 @@ URL, d'un onglet, d'un formulaire ou de JavaScript. Un visiteur non connecté
 ne reçoit que le bouton **Continuer avec Faluss** de Faluss Identity Client ;
 aucun login, compte local ou lien d'identité n'est créé hors SSO.
 
+L'état d'accès utilise toute la surface du viewport et centre une carte de
+connexion de largeur lisible, y compris lorsqu'Elementor contient le shortcode
+dans une colonne. Le bouton interne **Continuer avec Faluss** transmet toujours
+l'URL locale exacte `https://faluss.com/mon-faluss/` en production. Faluss
+Portal ajoute cette URL à l'allowlist du client Identity au moment de la
+lecture, sans écrire son option et sans dépendre du réglage manuel d'un autre
+widget. Le client SSO conserve ses validations same-site, state et PKCE, puis
+revient sur l'URL nue, sans paramètres OAuth. Le portail ne modifie ni le
+protocole ni Faluss Identity.
+
+Sur le front-office, la barre d'administration WordPress est masquée pour les
+membres sans capacité éditoriale ou d'administration. Elle reste inchangée
+dans `/wp-admin/` et pour les comptes disposant de `edit_posts` ou
+`manage_options`.
+
 La façade d'abonnement réduit délibérément la décision centrale à des valeurs
 publiques d'interface. Elle ne transmet pas les références Customer,
 souscription, Checkout ou Price, les sources internes, les données de carte,
@@ -52,6 +76,8 @@ lit ni n'écrit droit, essai, abonnement, audit ou état Stripe.
   sont réellement résolus.
 - **Accueil / Activité** et **Découvrir** restent explicites tant que les
   applications n'ont pas publié de contrat d'événements et d'activation.
+- **Apps Faluss / Mes apps** et **Explorer** ne rendent que des états vides
+  honnêtes tant qu'aucun contrat d'application officiel n'est disponible.
 - **Analytics** rend des composants réutilisables de KPI, graphe, tableau et
   filtre à l'état vide. Le futur contrat par application devra fournir une
   date, une source, une métrique, une portée et l'autorisation de lecture ; il
@@ -72,7 +98,9 @@ lit ni n'écrit droit, essai, abonnement, audit ou état Stripe.
 Le Master Profile est une surface immersive locale, ouverte depuis la carte
 membre sans changement de page. Le dialogue gère Échap, focus, historique,
 fermeture et réduction de mouvement. Ses trois onglets ne créent aucune copie
-de données :
+de données. Son en-tête utilise une grille symétrique — flèche ronde, tabs
+centrés, réserve droite équivalente — et son CTA profil conserve l'accent rouge
+avec un texte blanc :
 
 | Onglet | Données PF-01 | Ce qui reste hors périmètre |
 | --- | --- | --- |
@@ -108,11 +136,20 @@ migration implicite de transactions historiques.
 
 ## Interaction, accessibilité et repli
 
-La navigation interne utilise des liens server-rendered vers des paramètres
+Les tabs contextuels sont propres à leur section : `Vue · Activité · Découvrir`,
+`Mes apps · Explorer`, `Vue · Performance · Revenus · Sources`, `Mon offre ·
+Comparer`, `Historique · Paiement`, `Général · Notifications · Préférences` et
+`Aide · Nous contacter`. La navigation interne utilise des liens server-rendered vers des paramètres
 `faluss_portal` non sensibles ; JavaScript les intercepte pour remplacer le
 panneau sans rechargement, mettre à jour l'historique et déplacer les deux
 indicateurs par `transform`. Sans JavaScript, les mêmes liens rechargent la
 bonne vue. Les animations disparaissent sous `prefers-reduced-motion`.
+
+Le bouton rond situé dans le panneau principal replie la sidebar et étend la
+surface de contenu sans rechargement. Son état `aria-expanded`, son libellé et
+la préférence locale `falussPortalSidebarCollapsed` restent synchronisés. Un
+refus de `localStorage` n'empêche pas le contrôle de fonctionner pendant la
+page courante.
 
 Les contrôles actifs ne changent pas la couleur de leurs icônes. Les éléments
 interactifs ont un focus sombre `:focus-visible` local au portail ; aucun reset
@@ -122,10 +159,11 @@ global de focus ou style Elementor ne s'applique à la page.
 
 1. Installer uniquement le ZIP `faluss-portal` puis l'activer sur faluss.com.
 2. Ajouter `[faluss_portal]` à la page Elementor Canvas `/mon-faluss/`.
-3. Dans Faluss Identity Client, conserver `/mon-faluss/` dans les retours
-   locaux autorisés et le client officiel Faluss.com activé côté Identity.
+3. Conserver le client officiel Faluss.com activé côté Identity. Le plugin
+   ajoute lui-même `/mon-faluss/` aux retours locaux autorisés en mémoire ;
+   aucune configuration manuelle de widget n'est requise.
 4. Vérifier en visiteur l'état d'accès et le bouton SSO, puis en membre lié la
-   sidebar, les pills et le changement sans rechargement entre les six sections.
+   sidebar, les pills et le changement sans rechargement entre les sept sections.
 5. Vérifier une souscription `trialing` et une offre gratuite : aucun Faluss ID
    ni identifiant Stripe ne doit apparaître dans le DOM, l'URL ou la notice.
 6. Vérifier Facturation sans facture locale, puis le Customer Portal seulement

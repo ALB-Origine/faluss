@@ -5,7 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * PF-01 front-office boundary.
+ * PF-01B front-office boundary.
  *
  * This plugin deliberately owns neither identity nor subscription data. It
  * starts with the local, authenticated Identity Client link and projects only
@@ -23,6 +23,7 @@ final class Faluss_Portal {
     /** @var array<string,array<int,string>> */
     private const TABS = array(
         'home'         => array( 'view', 'activity', 'discover' ),
+        'apps'         => array( 'my-apps', 'explore' ),
         'analytics'    => array( 'view', 'performance', 'revenue', 'sources' ),
         'subscription' => array( 'offer', 'compare' ),
         'billing'      => array( 'history', 'payment' ),
@@ -33,6 +34,7 @@ final class Faluss_Portal {
     /** @var array<string,string> */
     private const SECTION_LABELS = array(
         'home'         => 'Accueil',
+        'apps'         => 'Apps Faluss',
         'analytics'    => 'Analytics',
         'subscription' => 'Abonnement',
         'billing'      => 'Facturation',
@@ -45,6 +47,8 @@ final class Faluss_Portal {
         'view'          => 'Vue',
         'activity'      => 'Activité',
         'discover'      => 'Découvrir',
+        'my-apps'       => 'Mes apps',
+        'explore'       => 'Explorer',
         'performance'   => 'Performance',
         'revenue'       => 'Revenus',
         'sources'       => 'Sources',
@@ -65,6 +69,35 @@ final class Faluss_Portal {
         add_shortcode( self::SHORTCODE, array( __CLASS__, 'shortcode' ) );
         add_action( 'admin_post_' . self::PORTAL_ACTION, array( __CLASS__, 'open_customer_portal' ) );
         add_action( 'template_redirect', array( __CLASS__, 'intercept_customer_portal_return' ), -1 );
+        add_filter( 'option_faluss_identity_client_settings', array( __CLASS__, 'include_portal_return' ) );
+        add_filter( 'show_admin_bar', array( __CLASS__, 'filter_member_admin_bar' ), PHP_INT_MAX );
+    }
+
+    /**
+     * Makes the private portal a strict Identity Client return without writing
+     * another plugin's option or weakening its same-site allowlist.
+     *
+     * @param mixed $settings Raw Identity Client option.
+     * @return array<string,mixed>
+     */
+    public static function include_portal_return( $settings ) {
+        $settings = is_array( $settings ) ? $settings : array();
+        $returns = isset( $settings['return_urls'] ) ? (array) $settings['return_urls'] : array();
+        $returns[] = self::portal_base_url();
+        $settings['return_urls'] = array_values( array_unique( $returns ) );
+        return $settings;
+    }
+
+    /** Keep wp-admin and privileged editorial/management sessions untouched. */
+    public static function filter_member_admin_bar( $show ) {
+        if ( is_admin() || ! is_user_logged_in() ) {
+            return $show;
+        }
+        $user = wp_get_current_user();
+        if ( ! $user instanceof WP_User || user_can( $user, 'manage_options' ) || user_can( $user, 'edit_posts' ) ) {
+            return $show;
+        }
+        return false;
     }
 
     public static function register_assets() {
@@ -132,6 +165,7 @@ final class Faluss_Portal {
             'member_since' => self::valid_utc( $link['created_at'] ?? '' ) ? $link['created_at'] : '',
             'last_proved'  => self::valid_utc( $link['last_proved_at'] ?? '' ) ? $link['last_proved_at'] : '',
             'name'         => self::member_name( $user ),
+            'handle'       => self::member_handle( $user ),
         );
     }
 
@@ -198,7 +232,7 @@ final class Faluss_Portal {
         if ( class_exists( 'Faluss_Identity_Client' ) ) {
             $button = Faluss_Identity_Client::button( array(
                 'label'        => 'Continuer avec Faluss',
-                'redirect_url' => self::portal_url( 'home', 'view' ),
+                'redirect_url' => self::portal_base_url(),
                 'accent_color' => '#FF3D16',
                 'text_color'   => '#080808',
                 'surface_color' => '#FFFFFF',
@@ -217,31 +251,36 @@ final class Faluss_Portal {
         ob_start();
         ?>
         <section class="faluss-portal" data-faluss-portal="v1" data-section="<?php echo esc_attr( $route['section'] ); ?>" data-tab="<?php echo esc_attr( $route['tab'] ); ?>" aria-label="Portail Faluss">
-            <aside class="faluss-portal__sidebar" aria-label="Navigation principale Faluss">
-                <a class="faluss-portal__brand" href="<?php echo esc_url( self::portal_url( 'home', 'view' ) ); ?>" data-faluss-portal-nav="home" data-faluss-portal-tab="view" aria-label="Accueil Faluss"><span aria-hidden="true">faluss</span></a>
+            <aside class="faluss-portal__sidebar" id="faluss-portal-sidebar" aria-label="Navigation principale Faluss">
+                <span class="faluss-portal__nav-indicator" aria-hidden="true"></span>
+                <a class="faluss-portal__brand<?php echo 'home' === $route['section'] ? ' is-active' : ''; ?>" href="<?php echo esc_url( self::portal_url( 'home', 'view' ) ); ?>" data-faluss-portal-nav="home" data-faluss-portal-tab="view" data-faluss-portal-sidebar-item<?php echo 'home' === $route['section'] ? ' aria-current="page"' : ''; ?> aria-label="Accueil Faluss"><span aria-hidden="true">faluss</span></a>
                 <nav class="faluss-portal__nav" aria-label="Sections du portail">
-                    <span class="faluss-portal__nav-indicator" aria-hidden="true"></span>
-                    <?php foreach ( self::SECTION_LABELS as $section => $label ) : ?>
-                        <a class="faluss-portal__nav-link<?php echo $section === $route['section'] ? ' is-active' : ''; ?>" href="<?php echo esc_url( self::portal_url( $section, self::TABS[ $section ][0] ) ); ?>" data-faluss-portal-nav="<?php echo esc_attr( $section ); ?>" data-faluss-portal-tab="<?php echo esc_attr( self::TABS[ $section ][0] ); ?>"<?php echo $section === $route['section'] ? ' aria-current="page"' : ''; ?>><span class="faluss-portal__nav-icon" aria-hidden="true"><?php echo self::icon( $section ); ?></span><span class="screen-reader-text"><?php echo esc_html( $label ); ?></span></a>
+                    <a class="faluss-portal__nav-link<?php echo 'apps' === $route['section'] ? ' is-active' : ''; ?>" href="<?php echo esc_url( self::portal_url( 'apps', self::TABS['apps'][0] ) ); ?>" data-faluss-portal-nav="apps" data-faluss-portal-tab="<?php echo esc_attr( self::TABS['apps'][0] ); ?>" data-faluss-portal-sidebar-item<?php echo 'apps' === $route['section'] ? ' aria-current="page"' : ''; ?>><span class="faluss-portal__nav-icon" aria-hidden="true"><?php echo self::icon( 'apps' ); ?></span><span class="screen-reader-text">Apps Faluss</span></a>
+                    <span class="faluss-portal__nav-separator" aria-hidden="true"></span>
+                    <?php foreach ( array( 'analytics', 'subscription', 'billing', 'settings', 'help' ) as $section ) : ?>
+                        <a class="faluss-portal__nav-link<?php echo $section === $route['section'] ? ' is-active' : ''; ?>" href="<?php echo esc_url( self::portal_url( $section, self::TABS[ $section ][0] ) ); ?>" data-faluss-portal-nav="<?php echo esc_attr( $section ); ?>" data-faluss-portal-tab="<?php echo esc_attr( self::TABS[ $section ][0] ); ?>" data-faluss-portal-sidebar-item<?php echo $section === $route['section'] ? ' aria-current="page"' : ''; ?>><span class="faluss-portal__nav-icon" aria-hidden="true"><?php echo self::icon( $section ); ?></span><span class="screen-reader-text"><?php echo esc_html( self::SECTION_LABELS[ $section ] ); ?></span></a>
                     <?php endforeach; ?>
                 </nav>
                 <button class="faluss-portal__member-compact" type="button" data-faluss-portal-profile-open aria-label="Ouvrir le profil membre"><span class="faluss-portal__avatar faluss-portal__avatar--small" aria-hidden="true"></span></button>
             </aside>
             <main class="faluss-portal__main">
+                <button class="faluss-portal__sidebar-toggle" type="button" data-faluss-portal-sidebar-toggle aria-controls="faluss-portal-sidebar" aria-expanded="true"><span aria-hidden="true">‹</span><span class="screen-reader-text">Replier la navigation</span></button>
                 <header class="faluss-portal__header">
-                    <nav class="faluss-portal__tabs" aria-label="Navigation contextuelle">
-                        <span class="faluss-portal__tab-indicator" aria-hidden="true"></span>
-                        <?php foreach ( self::TABS[ $route['section'] ] as $tab ) : ?>
-                            <a class="faluss-portal__tab<?php echo $tab === $route['tab'] ? ' is-active' : ''; ?>" href="<?php echo esc_url( self::portal_url( $route['section'], $tab ) ); ?>" data-faluss-portal-nav="<?php echo esc_attr( $route['section'] ); ?>" data-faluss-portal-tab="<?php echo esc_attr( $tab ); ?>"<?php echo $tab === $route['tab'] ? ' aria-current="page"' : ''; ?>><?php echo esc_html( self::TAB_LABELS[ $tab ] ); ?></a>
-                        <?php endforeach; ?>
-                    </nav>
+                    <?php foreach ( self::TABS as $section => $tabs ) : ?>
+                        <nav class="faluss-portal__tabs<?php echo $section === $route['section'] ? ' is-active' : ''; ?>" data-faluss-portal-tabs="<?php echo esc_attr( $section ); ?>" aria-label="<?php echo esc_attr( 'Navigation ' . self::SECTION_LABELS[ $section ] ); ?>"<?php echo $section === $route['section'] ? '' : ' hidden'; ?>>
+                            <span class="faluss-portal__tab-indicator" aria-hidden="true"></span>
+                            <?php foreach ( $tabs as $tab ) : ?>
+                                <a class="faluss-portal__tab<?php echo $section === $route['section'] && $tab === $route['tab'] ? ' is-active' : ''; ?>" href="<?php echo esc_url( self::portal_url( $section, $tab ) ); ?>" data-faluss-portal-nav="<?php echo esc_attr( $section ); ?>" data-faluss-portal-tab="<?php echo esc_attr( $tab ); ?>"<?php echo $section === $route['section'] && $tab === $route['tab'] ? ' aria-current="page"' : ''; ?>><?php echo esc_html( self::TAB_LABELS[ $tab ] ); ?></a>
+                            <?php endforeach; ?>
+                        </nav>
+                    <?php endforeach; ?>
                 </header>
-                <?php if ( is_array( $notice ) ) : ?><div class="faluss-portal__notice" role="status"><?php echo esc_html( $notice ); ?></div><?php endif; ?>
+                <?php if ( is_string( $notice ) && '' !== $notice ) : ?><div class="faluss-portal__notice" role="status"><?php echo esc_html( $notice ); ?></div><?php endif; ?>
                 <div class="faluss-portal__content" data-faluss-portal-content>
                     <?php self::render_panels( $route, $snapshot ); ?>
                 </div>
             </main>
-            <button class="faluss-portal__member-card" type="button" data-faluss-portal-profile-open aria-haspopup="dialog" aria-controls="faluss-portal-master-profile"><span class="faluss-portal__avatar" aria-hidden="true"></span><span class="faluss-portal__member-copy"><strong><?php echo esc_html( $member['name'] ); ?></strong><span>Profil Faluss</span></span><span class="faluss-portal__chevron" aria-hidden="true">⌄</span></button>
+            <button class="faluss-portal__member-card" type="button" data-faluss-portal-profile-open aria-haspopup="dialog" aria-controls="faluss-portal-master-profile"><span class="faluss-portal__avatar" aria-hidden="true"></span><span class="faluss-portal__member-copy"><strong><?php echo esc_html( $member['name'] ); ?></strong><?php if ( '' !== $member['handle'] ) : ?><span>@<?php echo esc_html( $member['handle'] ); ?></span><?php endif; ?></span><span class="faluss-portal__chevron" aria-hidden="true">⌄</span></button>
             <?php self::master_profile( $member ); ?>
         </section>
         <?php
@@ -255,6 +294,8 @@ final class Faluss_Portal {
                 echo '<section class="faluss-portal__panel' . ( $active ? ' is-active' : '' ) . '" data-faluss-portal-panel="' . esc_attr( $section . ':' . $tab ) . '"' . ( $active ? '' : ' hidden' ) . ' tabindex="-1" aria-label="' . esc_attr( self::SECTION_LABELS[ $section ] . ' — ' . self::TAB_LABELS[ $tab ] ) . '">';
                 if ( 'home' === $section ) {
                     self::home_panel( $tab, $snapshot );
+                } elseif ( 'apps' === $section ) {
+                    self::apps_panel( $tab );
                 } elseif ( 'analytics' === $section ) {
                     self::analytics_panel( $tab );
                 } elseif ( 'subscription' === $section ) {
@@ -269,6 +310,16 @@ final class Faluss_Portal {
                 echo '</section>';
             }
         }
+    }
+
+    private static function apps_panel( $tab ) {
+        if ( 'explore' === $tab ) {
+            echo '<div class="faluss-portal__intro"><p class="faluss-portal__eyebrow">Apps Faluss</p><h1>Explorer</h1><p>Les applications publiées seront présentées ici depuis leur source officielle.</p></div>';
+            self::empty_state( 'Catalogue en préparation', 'Aucune application ni destination de démonstration n’est créée dans ce portail.' );
+            return;
+        }
+        echo '<div class="faluss-portal__intro"><p class="faluss-portal__eyebrow">Apps Faluss</p><h1>Mes apps</h1><p>Cette vue accueillera uniquement les applications réellement liées à votre identité Faluss.</p></div>';
+        self::empty_state( 'Aucune application consolidée', 'Les applications Faluss restent autonomes tant qu’un contrat de liaison n’est pas activé.' );
     }
 
     private static function home_panel( $tab, $snapshot ) {
@@ -363,14 +414,17 @@ final class Faluss_Portal {
         ?>
         <dialog class="faluss-portal__master" id="faluss-portal-master-profile" data-faluss-portal-master aria-labelledby="faluss-portal-master-title">
             <div class="faluss-portal__master-surface">
-                <button class="faluss-portal__master-close" type="button" data-faluss-portal-profile-close aria-label="Fermer mon profil">←</button>
-                <nav class="faluss-portal__master-tabs" aria-label="Profil membre" role="tablist">
-                    <button class="is-active" id="faluss-portal-master-tab-account" type="button" role="tab" data-faluss-portal-master-tab="account" aria-controls="faluss-portal-master-panel-account" aria-selected="true">Mon compte</button>
-                    <button id="faluss-portal-master-tab-security" type="button" role="tab" data-faluss-portal-master-tab="security" aria-controls="faluss-portal-master-panel-security" aria-selected="false">Sécurité</button>
-                    <button id="faluss-portal-master-tab-privacy" type="button" role="tab" data-faluss-portal-master-tab="privacy" aria-controls="faluss-portal-master-panel-privacy" aria-selected="false">Confidentialité</button>
-                </nav>
+                <header class="faluss-portal__master-header">
+                    <button class="faluss-portal__master-close" type="button" data-faluss-portal-profile-close aria-label="Fermer mon profil">←</button>
+                    <nav class="faluss-portal__master-tabs" aria-label="Profil membre" role="tablist">
+                        <button class="is-active" id="faluss-portal-master-tab-account" type="button" role="tab" data-faluss-portal-master-tab="account" aria-controls="faluss-portal-master-panel-account" aria-selected="true">Mon compte</button>
+                        <button id="faluss-portal-master-tab-security" type="button" role="tab" data-faluss-portal-master-tab="security" aria-controls="faluss-portal-master-panel-security" aria-selected="false">Sécurité</button>
+                        <button id="faluss-portal-master-tab-privacy" type="button" role="tab" data-faluss-portal-master-tab="privacy" aria-controls="faluss-portal-master-panel-privacy" aria-selected="false">Confidentialité</button>
+                    </nav>
+                    <span class="faluss-portal__master-header-spacer" aria-hidden="true"></span>
+                </header>
                 <section class="faluss-portal__master-panel is-active" id="faluss-portal-master-panel-account" role="tabpanel" aria-labelledby="faluss-portal-master-tab-account" data-faluss-portal-master-panel="account">
-                    <div class="faluss-portal__master-identity"><span class="faluss-portal__avatar faluss-portal__avatar--master" aria-hidden="true"></span><div><h1 id="faluss-portal-master-title"><?php echo esc_html( $member['name'] ); ?></h1><p>Profil Faluss vérifié</p></div></div>
+                    <div class="faluss-portal__master-identity"><span class="faluss-portal__avatar faluss-portal__avatar--master" aria-hidden="true"></span><div><h1 id="faluss-portal-master-title"><?php echo esc_html( $member['name'] ); ?></h1><p><?php echo '' !== $member['handle'] ? '@' . esc_html( $member['handle'] ) : 'Profil Faluss vérifié'; ?></p></div></div>
                     <button class="faluss-portal__profile-edit" type="button" data-faluss-portal-profile-unavailable>✎ Modifier mon profil</button>
                     <div class="faluss-portal__balance"><span>Points Faluss bientôt disponibles <small>PF</small></span></div>
                     <?php if ( '' !== $member['member_since'] ) : ?><p class="faluss-portal__member-since">Membre depuis <strong><?php echo esc_html( self::date_label( $member['member_since'] ) ); ?></strong></p><?php else : ?><p class="faluss-portal__member-since">Date d’adhésion indisponible.</p><?php endif; ?>
@@ -431,14 +485,11 @@ final class Faluss_Portal {
     }
 
     private static function portal_url( $section = 'home', $tab = 'view' ) {
-        $base = home_url( '/mon-faluss/' );
-        if ( function_exists( 'is_page' ) && is_page( 'mon-faluss' ) ) {
-            $current = get_permalink();
-            if ( is_string( $current ) && '' !== $current ) {
-                $base = $current;
-            }
-        }
-        return add_query_arg( array( 'faluss_portal' => sanitize_key( $section ), 'faluss_portal_tab' => sanitize_key( $tab ) ), $base );
+        return add_query_arg( array( 'faluss_portal' => sanitize_key( $section ), 'faluss_portal_tab' => sanitize_key( $tab ) ), self::portal_base_url() );
+    }
+
+    private static function portal_base_url() {
+        return home_url( '/mon-faluss/' );
     }
 
     private static function redirect_to_portal( $notice ) {
@@ -465,6 +516,15 @@ final class Faluss_Portal {
         return function_exists( 'mb_substr' ) ? mb_substr( $name, 0, 80 ) : substr( $name, 0, 80 );
     }
 
+    private static function member_handle( $user ) {
+        $handle = is_object( $user ) ? trim( (string) $user->user_nicename ) : '';
+        if ( '' === $handle || 1 === preg_match( '/^faluss_[a-f0-9]{20}$/i', $handle ) ) {
+            return '';
+        }
+        $handle = preg_replace( '/[^a-z0-9._-]/i', '', ltrim( $handle, '@' ) );
+        return is_string( $handle ) ? substr( $handle, 0, 60 ) : '';
+    }
+
     private static function date_label( $value ) {
         $time = strtotime( (string) $value . ' UTC' );
         return false === $time ? 'Indisponible' : wp_date( 'j F Y', $time );
@@ -481,7 +541,7 @@ final class Faluss_Portal {
 
     private static function icon( $section ) {
         $paths = array(
-            'home' => '<circle cx="8" cy="8" r="1.6"/><circle cx="16" cy="8" r="1.6"/><circle cx="8" cy="16" r="1.6"/><circle cx="16" cy="16" r="1.6"/>',
+            'apps' => '<circle cx="7" cy="7" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="7" r="1.35" fill="currentColor" stroke="none"/><circle cx="17" cy="7" r="1.35" fill="currentColor" stroke="none"/><circle cx="7" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="17" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="7" cy="17" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="17" r="1.35" fill="currentColor" stroke="none"/><circle cx="17" cy="17" r="1.35" fill="currentColor" stroke="none"/>',
             'analytics' => '<path d="M5 19V9m5 10V5m5 14v-7m5 7V3M4 21h17"/>',
             'subscription' => '<path d="M4 8.5A4.5 4.5 0 0 1 8.5 4h9A2.5 2.5 0 0 1 20 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-9A4.5 4.5 0 0 1 4 15.5z"/><path d="M4 9h16M16 15h4"/>',
             'billing' => '<path d="M6 4h12v16l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6m-6 3h6"/>',

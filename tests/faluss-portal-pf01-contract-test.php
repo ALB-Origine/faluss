@@ -11,6 +11,32 @@ function pf01_assert( $condition, $message ) {
 
 class WP_Error {}
 function is_wp_error( $value ) { return $value instanceof WP_Error; }
+class WP_User {
+    public $roles = array();
+    public $capabilities = array();
+    public $display_name = '';
+    public $user_nicename = '';
+    public function __construct( $roles = array(), $capabilities = array() ) {
+        $this->roles = $roles;
+        $this->capabilities = $capabilities;
+    }
+}
+$pf01_is_admin = false;
+$pf01_is_logged_in = false;
+$pf01_current_user = new WP_User();
+function is_admin() { global $pf01_is_admin; return $pf01_is_admin; }
+function is_user_logged_in() { global $pf01_is_logged_in; return $pf01_is_logged_in; }
+function wp_get_current_user() { global $pf01_current_user; return $pf01_current_user; }
+function user_can( $user, $capability ) { return ! empty( $user->capabilities[ $capability ] ); }
+function home_url( $path = '/' ) { return 'https://faluss.com' . $path; }
+
+final class Faluss_Identity_Client {
+    public static $last_button_attributes = array();
+    public static function button( $attributes, $inline ) {
+        self::$last_button_attributes = $attributes;
+        return false === $inline ? '<button>Continuer avec Faluss</button>' : '';
+    }
+}
 
 final class Faluss_Subscriptions_Resolver {
     public static function resolve_for_faluss_id( $faluss_id ) {
@@ -60,11 +86,18 @@ $documentation = file_get_contents( $root . '/docs/FALUSS_PORTAL.md' );
 $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 
-foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.1'", 'class-faluss-portal.php' ) as $needle ) {
+foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.2'", 'class-faluss-portal.php' ) as $needle ) {
     pf01_assert( false !== strpos( $bootstrap, $needle ), 'PF-01 requires an isolated versioned Faluss Portal plugin: ' . $needle );
 }
 foreach ( array( "add_shortcode( self::SHORTCODE", "[faluss_portal]", 'Faluss_Identity_Client_Schema::tables()', 'WHERE wp_user_id = %d', "array( 'subscriber' )", 'Faluss_Identity_Client::button' ) as $needle ) {
     pf01_assert( false !== strpos( $source . $documentation, $needle ), 'PF-01 must start from the linked local SSO session and retain its shortcode/access fallback: ' . $needle );
+}
+foreach ( array( "add_filter( 'option_faluss_identity_client_settings'", "home_url( '/mon-faluss/' )", "'redirect_url' => self::portal_base_url()" ) as $needle ) {
+    pf01_assert( false !== strpos( $source, $needle ), 'PF-01B must make the exact local portal return available to Identity Client without a persisted widget setting: ' . $needle );
+}
+pf01_assert( false === strpos( $source, "'redirect_url' => self::portal_url(" ), 'The SSO access form must not send a query-bearing portal route that Identity Client rejects in favour of home.' );
+foreach ( array( "add_filter( 'show_admin_bar'", 'filter_member_admin_bar', "user_can( \$user, 'manage_options' )", "user_can( \$user, 'edit_posts' )" ) as $needle ) {
+    pf01_assert( false !== strpos( $source, $needle ), 'PF-01B must hide the front-office admin bar only for non-privileged members: ' . $needle );
 }
 pf01_assert( false === strpos( $source, '$_GET[\'faluss_id\']' ) && false === strpos( $source, '$_POST[\'faluss_id\']' ), 'A browser-supplied Faluss ID must never select portal data.' );
 pf01_assert( false === strpos( $source, 'CREATE TABLE' ) && false === strpos( $source, 'INSERT INTO' ) && false === strpos( $source, 'update_user_meta' ), 'PF-01 must not introduce a portal table, write an identity link or persist a universal profile.' );
@@ -72,6 +105,27 @@ pf01_assert( false === strpos( $source, 'wp_ajax_' ) && false === strpos( $sourc
 pf01_assert( false === strpos( $source, 'Token_Engine_Service::balance' ) && false === strpos( $source, 'Token_Engine_Schema' ) && false === strpos( $source, 'points_snapshot' ), 'PF-01 must not read, rename or display a historical Token Engine balance as PF.' );
 
 require_once $plugin . '/includes/class-faluss-portal.php';
+$return_settings = Faluss_Portal::include_portal_return( array( 'return_urls' => array( 'https://faluss.com/' ) ) );
+$return_settings = Faluss_Portal::include_portal_return( $return_settings );
+pf01_assert( in_array( 'https://faluss.com/mon-faluss/', $return_settings['return_urls'], true ), 'The portal must append the exact local SSO destination at read time.' );
+pf01_assert( 1 === substr_count( implode( '|', $return_settings['return_urls'] ), 'https://faluss.com/mon-faluss/' ), 'The runtime SSO destination allowlist must remain deduplicated.' );
+$access_method = new ReflectionMethod( 'Faluss_Portal', 'access_gate' );
+$access_method->setAccessible( true );
+$access_html = $access_method->invoke( null );
+pf01_assert( 'https://faluss.com/mon-faluss/' === Faluss_Identity_Client::$last_button_attributes['redirect_url'], 'The internal access form must request the clean portal URL, never home or a query-bearing route.' );
+pf01_assert( false !== strpos( $access_html, 'data-faluss-portal="access"' ), 'The access state must retain the full portal root marker.' );
+
+$pf01_is_logged_in = true;
+$pf01_current_user = new WP_User( array( 'subscriber' ) );
+pf01_assert( false === Faluss_Portal::filter_member_admin_bar( true ), 'A standard front-office member must not receive the WordPress admin bar.' );
+$pf01_current_user = new WP_User( array( 'administrator' ), array( 'manage_options' => true ) );
+pf01_assert( true === Faluss_Portal::filter_member_admin_bar( true ), 'An administrator must retain the WordPress admin bar.' );
+$pf01_current_user = new WP_User( array( 'editor' ), array( 'edit_posts' => true ) );
+pf01_assert( true === Faluss_Portal::filter_member_admin_bar( true ), 'An editorial or management account must retain the WordPress admin bar.' );
+$pf01_is_admin = true;
+$pf01_current_user = new WP_User( array( 'subscriber' ) );
+pf01_assert( true === Faluss_Portal::filter_member_admin_bar( true ), 'The plugin must never hide the admin bar policy inside wp-admin.' );
+$pf01_is_admin = false;
 $snapshot_method = new ReflectionMethod( 'Faluss_Portal', 'subscription_snapshot' );
 $snapshot_method->setAccessible( true );
 $trialing = $snapshot_method->invoke( null, '11111111-1111-4111-8111-111111111111' );
@@ -87,12 +141,20 @@ pf01_assert( false !== strpos( $source, 'Aucune facture locale disponible' ) && 
 foreach ( array( 'data-faluss-portal-master', 'data-faluss-portal-master-tab', 'data-faluss-portal-drawer', 'Points Faluss bientôt disponibles', 'profil universel', 'data-faluss-portal-profile-unavailable' ) as $needle ) {
     pf01_assert( false !== strpos( $source, $needle ), 'Master Profile must use the agreed preparatory surface without a second identity model: ' . $needle );
 }
+foreach ( array( "'apps'         => array( 'my-apps', 'explore' )", "'my-apps'       => 'Mes apps'", 'data-faluss-portal-sidebar-item', 'data-faluss-portal-sidebar-toggle', 'faluss-portal__master-header', 'faluss-portal__master-header-spacer' ) as $needle ) {
+    pf01_assert( false !== strpos( $source, $needle ), 'PF-01B must expose the exact contextual navigation, collapsible shell and symmetric Master Profile header: ' . $needle );
+}
+foreach ( array( "'home'         => array( 'view', 'activity', 'discover' )", "'analytics'    => array( 'view', 'performance', 'revenue', 'sources' )", "'subscription' => array( 'offer', 'compare' )", "'billing'      => array( 'history', 'payment' )", "'settings'     => array( 'general', 'notifications', 'preferences' )", "'help'         => array( 'help', 'contact' )", 'data-faluss-portal-tabs' ) as $needle ) {
+    pf01_assert( false !== strpos( $source, $needle ), 'Each section must own its exact contextual tabs and render them for no-reload switching: ' . $needle );
+}
+pf01_assert( 3 === substr_count( $source, 'data-faluss-portal-sidebar-item' ) && false === strpos( $source, "self::icon( 'home' )" ), 'The Faluss wordmark must be the only Home sidebar control, followed by Apps and the five-item section loop.' );
 pf01_assert( false === strpos( $source, "number_format_i18n( \$points" ) && false === strpos( $source, "\$points['balance']" ), 'The PF placeholder must never contain a numeric balance before an official PF ledger exists.' );
-foreach ( array( '--fp-sidebar-indicator-y', '--fp-tab-indicator-x', 'backdrop-filter', ':focus-visible', 'prefers-reduced-motion' ) as $needle ) {
+foreach ( array( '--fp-sidebar-indicator-y', '--fp-tab-indicator-x', 'backdrop-filter', ':focus-visible', 'prefers-reduced-motion', 'aspect-ratio: 1', 'position: fixed', 'grid-template-columns: 48px minmax(0, 1fr) 48px', 'margin-top: auto' ) as $needle ) {
     pf01_assert( false !== strpos( $css, $needle ), 'The shell must retain visual indicators, glass, keyboard focus and reduced-motion support: ' . $needle );
 }
+pf01_assert( false === strpos( $css, 'outline: 3px solid #ff') && false === strpos( $css, 'outline: 3px solid var(--fp-accent)'), 'Keyboard focus must stay neutral and must never inherit the coral accent.' );
 pf01_assert( 0 === preg_match( '/faluss-portal__nav-link(?:\\:hover|\\.is-active)\\s*\\{[^}]*background/s', $css ), 'Sidebar state must move only the indicator and outline, never recolour an icon bubble.' );
-foreach ( array( 'history.pushState', 'popstate', 'requestAnimationFrame', 'showModal', 'closeProfile', 'setMasterTab' ) as $needle ) {
+foreach ( array( 'history.pushState', 'popstate', 'requestAnimationFrame', 'showModal', 'closeProfile', 'setMasterTab', 'falussPortalSidebarCollapsed', 'aria-expanded', 'localStorage.setItem' ) as $needle ) {
     pf01_assert( false !== strpos( $javascript, $needle ), 'Navigation and Master Profile must be progressive, animated and history-aware: ' . $needle );
 }
 pf01_assert( false === strpos( $javascript, 'fetch(' ) && false === strpos( $javascript, 'Stripe' ), 'The browser must not read Stripe or make a direct portal data call.' );

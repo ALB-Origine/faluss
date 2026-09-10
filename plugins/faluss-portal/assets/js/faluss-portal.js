@@ -3,12 +3,15 @@
 
   const sections = {
     home: ['view', 'activity', 'discover'],
+    apps: ['my-apps', 'explore'],
     analytics: ['view', 'performance', 'revenue', 'sources'],
     subscription: ['offer', 'compare'],
     billing: ['history', 'payment'],
     settings: ['general', 'notifications', 'preferences'],
     help: ['help', 'contact']
   };
+
+  const sidebarStorageKey = 'falussPortalSidebarCollapsed';
 
   const routeFromLocation = (fallback) => {
     const parameters = new URLSearchParams(window.location.search);
@@ -42,29 +45,48 @@
     };
     const navigation = [...root.querySelectorAll('[data-faluss-portal-nav]')];
     const panels = [...root.querySelectorAll('[data-faluss-portal-panel]')];
+    const tabGroups = [...root.querySelectorAll('[data-faluss-portal-tabs]')];
     const sideIndicator = root.querySelector('.faluss-portal__nav-indicator');
-    const tabIndicator = root.querySelector('.faluss-portal__tab-indicator');
+    const sidebarToggle = root.querySelector('[data-faluss-portal-sidebar-toggle]');
     const dialog = root.querySelector('[data-faluss-portal-master]');
     const profileFeedback = root.querySelector('[data-faluss-portal-profile-feedback]');
     const drawer = root.querySelector('[data-faluss-portal-drawer-panel]');
 
-    const activeLinks = () => navigation.filter((link) => link.dataset.falussPortalNav === state.section);
-
     const placeIndicators = () => {
-      const sideLink = root.querySelector(`.faluss-portal__nav-link[data-faluss-portal-nav="${state.section}"]`);
+      const sideLink = root.querySelector(`[data-faluss-portal-sidebar-item][data-faluss-portal-nav="${state.section}"]`);
       if (sideIndicator && sideLink) {
-        const parent = sideIndicator.parentElement.getBoundingClientRect();
         const target = sideLink.getBoundingClientRect();
-        root.style.setProperty('--fp-sidebar-indicator-y', `${target.top - parent.top}px`);
+        root.style.setProperty('--fp-sidebar-indicator-y', `${target.top}px`);
         root.style.setProperty('--fp-sidebar-indicator-h', `${target.height}px`);
       }
+      const tabGroup = root.querySelector(`[data-faluss-portal-tabs="${state.section}"]`);
+      const tabIndicator = tabGroup && tabGroup.querySelector('.faluss-portal__tab-indicator');
       const tabLink = root.querySelector(`.faluss-portal__tab[data-faluss-portal-nav="${state.section}"][data-faluss-portal-tab="${state.tab}"]`);
       if (tabIndicator && tabLink) {
         const parent = tabIndicator.parentElement.getBoundingClientRect();
         const target = tabLink.getBoundingClientRect();
-        root.style.setProperty('--fp-tab-indicator-x', `${target.left - parent.left - 8}px`);
+        const inset = Number.parseFloat(window.getComputedStyle(tabIndicator.parentElement).paddingLeft) || 0;
+        root.style.setProperty('--fp-tab-indicator-x', `${target.left - parent.left - inset}px`);
         root.style.setProperty('--fp-tab-indicator-w', `${target.width}px`);
       }
+    };
+
+    const setSidebarCollapsed = (collapsed, persist = true) => {
+      root.classList.toggle('is-sidebar-collapsed', collapsed);
+      if (sidebarToggle) {
+        sidebarToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        sidebarToggle.setAttribute('aria-label', collapsed ? 'Afficher la navigation' : 'Replier la navigation');
+        const label = sidebarToggle.querySelector('.screen-reader-text');
+        if (label) label.textContent = collapsed ? 'Afficher la navigation' : 'Replier la navigation';
+      }
+      if (persist) {
+        try {
+          window.localStorage.setItem(sidebarStorageKey, collapsed ? '1' : '0');
+        } catch (error) {
+          // Private browsing can deny storage; the control still works for the page.
+        }
+      }
+      window.requestAnimationFrame(placeIndicators);
     };
 
     const activate = (route, updateHistory = false) => {
@@ -74,10 +96,15 @@
       root.dataset.section = state.section;
       root.dataset.tab = state.tab;
       navigation.forEach((link) => {
-        const side = link.classList.contains('faluss-portal__nav-link');
-        const active = link.dataset.falussPortalNav === state.section && (!side || true) && (!link.classList.contains('faluss-portal__tab') || link.dataset.falussPortalTab === state.tab);
+        const contextual = link.classList.contains('faluss-portal__tab');
+        const active = link.dataset.falussPortalNav === state.section && (!contextual || link.dataset.falussPortalTab === state.tab);
         link.classList.toggle('is-active', active);
         if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+      });
+      tabGroups.forEach((group) => {
+        const active = group.dataset.falussPortalTabs === state.section;
+        group.classList.toggle('is-active', active);
+        group.hidden = !active;
       });
       panels.forEach((panel) => {
         const active = panel.dataset.falussPortalPanel === `${state.section}:${state.tab}`;
@@ -92,8 +119,10 @@
 
     const openProfile = (updateHistory) => {
       if (!dialog) return;
+      dialog.classList.add('is-entering');
       if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
       else dialog.setAttribute('open', 'open');
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => dialog.classList.remove('is-entering')));
       root.classList.add('has-master-open');
       if (updateHistory) {
         state.profilePushed = true;
@@ -184,6 +213,10 @@
       if (event.target.closest('[data-faluss-portal-profile-unavailable]') && profileFeedback) {
         profileFeedback.textContent = 'Le modèle de profil universel n’est pas encore validé. Aucune donnée n’a été modifiée.';
         profileFeedback.hidden = false;
+        return;
+      }
+      if (event.target.closest('[data-faluss-portal-sidebar-toggle]')) {
+        setSidebarCollapsed(!root.classList.contains('is-sidebar-collapsed'));
       }
     });
 
@@ -208,6 +241,11 @@
     });
     window.addEventListener('resize', () => window.requestAnimationFrame(placeIndicators));
 
+    try {
+      setSidebarCollapsed(window.localStorage.getItem(sidebarStorageKey) === '1', false);
+    } catch (error) {
+      setSidebarCollapsed(false, false);
+    }
     const initialRoute = routeFromLocation(state);
     activate(initialRoute, false);
     if (new URLSearchParams(window.location.search).get('faluss_portal_profile') === '1') openProfile(false);
