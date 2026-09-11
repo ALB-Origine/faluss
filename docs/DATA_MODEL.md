@@ -151,9 +151,19 @@ définis dans [`FALUSS_SUBSCRIPTIONS.md`](FALUSS_SUBSCRIPTIONS.md).
 
 PF-01 n'ajoute aucune table. Le portail filtre la liaison client Identity par
 utilisateur WordPress courant et réduit la décision d'abonnement à des valeurs
-affichables. Il ne lit aucun ledger Token Engine tant qu'une source PF officielle
-n'est pas définie, ni ne rend les références Stripe, les e-mails,
-adresses, cartes, sources de décision, payloads ou secrets.
+affichables. DR-02A n'ajoute toujours ni table, colonne, migration, cache
+durable ni écriture Portal : le seul flux PF est la délégation Hub explicite
+vers la façade interne Token Engine. Portal ne lit directement ni
+`token_engine_pf_ledger` ni `token_engine_ledger` ALB et ne persiste aucune
+projection, période ou idempotence PF.
+
+Le document de statut retourné par le Core pour Hub est éphémère et filtré :
+clé Hub, propriétaire, statut, reward légalement annonçable, jour
+`Europe/Paris`, délégation, fraîcheur et compatibilité. Le `faluss_id`, les
+références d'écriture, les clés d'idempotence, les soldes, historiques, e-mails,
+paiements, Stripe et critères d'éligibilité détaillés n'entrent ni dans le HTML
+ni dans la réponse AJAX. Une absence ou une indisponibilité reste un état sans
+donnée inventée, jamais un solde `0` ou un gain simulé.
 
 ## Master Profile MP-01A
 

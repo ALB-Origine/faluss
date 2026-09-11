@@ -152,6 +152,17 @@ compensation d'une même écriture, tout en préservant le retry strictement
 identique. Aucun ledger ALB, adaptateur, claim, route, UI ou capacité PF
 supplémentaire n'est modifié.
 
+## DR-02A — Gain quotidien Faluss Hub réel — livré techniquement
+
+Faluss Portal `0.1.16` délègue désormais le premier claim réel vers le Core PF
+Token Engine `0.4.1`, schéma `5`. Seul Hub est actif : une identité Faluss
+active peut demander explicitement `20 PF earned` `daily_accrual`, une fois par
+jour serveur `Europe/Paris`. Portal ne produit aucune écriture PF, ne montre
+aucun solde ni historique, et ne conserve aucun état durable ; le Core décide
+l'idempotence, la date et l'unique entrée append-only. Faluss Me, son claim de
+`75 PF`, les prérequis de carte/handle et toute liaison inter-sites restent non
+implémentés.
+
 ## FPR-01 — Mise en production Faluss — livré techniquement
 
 Le plugin isolé **Faluss Production Reset** `0.1.0` coordonne un unique reset

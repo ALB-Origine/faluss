@@ -44,7 +44,7 @@ flottante n'est rendue dans le contenu.
 | Offre et état | `Faluss_Subscriptions_Resolver` | niveau, état normalisé, échéance et périodicité seulement | aucune |
 | Customer Portal | `Faluss_Subscriptions_Billing::create_portal()` | bouton uniquement si configuration et Customer locaux existent | session Stripe hébergée à la demande, sans stockage portail |
 | Factures | Faluss Subscriptions / Customer Portal Stripe | état vide tant qu'aucune projection locale autorisée n'existe | aucune |
-| Points Faluss | aucune source PF officielle dans PF-01 | « Points Faluss bientôt disponibles », sans valeur | aucune |
+| Points Faluss | façade interne `Token_Engine_Points_Service` du Core PF | document quotidien Hub filtré et état d'action seulement | aucune écriture Portal ; délégation explicite au Core |
 | Identité visuelle | identité WordPress locale minimale | nom d'affichage sûr ou « Membre Faluss », avatar neutre | aucune |
 | Apps Faluss | registre AP-01 local et preuve canonique de carte publiée lorsqu'elle existe localement | disponibilité, possession et application active séparées | aucune |
 | Analytics, quêtes, boutique | contrats futurs propres aux applications | état vide explicite | aucune |
@@ -102,6 +102,26 @@ lit ni n'écrit droit, essai, abonnement, audit ou état Stripe.
   `Bientôt disponible` sans lien ni URL de production inventée. Aucun appel
   inter-domaine, côté navigateur ou côté serveur, n'est effectué pour déduire
   la possession.
+- **Apps Faluss / Mes apps — Hub** porte depuis DR-02A la seule action PF
+  effectivement active. Pour une session `subscriber` liée à une identité
+  Faluss active, Portal demande un état filtré au Core PF, puis peut déléguer
+  l'intention fixe de claim Hub par POST authentifié et nonce. Le Core Token
+  Engine `0.4.1`, schéma `5`, reste seul à choisir le jour `Europe/Paris`,
+  l'idempotence et l'écriture de `20 PF` de classe `earned`, catégorie
+  `daily_accrual`, propriétaire `faluss-hub`, clé `hub.daily_accrual`.
+  Portal ne lit ni n'écrit aucun ledger, ne conserve aucun cache métier et ne
+  reçoit jamais du navigateur le sujet, le montant, la classe, la date, la clé
+  de reward ou une clé d'idempotence. `claimable` affiche **Récupérer +20 PF**;
+  seul ce statut délègue `owner_claim`. Après la réponse réellement `claimed`
+  du Core, la zone devient **Récupéré aujourd’hui** sans rechargement. Les états
+  `ineligible`, `unavailable` et `not_supported` n'affichent aucune promesse ni
+  bouton. Le clic action reste isolé de l'accès normal de la card Hub.
+- Le badge PF officiel embarqué dans
+  `assets/images/pf/faluss-pf-badge.png` est utilisé exclusivement dans cette
+  zone d'action Hub ; il ne représente ni un solde ni une nouvelle surface PF.
+  Portal ne montre aucun total, historique ou ventilation PF. Faluss Me, son
+  reward de `75 PF`, la carte publiée, le handle et toute liaison inter-sites
+  restent hors de DR-02A.
 - **Analytics** rend des composants réutilisables de KPI, graphe, tableau et
   filtre à l'état vide. Le futur contrat par application devra fournir une
   date, une source, une métrique, une portée et l'autorisation de lecture ; il

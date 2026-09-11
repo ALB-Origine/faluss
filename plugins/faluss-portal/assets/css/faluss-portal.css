@@ -406,6 +406,69 @@ body.faluss-portal-page {
   align-content: center;
   padding: clamp(25px, 4vw, 38px) clamp(28px, 5vw, 52px);
 }
+.faluss-portal__app-card--hub-daily .faluss-portal__app-card-access {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  text-decoration: none;
+}
+.faluss-portal__app-card--hub-daily .faluss-portal__app-head {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+.faluss-portal__hub-daily-action {
+  position: relative;
+  z-index: 3;
+  display: inline-grid;
+  justify-self: end;
+  pointer-events: auto;
+}
+.faluss-portal__hub-daily-form { margin: 0; }
+.faluss-portal__hub-daily-button,
+.faluss-portal__hub-daily-claimed {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 999px;
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  font: inherit;
+  font-size: clamp(11px, 1.3vw, 13px);
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(0,0,0,.22);
+}
+.faluss-portal__hub-daily-button {
+  cursor: pointer;
+  transition: transform .18s ease, background-color .18s ease, border-color .18s ease;
+}
+.faluss-portal__hub-daily-button:hover { background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.36); transform: translateY(-1px); }
+.faluss-portal__hub-daily-button:focus-visible { box-shadow: 0 0 0 2px #fff, 0 8px 20px rgba(0,0,0,.22); }
+.faluss-portal__hub-daily-button:disabled { cursor: wait; opacity: .7; transform: none; }
+.faluss-portal__hub-daily-claimed { border-color: rgba(255,255,255,.12); background: rgba(255,255,255,.07); color: rgba(255,255,255,.82); }
+.faluss-portal__hub-daily-badge {
+  display: block;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  object-fit: contain;
+}
+.faluss-portal__hub-daily-feedback {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .faluss-portal__app-card--explore {
   padding: clamp(34px, 5vw, 52px) clamp(32px, 6vw, 58px);
 }

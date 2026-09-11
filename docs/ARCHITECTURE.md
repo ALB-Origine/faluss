@@ -161,10 +161,26 @@ confiance ; aucune route Connector, lecture Portal, projection Master Profile,
 Le Core impose les classes fermées, l'append-only, l'idempotence, une seule
 compensation par écriture d'origine et l'absence de balance négative par classe.
 Cette unicité est garantie par la façade transactionnelle et l'index PF unique
-nullable ajouté par le schéma `5`. Il connaît les deux crédits quotidiens, mais aucun
-adaptateur ne les appelle encore : Hub et Faluss Me ne peuvent donc pas encore
-attribuer de PF. Packs, Fans, paiements, Stripe, retrait, transfert, HOF,
-progression et `pf.summary` restent hors de cette livraison.
+nullable ajouté par le schéma `5`. Packs, Fans, paiements, Stripe, retrait,
+transfert, HOF, progression et `pf.summary` restent hors de cette livraison.
+
+### Daily Reward Hub DR-02A
+
+DR-02A active uniquement l'adaptateur local Faluss Portal de Faluss Hub. Après
+la résolution canonique de la session membre liée et active, il appelle le
+read-model `daily_status()` et, uniquement à la demande explicite POST/nonce du
+membre, `claim_hub_daily()` du Core Token Engine `0.4.1` schéma `5`. Le Core est
+l'unique auteur de l'entrée `20 PF` `earned` `daily_accrual` une fois par
+`faluss_id` et jour logique `Europe/Paris`; Portal ne calcule ni le jour ni la
+valeur, ne lit ni le ledger PF ni le ledger ALB, et ne crée aucune donnée ou
+cache durable.
+
+Le navigateur ne transmet qu'une intention fixe et son nonce. Il ne reçoit
+jamais le `faluss_id`, une clé d'idempotence, un montant/solde, une classe, une
+date, une référence de ledger, un e-mail ou une donnée de paiement. Les réponses
+sont privées `no-store`, filtrées au document DR-01 lorsque le Core peut le
+fournir, et ramenées à un état minimal contrôlé lors d'une indisponibilité.
+Faluss Me et son gain `75 PF` restent sans adaptateur ni interface.
 
 ## Bibliothèque privée de découvertes
 

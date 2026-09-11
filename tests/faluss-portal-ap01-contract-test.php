@@ -119,7 +119,7 @@ ap01_assert( 1 === substr_count( $source, '<div class="faluss-portal__app-head">
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-action\s*\{[^}]*display:\s*inline-grid;[^}]*place-items:\s*center;[^}]*border:\s*0 !important;[^}]*outline:\s*0 !important;[^}]*border-radius:\s*100px !important;[^}]*box-shadow:\s*none !important;/s', $css ), 'The real Hub action must remain a centered pill immune to Elementor and browser frames.' );
 ap01_assert( false !== strpos( $css, '.faluss-portal__app-action::before' ) && false !== strpos( $css, '.faluss-portal__app-action::after { border-radius: 100px !important; }' ), 'The action pseudo-elements must inherit the same fully rounded geometry.' );
 ap01_assert( false !== strpos( $javascript, '[data-faluss-app-current]' ) && false !== strpos( $javascript, '2800' ) && false !== strpos( $javascript, 'message.hidden = true' ), 'The active-app message must be local and automatically disappear within three seconds.' );
-ap01_assert( false === strpos( $javascript, 'fetch(' ) && false === strpos( $javascript, 'XMLHttpRequest' ), 'Apps Faluss must make no browser request to infer ownership.' );
+ap01_assert( 1 === substr_count( $javascript, 'window.fetch(form.action' ) && false === strpos( $javascript, 'XMLHttpRequest' ), 'Apps Faluss may use only the fixed authenticated Hub daily-claim request, never a request to infer ownership.' );
 ap01_assert( 1 === preg_match( '/private static function app_registry.*?private static function home_panel/s', $source, $apps_source ) && false === strpos( $apps_source[0], 'wp_remote_' ), 'The Apps registry and renderer must make no server-side cross-domain request.' );
 
 $official_assets = array(

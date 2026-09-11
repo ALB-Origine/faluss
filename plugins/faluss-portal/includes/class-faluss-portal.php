@@ -17,6 +17,10 @@ final class Faluss_Portal {
     const SCRIPT = 'faluss-portal';
     const PORTAL_ACTION = 'faluss_portal_open_customer_portal';
     const PORTAL_NONCE = 'faluss_portal_open_customer_portal';
+    const HUB_DAILY_ACTION = 'faluss_portal_claim_hub_daily';
+    const HUB_DAILY_NONCE = 'faluss_portal_claim_hub_daily';
+    const HUB_DAILY_OWNER = 'faluss-hub';
+    const HUB_DAILY_REWARD_KEY = 'hub.daily_accrual';
     const NOTICE_PREFIX = 'faluss_portal_notice_';
     const NOTICE_TTL = 300;
 
@@ -68,6 +72,7 @@ final class Faluss_Portal {
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_page_assets' ) );
         add_shortcode( self::SHORTCODE, array( __CLASS__, 'shortcode' ) );
         add_action( 'admin_post_' . self::PORTAL_ACTION, array( __CLASS__, 'open_customer_portal' ) );
+        add_action( 'wp_ajax_' . self::HUB_DAILY_ACTION, array( __CLASS__, 'claim_hub_daily' ) );
         add_action( 'template_redirect', array( __CLASS__, 'intercept_customer_portal_return' ), -1 );
         add_filter( 'option_faluss_identity_client_settings', array( __CLASS__, 'include_portal_return' ) );
         add_filter( 'show_admin_bar', array( __CLASS__, 'filter_member_admin_bar' ), PHP_INT_MAX );
@@ -366,6 +371,7 @@ final class Faluss_Portal {
                 'active'      => true,
                 'short_title' => 'Portail Central',
                 'description' => 'Gérez vos applications et comptes Faluss depuis un espace unique. Retrouvez votre activité, vos préférences et les données que chaque service vous autorise à consulter.',
+                'daily_reward' => self::hub_daily_read_model( $faluss_id ),
             ),
             array(
                 'slug'        => 'me',
@@ -445,10 +451,14 @@ final class Faluss_Portal {
         $url = self::validated_app_url( $app );
         $state = ! empty( $app['active'] ) ? 'active' : ( ! empty( $app['available'] ) && '' !== $url ? 'available' : 'unavailable' );
         $compact_link = $compact && '' !== $url;
+        $hub_daily_card = $compact && 'hub' === ( $app['slug'] ?? '' ) && $compact_link;
         $classes = 'faluss-portal__app-card faluss-portal__app-card--' . ( $compact ? 'compact' : 'explore' );
         $style = '--faluss-app-accent:' . $app['accent'] . ';--faluss-app-title-accent:' . $app['title_color'] . ';';
         $card_label = 'Faluss ' . $app['name'];
-        if ( $compact_link ) {
+        if ( $hub_daily_card ) {
+            echo '<article class="' . esc_attr( $classes ) . ' faluss-portal__app-card--hub-daily" data-faluss-app-card data-faluss-app="' . esc_attr( $app['slug'] ) . '" data-faluss-app-state="' . esc_attr( $state ) . '" style="' . esc_attr( $style ) . '">';
+            echo '<a class="faluss-portal__app-card-access" href="' . esc_url( $url ) . '" target="_blank" rel="noopener noreferrer" aria-label="' . esc_attr( 'Ouvrir ' . $card_label ) . '"></a>';
+        } elseif ( $compact_link ) {
             echo '<a class="' . esc_attr( $classes ) . '" data-faluss-app-card data-faluss-app="' . esc_attr( $app['slug'] ) . '" data-faluss-app-state="' . esc_attr( $state ) . '" style="' . esc_attr( $style ) . '" href="' . esc_url( $url ) . '" target="_blank" rel="noopener noreferrer" aria-label="' . esc_attr( 'Ouvrir ' . $card_label ) . '">';
         } else {
             echo '<article class="' . esc_attr( $classes ) . '" data-faluss-app-card data-faluss-app="' . esc_attr( $app['slug'] ) . '" data-faluss-app-state="' . esc_attr( $state ) . '" style="' . esc_attr( $style ) . '">';
@@ -461,7 +471,9 @@ final class Faluss_Portal {
         }
         echo '</span>';
         echo '<span class="faluss-portal__app-identity"><span class="faluss-portal__app-name"><span>Faluss</span> <span class="faluss-portal__app-derivative">' . esc_html( $app['name'] ) . '</span></span><span class="faluss-portal__app-subtitle">' . esc_html( $compact ? 'M’y rendre' : $app['short_title'] ) . '</span></span>';
-        if ( $compact ) {
+        if ( $hub_daily_card ) {
+            self::render_hub_daily_action( $app['daily_reward'] ?? array( 'status' => 'unavailable' ) );
+        } elseif ( $compact ) {
             echo '<span class="faluss-portal__app-open" aria-hidden="true">' . self::external_link_icon() . '</span>';
         }
         echo '</div>';
@@ -478,7 +490,184 @@ final class Faluss_Portal {
             echo '</div>';
         }
 
-        echo $compact_link ? '</a>' : '</article>';
+        echo $compact_link && ! $hub_daily_card ? '</a>' : '</article>';
+    }
+
+    /**
+     * Renders the only PF action in Portal. The form carries only its fixed
+     * intent and a nonce; the subject and every economic field stay server-side.
+     *
+     * @param array<string,mixed> $daily_reward
+     */
+    private static function render_hub_daily_action( $daily_reward ) {
+        $status = is_array( $daily_reward ) && is_string( $daily_reward['status'] ?? null ) ? $daily_reward['status'] : 'unavailable';
+        echo '<span class="faluss-portal__hub-daily-action" data-faluss-portal-hub-daily-action data-faluss-portal-hub-daily-state="' . esc_attr( $status ) . '">';
+        if ( 'claimable' === $status ) {
+            echo '<form class="faluss-portal__hub-daily-form" data-faluss-portal-hub-daily-reward method="post" action="' . esc_url( admin_url( 'admin-ajax.php' ) ) . '">';
+            echo '<input type="hidden" name="action" value="' . esc_attr( self::HUB_DAILY_ACTION ) . '">';
+            echo '<input type="hidden" name="faluss_portal_hub_daily_nonce" value="' . esc_attr( wp_create_nonce( self::HUB_DAILY_NONCE ) ) . '">';
+            echo '<button class="faluss-portal__hub-daily-button" type="submit" data-faluss-portal-hub-daily-submit>' . self::hub_pf_badge() . '<span data-faluss-portal-hub-daily-label>Récupérer +20 PF</span></button>';
+            echo '<span class="faluss-portal__hub-daily-feedback" data-faluss-portal-hub-daily-feedback role="status" hidden></span>';
+            echo '</form>';
+        } elseif ( 'claimed' === $status ) {
+            echo '<span class="faluss-portal__hub-daily-claimed" role="status">' . self::hub_pf_badge() . '<span>Récupéré aujourd’hui</span></span>';
+        }
+        echo '</span>';
+    }
+
+    /** The supplied PF badge is confined to the Hub daily-action zone. */
+    private static function hub_pf_badge() {
+        return '<img class="faluss-portal__hub-daily-badge" data-faluss-portal-pf-badge src="' . esc_url( FALUSS_PORTAL_URL . 'assets/images/pf/faluss-pf-badge.png' ) . '" alt="" aria-hidden="true">';
+    }
+
+    /**
+     * Authenticated fixed-intent claim endpoint. It deliberately has no
+     * nopriv counterpart and never accepts a subject or an economic argument.
+     */
+    public static function claim_hub_daily() {
+        if ( 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) {
+            self::send_hub_daily_json( self::hub_daily_state_only( 'unavailable' ), 405 );
+        }
+
+        $nonce = isset( $_POST['faluss_portal_hub_daily_nonce'] ) && is_string( $_POST['faluss_portal_hub_daily_nonce'] ) ? wp_unslash( $_POST['faluss_portal_hub_daily_nonce'] ) : '';
+        if ( ! is_user_logged_in() || ! wp_verify_nonce( $nonce, self::HUB_DAILY_NONCE ) ) {
+            self::send_hub_daily_json( self::hub_daily_state_only( 'ineligible' ), 403 );
+        }
+
+        $member = self::current_member();
+        if ( ! is_array( $member ) ) {
+            self::send_hub_daily_json( self::hub_daily_state_only( 'ineligible' ), 403 );
+        }
+
+        self::send_hub_daily_json( self::hub_daily_claim( $member['faluss_id'] ) );
+    }
+
+    /** @return array<string,mixed> */
+    private static function hub_daily_read_model( $faluss_id ) {
+        if ( ! self::valid_faluss_id( $faluss_id ) ) {
+            return self::hub_daily_state_only( 'ineligible' );
+        }
+        if ( ! self::hub_daily_core_available() ) {
+            return self::hub_daily_state_only( 'unavailable' );
+        }
+        try {
+            return self::hub_daily_document_from_core( Token_Engine_Points_Service::daily_status( $faluss_id, self::HUB_DAILY_OWNER, self::HUB_DAILY_REWARD_KEY, self::hub_daily_server_proof() ) );
+        } catch ( Throwable $exception ) {
+            unset( $exception );
+            return self::hub_daily_state_only( 'unavailable' );
+        }
+    }
+
+    /** @return array<string,mixed> */
+    private static function hub_daily_claim( $faluss_id ) {
+        if ( ! self::valid_faluss_id( $faluss_id ) || ! self::hub_daily_core_available() ) {
+            return self::hub_daily_state_only( 'unavailable' );
+        }
+        try {
+            return self::hub_daily_document_from_core( Token_Engine_Points_Service::claim_hub_daily( $faluss_id, self::hub_daily_server_proof() ) );
+        } catch ( Throwable $exception ) {
+            unset( $exception );
+            return self::hub_daily_state_only( 'unavailable' );
+        }
+    }
+
+    private static function hub_daily_core_available() {
+        return class_exists( 'Token_Engine_Points_Service' )
+            && defined( 'TOKEN_ENGINE_VERSION' )
+            && '0.4.1' === TOKEN_ENGINE_VERSION
+            && class_exists( 'Token_Engine_Schema' )
+            && defined( 'Token_Engine_Schema::VERSION' )
+            && '5' === (string) Token_Engine_Schema::VERSION;
+    }
+
+    /** @return array<string,mixed> */
+    private static function hub_daily_server_proof() {
+        return array(
+            'owner'           => self::HUB_DAILY_OWNER,
+            'identity_active' => true,
+        );
+    }
+
+    /**
+     * Accept only the complete, fixed Hub decision from the Token Engine.
+     * Portal neither derives the amount nor fabricates a logical date.
+     *
+     * @return array<string,mixed>
+     */
+    private static function hub_daily_document_from_core( $core ) {
+        $state = is_array( $core ) && is_string( $core['state'] ?? null ) ? $core['state'] : '';
+        if ( ! in_array( $state, array( 'claimable', 'claimed', 'ineligible', 'unavailable', 'not_supported' ), true ) ) {
+            return self::hub_daily_state_only( 'unavailable' );
+        }
+        if ( ! in_array( $state, array( 'claimable', 'claimed' ), true ) ) {
+            return self::hub_daily_state_only( $state );
+        }
+        if ( self::HUB_DAILY_OWNER !== ( $core['owner'] ?? '' )
+            || self::HUB_DAILY_REWARD_KEY !== ( $core['reward_key'] ?? '' )
+            || 20 !== (int) ( $core['amount_pf'] ?? 0 )
+            || 'earned' !== ( $core['economic_class'] ?? '' )
+            || 'daily_accrual' !== ( $core['category'] ?? '' )
+            || ! self::valid_logical_date( $core['logical_date'] ?? '' ) ) {
+            return self::hub_daily_state_only( 'unavailable' );
+        }
+
+        $claimable = 'claimable' === $state;
+        return array(
+            'app_key'    => 'hub',
+            'reward_key' => self::HUB_DAILY_REWARD_KEY,
+            'owner'      => self::HUB_DAILY_OWNER,
+            'status'     => $state,
+            'reward'     => array(
+                'amount_pf'     => (int) $core['amount_pf'],
+                'economic_class' => $core['economic_class'],
+                'label'         => '20 PF',
+            ),
+            'period'     => array(
+                'type'         => 'daily',
+                'timezone'     => 'Europe/Paris',
+                'logical_date' => $core['logical_date'],
+            ),
+            'delegation' => array(
+                'type'       => $claimable ? 'owner_claim' : 'none',
+                'action_key' => $claimable ? 'claim-hub-daily' : null,
+                'target'     => $claimable ? self::HUB_DAILY_REWARD_KEY : null,
+            ),
+            'freshness'  => array(
+                'generated_at'    => gmdate( 'c' ),
+                'max_age_seconds' => 60,
+                'stale_behavior'  => 'refresh_from_owner',
+            ),
+            'source'     => array(
+                'type'           => 'owner_daily_reward_read_model',
+                'engine'         => self::HUB_DAILY_OWNER,
+                'read_model'     => 'hub-daily-reward',
+                'source_version' => '1.0.0',
+            ),
+            'compatibility' => array(
+                'minimum_consumer_version' => '1.0.0',
+                'backward_compatible_with' => array( '1.0.0' ),
+                'deprecated'               => false,
+                'sunset_at'                => null,
+                'replacement_reward_key'   => null,
+            ),
+        );
+    }
+
+    /** @return array<string,string> */
+    private static function hub_daily_state_only( $status ) {
+        return array( 'status' => in_array( $status, array( 'ineligible', 'unavailable', 'not_supported' ), true ) ? $status : 'unavailable' );
+    }
+
+    private static function valid_logical_date( $value ) {
+        return is_string( $value ) && 1 === preg_match( '/^\\d{4}-\\d{2}-\\d{2}$/', $value );
+    }
+
+    /** @param array<string,mixed> $daily_reward */
+    private static function send_hub_daily_json( $daily_reward, $status = 200 ) {
+        nocache_headers();
+        header( 'Cache-Control: private, no-store, max-age=0, must-revalidate' );
+        header( 'Pragma: no-cache' );
+        wp_send_json_success( $daily_reward, $status );
     }
 
     /** @param array<string,mixed> $app */

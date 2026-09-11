@@ -212,6 +212,58 @@
       }
     };
 
+    root.addEventListener('submit', (event) => {
+      const form = event.target.closest('[data-faluss-portal-hub-daily-reward]');
+      if (!form || !root.contains(form)) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const button = form.querySelector('[data-faluss-portal-hub-daily-submit]');
+      const label = form.querySelector('[data-faluss-portal-hub-daily-label]');
+      const feedback = form.querySelector('[data-faluss-portal-hub-daily-feedback]');
+      const action = form.closest('[data-faluss-portal-hub-daily-action]');
+      if (!button || !action || button.disabled) return;
+
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      if (label) label.textContent = 'Récupération…';
+      if (feedback) feedback.hidden = true;
+
+      window.fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' }
+      })
+        .then((response) => response.ok ? response.json() : Promise.reject(new Error('hub_daily_unavailable')))
+        .then((payload) => {
+          const dailyReward = payload && payload.success ? payload.data : null;
+          if (!dailyReward || dailyReward.status !== 'claimed') {
+            throw new Error('hub_daily_not_claimed');
+          }
+          const claimed = document.createElement('span');
+          claimed.className = 'faluss-portal__hub-daily-claimed';
+          claimed.setAttribute('role', 'status');
+          const badge = button.querySelector('[data-faluss-portal-pf-badge]');
+          if (badge) claimed.append(badge.cloneNode(true));
+          const copy = document.createElement('span');
+          copy.textContent = 'Récupéré aujourd’hui';
+          claimed.append(copy);
+          action.replaceChildren(claimed);
+          action.dataset.falussPortalHubDailyState = 'claimed';
+        })
+        .catch(() => {
+          button.disabled = false;
+          button.removeAttribute('aria-busy');
+          if (label) label.textContent = 'Récupérer +20 PF';
+          if (feedback) {
+            feedback.textContent = 'Le gain quotidien est temporairement indisponible.';
+            feedback.hidden = false;
+          }
+        });
+    });
+
     root.addEventListener('click', (event) => {
       const currentApp = event.target.closest('[data-faluss-app-current]');
       if (currentApp && root.contains(currentApp)) {

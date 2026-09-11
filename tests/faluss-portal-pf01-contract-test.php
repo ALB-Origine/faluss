@@ -88,7 +88,7 @@ $documentation = file_get_contents( $root . '/docs/FALUSS_PORTAL.md' );
 $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 
-foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.15'", 'class-faluss-portal.php' ) as $needle ) {
+foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.16'", 'class-faluss-portal.php' ) as $needle ) {
     pf01_assert( false !== strpos( $bootstrap, $needle ), 'PF-01 requires an isolated versioned Faluss Portal plugin: ' . $needle );
 }
 foreach ( array( "add_shortcode( self::SHORTCODE", "[faluss_portal]", 'Faluss_Identity_Client_Schema::tables()', 'WHERE wp_user_id = %d', "array( 'subscriber' )", 'Faluss_Identity_Client::button' ) as $needle ) {
@@ -106,8 +106,8 @@ foreach ( array( "add_filter( 'body_class'", 'filter_portal_body_class', "is_pag
 }
 pf01_assert( false === strpos( $source, '$_GET[\'faluss_id\']' ) && false === strpos( $source, '$_POST[\'faluss_id\']' ), 'A browser-supplied Faluss ID must never select portal data.' );
 pf01_assert( false === strpos( $source, 'CREATE TABLE' ) && false === strpos( $source, 'INSERT INTO' ) && false === strpos( $source, 'update_user_meta' ), 'PF-01 must not introduce a portal table, write an identity link or persist a universal profile.' );
-pf01_assert( false === strpos( $source, 'wp_ajax_' ) && false === strpos( $source, 'register_rest_route' ), 'The member portal must not expose an anonymous browser data or billing route.' );
-pf01_assert( false === strpos( $source, 'Token_Engine_Service::balance' ) && false === strpos( $source, 'Token_Engine_Schema' ) && false === strpos( $source, 'points_snapshot' ), 'PF-01 must not read, rename or display a historical Token Engine balance as PF.' );
+pf01_assert( false !== strpos( $source, "add_action( 'wp_ajax_' . self::HUB_DAILY_ACTION" ) && false === strpos( $source, 'wp_ajax_nopriv_' ) && false === strpos( $source, 'register_rest_route' ), 'The member portal may expose only its authenticated Hub daily-claim action, never an anonymous or REST route.' );
+pf01_assert( false === strpos( $source, 'Token_Engine_Service::balance' ) && false === strpos( $source, 'Token_Engine_Schema::pf_ledger_table' ) && false === strpos( $source, 'points_snapshot' ), 'PF-01 must not read, rename or display a historical Token Engine balance as PF; DR-02A may only verify the Core schema version.' );
 
 require_once $plugin . '/includes/class-faluss-portal.php';
 $body_classes = Faluss_Portal::filter_portal_body_class( array( 'existing-class' ) );
@@ -227,7 +227,7 @@ pf01_assert( 0 === preg_match( '/faluss-portal__master[^\n{]*\{[^}]*opacity/s', 
 foreach ( array( 'history.pushState', 'popstate', 'requestAnimationFrame', 'showModal', 'closeProfile', 'setMasterTab', 'falussPortalSidebarCollapsed', 'aria-expanded', 'localStorage.setItem' ) as $needle ) {
     pf01_assert( false !== strpos( $javascript, $needle ), 'Navigation and Master Profile must be progressive, animated and history-aware: ' . $needle );
 }
-pf01_assert( false === strpos( $javascript, 'fetch(' ) && false === strpos( $javascript, 'Stripe' ), 'The browser must not read Stripe or make a direct portal data call.' );
+pf01_assert( 1 === substr_count( $javascript, 'window.fetch(form.action' ) && false === strpos( $javascript, 'Stripe' ), 'The browser must not read Stripe and may make only the fixed Hub daily-claim request.' );
 foreach ( array( 'sources de vérité', 'Master Profile', 'Point Faluss', 'faluss_pf', 'ALB / Alternative LAB', 'crée aucune', 'trialing', 'Customer Portal' ) as $needle ) {
     pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01 documentation is missing its architecture or data-boundary contract: ' . $needle );
 }

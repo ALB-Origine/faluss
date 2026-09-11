@@ -117,7 +117,8 @@ foreach ( array( 'balances_by_class', 'daily_status', 'claim_hub_daily', 'claim_
 foreach ( array( 'register_rest_route', 'wp_ajax_', 'add_shortcode', 'wp_schedule', 'wp_cron', '$_POST', '$_GET', 'wp_user_id', 'Token_Engine_Service::balance', 'Token_Engine_Schema::ledger_table' ) as $forbidden ) {
     pf02b_assert( false === strpos( $points, $forbidden ), 'PF-02B must not expose a browser/runtime surface or access the generic ALB ledger: ' . $forbidden );
 }
-pf02b_assert( false === strpos( $generic_service, 'Token_Engine_Points_Service' ) && false === strpos( $connector, 'Token_Engine_Points_Service' ) && false === strpos( $portal, 'Token_Engine_Points_Service' ), 'PF-02B must not wire the generic service, Connector or Portal to the PF ledger.' );
+pf02b_assert( false === strpos( $generic_service, 'Token_Engine_Points_Service' ) && false === strpos( $connector, 'Token_Engine_Points_Service' ), 'The generic service and Connector must never wire themselves to the PF ledger.' );
+pf02b_assert( false !== strpos( $portal, 'Token_Engine_Points_Service::daily_status' ) && false !== strpos( $portal, 'Token_Engine_Points_Service::claim_hub_daily' ) && false === strpos( $portal, 'Token_Engine_Points_Service::balances_by_class' ) && false === strpos( $portal, 'Token_Engine_Points_Service::claim_me_profile_daily' ) && false === strpos( $portal, 'Token_Engine_Schema::pf_ledger_table' ), 'DR-02A Portal may use only the fixed Hub daily adapter and must not read balances, invoke Me or access a PF table.' );
 
 $faluss_id = '11111111-1111-4111-8111-111111111111';
 $hub_key = pf02b_daily_idempotency( 'faluss-hub', 'hub.daily_accrual', $faluss_id, '2026-09-11', '1.0.0' );
@@ -147,6 +148,6 @@ foreach ( array( 'faluss-hub', 'hub.daily_accrual', 'daily_accrual', '20', 'falu
 foreach ( array( 'PF-02B — Core réel isolé', 'token_engine_pf_ledger', 'ledger ALB existant', "Aucune ligne PF n'est", "créée à l'installation" ) as $needle ) {
     pf02b_assert( false !== strpos( $pf_contract, $needle ), 'PF documentation must state the actual isolated Core boundary: ' . $needle );
 }
-pf02b_assert( false !== strpos( $daily_contract, 'aucun adaptateur Hub ou Faluss Me') && false !== strpos( $daily_contract, 'rattrapage' ) && false !== strpos( $architecture, '### Core PF-02B' ) && false !== strpos( $data_model, '## Points Faluss PF-02B' ) && false !== strpos( $roadmap, '## PF-02B — Core réel du ledger Points Faluss' ), 'Architecture, data model, roadmap and DR-01 must document the no-adapter PF core.' );
+pf02b_assert( false !== strpos( $daily_contract, 'aucun adaptateur Hub ou Faluss Me') && false !== strpos( $daily_contract, 'rattrapage' ) && false !== strpos( $architecture, '### Core PF-02B' ) && false !== strpos( $architecture, '### Daily Reward Hub DR-02A' ) && false !== strpos( $data_model, '## Points Faluss PF-02B' ) && false !== strpos( $data_model, "DR-02A n'ajoute toujours ni table" ) && false !== strpos( $roadmap, '## PF-02B — Core réel du ledger Points Faluss' ) && false !== strpos( $roadmap, '## DR-02A — Gain quotidien Faluss Hub réel' ), 'Architecture, data model, roadmap and DR-01 must retain the isolated Core contract while documenting the sole Hub adapter.' );
 
 echo 'PF-02B Token Engine Points ledger contract: OK' . PHP_EOL;
