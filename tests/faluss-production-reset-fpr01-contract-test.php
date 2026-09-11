@@ -15,7 +15,7 @@ $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 $roadmap = file_get_contents( $root . '/docs/ROADMAP.md' );
 
-fpr01_assert( false !== strpos( $bootstrap, 'Plugin Name: Faluss Production Reset' ) && false !== strpos( $bootstrap, "Version: 0.1.0" ), 'FPR-01 must be an isolated Faluss Production Reset 0.1.0 plugin.' );
+fpr01_assert( false !== strpos( $bootstrap, 'Plugin Name: Faluss Production Reset' ) && false !== strpos( $bootstrap, "Version: 0.1.1" ) && false !== strpos( $service, "const VERSION = '0.1.1'" ), 'FPR-01.1 must be an isolated Faluss Production Reset 0.1.1 plugin.' );
 fpr01_assert( false !== strpos( $service, "'faluss.me'" ) && false !== strpos( $service, "'faluss.com'" ) && false !== strpos( $service, 'HUB_RECEIVER_URL' ), 'The isolated plugin must have only the two canonical Faluss sites in scope.' );
 
 // 1. No browser operation bypasses capability, nonce and the exact confirmation.
@@ -53,11 +53,15 @@ foreach ( array( 'unlink(', 'rmdir(', 'RecursiveDirectoryIterator', 'rm -rf', 'w
     fpr01_assert( false === strpos( $service, $forbidden ), 'FPR-01 must never recursively or directly delete uploads: ' . $forbidden );
 }
 
-// 9-10. The legacy ALB ledger is not a destructive target; PF must exist and be empty.
+// 9-10. The legacy ALB ledger is not a destructive target; PF exists and is empty only on Hub.
 fpr01_assert( false === strpos( $service, 'token_engine_ledger' ), 'FPR-01 must not reference the ALB ledger.' );
 foreach ( array( "'token_engine_pf_ledger'", 'fpr_pf_ledger_not_empty', '0 !== $pf_count' ) as $needle ) {
     fpr01_assert( false !== strpos( $service, $needle ), 'PF-empty preflight invariant is missing: ' . $needle );
 }
+$identity_preflight = preg_match( '/private static function preflight_identity\(\).*?private static function preflight_hub\(/s', $service, $identity_match ) ? $identity_match[0] : '';
+$hub_preflight = preg_match( '/private static function preflight_hub\(\).*?private static function required_tables\(/s', $service, $hub_match ) ? $hub_match[0] : '';
+fpr01_assert( '' !== $identity_preflight && false === strpos( $identity_preflight, 'token_engine_pf_ledger' ) && false === strpos( $identity_preflight, 'table_count( $tables[' ), 'FPR-01.1 identity preflight must require and count no PF ledger.' );
+fpr01_assert( '' !== $hub_preflight && false !== strpos( $hub_preflight, "'token_engine_pf_ledger'" ) && false !== strpos( $hub_preflight, 'table_count( $tables[\'token_engine_pf_ledger\'] )' ) && false !== strpos( $hub_preflight, 'fpr_pf_ledger_not_empty' ), 'FPR-01.1 Hub preflight must still require and reject a non-empty PF ledger.' );
 
 // 11. Hub use is fixed, authenticated, short-lived, one-time and response-signed.
 foreach ( array( 'hash_hmac( \'sha256\'', 'hash_equals', 'MAX_CLOCK_SKEW = 300', 'consume_nonce', 'add_option( $option', 'X-FPR-Response-Signature', 'register_hub_receiver' ) as $needle ) {
@@ -82,7 +86,7 @@ foreach ( array( 'error_log(', 'wp_mail(' ) as $forbidden ) {
     fpr01_assert( false === strpos( $service, $forbidden ), 'The FPR plugin must not log or mail member data: ' . $forbidden );
 }
 
-foreach ( array( 'FALUSS_PRODUCTION_RESET_SHARED_SECRET', 'wp-config.php', 'Aucune sécurité ne repose', 'wp_delete_attachment', 'token_engine_pf_ledger', 'token_engine_ledger', 'CDN tiers', 'Recette WordPress réelle' ) as $needle ) {
+foreach ( array( 'FALUSS_PRODUCTION_RESET_SHARED_SECRET', 'wp-config.php', 'Aucune sécurité ne repose', 'wp_delete_attachment', 'ledger PF est vérifié exclusivement sur `faluss.com`', "n'héberge pas Token Engine", 'token_engine_ledger', 'CDN tiers', 'Recette WordPress réelle' ) as $needle ) {
     fpr01_assert( false !== strpos( $documentation, $needle ), 'FPR-01 installation or operational limit is undocumented: ' . $needle );
 }
 fpr01_assert( false !== strpos( $architecture, '## Production Reset FPR-01' ), 'Architecture must record FPR-01 coordination boundary.' );

@@ -17,7 +17,8 @@ enregistré uniquement sur `faluss.com` pendant son armement explicite.
 
 1. Contrôler la sauvegarde exploitable des deux sites selon la procédure de
    l'hébergeur. FPR-01 n'en crée, n'en exporte et n'en télécharge aucune.
-2. Installer le même fichier `faluss-production-reset-0.1.0.zip` sur
+2. Installer ou mettre à jour avec le même fichier
+   `faluss-production-reset-0.1.1.zip` sur
    `faluss.me` et `faluss.com`, puis activer **Faluss Production Reset** sur
    les deux installations.
 3. Dans les deux `wp-config.php`, avant la ligne qui invite à arrêter les
@@ -35,6 +36,15 @@ enregistré uniquement sur `faluss.com` pendant son armement explicite.
    `ARMER LE RESET FALUSS`. Le reset ne peut pas commencer si l'un des deux
    sites n'est pas armé.
 
+### Mise à jour FPR-01.1 et réarmement
+
+L'installation de `0.1.1` invalide tout armement créé sous une version
+précédente : chaque installation alors armée devient désarmée, sans lancer de
+préflight ni reset. Un verrouillage déjà présent reste strictement verrouillé.
+Après la mise à jour du ZIP sur les deux sites, vérifier le désarmement puis
+réarmer explicitement `faluss.me` et `faluss.com` avant de relancer le
+préflight central.
+
 ## Contrôle central et déroulement
 
 La confirmation n'existe que sur `faluss.me`. Elle nécessite `manage_options`,
@@ -43,9 +53,9 @@ préflight est toujours relancé juste avant l'exécution. L'écran n'affiche qu
 des compteurs, jamais une adresse e-mail, un login, un `faluss_id`, une URL ou
 un chemin de média.
 
-1. `faluss.me` vérifie localement les tables requises, les candidats calculés
-   côté serveur, les médias et le ledger PF, puis appelle le préflight Hub
-   signé.
+1. `faluss.me` vérifie localement ses seules tables Identity et Faluss Link,
+   les candidats calculés côté serveur et les médias, puis appelle le
+   préflight Hub signé.
 2. La moindre précondition inconnue ou invalide arrête le flux avant toute
    suppression.
 3. Après confirmation, le Hub recalcule seul ses candidats, exécute son reset
@@ -92,9 +102,11 @@ privilégiés et tous les `subscriber` non privilégiés sont supprimés via
 d'administration; ses données Faluss dans les tables supprimées ne sont pas
 préservées.
 
-Le préflight exige que `*_token_engine_pf_ledger` existe et soit vide. Il ne
-supprime jamais une ligne PF append-only. Il ne lit, ne modifie, ni ne référence
-destructivement `*_token_engine_ledger` (ALB).
+Le ledger PF est vérifié exclusivement sur `faluss.com`. `faluss.me`
+n'héberge pas Token Engine et ne possède aucun ledger PF local. Le préflight
+Hub exige que `*_token_engine_pf_ledger` existe et soit vide, sans jamais
+supprimer une ligne PF append-only. Aucun préflight ne lit, ne modifie ni ne
+référence destructivement `*_token_engine_ledger` (ALB).
 
 ## Médias et caches
 
@@ -122,10 +134,13 @@ contrôlés par FPR-01.
 La recette ci-dessous est une procédure de mise en production; elle n'est pas
 une preuve fournie par les tests statiques du dépôt.
 
-1. Après sauvegarde, installer et activer le ZIP vérifié sur les deux sites,
-   poser la constante identique puis armer explicitement les deux sites.
+1. Après sauvegarde, mettre à jour et activer le ZIP `0.1.1` sur les deux
+   sites, puis vérifier que les deux installations auparavant armées sont
+   désarmées. Poser ou conserver la constante identique et réarmer
+   explicitement les deux sites.
 2. Depuis `faluss.me`, faire le préflight et confirmer que les compteurs sont
-   attendus et que le PF ledger est vide.
+   attendus ; le ledger PF est contrôlé comme vide exclusivement par
+   `faluss.com`.
 3. Confirmer le reset, puis vérifier que les administrateurs restent
    connectables et que tous les membres Identity et Hub sont absents.
 4. Vérifier que profils publics et routes associées ne rendent plus de carte,

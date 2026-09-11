@@ -9,12 +9,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  * a member, table, role, amount, URL or target supplied by a browser or peer.
  */
 class Faluss_Production_Reset {
-    const VERSION = '0.1.0';
+    const VERSION = '0.1.1';
     const PROTOCOL = '1';
     const OPERATION = 'hub_member_reset_v1';
     const CONFIRMATION = 'METTRE FALUSS EN PRODUCTION';
     const ARM_CONFIRMATION = 'ARMER LE RESET FALUSS';
     const OPTION_ARMED = 'faluss_production_reset_armed';
+    const OPTION_ARMED_VERSION = 'faluss_production_reset_armed_version';
     const OPTION_LOCKED = 'faluss_production_reset_locked';
     const OPTION_RECEIPT = 'faluss_production_reset_receipt';
     const NONCE_OPTION_PREFIX = 'faluss_production_reset_nonce_';
@@ -24,6 +25,7 @@ class Faluss_Production_Reset {
     const MAX_CLOCK_SKEW = 300;
 
     public static function boot() {
+        self::invalidate_legacy_armament();
         add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
         add_action( 'admin_post_faluss_production_reset_arm', array( __CLASS__, 'post_arm' ) );
         add_action( 'admin_post_faluss_production_reset_preflight', array( __CLASS__, 'post_preflight' ) );
@@ -130,6 +132,7 @@ class Faluss_Production_Reset {
             self::redirect_notice( 'La phrase d’armement est invalide.', 'error' );
         }
         update_option( self::OPTION_ARMED, 1, false );
+        update_option( self::OPTION_ARMED_VERSION, self::VERSION, false );
         delete_option( self::OPTION_LOCKED );
         self::redirect_notice( 'Installation armée explicitement.', 'success' );
     }
@@ -242,11 +245,24 @@ class Faluss_Production_Reset {
     }
 
     private static function is_armed() {
-        return (bool) get_option( self::OPTION_ARMED, false );
+        return self::VERSION === get_option( self::OPTION_ARMED_VERSION, '' ) && (bool) get_option( self::OPTION_ARMED, false );
     }
 
     private static function is_locked() {
         return (bool) get_option( self::OPTION_LOCKED, false );
+    }
+
+    /**
+     * An armament is valid only for the plugin version that explicitly created
+     * it. Upgrades always require a new local administrator action; a lock is
+     * deliberately never removed or weakened here.
+     */
+    private static function invalidate_legacy_armament() {
+        if ( self::VERSION === get_option( self::OPTION_ARMED_VERSION, '' ) ) {
+            return;
+        }
+        update_option( self::OPTION_ARMED, 0, false );
+        update_option( self::OPTION_ARMED_VERSION, self::VERSION, false );
     }
 
     private static function shared_secret() {
@@ -270,7 +286,6 @@ class Faluss_Production_Reset {
             'faluss_link_blocks',
             'faluss_link_discoveries',
             'faluss_link_discovery_settings',
-            'token_engine_pf_ledger',
         ) );
         if ( is_wp_error( $tables ) ) {
             return $tables;
@@ -283,10 +298,6 @@ class Faluss_Production_Reset {
         $attachments = self::identity_attachments( $tables, $profiles, $candidate_ids );
         if ( is_wp_error( $attachments ) ) {
             return $attachments;
-        }
-        $pf_count = self::table_count( $tables['token_engine_pf_ledger'] );
-        if ( is_wp_error( $pf_count ) || 0 !== $pf_count ) {
-            return new WP_Error( 'fpr_pf_ledger_not_empty', 'Le ledger PF doit être présent et strictement vide avant un reset.' );
         }
         return self::plan( $tables, $profiles, $candidate_ids, $attachments );
     }
