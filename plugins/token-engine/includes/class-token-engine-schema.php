@@ -7,7 +7,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 /** Versioned, additive schema installer for the generic engine and private connector access. */
 final class Token_Engine_Schema {
     const OPTION = 'token_engine_schema_version';
-    const VERSION = '4';
+    const VERSION = '5';
+    const V4_VERSION = '4';
     const V3_VERSION = '3';
     const V2_VERSION = '2';
     const LEGACY_VERSION = '1';
@@ -58,6 +59,9 @@ final class Token_Engine_Schema {
                 return false;
             }
             if ( self::v3_schema_ready() && ! self::migrate_v3_to_v4() ) {
+                return false;
+            }
+            if ( self::v4_schema_ready() && ! self::migrate_v4_to_v5() ) {
                 return false;
             }
             if ( self::current_schema_ready() ) {
@@ -125,9 +129,29 @@ final class Token_Engine_Schema {
         }
         $table = self::pf_ledger_table();
         if ( self::exists( $table ) ) {
-            return self::verify_table( 'pf_ledger', $table, self::VERSION );
+            if ( ! self::verify_table( 'pf_ledger', $table, self::V4_VERSION ) ) {
+                return false;
+            }
+        } elseif ( false === $wpdb->query( self::create_query( 'pf_ledger', $table, self::V4_VERSION ) ) ) {
+            return false;
         }
-        if ( false === $wpdb->query( self::create_query( 'pf_ledger', $table, self::VERSION ) ) ) {
+        update_option( self::OPTION, self::V4_VERSION, false );
+        return self::v4_schema_ready();
+    }
+
+    /** Replaces only the PF compensation lookup index with a unique nullable index. */
+    private static function migrate_v4_to_v5() {
+        global $wpdb;
+        if ( ! self::v4_schema_ready() ) {
+            return false;
+        }
+        $table = self::pf_ledger_table();
+        $duplicate = $wpdb->get_var( 'SELECT `compensates_entry_uuid` FROM `' . $table . '` WHERE `compensates_entry_uuid` IS NOT NULL GROUP BY `compensates_entry_uuid` HAVING COUNT(*) > 1 LIMIT 1' );
+        if ( '' !== (string) $wpdb->last_error || null !== $duplicate ) {
+            return false;
+        }
+        $alter = 'ALTER TABLE `' . $table . '` DROP INDEX `pf_compensates_entry`, ADD UNIQUE KEY `pf_compensates_entry_unique` (`compensates_entry_uuid`)';
+        if ( false === $wpdb->query( $alter ) ) {
             return false;
         }
         return self::current_schema_ready();
@@ -192,6 +216,23 @@ final class Token_Engine_Schema {
         }
         foreach ( $existing as $name => $table ) {
             if ( ! self::verify_table( $name, $table, self::V3_VERSION ) ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static function v4_schema_ready() {
+        if ( self::V4_VERSION !== get_option( self::OPTION ) ) {
+            return false;
+        }
+        $tables = self::tables();
+        $existing = self::existing_tables( $tables );
+        if ( count( $existing ) !== count( $tables ) ) {
+            return false;
+        }
+        foreach ( $existing as $name => $table ) {
+            if ( ! self::verify_table( $name, $table, self::V4_VERSION ) ) {
                 return false;
             }
         }
@@ -280,7 +321,8 @@ final class Token_Engine_Schema {
             return 'CREATE TABLE `' . $table . '` (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`transaction_uuid` char(36) NOT NULL,`subject_id` varchar(191) NOT NULL,`project_key` varchar(64) NOT NULL,`rule_key` varchar(96) NULL,`direction` varchar(10) NOT NULL,`amount` bigint(20) unsigned NOT NULL,`idempotency_key` varchar(191) NOT NULL,`source_reference` varchar(191) NULL,`metadata` longtext NULL,`created_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `transaction_uuid_unique` (`transaction_uuid`),UNIQUE KEY `idempotency_key_unique` (`idempotency_key`),KEY `ledger_subject_project_date` (`subject_id`,`project_key`,`created_at`),KEY `ledger_project_rule_date` (`project_key`,`rule_key`,`created_at`),KEY `ledger_rule_date` (`rule_key`,`created_at`),KEY `ledger_created_at` (`created_at`)) ENGINE=InnoDB ' . $charset;
         }
         if ( 'pf_ledger' === $name ) {
-            return 'CREATE TABLE `' . $table . '` (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`entry_uuid` char(36) NOT NULL,`faluss_id` char(36) NOT NULL,`amount_pf` bigint(20) unsigned NOT NULL,`direction` varchar(12) NOT NULL,`economic_class` varchar(20) NOT NULL,`category` varchar(64) NOT NULL,`category_version` varchar(32) NOT NULL,`source_owner` varchar(64) NOT NULL,`source_event_reference` varchar(191) NOT NULL,`idempotency_key` varchar(191) NOT NULL,`policy_version` varchar(32) NOT NULL,`occurred_at` datetime NOT NULL,`compensates_entry_uuid` char(36) NULL,`administrative_reason` varchar(191) NULL,`metadata` longtext NULL,`created_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `pf_entry_uuid_unique` (`entry_uuid`),UNIQUE KEY `pf_idempotency_key_unique` (`idempotency_key`),KEY `pf_subject_class_date` (`faluss_id`,`economic_class`,`occurred_at`),KEY `pf_subject_category_date` (`faluss_id`,`category`,`occurred_at`),KEY `pf_source_category_date` (`source_owner`,`category`,`occurred_at`),KEY `pf_compensates_entry` (`compensates_entry_uuid`)) ENGINE=InnoDB ' . $charset;
+            $compensation_index = self::V4_VERSION === $version ? 'KEY `pf_compensates_entry` (`compensates_entry_uuid`)' : 'UNIQUE KEY `pf_compensates_entry_unique` (`compensates_entry_uuid`)';
+            return 'CREATE TABLE `' . $table . '` (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`entry_uuid` char(36) NOT NULL,`faluss_id` char(36) NOT NULL,`amount_pf` bigint(20) unsigned NOT NULL,`direction` varchar(12) NOT NULL,`economic_class` varchar(20) NOT NULL,`category` varchar(64) NOT NULL,`category_version` varchar(32) NOT NULL,`source_owner` varchar(64) NOT NULL,`source_event_reference` varchar(191) NOT NULL,`idempotency_key` varchar(191) NOT NULL,`policy_version` varchar(32) NOT NULL,`occurred_at` datetime NOT NULL,`compensates_entry_uuid` char(36) NULL,`administrative_reason` varchar(191) NULL,`metadata` longtext NULL,`created_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `pf_entry_uuid_unique` (`entry_uuid`),UNIQUE KEY `pf_idempotency_key_unique` (`idempotency_key`),KEY `pf_subject_class_date` (`faluss_id`,`economic_class`,`occurred_at`),KEY `pf_subject_category_date` (`faluss_id`,`category`,`occurred_at`),KEY `pf_source_category_date` (`source_owner`,`category`,`occurred_at`),' . $compensation_index . ') ENGINE=InnoDB ' . $charset;
         }
         if ( 'entitlement_definitions' === $name ) {
             return 'CREATE TABLE `' . $table . '` (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`entitlement_code` varchar(120) NOT NULL,`label` varchar(120) NOT NULL,`project_key` varchar(64) NOT NULL,`entitlement_type` varchar(20) NOT NULL,`active` tinyint(1) NOT NULL,`created_at` datetime NOT NULL,`updated_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `entitlement_code_unique` (`entitlement_code`),KEY `entitlement_project_active` (`project_key`,`active`),KEY `entitlement_type_active` (`entitlement_type`,`active`)) ENGINE=InnoDB ' . $charset;
@@ -362,7 +404,7 @@ final class Token_Engine_Schema {
         }
         if ( 'rules' === $name ) { return array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'rule_key_unique' => array( 'unique' => true, 'columns' => array( 'rule_key' ) ), 'rule_project' => array( 'unique' => false, 'columns' => array( 'project_id' ) ), 'rule_scope_active' => array( 'unique' => false, 'columns' => array( 'scope', 'active' ) ) ); }
         if ( 'ledger' === $name ) { return array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'transaction_uuid_unique' => array( 'unique' => true, 'columns' => array( 'transaction_uuid' ) ), 'idempotency_key_unique' => array( 'unique' => true, 'columns' => array( 'idempotency_key' ) ), 'ledger_subject_project_date' => array( 'unique' => false, 'columns' => array( 'subject_id', 'project_key', 'created_at' ) ), 'ledger_project_rule_date' => array( 'unique' => false, 'columns' => array( 'project_key', 'rule_key', 'created_at' ) ), 'ledger_rule_date' => array( 'unique' => false, 'columns' => array( 'rule_key', 'created_at' ) ), 'ledger_created_at' => array( 'unique' => false, 'columns' => array( 'created_at' ) ) ); }
-        if ( 'pf_ledger' === $name ) { return array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'pf_entry_uuid_unique' => array( 'unique' => true, 'columns' => array( 'entry_uuid' ) ), 'pf_idempotency_key_unique' => array( 'unique' => true, 'columns' => array( 'idempotency_key' ) ), 'pf_subject_class_date' => array( 'unique' => false, 'columns' => array( 'faluss_id', 'economic_class', 'occurred_at' ) ), 'pf_subject_category_date' => array( 'unique' => false, 'columns' => array( 'faluss_id', 'category', 'occurred_at' ) ), 'pf_source_category_date' => array( 'unique' => false, 'columns' => array( 'source_owner', 'category', 'occurred_at' ) ), 'pf_compensates_entry' => array( 'unique' => false, 'columns' => array( 'compensates_entry_uuid' ) ) ); }
+        if ( 'pf_ledger' === $name ) { $indexes = array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'pf_entry_uuid_unique' => array( 'unique' => true, 'columns' => array( 'entry_uuid' ) ), 'pf_idempotency_key_unique' => array( 'unique' => true, 'columns' => array( 'idempotency_key' ) ), 'pf_subject_class_date' => array( 'unique' => false, 'columns' => array( 'faluss_id', 'economic_class', 'occurred_at' ) ), 'pf_subject_category_date' => array( 'unique' => false, 'columns' => array( 'faluss_id', 'category', 'occurred_at' ) ), 'pf_source_category_date' => array( 'unique' => false, 'columns' => array( 'source_owner', 'category', 'occurred_at' ) ) ); $indexes[ self::V4_VERSION === $version ? 'pf_compensates_entry' : 'pf_compensates_entry_unique' ] = array( 'unique' => self::V4_VERSION !== $version, 'columns' => array( 'compensates_entry_uuid' ) ); return $indexes; }
         if ( 'entitlement_definitions' === $name ) { return array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'entitlement_code_unique' => array( 'unique' => true, 'columns' => array( 'entitlement_code' ) ), 'entitlement_project_active' => array( 'unique' => false, 'columns' => array( 'project_key', 'active' ) ), 'entitlement_type_active' => array( 'unique' => false, 'columns' => array( 'entitlement_type', 'active' ) ) ); }
         if ( 'entitlement_grants' === $name ) { return array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'grant_uuid_unique' => array( 'unique' => true, 'columns' => array( 'grant_uuid' ) ), 'grant_operation_unique' => array( 'unique' => true, 'columns' => array( 'operation_reference' ) ), 'grant_subject_entitlement' => array( 'unique' => false, 'columns' => array( 'subject_id', 'entitlement_id', 'starts_at' ) ), 'grant_entitlement_state' => array( 'unique' => false, 'columns' => array( 'entitlement_id', 'revoked_at', 'ends_at' ) ) ); }
         return array( 'PRIMARY' => array( 'unique' => true, 'columns' => array( 'id' ) ), 'token_hash_unique' => array( 'unique' => true, 'columns' => array( 'token_hash' ) ), 'token_project_expires' => array( 'unique' => false, 'columns' => array( 'project_key', 'expires_at' ) ), 'token_expires' => array( 'unique' => false, 'columns' => array( 'expires_at' ) ) );

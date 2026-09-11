@@ -183,6 +183,10 @@ final class Token_Engine_Points_Service {
                     $wpdb->query( 'ROLLBACK' );
                     return self::error( 'pf_invalid_compensation', __( 'La compensation PF ne correspond pas à l’écriture d’origine.', 'token-engine' ) );
                 }
+                if ( self::entry_by_compensated_uuid( $entry['compensates_entry_uuid'], true ) ) {
+                    $wpdb->query( 'ROLLBACK' );
+                    return self::error( 'pf_already_compensated', __( 'Cette écriture PF a déjà été compensée.', 'token-engine' ) );
+                }
             }
             $effect = self::balance_effect( $entry, $original );
             $balance = self::balance_for_class( $entry['faluss_id'], $entry['economic_class'] );
@@ -198,7 +202,13 @@ final class Token_Engine_Points_Service {
             if ( false === $inserted ) {
                 $wpdb->query( 'ROLLBACK' );
                 $existing = self::entry_by_idempotency( $entry['idempotency_key'], false );
-                return $existing ? self::entry_result( $existing, true ) : self::error( 'pf_ledger_write_failed', __( 'L’écriture PF ne peut pas être inscrite.', 'token-engine' ) );
+                if ( $existing ) {
+                    return self::entry_result( $existing, true );
+                }
+                if ( 'compensation' === $entry['direction'] && self::entry_by_compensated_uuid( $entry['compensates_entry_uuid'], false ) ) {
+                    return self::error( 'pf_already_compensated', __( 'Cette écriture PF a déjà été compensée.', 'token-engine' ) );
+                }
+                return self::error( 'pf_ledger_write_failed', __( 'L’écriture PF ne peut pas être inscrite.', 'token-engine' ) );
             }
             if ( false === $wpdb->query( 'COMMIT' ) ) {
                 $wpdb->query( 'ROLLBACK' );
@@ -352,6 +362,13 @@ final class Token_Engine_Points_Service {
     private static function entry_by_uuid( $entry_uuid, $lock ) {
         global $wpdb;
         $sql = 'SELECT * FROM `' . Token_Engine_Schema::pf_ledger_table() . '` WHERE entry_uuid=%s' . ( $lock ? ' FOR UPDATE' : '' );
+        $entry = $wpdb->get_row( $wpdb->prepare( $sql, $entry_uuid ), ARRAY_A );
+        return is_array( $entry ) ? $entry : null;
+    }
+
+    private static function entry_by_compensated_uuid( $entry_uuid, $lock ) {
+        global $wpdb;
+        $sql = 'SELECT * FROM `' . Token_Engine_Schema::pf_ledger_table() . '` WHERE compensates_entry_uuid=%s' . ( $lock ? ' FOR UPDATE' : '' );
         $entry = $wpdb->get_row( $wpdb->prepare( $sql, $entry_uuid ), ARRAY_A );
         return is_array( $entry ) ? $entry : null;
     }

@@ -135,15 +135,17 @@ cron, table, migration ou comportement WordPress. Son contrat est dans
 
 ### Core PF-02B
 
-PF-02B ajoute dans Token Engine `0.4.0` le sous-ledger InnoDB privé
+PF-02B.1 porte Token Engine à `0.4.1` et conserve le sous-ledger InnoDB privé
 `token_engine_pf_ledger`. C'est la seule source future de PF et il est séparé du
 ledger générique `token_engine_ledger`, dont l'historique ALB reste strictement
 intact. Le Core expose seulement une façade PHP interne pour les adaptateurs de
 confiance ; aucune route Connector, lecture Portal, projection Master Profile,
 écran, bouton ou cache client n'est créé.
 
-Le Core impose les classes fermées, l'append-only, l'idempotence et l'absence de
-balance négative par classe. Il connaît les deux crédits quotidiens, mais aucun
+Le Core impose les classes fermées, l'append-only, l'idempotence, une seule
+compensation par écriture d'origine et l'absence de balance négative par classe.
+Cette unicité est garantie par la façade transactionnelle et l'index PF unique
+nullable ajouté par le schéma `5`. Il connaît les deux crédits quotidiens, mais aucun
 adaptateur ne les appelle encore : Hub et Faluss Me ne peuvent donc pas encore
 attribuer de PF. Packs, Fans, paiements, Stripe, retrait, transfert, HOF,
 progression et `pf.summary` restent hors de cette livraison.

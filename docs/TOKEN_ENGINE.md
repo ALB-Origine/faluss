@@ -24,7 +24,7 @@ La portée `global` permettra par exemple à une règle quotidienne, affichée p
 
 ## Sous-ledger Points Faluss PF-02B
 
-Token Engine `0.4.0` ajoute le seul sous-ledger PF officiel
+Token Engine `0.4.1` conserve le seul sous-ledger PF officiel
 `token_engine_pf_ledger`. Il est distinct du ledger générique
 `token_engine_ledger`, qui conserve intégralement son historique ALB : aucune
 ligne ALB, configuration d'unité, table ni balance générique n'est lue,
@@ -53,9 +53,13 @@ et handle réservé. PF-02B ne livre aucun adaptateur, donc aucune app, card,
 activation, connexion, cron ou page ne peut déclencher un claim à ce stade.
 
 Packs, Fans, cosmétiques, ajustements manuels, paiements, Stripe, retrait,
-transfert et projection `pf.summary` restent désactivés. Les compensations ne
-sont qu'une primitive serveur future : elles sont liées à l'UUID d'origine,
-conservent sa classe et ne peuvent pas rendre cette classe négative.
+transfert et projection `pf.summary` restent désactivés. Une compensation est
+une primitive serveur future complète et unique : elle est liée à l'UUID
+d'origine, conserve sa classe, ne peut pas rendre cette classe négative et ne
+peut être écrite qu'une seule fois pour l'entrée d'origine. Le schéma `5`
+impose aussi cette règle par l'index unique nullable
+`pf_compensates_entry_unique`, après une migration `4 → 5` qui échoue sans
+écriture si des doublons historiques non nuls sont détectés.
 
 ## Façade PHP interne
 

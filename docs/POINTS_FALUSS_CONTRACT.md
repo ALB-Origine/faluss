@@ -171,7 +171,7 @@ catégories déjà réservées.
 
 ## PF-02B — Core réel isolé
 
-PF-02B implémente ce sous-ledger dans Token Engine `0.4.0`, sous la table dédiée
+PF-02B.1 renforce ce sous-ledger dans Token Engine `0.4.1`, sous la table dédiée
 `token_engine_pf_ledger`. Il ne modifie pas `token_engine_ledger`, qui conserve
 le ledger ALB existant, ni aucune configuration générique, donnée historique ou
 source de vérité ALB. La migration additive crée uniquement la table PF et ses
@@ -180,8 +180,11 @@ index après vérification fail-closed du schéma existant.
 Le Core écrit seulement par `Token_Engine_Points_Service`, façade PHP interne
 qui n'accepte que le `faluss_id` UUID v4. Ses balances sont dérivées par classe,
 ses entrées sont append-only et idempotentes, et une compensation est liée à
-l'UUID d'origine, de même classe, sans solde négatif. Aucune ligne PF n'est
-créée à l'installation.
+l'UUID d'origine, de même classe, sans solde négatif. Une écriture PF ne peut
+être compensée qu'une seule fois : un retry strictement identique retrouve son
+résultat, tandis qu'une autre référence ou politique est refusée. Le schéma `5`
+garantit aussi cette unicité avec l'index nullable
+`pf_compensates_entry_unique`. Aucune ligne PF n'est créée à l'installation.
 
 Les crédits `daily_accrual` (`20 PF earned`) et `profile_daily_claim` (`75 PF
 earned`) sont maintenant implémentés dans le Core, avec période fixe

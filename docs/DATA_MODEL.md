@@ -90,7 +90,10 @@ versions, propriétaire et référence source opaque, clé d'idempotence, date U
 référence de compensation, motif administratif privé, métadonnées JSON bornées
 et date de création. Les UUID d'entrée et les clés d'idempotence sont uniques ;
 des index couvrent le sujet/classe/date, sujet/catégorie/date,
-propriétaire/catégorie/date et la référence compensée.
+propriétaire/catégorie/date et la référence compensée. Depuis le schéma `5`,
+`compensates_entry_uuid` porte l'index unique nullable
+`pf_compensates_entry_unique` : les entrées ordinaires restent à `NULL`, tandis
+qu'une écriture d'origine ne peut recevoir qu'une seule compensation complète.
 
 Cette table n'est ni une extension ni une lecture de `token_engine_ledger` :
 aucune table ALB existante, donnée historique ou configuration d'unité n'est

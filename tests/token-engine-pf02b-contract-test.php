@@ -99,12 +99,12 @@ $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 $roadmap = file_get_contents( $root . '/docs/ROADMAP.md' );
 
-pf02b_assert( false !== strpos( $plugin, 'Version: 0.4.0' ) && false !== strpos( $plugin, "TOKEN_ENGINE_VERSION', '0.4.0" ) && false !== strpos( $plugin, 'class-token-engine-points-service.php' ), 'PF-02B must load the isolated Points service in Token Engine 0.4.0.' );
-foreach ( array( "const VERSION = '4'", "const V3_VERSION = '3'", 'pf_ledger_table()', 'migrate_v3_to_v4', 'v3_schema_ready', 'token_engine_pf_ledger', 'ENGINE=InnoDB', 'pf_entry_uuid_unique', 'pf_idempotency_key_unique', 'pf_subject_class_date', 'pf_subject_category_date', 'pf_source_category_date', 'pf_compensates_entry' ) as $needle ) {
+pf02b_assert( false !== strpos( $plugin, 'Version: 0.4.1' ) && false !== strpos( $plugin, "TOKEN_ENGINE_VERSION', '0.4.1" ) && false !== strpos( $plugin, 'class-token-engine-points-service.php' ), 'PF-02B must load the isolated Points service in Token Engine 0.4.1.' );
+foreach ( array( "const VERSION = '5'", "const V4_VERSION = '4'", "const V3_VERSION = '3'", 'pf_ledger_table()', 'migrate_v3_to_v4', 'migrate_v4_to_v5', 'v3_schema_ready', 'v4_schema_ready', 'token_engine_pf_ledger', 'ENGINE=InnoDB', 'pf_entry_uuid_unique', 'pf_idempotency_key_unique', 'pf_subject_class_date', 'pf_subject_category_date', 'pf_source_category_date', 'pf_compensates_entry_unique' ) as $needle ) {
     pf02b_assert( false !== strpos( $schema, $needle ), 'PF-02B schema invariant is missing: ' . $needle );
 }
 $migration_start = strpos( $schema, 'private static function migrate_v3_to_v4()' );
-$migration_end = strpos( $schema, 'private static function current_schema_ready()', $migration_start );
+$migration_end = strpos( $schema, 'private static function migrate_v4_to_v5()', $migration_start );
 $migration = false !== $migration_start && false !== $migration_end ? substr( $schema, $migration_start, $migration_end - $migration_start ) : '';
 pf02b_assert( '' !== $migration && false === strpos( $migration, 'ALTER TABLE' ) && false === strpos( $migration, 'self::ledger_table()' ) && false !== strpos( $migration, "create_query( 'pf_ledger'" ), 'The 3-to-4 migration must add only the PF table and leave token_engine_ledger untouched.' );
 foreach ( array( '`entry_uuid` char(36)', '`faluss_id` char(36)', '`amount_pf` bigint(20) unsigned', '`direction` varchar(12)', '`economic_class` varchar(20)', '`category` varchar(64)', '`category_version` varchar(32)', '`source_owner` varchar(64)', '`source_event_reference` varchar(191)', '`idempotency_key` varchar(191)', '`policy_version` varchar(32)', '`occurred_at` datetime', '`compensates_entry_uuid` char(36) NULL', '`administrative_reason` varchar(191) NULL', '`metadata` longtext', '`created_at` datetime' ) as $needle ) {

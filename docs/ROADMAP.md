@@ -142,6 +142,16 @@ même classe et solde dérivé non négatif. Elle connaît les deux daily reward
 adaptateur, UI, Portal, route, cron, paiement, Stripe, pack, Fans, retrait ou
 projection `pf.summary` n'est livré.
 
+## PF-02B.1 — Unicité de compensation du ledger PF — livré techniquement
+
+Token Engine `0.4.1` porte le schéma à `5`. La migration additive `4 → 5`
+vérifie d'abord l'absence de doublon non nul, puis remplace uniquement l'index
+PF de recherche par l'index unique nullable `pf_compensates_entry_unique` sur
+`compensates_entry_uuid`. La façade refuse explicitement toute seconde
+compensation d'une même écriture, tout en préservant le retry strictement
+identique. Aucun ledger ALB, adaptateur, claim, route, UI ou capacité PF
+supplémentaire n'est modifié.
+
 ## SUB-03 — Faluss Plus — prérequis produit réservé
 
 Faluss Plus est prévu à `3,99 € / mois`, sans engagement et sans gain direct de

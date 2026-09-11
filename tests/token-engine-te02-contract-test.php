@@ -8,7 +8,7 @@ $access = file_get_contents( $root . '/plugins/token-engine/includes/class-token
 $admin = file_get_contents( $root . '/plugins/token-engine/includes/class-token-engine-admin.php' );
 $plugin = file_get_contents( $root . '/plugins/token-engine/token-engine.php' );
 
-foreach ( array( 'connector_client_id', 'connector_secret_hash', 'connector_secret_version', 'connector_permissions', 'connector_client_id_unique', 'token_engine_connector_tokens', 'token_hash_unique', 'token_project_expires', 'migrate_v1_to_v2', "const VERSION = '4'", "const V3_VERSION = '3'", "const V2_VERSION = '2'", "const LEGACY_VERSION = '1'", 'ALTER TABLE' ) as $needle ) {
+foreach ( array( 'connector_client_id', 'connector_secret_hash', 'connector_secret_version', 'connector_permissions', 'connector_client_id_unique', 'token_engine_connector_tokens', 'token_hash_unique', 'token_project_expires', 'migrate_v1_to_v2', "const VERSION = '5'", "const V4_VERSION = '4'", "const V3_VERSION = '3'", "const V2_VERSION = '2'", "const LEGACY_VERSION = '1'", 'ALTER TABLE' ) as $needle ) {
     te02_assert( false !== strpos( $schema, $needle ), 'TE-02 requires the additive connector schema invariant: ' . $needle );
 }
 foreach ( array( 'wp_hash_password', 'wp_check_password', 'random_bytes', 'TOKEN_TTL_SECONDS = 300', 'secret_version', 'hash_equals', "'wallet.read'", 'connector_project_inactive', 'is_ssl()', 'nocache_headers', 'Bearer ', 'token-engine/v1', '/connector/token', '/connector/diagnostic', '/connector/balance' ) as $needle ) {
