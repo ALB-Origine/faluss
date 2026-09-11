@@ -152,6 +152,19 @@ compensation d'une même écriture, tout en préservant le retry strictement
 identique. Aucun ledger ALB, adaptateur, claim, route, UI ou capacité PF
 supplémentaire n'est modifié.
 
+## FPR-01 — Mise en production Faluss — livré techniquement
+
+Le plugin isolé **Faluss Production Reset** `0.1.0` coordonne un unique reset
+pré-lancement de `faluss.me` vers `faluss.com`. Il exige un armement explicite
+des deux administrations, `manage_options`, nonce, phrase de confirmation,
+préflight signé et une constante secrète hors Git dans les deux `wp-config.php`.
+Il supprime uniquement les membres non privilégiés, leurs données Identity,
+Link ou Identity Client listées et leurs médias WordPress non ambigus, en
+préservant les administrateurs WordPress, les clients SSO, les réglages et le
+ledger ALB. Le PF ledger doit être vide et n'est jamais modifié. Après succès
+ou échec partiel, les deux sites se verrouillent sans retry automatique ni
+rollback simulé. Voir [`FALUSS_PRODUCTION_RESET.md`](FALUSS_PRODUCTION_RESET.md).
+
 ## SUB-03 — Faluss Plus — prérequis produit réservé
 
 Faluss Plus est prévu à `3,99 € / mois`, sans engagement et sans gain direct de

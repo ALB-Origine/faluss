@@ -41,6 +41,20 @@ Les tables de découvertes sont privées à Faluss Link. Les profils sont relus 
 
 ONB-02 ne crée aucune table Faluss Link : `faluss_link_cards` porte les préférences visuelles et les réseaux du brouillon, tandis que `faluss_link_blocks` porte les liens libres ordonnés. Ces valeurs sont relues par le même résolveur que le Studio et la carte publique.
 
+## Production Reset FPR-01
+
+FPR-01 n'ajoute aucune table ni migration aux plugins métier. Son plugin isolé
+conserve seulement ses propres options d'armement, verrouillage, nonce Hub
+consommé sous empreinte et reçu technique composé de `run_id`, statut, dates et
+compteurs. Il ne persiste jamais e-mail, login, `faluss_id`, URL ou chemin de
+média dans ces options.
+
+Le reset vide uniquement les tables membre Identity/Link explicitement listées
+dans [`FALUSS_PRODUCTION_RESET.md`](FALUSS_PRODUCTION_RESET.md), tout en
+préservant `faluss_identity_clients`, schémas et structures. Il refuse si la
+table PF existe mais n'est pas vide et n'opère aucune mutation de
+`token_engine_ledger`, le ledger ALB historique.
+
 ## Token Engine
 
 | Table | Clés / contenu |

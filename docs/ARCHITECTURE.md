@@ -54,6 +54,22 @@ machine-readable sont définis dans
 [`MASTER_PROFILE_CONTRACT.md`](MASTER_PROFILE_CONTRACT.md). MP-01A ne modifie
 aucun plugin, route, écran, table, migration ou comportement WordPress.
 
+## Production Reset FPR-01
+
+`Faluss Production Reset` est un plugin isolé, installé identiquement sur
+`faluss.me` et `faluss.com`, pour le seul reset pré-lancement coordonné. Il ne
+partage aucune base de données : la coordination reste limitée à une opération
+Hub fixe, HMAC-signée, datée et non rejouable, sans liste de membres ni cible
+transportée. Le Hub recalcule toujours ses candidats localement.
+
+Le déclencheur serveur rendu est exclusivement dans l'administration de
+`faluss.me`, avec `manage_options`, nonce et phrase exacte. Les deux sites sont
+armés localement puis verrouillés après succès ou état partiel; la route Hub
+n'est même enregistrée que pendant son armement. Aucun retry inter-sites, aucun
+rollback distribué ni endpoint générique ne sont fournis. Le contrat
+d'installation, de suppression sûre et de recette est
+[`FALUSS_PRODUCTION_RESET.md`](FALUSS_PRODUCTION_RESET.md).
+
 ## Modèle Elementor de profil public
 
 Un administrateur peut sélectionner une page Elementor déjà publiée dans **Réglages → Profil public Faluss**. Les routes `faluss.me/identifiant` rendent alors cette page ; le widget **Profil public Faluss**, sans identifiant renseigné, reçoit l’identifiant de la route. Le plugin ne crée aucune page. Si aucun modèle valide n’est sélectionné ou qu’Elementor est indisponible, le rendu autonome du profil est conservé.
