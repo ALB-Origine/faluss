@@ -81,6 +81,23 @@ Les catégories `profile_daily_claim`, `daily_accrual`, `pf_pack_purchase`,
 `reversal` sont réservées et inactives. Aucun solde ou historique ALB ne peut
 devenir PF, et PF-02A ne crée aucune projection `pf.summary`.
 
+## Points Faluss PF-02B
+
+PF-02B ajoute uniquement `token_engine_pf_ledger`, une table InnoDB dédiée et
+préfixée WordPress. Elle contient un identifiant interne, `entry_uuid`,
+`faluss_id`, montant PF positif, direction, classe économique, catégorie,
+versions, propriétaire et référence source opaque, clé d'idempotence, date UTC,
+référence de compensation, motif administratif privé, métadonnées JSON bornées
+et date de création. Les UUID d'entrée et les clés d'idempotence sont uniques ;
+des index couvrent le sujet/classe/date, sujet/catégorie/date,
+propriétaire/catégorie/date et la référence compensée.
+
+Cette table n'est ni une extension ni une lecture de `token_engine_ledger` :
+aucune table ALB existante, donnée historique ou configuration d'unité n'est
+modifiée. Les balances PF sont dérivées à la lecture par classe et aucune table
+de solde ne les matérialise. PF-02B n'ajoute aucun read-model `pf.summary`,
+projection Portal/Master Profile ou donnée membre visible.
+
 ## Daily Rewards DR-01
 
 DR-01 n'ajoute aucune table, colonne, option, donnée membre, cache durable,

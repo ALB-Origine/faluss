@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Token Engine
  * Description: Generic, append-only unit ledger core for WordPress.
- * Version: 0.3.0
+ * Version: 0.4.0
  * Requires PHP: 8.2
  */
 
@@ -12,10 +12,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'TOKEN_ENGINE_FILE', __FILE__ );
 define( 'TOKEN_ENGINE_DIR', plugin_dir_path( __FILE__ ) );
-define( 'TOKEN_ENGINE_VERSION', '0.3.0' );
+define( 'TOKEN_ENGINE_VERSION', '0.4.0' );
 
 require_once TOKEN_ENGINE_DIR . 'includes/class-token-engine-schema.php';
 require_once TOKEN_ENGINE_DIR . 'includes/class-token-engine-service.php';
+require_once TOKEN_ENGINE_DIR . 'includes/class-token-engine-points-service.php';
 require_once TOKEN_ENGINE_DIR . 'includes/class-token-engine-entitlements.php';
 require_once TOKEN_ENGINE_DIR . 'includes/class-token-engine-connector-access.php';
 require_once TOKEN_ENGINE_DIR . 'includes/class-token-engine-admin.php';

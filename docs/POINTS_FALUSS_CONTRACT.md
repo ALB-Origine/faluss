@@ -169,6 +169,29 @@ paiements, Stripe, Fans et retrait créateur. La décision DR-01 ne convertit pa
 ALB et ne modifie pas le schéma de ledger PF : elle spécifie seulement les deux
 catégories déjà réservées.
 
+## PF-02B — Core réel isolé
+
+PF-02B implémente ce sous-ledger dans Token Engine `0.4.0`, sous la table dédiée
+`token_engine_pf_ledger`. Il ne modifie pas `token_engine_ledger`, qui conserve
+le ledger ALB existant, ni aucune configuration générique, donnée historique ou
+source de vérité ALB. La migration additive crée uniquement la table PF et ses
+index après vérification fail-closed du schéma existant.
+
+Le Core écrit seulement par `Token_Engine_Points_Service`, façade PHP interne
+qui n'accepte que le `faluss_id` UUID v4. Ses balances sont dérivées par classe,
+ses entrées sont append-only et idempotentes, et une compensation est liée à
+l'UUID d'origine, de même classe, sans solde négatif. Aucune ligne PF n'est
+créée à l'installation.
+
+Les crédits `daily_accrual` (`20 PF earned`) et `profile_daily_claim` (`75 PF
+earned`) sont maintenant implémentés dans le Core, avec période fixe
+`Europe/Paris` calculée par `DateTimeImmutable`, sans rattrapage et avec clés
+d'idempotence dérivées côté serveur. Aucun adaptateur Hub ou Faluss Me n'est
+livré : aucune card, route publique, connexion, cron ou page ne peut encore les
+déclencher. Packs, Fans, cosmétiques, ajustements, paiements, Stripe, retrait,
+transfert, Hall of Fame, progression et projection `pf.summary` restent hors
+PF-02B.
+
 ## PF acquis et packs
 
 L'achat de PF est une capacité future désactivée. Un pack pourra un jour

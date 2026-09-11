@@ -148,10 +148,15 @@ Les futures entrées PF conservent les catégories réservées par PF-02A :
 - Hub : `daily_accrual`, `earned`, crédit de `20 PF` ;
 - Faluss Me : `profile_daily_claim`, `earned`, crédit de `75 PF`.
 
-PF-02B reste bloqué sur le reste : ledger/table et migrations, sécurité
-transactionnelle détaillée, moteurs runtime, UI, app registry runtime, packs
-PF, paiements, Stripe, Fans et retrait créateur. DR-01 ne modifie pas le schéma
-`faluss-pf-ledger-entry.schema.json`.
+PF-02B reste bloqué sur le reste : adaptateurs et moteurs d'app runtime, UI,
+app registry runtime, packs PF, paiements, Stripe, Fans et retrait créateur.
+DR-01 ne modifie pas le schéma `faluss-pf-ledger-entry.schema.json`.
+
+PF-02B a depuis livré le Core transactionnel isolé des deux écritures, dans le
+sous-ledger privé Token Engine. Cette livraison ne change pas la délégation
+DR-01 : aucun adaptateur Hub ou Faluss Me, aucune card Mes Apps et aucun claim
+navigateur ne sont ajoutés. Une app ne pourra déclarer ou déléguer un statut
+qu'après son adaptateur propriétaire, avec la preuve serveur correspondante.
 
 ## Exemples de statuts valides
 

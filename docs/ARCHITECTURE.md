@@ -133,6 +133,21 @@ absence de reward. DR-01 n'ajoute aucune route, action, card, UI, cache métier,
 cron, table, migration ou comportement WordPress. Son contrat est dans
 [`DAILY_REWARDS_CONTRACT.md`](DAILY_REWARDS_CONTRACT.md).
 
+### Core PF-02B
+
+PF-02B ajoute dans Token Engine `0.4.0` le sous-ledger InnoDB privé
+`token_engine_pf_ledger`. C'est la seule source future de PF et il est séparé du
+ledger générique `token_engine_ledger`, dont l'historique ALB reste strictement
+intact. Le Core expose seulement une façade PHP interne pour les adaptateurs de
+confiance ; aucune route Connector, lecture Portal, projection Master Profile,
+écran, bouton ou cache client n'est créé.
+
+Le Core impose les classes fermées, l'append-only, l'idempotence et l'absence de
+balance négative par classe. Il connaît les deux crédits quotidiens, mais aucun
+adaptateur ne les appelle encore : Hub et Faluss Me ne peuvent donc pas encore
+attribuer de PF. Packs, Fans, paiements, Stripe, retrait, transfert, HOF,
+progression et `pf.summary` restent hors de cette livraison.
+
 ## Bibliothèque privée de découvertes
 
 Mes découvertes est une donnée locale de Faluss Link, uniquement accessible au membre Faluss actif qui la possède. La route publique résout d’abord un profil Identity publié puis, seulement pour un autre membre connecté et ayant laissé l’enregistrement actif, actualise une paire de références d’identité côté serveur. Cette écriture ne contient ni contenu du profil ni donnée analytique de navigation. Elle n’est transmise à aucun Core, Connector, catalogue ou site tiers et n’est jamais exposée au propriétaire du profil découvert. Toute future analytique créateur doit être un système séparé, avec sa propre finalité et ses propres données ; elle ne peut pas dériver de cette bibliothèque.

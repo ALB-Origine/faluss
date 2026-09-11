@@ -118,8 +118,9 @@ compensation, ainsi que la frontière avec Fans/Marketplace, Hall of Fame,
 Progression, Portal et Master Profile. Il ne crée aucun solde, table, migration,
 route, paiement, Stripe, plugin, ZIP ou comportement WordPress. Les règles
 exactes de `profile_daily_claim` (75 PF) et `daily_accrual` (20 PF) sont
-désormais portées par DR-01 ; PF-02B reste limité à leur future implémentation
-et bloqué sur les autres capacités PF.
+désormais portées par DR-01. PF-02B livre leur Core interne dans un sous-ledger
+PF séparé, tout en restant bloqué sur les autres capacités PF et sur tout
+adaptateur d'app.
 
 ## DR-01 — Contrat fédéré des Daily Rewards Faluss — livré contractuellement
 
@@ -130,6 +131,16 @@ Faluss Me `75 PF earned` (`me.profile_daily_claim`), pour un maximum de
 exclusive au moteur propriétaire ; Hub/Portal ne crédite ni ne simule jamais un
 succès. Le lot ne produit aucune route, table, ledger, migration, cron, UI
 Portal, plugin, ZIP, paiement, Stripe ou comportement WordPress.
+
+## PF-02B — Core réel du ledger Points Faluss — livré techniquement
+
+Token Engine `0.4.0` ajoute, par migration additive et vérifiée, la seule table
+PF `token_engine_pf_ledger`; le ledger générique ALB reste inchangé. La façade
+PHP interne applique classes fermées, append-only, idempotence, compensation de
+même classe et solde dérivé non négatif. Elle connaît les deux daily rewards
+`20 PF` Hub et `75 PF` Faluss Me en `Europe/Paris`, sans rattrapage, mais aucun
+adaptateur, UI, Portal, route, cron, paiement, Stripe, pack, Fans, retrait ou
+projection `pf.summary` n'est livré.
 
 ## SUB-03 — Faluss Plus — prérequis produit réservé
 

@@ -17,7 +17,7 @@ $catalog = file_get_contents( $root . '/plugins/faluss-catalog/includes/class-fa
 $link = file_get_contents( $root . '/plugins/faluss-link/includes/class-faluss-link.php' );
 $studio = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
 
-foreach ( array( "const VERSION = '3'", 'token_engine_entitlement_definitions', 'token_engine_entitlement_grants', 'ENGINE=InnoDB', 'entitlement_code_unique', 'grant_operation_unique', 'migrate_v2_to_v3', 'current_schema_ready' ) as $needle ) {
+foreach ( array( "const VERSION = '4'", "const V3_VERSION = '3'", 'token_engine_entitlement_definitions', 'token_engine_entitlement_grants', 'ENGINE=InnoDB', 'entitlement_code_unique', 'grant_operation_unique', 'migrate_v2_to_v3', 'current_schema_ready' ) as $needle ) {
     ec02_assert( false !== strpos( $schema, $needle ), 'EC-02 requires an additive, strict InnoDB entitlement schema: ' . $needle );
 }
 foreach ( array( 'TYPE_THEME', 'create_definition', 'create_manual_grant', 'revoke_grant', 'GET_LOCK', 'active_or_scheduled_grant', 'operation_reference', 'revoked_at', 'ends_at', 'subject_has_entitlement' ) as $needle ) {

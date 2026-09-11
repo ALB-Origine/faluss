@@ -22,6 +22,41 @@ Un projet représente une application autorisée. Une règle décrit seulement u
 
 La portée `global` permettra par exemple à une règle quotidienne, affichée plus tard sur `faluss.me` et `pro.faluss.com`, de ne produire qu’un seul crédit dans toute l’économie. Une règle `project` sera réservée aux événements d’une application. L’éligibilité et l’ordonnancement de ces politiques sont explicitement hors TE-01.
 
+## Sous-ledger Points Faluss PF-02B
+
+Token Engine `0.4.0` ajoute le seul sous-ledger PF officiel
+`token_engine_pf_ledger`. Il est distinct du ledger générique
+`token_engine_ledger`, qui conserve intégralement son historique ALB : aucune
+ligne ALB, configuration d'unité, table ni balance générique n'est lue,
+modifiée, renommée ou convertie comme PF.
+
+La migration de schéma `3` vers `4` est additive, verrouillée et fail-closed :
+elle vérifie tout le schéma TE-03, crée seulement la table PF InnoDB avec les
+index et unicités requis, puis vérifie de nouveau toutes les tables avant de
+valider la version. Une installation neuve crée les tables historiques et la
+table PF. Aucun backfill ou écritures PF de démonstration ne sont effectués à
+l'activation.
+
+`Token_Engine_Points_Service` est une façade PHP interne distincte. Elle accepte
+seulement un `faluss_id` UUID v4, expose des balances dérivées par classe et
+conserve les entrées append-only `earned`, `funded` et `promotional`. Aucun
+endpoint REST, shortcode, action AJAX, formulaire, appel navigateur, cache
+métier ou affichage Portal/Master Profile n'est ajouté.
+
+Les seules écritures actives du cœur sont les deux daily rewards internes :
+`faluss-hub` / `hub.daily_accrual` crédite `20 PF earned`, et `faluss-me` /
+`me.profile_daily_claim` crédite `75 PF earned`. Le jour est calculé avec
+`DateTimeImmutable` dans `Europe/Paris`, l'idempotence est dérivée par le Core
+et les deux gains restent cumulables. Un adaptateur PHP propriétaire doit encore
+fournir la preuve serveur d'identité active ; Faluss Me exige aussi carte publiée
+et handle réservé. PF-02B ne livre aucun adaptateur, donc aucune app, card,
+activation, connexion, cron ou page ne peut déclencher un claim à ce stade.
+
+Packs, Fans, cosmétiques, ajustements manuels, paiements, Stripe, retrait,
+transfert et projection `pf.summary` restent désactivés. Les compensations ne
+sont qu'une primitive serveur future : elles sont liées à l'UUID d'origine,
+conservent sa classe et ne peuvent pas rendre cette classe négative.
+
 ## Façade PHP interne
 
 Les intégrations doivent appeler `Token_Engine_Service`, jamais écrire directement dans les tables :
