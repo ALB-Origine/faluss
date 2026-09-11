@@ -1,0 +1,260 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.faluss.com/points-faluss/v1/ledger-entry.schema.json",
+  "title": "Faluss Points ledger entry v1",
+  "description": "PF-02A contract only. This schema defines no table, transport, route or WordPress runtime.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entry_id",
+    "subject_faluss_id",
+    "amount_pf",
+    "direction",
+    "economic_class",
+    "category",
+    "category_version",
+    "source_owner",
+    "source_event_reference",
+    "idempotency_key",
+    "policy_version",
+    "occurred_at",
+    "compensates_entry_id",
+    "administrative_reason",
+    "write_origin",
+    "metadata"
+  ],
+  "properties": {
+    "entry_id": {
+      "$ref": "#/$defs/uuidV4"
+    },
+    "subject_faluss_id": {
+      "$ref": "#/$defs/uuidV4",
+      "description": "Opaque server-side subject; never public output."
+    },
+    "amount_pf": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "direction": {
+      "enum": ["credit", "debit", "compensation"]
+    },
+    "economic_class": {
+      "enum": ["earned", "funded", "promotional"]
+    },
+    "category": {
+      "enum": [
+        "profile_daily_claim",
+        "daily_accrual",
+        "pf_pack_purchase",
+        "pf_pack_bonus",
+        "fans_support",
+        "cosmetic_redemption",
+        "manual_adjustment",
+        "reversal"
+      ]
+    },
+    "category_version": {
+      "$ref": "#/$defs/semanticVersion"
+    },
+    "source_owner": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,63}$"
+    },
+    "source_event_reference": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{15,190}$",
+      "not": {
+        "pattern": "(?:^|[._-])alb(?:$|[._-])"
+      },
+      "description": "Opaque, non-guessable owner event reference; ALB references are never PF sources."
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{15,190}$"
+    },
+    "policy_version": {
+      "$ref": "#/$defs/semanticVersion"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "compensates_entry_id": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/uuidV4" }
+      ]
+    },
+    "administrative_reason": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "minLength": 3, "maxLength": 191 }
+      ]
+    },
+    "write_origin": {
+      "const": "server",
+      "description": "No client, Elementor, JavaScript, URL or public page may write a ledger entry."
+    },
+    "metadata": {
+      "type": "object",
+      "maxProperties": 12,
+      "propertyNames": {
+        "not": {
+          "pattern": "(?:email|card|stripe|payment|secret|password|token|customer|checkout|invoice|wp_user|faluss_id)"
+        }
+      },
+      "additionalProperties": true,
+      "description": "Private bounded metadata. It is never rendered publicly."
+    }
+  },
+  "$defs": {
+    "uuidV4": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "semanticVersion": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*\\.[0-9]+\\.[0-9]+$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "direction": { "const": "compensation" } },
+        "required": ["direction"]
+      },
+      "then": {
+        "properties": {
+          "compensates_entry_id": { "$ref": "#/$defs/uuidV4" }
+        }
+      },
+      "else": {
+        "properties": {
+          "compensates_entry_id": { "const": null }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "category": { "const": "profile_daily_claim" } },
+        "required": ["category"]
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "credit" },
+          "economic_class": { "const": "earned" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "category": { "const": "daily_accrual" } },
+        "required": ["category"]
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "credit" },
+          "economic_class": { "const": "earned" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "category": { "const": "pf_pack_purchase" } },
+        "required": ["category"]
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "credit" },
+          "economic_class": { "const": "funded" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "category": { "const": "pf_pack_bonus" } },
+        "required": ["category"]
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "credit" },
+          "economic_class": { "const": "promotional" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "category": { "const": "fans_support" } },
+        "required": ["category"]
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "debit" },
+          "economic_class": { "const": "funded" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "category": { "const": "cosmetic_redemption" } },
+        "required": ["category"]
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "debit" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "category": { "const": "manual_adjustment" } },
+        "required": ["category"]
+      },
+      "then": {
+        "properties": {
+          "administrative_reason": { "type": "string", "minLength": 3 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "category": { "const": "reversal" } },
+        "required": ["category"]
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "compensation" },
+          "compensates_entry_id": { "$ref": "#/$defs/uuidV4" }
+        }
+      }
+    }
+  ],
+  "x-ledger-invariants": {
+    "append_only": true,
+    "delete_or_update_historical_entry": false,
+    "idempotency_key_unique": true,
+    "balance_is_derived": true,
+    "transfers_between_members": false,
+    "reclassify_earned_or_promotional_to_funded": false,
+    "master_profile_writes": false,
+    "browser_writes": false,
+    "hall_of_fame_from_pf_balance": false,
+    "faluss_plus_direct_pf": false
+  },
+  "x-pf02a-scope": {
+    "nature": "documentary-contract-only",
+    "wordpress_runtime_changes": false,
+    "migrations": false,
+    "routes": false,
+    "installable_artifact": false,
+    "allowed_changed_paths": [
+      "contracts/faluss-pf-ledger-entry.schema.json",
+      "docs/ARCHITECTURE.md",
+      "docs/DATA_MODEL.md",
+      "docs/POINTS_FALUSS_CONTRACT.md",
+      "docs/ROADMAP.md",
+      "tests/faluss-pf-pf02a-contract-test.php"
+    ]
+  }
+}

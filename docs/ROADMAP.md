@@ -109,3 +109,20 @@ moteur et prouver son filtrage. Ils ne pourront brancher une projection au
 Master Profile qu'après validation d'un transport privé distinct et sans lecture
 directe de table, duplication de source, fusion de scores ou exposition du
 `faluss_id` technique.
+
+## PF-02A — Contrat Points Faluss et droits économiques — livré contractuellement
+
+Le contrat PF réserve un futur ledger append-only à classes `earned`, `funded`
+et `promotional`, les catégories de gains, packs, soutien, cosmétiques et
+compensation, ainsi que la frontière avec Fans/Marketplace, Hall of Fame,
+Progression, Portal et Master Profile. Il ne crée aucun solde, table, migration,
+route, paiement, Stripe, plugin, ZIP ou comportement WordPress. PF-02B reste
+bloqué jusqu'à la décision des critères exacts de `profile_daily_claim` (75 PF)
+et `daily_accrual` (20 PF), non établis par la référence ALB inspectée.
+
+## SUB-03 — Faluss Plus — prérequis produit réservé
+
+Faluss Plus est prévu à `3,99 € / mois`, sans engagement et sans gain direct de
+Points Faluss, quelle que soit leur classe. Cette décision est un prérequis de
+SUB-03 uniquement : PF-02A ne modifie ni Faluss Subscriptions, ni Stripe, ni
+prix, Checkout, entitlement ou paiement réel.

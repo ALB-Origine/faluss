@@ -61,6 +61,26 @@ historique reste hors de cette surface et ne peut être converti, masqué ou
 affiché comme PF. Cette règle ne renomme ni code d'unité configurable, ni ligne
 historique, ni table Token Engine.
 
+## Points Faluss PF-02A
+
+PF-02A n'ajoute aucune table, colonne, option, migration, solde ou donnée membre.
+Le futur ledger PF est décrit seulement comme une suite append-only d'entrées
+versionnées : UUID d'entrée, `faluss_id` opaque serveur, montant PF entier
+positif, direction, classe `earned`/`funded`/`promotional`, catégorie, source,
+idempotence, politique, date UTC et référence de compensation éventuelle.
+
+Les balances futures seront dérivées de ces entrées par classe, jamais éditées ou
+copiées dans Portal, Master Profile, Fans, Hall of Fame ou Progression. Une
+compensation sera une nouvelle entrée de la même classe, liée à l'original ;
+elle ne peut pas reclassifier `earned` ou `promotional` en `funded`. Le schéma
+de format, sans stockage ni runtime, est
+[`contracts/faluss-pf-ledger-entry.schema.json`](../contracts/faluss-pf-ledger-entry.schema.json).
+
+Les catégories `profile_daily_claim`, `daily_accrual`, `pf_pack_purchase`,
+`pf_pack_bonus`, `fans_support`, `cosmetic_redemption`, `manual_adjustment` et
+`reversal` sont réservées et inactives. Aucun solde ou historique ALB ne peut
+devenir PF, et PF-02A ne crée aucune projection `pf.summary`.
+
 ## Faluss Subscriptions
 
 | Table | Clés / contenu |

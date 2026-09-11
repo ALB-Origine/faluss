@@ -101,6 +101,22 @@ services restent privés et la sandbox est réservée à l’administration test
 
 Token Engine, installé une seule fois sur l’instance économique, est le détenteur générique du ledger, des règles, des droits, de l’idempotence et des projections de solde. Il reçoit un `subject_id` opaque ; le Connector TE-02 peut lui fournir le `faluss_id` déjà actif sans répliquer l’identité. Les sites dérivés n’installent jamais le cœur. TE-03 ajoute seulement la demande privée d’une règle globale `daily_reward`, protégée par la permission distincte `reward.claim` : le Core décide, verrouille et inscrit le crédit. EC-02 ajoute des définitions de droits et des attributions historisées, lues seulement via `entitlements.read`; Catalogue porte la métadonnée de droit d’un thème et Faluss Link revalide la décision côté serveur pour chaque sélection de thème et chaque teaser visuellement réservé, sans conserver une copie locale. Cette couche teaser ne sécurise pas encore le fichier média. Faluss Link ne modifie jamais un ledger et ne garde aucune règle, solde, droit ou idempotence locale. Les contrats sont documentés dans `TOKEN_ENGINE.md` et `TOKEN_ENGINE_CONNECTOR.md`.
 
+### Points Faluss PF-02A
+
+PF-02A définit, sans l'implémenter, un futur ledger officiel Points Faluss à
+classe économique fermée : `earned`, `funded` ou `promotional`. L'unité visible
+reste PF, mais le moteur conserve l'origine afin que seuls les PF `funded`
+puissent un jour financer un soutien créateur monétisable. Aucun PF ne devient
+un retrait, un transfert membre, un revenu créateur, une valeur Hall of Fame ou
+une métrique `progression.*`; le futur revenu euro et le score restent détenus
+par Fans/Marketplace.
+
+Le ledger PF sera append-only, idempotent et compensé par nouvelles écritures.
+Il ne lit aucun solde ALB historique, Stripe, panier, commande, payout ou table
+Fans. PF-02A n'ajoute aucun ledger, projection, lecture dans Portal/Master
+Profile, route, table, migration, plugin ou comportement WordPress. Son contrat
+et son schéma sont dans [`POINTS_FALUSS_CONTRACT.md`](POINTS_FALUSS_CONTRACT.md).
+
 ## Bibliothèque privée de découvertes
 
 Mes découvertes est une donnée locale de Faluss Link, uniquement accessible au membre Faluss actif qui la possède. La route publique résout d’abord un profil Identity publié puis, seulement pour un autre membre connecté et ayant laissé l’enregistrement actif, actualise une paire de références d’identité côté serveur. Cette écriture ne contient ni contenu du profil ni donnée analytique de navigation. Elle n’est transmise à aucun Core, Connector, catalogue ou site tiers et n’est jamais exposée au propriétaire du profil découvert. Toute future analytique créateur doit être un système séparé, avec sa propre finalité et ses propres données ; elle ne peut pas dériver de cette bibliothèque.
