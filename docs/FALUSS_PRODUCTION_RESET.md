@@ -18,7 +18,7 @@ enregistré uniquement sur `faluss.com` pendant son armement explicite.
 1. Contrôler la sauvegarde exploitable des deux sites selon la procédure de
    l'hébergeur. FPR-01 n'en crée, n'en exporte et n'en télécharge aucune.
 2. Installer ou mettre à jour avec le même fichier
-   `faluss-production-reset-0.1.1.zip` sur
+   `faluss-production-reset-0.1.2.zip` sur
    `faluss.me` et `faluss.com`, puis activer **Faluss Production Reset** sur
    les deux installations.
 3. Dans les deux `wp-config.php`, avant la ligne qui invite à arrêter les
@@ -36,14 +36,14 @@ enregistré uniquement sur `faluss.com` pendant son armement explicite.
    `ARMER LE RESET FALUSS`. Le reset ne peut pas commencer si l'un des deux
    sites n'est pas armé.
 
-### Mise à jour FPR-01.1 et réarmement
+### Mise à jour FPR-01.2 et réarmement
 
-L'installation de `0.1.1` invalide tout armement créé sous une version
-précédente : chaque installation alors armée devient désarmée, sans lancer de
-préflight ni reset. Un verrouillage déjà présent reste strictement verrouillé.
-Après la mise à jour du ZIP sur les deux sites, vérifier le désarmement puis
-réarmer explicitement `faluss.me` et `faluss.com` avant de relancer le
-préflight central.
+L'installation de `0.1.2` invalide tout armement créé sous une version
+antérieure, y compris `0.1.1` : chaque installation alors armée devient
+désarmée, sans lancer de préflight ni reset. Un verrouillage déjà présent reste
+strictement verrouillé. Après la mise à jour du ZIP sur les deux sites,
+constater le désarmement puis réarmer explicitement `faluss.me` et
+`faluss.com` avant de relancer le préflight central.
 
 ## Contrôle central et déroulement
 
@@ -118,6 +118,18 @@ appartenant à un membre non privilégié et ne doit pas être référencé par 
 contenu conservé. Toute ambiguïté, métadonnée incomplète ou partage bloque le
 préflight.
 
+Une référence conservée est reconnue uniquement par des structures explicites :
+un `post_parent` conservé, une valeur `_thumbnail_id` exactement égale, un bloc
+Gutenberg image ou galerie correctement analysé, une URL exacte du fichier
+original ou d'une taille WordPress déclarée dans un attribut HTML, ou un objet
+image `_elementor_data` qui associe l'ID exact à cette URL exacte. Les contenus
+et métadonnées des comptes destinés à être supprimés ne sont jamais traités
+comme du contenu conservé. Une suite de chiffres incidente comme `1420`,
+`202642` ou `setting_42` n'est pas une référence média. Les données Gutenberg
+ou Elementor pertinentes mais malformées, incomplètes ou impossibles à
+interpréter bloquent génériquement le préflight, sans exposer d'ID, d'URL, de
+chemin ni de contenu conservé.
+
 La suppression utilise exclusivement `wp_delete_attachment( $attachment_id,
 true )`. Les chemins contrôlés sont ceux retournés par WordPress et les tailles
 déclarées par ses métadonnées; leur absence est vérifiée après suppression. Le
@@ -134,7 +146,7 @@ contrôlés par FPR-01.
 La recette ci-dessous est une procédure de mise en production; elle n'est pas
 une preuve fournie par les tests statiques du dépôt.
 
-1. Après sauvegarde, mettre à jour et activer le ZIP `0.1.1` sur les deux
+1. Après sauvegarde, mettre à jour et activer le ZIP `0.1.2` sur les deux
    sites, puis vérifier que les deux installations auparavant armées sont
    désarmées. Poser ou conserver la constante identique et réarmer
    explicitement les deux sites.

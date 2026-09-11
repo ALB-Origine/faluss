@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * a member, table, role, amount, URL or target supplied by a browser or peer.
  */
 class Faluss_Production_Reset {
-    const VERSION = '0.1.1';
+    const VERSION = '0.1.2';
     const PROTOCOL = '1';
     const OPERATION = 'hub_member_reset_v1';
     const CONFIRMATION = 'METTRE FALUSS EN PRODUCTION';
@@ -459,7 +459,11 @@ class Faluss_Production_Reset {
             if ( $attachment->post_parent && ! in_array( absint( get_post_field( 'post_author', $attachment->post_parent ) ), $candidate_ids, true ) ) {
                 return new WP_Error( 'fpr_media_shared', 'Un média membre est rattaché à du contenu conservé ; le preflight est bloqué.' );
             }
-            if ( self::attachment_referenced_by_preserved_content( $attachment_id, $candidate_ids ) ) {
+            $referenced = self::attachment_referenced_by_preserved_content( $attachment_id, $candidate_ids );
+            if ( is_wp_error( $referenced ) ) {
+                return $referenced;
+            }
+            if ( $referenced ) {
                 return new WP_Error( 'fpr_media_shared', 'Un média membre est référencé par du contenu conservé ; le preflight est bloqué.' );
             }
             $paths = self::attachment_paths( $attachment_id );
@@ -474,10 +478,257 @@ class Faluss_Production_Reset {
     private static function attachment_referenced_by_preserved_content( $attachment_id, $candidate_ids ) {
         global $wpdb;
         $excluded = empty( $candidate_ids ) ? '0' : implode( ',', array_map( 'absint', $candidate_ids ) );
-        $like = '%' . $wpdb->esc_like( (string) $attachment_id ) . '%';
-        $sql = "SELECT p.ID FROM {$wpdb->posts} p LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id WHERE p.post_type <> 'attachment' AND p.post_author NOT IN ({$excluded}) AND (p.post_parent = %d OR p.post_content LIKE %s OR pm.meta_value LIKE %s) LIMIT 1";
-        $found = $wpdb->get_var( $wpdb->prepare( $sql, $attachment_id, $like, $like ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-        return null === $found ? true : (bool) $found;
+        $urls = self::attachment_urls( $attachment_id );
+        if ( is_wp_error( $urls ) ) {
+            return $urls;
+        }
+
+        $thumbnail_sql = "SELECT pm.post_id FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE p.post_type <> 'attachment' AND p.post_author NOT IN ({$excluded}) AND pm.meta_key = '_thumbnail_id' AND pm.meta_value = %s LIMIT 1";
+        $thumbnail = $wpdb->get_var( $wpdb->prepare( $thumbnail_sql, (string) $attachment_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        if ( ! empty( $wpdb->last_error ) ) {
+            return self::media_reference_error();
+        }
+        if ( null !== $thumbnail && false !== $thumbnail ) {
+            return true;
+        }
+
+        $posts_sql = "SELECT ID, post_content FROM {$wpdb->posts} WHERE post_type <> 'attachment' AND post_author NOT IN ({$excluded})";
+        $posts = $wpdb->get_results( $posts_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        if ( null === $posts ) {
+            return self::media_reference_error();
+        }
+        foreach ( $posts as $post ) {
+            $reference = self::content_references_attachment( $post['post_content'] ?? '', $attachment_id, $urls );
+            if ( is_wp_error( $reference ) ) {
+                return $reference;
+            }
+            if ( $reference ) {
+                return true;
+            }
+        }
+
+        $elementor_sql = "SELECT pm.meta_value FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE p.post_type <> 'attachment' AND p.post_author NOT IN ({$excluded}) AND pm.meta_key = '_elementor_data'";
+        $elementor_payloads = $wpdb->get_col( $elementor_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        if ( null === $elementor_payloads ) {
+            return self::media_reference_error();
+        }
+        foreach ( $elementor_payloads as $payload ) {
+            $reference = self::elementor_references_attachment( $payload, $attachment_id, $urls );
+            if ( is_wp_error( $reference ) ) {
+                return $reference;
+            }
+            if ( $reference ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function content_references_attachment( $content, $attachment_id, $urls ) {
+        if ( ! is_string( $content ) ) {
+            return self::media_reference_error();
+        }
+        $gutenberg = self::gutenberg_references_attachment( $content, $attachment_id, $urls );
+        if ( is_wp_error( $gutenberg ) || $gutenberg ) {
+            return $gutenberg;
+        }
+        return self::html_references_attachment( $content, $urls );
+    }
+
+    private static function gutenberg_references_attachment( $content, $attachment_id, $urls ) {
+        $has_media_block = 1 === preg_match( '/<!--\\s*\\/?\\s*wp:(?:image|gallery)\\b/i', $content );
+        if ( ! $has_media_block ) {
+            return false;
+        }
+        $blocks = parse_blocks( $content );
+        if ( ! is_array( $blocks ) ) {
+            return self::media_reference_error();
+        }
+        $seen_media_block = false;
+        $reference = self::gutenberg_blocks_reference_attachment( $blocks, $attachment_id, $urls, $seen_media_block );
+        if ( is_wp_error( $reference ) || $reference ) {
+            return $reference;
+        }
+        return $seen_media_block ? false : self::media_reference_error();
+    }
+
+    private static function gutenberg_blocks_reference_attachment( $blocks, $attachment_id, $urls, &$seen_media_block ) {
+        if ( ! is_array( $blocks ) ) {
+            return self::media_reference_error();
+        }
+        foreach ( $blocks as $block ) {
+            if ( ! is_array( $block ) || ! array_key_exists( 'blockName', $block ) ) {
+                return self::media_reference_error();
+            }
+            $name = $block['blockName'];
+            if ( 'core/image' === $name || 'core/gallery' === $name ) {
+                $seen_media_block = true;
+                $reference = self::gutenberg_block_references_attachment( $block, $attachment_id, $urls );
+                if ( is_wp_error( $reference ) || $reference ) {
+                    return $reference;
+                }
+            }
+            if ( array_key_exists( 'innerBlocks', $block ) ) {
+                $reference = self::gutenberg_blocks_reference_attachment( $block['innerBlocks'], $attachment_id, $urls, $seen_media_block );
+                if ( is_wp_error( $reference ) || $reference ) {
+                    return $reference;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static function gutenberg_block_references_attachment( $block, $attachment_id, $urls ) {
+        if ( ! isset( $block['attrs'] ) || ! is_array( $block['attrs'] ) ) {
+            return self::media_reference_error();
+        }
+        $attrs = $block['attrs'];
+        if ( 'core/image' === $block['blockName'] ) {
+            if ( array_key_exists( 'id', $attrs ) && ! self::is_canonical_id( $attrs['id'] ) ) {
+                return self::media_reference_error();
+            }
+            if ( array_key_exists( 'url', $attrs ) && ! is_string( $attrs['url'] ) ) {
+                return self::media_reference_error();
+            }
+            if ( ( array_key_exists( 'id', $attrs ) && self::is_attachment_id( $attrs['id'], $attachment_id ) ) || ( array_key_exists( 'url', $attrs ) && self::is_attachment_url( $attrs['url'], $urls ) ) ) {
+                return true;
+            }
+        }
+        if ( 'core/gallery' === $block['blockName'] && array_key_exists( 'ids', $attrs ) ) {
+            if ( ! is_array( $attrs['ids'] ) ) {
+                return self::media_reference_error();
+            }
+            foreach ( $attrs['ids'] as $id ) {
+                if ( ! self::is_canonical_id( $id ) ) {
+                    return self::media_reference_error();
+                }
+                if ( self::is_attachment_id( $id, $attachment_id ) ) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static function html_references_attachment( $content, $urls ) {
+        $without_comments = preg_replace( '/<!--.*?-->/s', '', $content );
+        if ( ! is_string( $without_comments ) ) {
+            return self::media_reference_error();
+        }
+        $pattern = '/<\\s*[a-z][^>]*?\\s(?:src|href|srcset|data-src|data-srcset)\\s*=\\s*(["\\\'])(.*?)\\1/si';
+        $matches = array();
+        if ( false === preg_match_all( $pattern, $without_comments, $matches, PREG_SET_ORDER ) ) {
+            return self::media_reference_error();
+        }
+        foreach ( $matches as $match ) {
+            $value = html_entity_decode( trim( $match[2] ), ENT_QUOTES, 'UTF-8' );
+            foreach ( preg_split( '/\\s*,\\s*/', $value ) as $candidate ) {
+                $url = preg_split( '/\\s+/', trim( $candidate ) );
+                if ( isset( $url[0] ) && self::is_attachment_url( $url[0], $urls ) ) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static function elementor_references_attachment( $payload, $attachment_id, $urls ) {
+        if ( ! is_string( $payload ) ) {
+            return self::media_reference_error();
+        }
+        $data = json_decode( $payload, true );
+        if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $data ) ) {
+            return self::elementor_payload_mentions_attachment( $payload, $attachment_id, $urls ) ? self::media_reference_error() : false;
+        }
+        return self::elementor_value_references_attachment( $data, $attachment_id, $urls );
+    }
+
+    private static function elementor_value_references_attachment( $value, $attachment_id, $urls ) {
+        if ( ! is_array( $value ) ) {
+            return false;
+        }
+        $has_id = array_key_exists( 'id', $value );
+        $has_url = array_key_exists( 'url', $value );
+        if ( $has_id || $has_url ) {
+            $id_matches = $has_id && self::is_attachment_id( $value['id'], $attachment_id );
+            $url_matches = $has_url && is_string( $value['url'] ) && self::is_attachment_url( $value['url'], $urls );
+            if ( $id_matches || $url_matches ) {
+                if ( ! $has_id || ! $has_url || ! self::is_canonical_id( $value['id'] ) || ! is_string( $value['url'] ) ) {
+                    return self::media_reference_error();
+                }
+                return ( $id_matches && $url_matches ) ? true : self::media_reference_error();
+            }
+        }
+        foreach ( $value as $child ) {
+            $reference = self::elementor_value_references_attachment( $child, $attachment_id, $urls );
+            if ( is_wp_error( $reference ) || $reference ) {
+                return $reference;
+            }
+        }
+        return false;
+    }
+
+    private static function elementor_payload_mentions_attachment( $payload, $attachment_id, $urls ) {
+        $payload = str_replace( '\\/', '/', $payload );
+        $id_pattern = '/["\\\']id["\\\']\\s*:\\s*(?:["\\\']' . preg_quote( (string) $attachment_id, '/' ) . '["\\\']|' . preg_quote( (string) $attachment_id, '/' ) . ')(?=\\s*[,}])/';
+        if ( 1 === preg_match( $id_pattern, $payload ) ) {
+            return true;
+        }
+        foreach ( $urls as $url ) {
+            $url_pattern = '/["\\\']url["\\\']\\s*:\\s*["\\\']' . preg_quote( $url, '/' ) . '["\\\'](?=\\s*[,}])/';
+            if ( 1 === preg_match( $url_pattern, $payload ) ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function is_canonical_id( $value ) {
+        return is_int( $value ) || ( is_string( $value ) && 1 === preg_match( '/^[1-9][0-9]*$/', $value ) );
+    }
+
+    private static function is_attachment_id( $value, $attachment_id ) {
+        return self::is_canonical_id( $value ) && (string) $attachment_id === (string) $value;
+    }
+
+    private static function is_attachment_url( $value, $urls ) {
+        return is_string( $value ) && in_array( $value, $urls, true );
+    }
+
+    private static function attachment_urls( $attachment_id ) {
+        $uploads = wp_upload_dir();
+        if ( ! empty( $uploads['error'] ) || empty( $uploads['baseurl'] ) ) {
+            return self::media_reference_error();
+        }
+        $original = wp_get_attachment_url( $attachment_id );
+        if ( ! is_string( $original ) || '' === $original ) {
+            return self::media_reference_error();
+        }
+        $urls = array( $original );
+        $metadata = wp_get_attachment_metadata( $attachment_id );
+        if ( ! is_array( $metadata ) || empty( $metadata['sizes'] ) ) {
+            return $urls;
+        }
+        if ( empty( $metadata['file'] ) || ! is_string( $metadata['file'] ) ) {
+            return self::media_reference_error();
+        }
+        $directory = dirname( str_replace( '\\', '/', $metadata['file'] ) );
+        $directory = '.' === $directory ? '' : trim( $directory, '/' );
+        if ( false !== strpos( $directory, '..' ) || ! is_array( $metadata['sizes'] ) ) {
+            return self::media_reference_error();
+        }
+        foreach ( $metadata['sizes'] as $size ) {
+            if ( ! is_array( $size ) || empty( $size['file'] ) || ! is_string( $size['file'] ) || basename( $size['file'] ) !== $size['file'] ) {
+                return self::media_reference_error();
+            }
+            $urls[] = untrailingslashit( $uploads['baseurl'] ) . '/' . ( '' === $directory ? '' : $directory . '/' ) . $size['file'];
+        }
+        return array_values( array_unique( $urls ) );
+    }
+
+    private static function media_reference_error() {
+        return new WP_Error( 'fpr_media_reference_ambiguous', 'Une référence média conservée n’est pas vérifiable ; le preflight est bloqué.' );
     }
 
     private static function plan( $tables, $profiles, $candidate_ids, $attachments ) {

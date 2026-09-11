@@ -15,7 +15,7 @@ $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 $roadmap = file_get_contents( $root . '/docs/ROADMAP.md' );
 
-fpr01_assert( false !== strpos( $bootstrap, 'Plugin Name: Faluss Production Reset' ) && false !== strpos( $bootstrap, "Version: 0.1.1" ) && false !== strpos( $service, "const VERSION = '0.1.1'" ), 'FPR-01.1 must be an isolated Faluss Production Reset 0.1.1 plugin.' );
+fpr01_assert( false !== strpos( $bootstrap, 'Plugin Name: Faluss Production Reset' ) && false !== strpos( $bootstrap, "Version: 0.1.2" ) && false !== strpos( $service, "const VERSION = '0.1.2'" ), 'FPR-01.2 must be an isolated Faluss Production Reset 0.1.2 plugin.' );
 fpr01_assert( false !== strpos( $service, "'faluss.me'" ) && false !== strpos( $service, "'faluss.com'" ) && false !== strpos( $service, 'HUB_RECEIVER_URL' ), 'The isolated plugin must have only the two canonical Faluss sites in scope.' );
 
 // 1. No browser operation bypasses capability, nonce and the exact confirmation.
