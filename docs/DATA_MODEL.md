@@ -86,3 +86,23 @@ utilisateur WordPress courant et réduit la décision d'abonnement à des valeur
 affichables. Il ne lit aucun ledger Token Engine tant qu'une source PF officielle
 n'est pas définie, ni ne rend les références Stripe, les e-mails,
 adresses, cartes, sources de décision, payloads ou secrets.
+
+## Master Profile MP-01A
+
+MP-01A n'ajoute aucune table, colonne, option, migration, donnée membre ou copie
+de projection. Le Master Profile ne possède pas de modèle métier persistant :
+il consomme des enveloppes éphémères conformes à
+[`MASTER_PROFILE_CONTRACT.md`](MASTER_PROFILE_CONTRACT.md), identifiées côté
+serveur par le seul `faluss_id` opaque.
+
+Chaque enveloppe déclare son namespace concret, sa version, son propriétaire,
+son activation, ses audiences, son payload minimal ou son état vide, sa
+fraîcheur, son read-model source, ses actions déléguées et sa compatibilité. Une
+absence d'enveloppe reste une absence de donnée. `ghost_until` est une politique
+de visibilité du sujet et non une donnée copiée dans chaque module ; il masque
+les projections publiques sans modifier les données des moteurs.
+
+Le schéma JSON v1 réside dans
+[`contracts/master-profile-module.schema.json`](../contracts/master-profile-module.schema.json).
+Il décrit un format d'échange seulement et ne crée ni transport, route REST,
+cache persistant, table fédérée ou nouvelle autorité de données.

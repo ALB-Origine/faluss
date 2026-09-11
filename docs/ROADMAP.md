@@ -93,3 +93,19 @@ de droit Faluss Link n’est activé par ce lot.
 SUB-01C définira l’appelant membre authentifié, les cycles Hub et une recette
 Stripe réelle. SUB-01D définira les connecteurs intersites de droits, sans
 dupliquer identité ou abonnement.
+
+## MP-01A — Universal Profile Contract — livré contractuellement
+
+Définir le Master Profile comme projection fédérée et les enveloppes de modules
+versionnées `identity.core`, `apps.registry`, `subscriptions.private`,
+`pf.summary`, `progression.global`, `cosmetics.equipped`, `date.*`,
+`fans.creator` et `hof.score`. Le contrat fixe propriété, audiences, états vides,
+fraîcheur, mode `ghost_until`, namespaces de métriques, actions déléguées et
+compatibilité. Il ne livre aucun Master Profile visible, plugin, route, écran,
+table, migration, donnée membre, ZIP ou changement de comportement WordPress.
+
+Les lots ultérieurs devront d'abord définir le read-model spécialisé de leur
+moteur et prouver son filtrage. Ils ne pourront brancher une projection au
+Master Profile qu'après validation d'un transport privé distinct et sans lecture
+directe de table, duplication de source, fusion de scores ou exposition du
+`faluss_id` technique.

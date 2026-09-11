@@ -1,0 +1,350 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.faluss.com/master-profile/v1/module.schema.json",
+  "title": "Faluss Master Profile module v1",
+  "description": "Generic owner-provided read-model envelope for MP-01A. It defines no transport or WordPress runtime.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "namespace",
+    "contract_version",
+    "owner",
+    "subject_faluss_id",
+    "activation",
+    "audiences",
+    "projection",
+    "empty_state",
+    "freshness",
+    "source",
+    "delegated_actions",
+    "compatibility"
+  ],
+  "properties": {
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$",
+      "description": "Concrete stable namespace. Wildcards are reserved for documentation families and are invalid here."
+    },
+    "contract_version": {
+      "$ref": "#/$defs/semanticVersion"
+    },
+    "owner": {
+      "$ref": "#/$defs/owner"
+    },
+    "subject_faluss_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "Opaque server-side federation subject. It must never enter the rendered payload."
+    },
+    "activation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "changed_at"],
+      "properties": {
+        "state": {
+          "enum": ["enabled", "disabled"]
+        },
+        "changed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reason_code": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{1,63}$"
+        }
+      }
+    },
+    "audiences": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["private", "members", "public"]
+      },
+      "description": "Maximum audiences authorized by the owner. A member choice may only reduce this set."
+    },
+    "projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "payload"],
+      "properties": {
+        "status": {
+          "enum": ["available", "empty"]
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "fields": {
+              "type": "object"
+            },
+            "metrics": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$"
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "empty_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["declared", "reason"],
+      "properties": {
+        "declared": {
+          "type": "boolean"
+        },
+        "reason": {
+          "enum": [null, "not_enabled", "no_data", "not_authorized", "temporarily_unavailable"]
+        }
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generated_at", "max_age_seconds", "stale_behavior"],
+      "properties": {
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "max_age_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "stale_behavior": {
+          "enum": ["omit", "refresh_from_owner"]
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "engine", "read_model", "source_version"],
+      "properties": {
+        "type": {
+          "const": "owner_read_model"
+        },
+        "engine": {
+          "$ref": "#/$defs/engineId"
+        },
+        "read_model": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,63}$"
+        },
+        "source_version": {
+          "$ref": "#/$defs/semanticVersion"
+        }
+      }
+    },
+    "delegated_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["action_key", "owner", "delegation"],
+        "properties": {
+          "action_key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]{1,63}$"
+          },
+          "owner": {
+            "$ref": "#/$defs/engineId"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "delegation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "target"],
+            "properties": {
+              "type": {
+                "const": "owner_deep_link"
+              },
+              "target": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.-]{1,127}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_consumer_version",
+        "backward_compatible_with",
+        "deprecated",
+        "sunset_at",
+        "replacement_namespace"
+      ],
+      "properties": {
+        "minimum_consumer_version": {
+          "$ref": "#/$defs/semanticVersion"
+        },
+        "backward_compatible_with": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/semanticVersion"
+          }
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "sunset_at": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "format": "date-time" }
+          ]
+        },
+        "replacement_namespace": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "semanticVersion": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*\\.[0-9]+\\.[0-9]+$"
+    },
+    "engineId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,63}$"
+    },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine", "authority"],
+      "properties": {
+        "engine": {
+          "$ref": "#/$defs/engineId"
+        },
+        "authority": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,63}$"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "projection": {
+            "properties": {
+              "status": { "const": "empty" }
+            },
+            "required": ["status"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "projection": {
+            "properties": {
+              "payload": { "maxProperties": 0 }
+            }
+          },
+          "empty_state": {
+            "properties": {
+              "declared": { "const": true },
+              "reason": {
+                "enum": ["not_enabled", "no_data", "not_authorized", "temporarily_unavailable"]
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "projection": {
+            "properties": {
+              "payload": { "minProperties": 1 }
+            }
+          },
+          "empty_state": {
+            "properties": {
+              "declared": { "const": false },
+              "reason": { "const": null }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "activation": {
+            "properties": {
+              "state": { "const": "disabled" }
+            },
+            "required": ["state"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "projection": {
+            "properties": {
+              "status": { "const": "empty" }
+            }
+          },
+          "empty_state": {
+            "properties": {
+              "declared": { "const": true },
+              "reason": { "const": "not_enabled" }
+            }
+          },
+          "delegated_actions": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ],
+  "x-public-forbidden-payload-data": [
+    "subscription",
+    "email",
+    "payment",
+    "faluss_id",
+    "wp_user_id",
+    "stripe",
+    "customer",
+    "checkout",
+    "price",
+    "invoice",
+    "entitlement",
+    "secret"
+  ],
+  "x-mp01a-scope": {
+    "nature": "documentary-contract-only",
+    "wordpress_runtime_changes": false,
+    "migrations": false,
+    "routes": false,
+    "installable_artifact": false,
+    "allowed_changed_paths": [
+      "contracts/master-profile-module.schema.json",
+      "docs/ARCHITECTURE.md",
+      "docs/DATA_MODEL.md",
+      "docs/MASTER_PROFILE_CONTRACT.md",
+      "docs/ROADMAP.md",
+      "tests/faluss-master-profile-mp01a-contract-test.php"
+    ]
+  }
+}

@@ -30,6 +30,30 @@ ni identité, ni abonnement, ni solde, ni facture, ni profil universel. Son
 contrat détaillé et la matrice de sources de vérité sont
 dans [`FALUSS_PORTAL.md`](FALUSS_PORTAL.md).
 
+## Master Profile fédéré MP-01A
+
+Le futur Master Profile est une projection fédérée, jamais une source métier.
+Chaque moteur reste propriétaire de ses tables, règles, métriques et décisions,
+et fournit seulement un read-model minimal, versionné, daté et filtré. Le
+Master Profile ne lit pas directement le stockage d'un dérivé, ne persiste pas
+son payload et ne complète jamais un module absent par une valeur supposée. Le
+seul sujet commun est le `faluss_id` opaque, réservé aux échanges serveur et
+retiré de tout rendu public.
+
+Les namespaces empêchent les collisions : `progression.*` appartient
+exclusivement au moteur Progression, tandis que `date.*`, `fans.*` et `hof.*`
+restent dans leurs moteurs respectifs. Une contribution dérivée à la progression
+globale nécessitera un pont de politique futur, explicite et versionné, détenu
+par Progression. L'assembleur ne calcule ni ne fusionne aucun score.
+
+Les seules audiences de module sont `private`, `members` et `public`. La
+politique de sujet facultative `ghost_until` masque prioritairement la Carte
+Membre et toutes les projections publiques sans toucher aux sources ni aux
+réglages enregistrés. Le contrat complet, les modules de référence et le schéma
+machine-readable sont définis dans
+[`MASTER_PROFILE_CONTRACT.md`](MASTER_PROFILE_CONTRACT.md). MP-01A ne modifie
+aucun plugin, route, écran, table, migration ou comportement WordPress.
+
 ## Modèle Elementor de profil public
 
 Un administrateur peut sélectionner une page Elementor déjà publiée dans **Réglages → Profil public Faluss**. Les routes `faluss.me/identifiant` rendent alors cette page ; le widget **Profil public Faluss**, sans identifiant renseigné, reçoit l’identifiant de la route. Le plugin ne crée aucune page. Si aucun modèle valide n’est sélectionné ou qu’Elementor est indisponible, le rendu autonome du profil est conservé.
