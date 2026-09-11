@@ -116,9 +116,20 @@ Le contrat PF réserve un futur ledger append-only à classes `earned`, `funded`
 et `promotional`, les catégories de gains, packs, soutien, cosmétiques et
 compensation, ainsi que la frontière avec Fans/Marketplace, Hall of Fame,
 Progression, Portal et Master Profile. Il ne crée aucun solde, table, migration,
-route, paiement, Stripe, plugin, ZIP ou comportement WordPress. PF-02B reste
-bloqué jusqu'à la décision des critères exacts de `profile_daily_claim` (75 PF)
-et `daily_accrual` (20 PF), non établis par la référence ALB inspectée.
+route, paiement, Stripe, plugin, ZIP ou comportement WordPress. Les règles
+exactes de `profile_daily_claim` (75 PF) et `daily_accrual` (20 PF) sont
+désormais portées par DR-01 ; PF-02B reste limité à leur future implémentation
+et bloqué sur les autres capacités PF.
+
+## DR-01 — Contrat fédéré des Daily Rewards Faluss — livré contractuellement
+
+DR-01 fixe la période quotidienne serveur `Europe/Paris`, sans rattrapage, et
+les deux rewards cumulables : Hub `20 PF earned` (`hub.daily_accrual`) et
+Faluss Me `75 PF earned` (`me.profile_daily_claim`), pour un maximum de
+`95 PF earned`. Il définit le read-model de statut filtré et la délégation
+exclusive au moteur propriétaire ; Hub/Portal ne crédite ni ne simule jamais un
+succès. Le lot ne produit aucune route, table, ledger, migration, cron, UI
+Portal, plugin, ZIP, paiement, Stripe ou comportement WordPress.
 
 ## SUB-03 — Faluss Plus — prérequis produit réservé
 

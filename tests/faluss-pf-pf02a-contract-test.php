@@ -175,6 +175,7 @@ function pf02a_monetizable_support_is_allowed( $supporter_faluss_id, $creator_fa
 
 $root = dirname( __DIR__ );
 $contract = file_get_contents( $root . '/docs/POINTS_FALUSS_CONTRACT.md' );
+$daily_rewards_contract = file_get_contents( $root . '/docs/DAILY_REWARDS_CONTRACT.md' );
 $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 $roadmap = file_get_contents( $root . '/docs/ROADMAP.md' );
@@ -273,7 +274,10 @@ foreach ( array( 'profile_daily_claim', 'daily_accrual', 'pf_pack_purchase', 'pf
     pf02a_assert( in_array( $category, $schema['properties']['category']['enum'], true ) && false !== strpos( $contract, '`' . $category . '`' ), 'The reserved PF category is missing from schema or contract: ' . $category );
 }
 foreach ( array( '`75 PF`', '`20 PF`', '72/71/72/71/72/71/71', 'jours manqués ne sont pas rattrapés', 'bloqué', "n'a été trouvé dans ce périmètre" ) as $needle ) {
-    pf02a_assert( false !== strpos( $contract, $needle ), 'The ALB inspection evidence or PF-02B blocker is missing: ' . $needle );
+    pf02a_assert( false !== strpos( $contract, $needle ), 'The retained ALB evidence or remaining PF-02B boundary is missing: ' . $needle );
+}
+foreach ( array( 'DR-01', 'hub.daily_accrual', 'me.profile_daily_claim', 'Europe/Paris', '95 PF', 'PF-02B est autorisé' ) as $needle ) {
+    pf02a_assert( false !== strpos( $contract, $needle ) && false !== strpos( $daily_rewards_contract, $needle ), 'PF-02A must use the decided DR-01 daily reward rule: ' . $needle );
 }
 foreach ( array( 'Hall of Fame ne lit jamais le ledger PF', 'n\'est ni `progression.*`, ni `fans.*`, ni `hof.*`', 'sans gain direct de PF', 'soutien créateur monétisable', 'auto-transaction' ) as $needle ) {
     pf02a_assert( false !== strpos( $contract, $needle ), 'A required PF/Fans/HOF/Progression boundary is missing: ' . $needle );

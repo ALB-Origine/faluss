@@ -117,6 +117,22 @@ Fans. PF-02A n'ajoute aucun ledger, projection, lecture dans Portal/Master
 Profile, route, table, migration, plugin ou comportement WordPress. Son contrat
 et son schéma sont dans [`POINTS_FALUSS_CONTRACT.md`](POINTS_FALUSS_CONTRACT.md).
 
+### Daily Rewards DR-01
+
+DR-01 fixe seulement le futur read-model de délégation quotidienne. Les moteurs
+Faluss Hub et Faluss Me restent les propriétaires de leurs décisions : `20 PF
+earned` sous `hub.daily_accrual` et `75 PF earned` sous
+`me.profile_daily_claim`, cumulables une fois par identité et jour
+`Europe/Paris`, dans la limite actuelle de `95 PF earned`. Hub/Portal n'écrit
+aucun PF, ne calcule aucune éligibilité et ne lit aucune table dérivée ; il ne
+pourra que déléguer une action ou une navigation à un propriétaire.
+
+Le document de statut est filtré pour le membre courant, frais et sans
+`faluss_id`, e-mail, solde, paiement ou historique. Une absence reste une
+absence de reward. DR-01 n'ajoute aucune route, action, card, UI, cache métier,
+cron, table, migration ou comportement WordPress. Son contrat est dans
+[`DAILY_REWARDS_CONTRACT.md`](DAILY_REWARDS_CONTRACT.md).
+
 ## Bibliothèque privée de découvertes
 
 Mes découvertes est une donnée locale de Faluss Link, uniquement accessible au membre Faluss actif qui la possède. La route publique résout d’abord un profil Identity publié puis, seulement pour un autre membre connecté et ayant laissé l’enregistrement actif, actualise une paire de références d’identité côté serveur. Cette écriture ne contient ni contenu du profil ni donnée analytique de navigation. Elle n’est transmise à aucun Core, Connector, catalogue ou site tiers et n’est jamais exposée au propriétaire du profil découvert. Toute future analytique créateur doit être un système séparé, avec sa propre finalité et ses propres données ; elle ne peut pas dériver de cette bibliothèque.

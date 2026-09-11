@@ -81,6 +81,20 @@ Les catégories `profile_daily_claim`, `daily_accrual`, `pf_pack_purchase`,
 `reversal` sont réservées et inactives. Aucun solde ou historique ALB ne peut
 devenir PF, et PF-02A ne crée aucune projection `pf.summary`.
 
+## Daily Rewards DR-01
+
+DR-01 n'ajoute aucune table, colonne, option, donnée membre, cache durable,
+ledger PF, migration ou écriture. Il décrit un document éphémère de read-model
+filtré pour le membre courant : app, clé de reward, propriétaire, statut,
+reward légalement annonçable, période `daily` `Europe/Paris`, délégation,
+fraîcheur, source et compatibilité. Il ne contient jamais `faluss_id`, e-mail,
+session, solde, détail d'éligibilité, historique ou donnée de paiement.
+
+La date logique, l'éligibilité et l'idempotence sont des décisions serveur du
+moteur propriétaire. L'absence de document n'est ni un solde `0`, ni un reward
+réclamé, ni une éligibilité déduite. Le schéma sans transport ni stockage est
+[`contracts/faluss-daily-reward.schema.json`](../contracts/faluss-daily-reward.schema.json).
+
 ## Faluss Subscriptions
 
 | Table | Clés / contenu |

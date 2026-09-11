@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.faluss.com/daily-rewards/v1/daily-reward-status.schema.json",
+  "title": "Faluss daily reward status v1",
+  "description": "DR-01 contract only. This schema defines no transport, route, ledger write or WordPress runtime.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "app_key",
+    "reward_key",
+    "owner",
+    "status",
+    "reward",
+    "period",
+    "delegation",
+    "freshness",
+    "source",
+    "compatibility"
+  ],
+  "properties": {
+    "app_key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,63}$"
+    },
+    "reward_key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,63}\\.[a-z][a-z0-9_.-]{1,127}$"
+    },
+    "owner": {
+      "$ref": "#/$defs/engineId"
+    },
+    "status": {
+      "enum": ["claimable", "claimed", "ineligible", "unavailable", "not_supported"]
+    },
+    "reward": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["amount_pf", "economic_class", "label"],
+          "properties": {
+            "amount_pf": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+            "economic_class": { "enum": ["earned", "funded", "promotional"] },
+            "label": { "type": "string", "minLength": 1, "maxLength": 80 }
+          }
+        }
+      ]
+    },
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "timezone", "logical_date"],
+      "properties": {
+        "type": { "const": "daily" },
+        "timezone": { "const": "Europe/Paris" },
+        "logical_date": { "type": "string", "format": "date" }
+      }
+    },
+    "delegation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "action_key", "target"],
+      "properties": {
+        "type": { "enum": ["owner_claim", "owner_navigation", "none"] },
+        "action_key": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,127}$" }
+          ]
+        },
+        "target": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "pattern": "^[a-z][a-z0-9_.-]{1,127}$" }
+          ]
+        }
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generated_at", "max_age_seconds", "stale_behavior"],
+      "properties": {
+        "generated_at": { "type": "string", "format": "date-time" },
+        "max_age_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
+        "stale_behavior": { "enum": ["omit", "refresh_from_owner"] }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "engine", "read_model", "source_version"],
+      "properties": {
+        "type": { "const": "owner_daily_reward_read_model" },
+        "engine": { "$ref": "#/$defs/engineId" },
+        "read_model": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,127}$" },
+        "source_version": { "$ref": "#/$defs/semanticVersion" }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_consumer_version",
+        "backward_compatible_with",
+        "deprecated",
+        "sunset_at",
+        "replacement_reward_key"
+      ],
+      "properties": {
+        "minimum_consumer_version": { "$ref": "#/$defs/semanticVersion" },
+        "backward_compatible_with": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/semanticVersion" }
+        },
+        "deprecated": { "type": "boolean" },
+        "sunset_at": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "format": "date-time" }
+          ]
+        },
+        "replacement_reward_key": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}\\.[a-z][a-z0-9_.-]{1,127}$" }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "semanticVersion": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*\\.[0-9]+\\.[0-9]+$"
+    },
+    "engineId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,63}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "claimable" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "reward": { "type": "object" },
+          "delegation": { "properties": { "type": { "enum": ["owner_claim", "owner_navigation"] } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "claimed" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "delegation": {
+            "properties": {
+              "type": { "const": "none" },
+              "action_key": { "const": null },
+              "target": { "const": null }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "enum": ["ineligible", "unavailable", "not_supported"] } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "reward": { "const": null },
+          "delegation": {
+            "properties": {
+              "type": { "const": "none" },
+              "action_key": { "const": null },
+              "target": { "const": null }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "app_key": { "const": "hub" } }, "required": ["app_key"] },
+      "then": {
+        "properties": {
+          "reward_key": { "const": "hub.daily_accrual" },
+          "owner": { "const": "faluss-hub" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "app_key": { "const": "me" } }, "required": ["app_key"] },
+      "then": {
+        "properties": {
+          "reward_key": { "const": "me.profile_daily_claim" },
+          "owner": { "const": "faluss-me" }
+        }
+      }
+    }
+  ],
+  "x-daily-reward-invariants": {
+    "period_type": "daily",
+    "period_timezone": "Europe/Paris",
+    "wordpress_timezone_mutable": false,
+    "missed_day_catchup": false,
+    "hub_and_me_cumulative_same_day": true,
+    "maximum_daily_earned_pf": 95,
+    "portal_writes_rewards": false,
+    "browser_or_url_writes_rewards": false,
+    "public_document_contains_faluss_id": false,
+    "reward_absence_means_zero": false,
+    "owner_navigation_is_success": false,
+    "duplicate_idempotent_pf_write": false
+  },
+  "x-dr01-scope": {
+    "nature": "documentary-contract-only",
+    "wordpress_runtime_changes": false,
+    "migrations": false,
+    "routes": false,
+    "portal_ui_changes": false,
+    "installable_artifact": false,
+    "allowed_changed_paths": [
+      "contracts/faluss-daily-reward.schema.json",
+      "docs/ARCHITECTURE.md",
+      "docs/DAILY_REWARDS_CONTRACT.md",
+      "docs/DATA_MODEL.md",
+      "docs/POINTS_FALUSS_CONTRACT.md",
+      "docs/ROADMAP.md",
+      "tests/faluss-daily-rewards-dr01-contract-test.php",
+      "tests/faluss-pf-pf02a-contract-test.php"
+    ]
+  }
+}

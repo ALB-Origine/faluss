@@ -144,24 +144,30 @@ enregistré n'a été trouvé dans ce périmètre ; la documentation SP-05A déc
 CTA Wallet comme seul producteur. Cette observation ne peut pas être étendue à
 un futur moteur PF.
 
-### Bloqueurs explicites pour PF-02B
+### Règles quotidiennes décidées par DR-01
 
-L'inspection ne permet pas d'établir les règles exactes de `75 PF` et `20 PF`.
-PF-02B reste donc bloqué, sans hypothèse métier, tant que ne sont pas décidés et
-testés :
+L'inspection ALB ne prouve pas les montants ou critères PF, mais la décision
+produit est désormais explicitement portée par
+[`DAILY_REWARDS_CONTRACT.md`](DAILY_REWARDS_CONTRACT.md). DR-01 remplace le
+blocage générique de PF-02B concernant les deux sources :
 
-1. l'éligibilité et la preuve serveur du handle pour `profile_daily_claim` ;
-2. le déclencheur serveur de `daily_accrual` ;
-3. la période, le fuseau, le reset et la relation entre les deux sources ;
-4. la possibilité ou l'interdiction de recevoir les deux crédits le même jour ;
-5. la clé d'idempotence exacte et la politique de jours manqués pour chaque
-   source ;
-6. le moteur propriétaire de chaque événement et sa référence opaque.
+- `hub.daily_accrual` est un crédit `earned` de `20 PF`, pour une identité
+  Faluss active, une fois par `faluss_id` et jour `Europe/Paris`, par action
+  explicite déléguée à Faluss Hub ;
+- `me.profile_daily_claim` est un crédit `earned` de `75 PF`, pour une identité
+  active dont la carte Faluss.me est effectivement publiée avec handle public
+  réservé, une fois par `faluss_id` et jour `Europe/Paris`, uniquement depuis
+  `faluss.me/@handle` ;
+- les deux crédits sont cumulables le même jour, pour un maximum de `95 PF
+  earned`, sans rattrapage ; leur idempotence est définie par moteur,
+  `reward_key`, `faluss_id`, date logique et version de politique.
 
-PF-02A reproduit uniquement le principe prouvé d'une attribution serveur,
-authentifiée, quotidienne, sans rattrapage implicite et idempotente. Il ne
-prétend pas reproduire les montants ou critères ALB inexistants dans la
-référence examinée.
+PF-02B est autorisé à implémenter exclusivement ces règles quotidiennes après
+ses propres garanties transactionnelles. Il reste bloqué sur le reste du ledger,
+son stockage, les migrations, moteurs runtime, UI, registry Apps, packs,
+paiements, Stripe, Fans et retrait créateur. La décision DR-01 ne convertit pas
+ALB et ne modifie pas le schéma de ledger PF : elle spécifie seulement les deux
+catégories déjà réservées.
 
 ## PF acquis et packs
 
