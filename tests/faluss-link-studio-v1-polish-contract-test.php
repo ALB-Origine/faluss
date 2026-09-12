@@ -14,7 +14,7 @@ $card = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link.
 $studio = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-studio.css' );
 $editor = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
 
-studio_v1_polish_assert( false !== strpos( $bootstrap, 'Version: 0.3.15' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.15'" ), 'The Studio interaction patch must rotate every Faluss Link frontend asset URL.' );
+studio_v1_polish_assert( false !== strpos( $bootstrap, 'Version: 0.3.16' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.16'" ), 'The Studio interaction patch must rotate every Faluss Link frontend asset URL.' );
 
 foreach ( array(
     '.elementor-widget.elementor-element.elementor-widget-faluss_link_appearance > .elementor-widget-container',

@@ -533,9 +533,9 @@
     function setCanonicalField(studio, name, value) {
         var fields = studio.find('[name="' + name + '"]');
         if (!fields.length) { return; }
-        var type = (fields.first().attr('type') || '').toLowerCase();
-        if (type === 'radio') { fields.prop('checked', false).filter('[value="' + value + '"]').prop('checked', true); }
-        else if (type === 'checkbox') { fields.prop('checked', value === true || value === 1 || value === '1' || value === 'published'); }
+        var checkboxes = fields.filter('input[type="checkbox"]'), radios = fields.filter('input[type="radio"]');
+        if (checkboxes.length) { checkboxes.prop('checked', value === true || value === 1 || value === '1' || value === 'published'); }
+        else if (radios.length) { radios.prop('checked', false).filter('[value="' + value + '"]').prop('checked', true); }
         else { fields.val(value === null || typeof value === 'undefined' ? '' : value); }
     }
     function hydrateCanonicalForm(studio, state) {
@@ -693,9 +693,9 @@
         }, 450));
     }
     function studioFieldValue(studio, name) {
-        var fields = studio.find('[name="' + name + '"]'), first = fields.first(), type = (first.attr('type') || '').toLowerCase();
-        if (type === 'radio') { return fields.filter(':checked').val() || ''; }
-        if (type === 'checkbox') { return first.prop('checked') ? (first.val() || '1') : '0'; }
+        var fields = studio.find('[name="' + name + '"]'), checkboxes = fields.filter('input[type="checkbox"]'), radios = fields.filter('input[type="radio"]'), first = fields.first();
+        if (checkboxes.length) { return checkboxes.first().prop('checked') ? (checkboxes.first().val() || '1') : '0'; }
+        if (radios.length) { return radios.filter(':checked').val() || ''; }
         return first.val() || '';
     }
     function studioFields(studio, names) {
@@ -709,7 +709,8 @@
         return networks;
     }
     function saveHeaderAndProfile(studio) {
-        var profile = studioFields(studio, ['display_name', 'bio', 'publication_status']);
+        var profile = studioFields(studio, ['display_name', 'bio']);
+        profile.publication_status = studio.find('input[name="publication_status"][type="checkbox"]').prop('checked') ? 'published' : 'draft';
         profile.avatar_attachment_id = studioFieldValue(studio, 'faluss_identity_avatar_id');
         return enqueueStudioMutation(studio, 'save_profile', profile).then(function (saved) {
             if (!saved) { return false; }

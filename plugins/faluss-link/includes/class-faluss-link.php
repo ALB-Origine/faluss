@@ -318,7 +318,7 @@ final class Faluss_Link {
         self::editor_assets();
         $profile = Faluss_Identity_Public_Profile::studio_profile( $faluss_id );
         $preferences = self::valid_prefs( $faluss_id );
-        $blocks = self::content_blocks( $faluss_id, $profile['links'], true );
+        $blocks = self::content_blocks( $faluss_id, $profile['links'], false );
         $aggregate_version = self::studio_aggregate_version( $faluss_id );
         $collections = self::studio_collections( $blocks );
         $active_tab = self::studio_tab( $_GET['faluss_studio_tab'] ?? 'links' );
@@ -472,7 +472,8 @@ final class Faluss_Link {
             if ( false === $identity_row || false === $card_row || false === $block_rows ) { throw new RuntimeException( 'lock' ); }
             $profile = self::profile_from_identity_row( $identity_row );
             $preferences = self::prefs( $faluss_id, false );
-            $blocks = self::blocks_from_rows( $block_rows );
+            $legacy_blocks_only = ! $block_rows && ! empty( $profile['links'] );
+            $blocks = $legacy_blocks_only ? self::legacy_blocks( $faluss_id, $profile['links'] ) : self::blocks_from_rows( $block_rows );
             $current_version = self::aggregate_version_from_state( $profile, $preferences, $blocks );
             if ( ! hash_equals( $current_version, $request['version'] ) ) {
                 $wpdb->query( 'ROLLBACK' );
@@ -480,6 +481,10 @@ final class Faluss_Link {
             }
 
             $mutation = $request['mutation'];
+            if ( $legacy_blocks_only && in_array( $mutation, $block_mutations, true ) ) {
+                $wpdb->query( 'ROLLBACK' );
+                return array( 'ok' => false, 'status' => 409, 'code' => 'legacy_blocks_not_initialized', 'message' => __( 'Les liens historiques sont affichés en lecture seule. Leur import explicite doit être traité séparément.', 'faluss-link' ), 'state' => self::canonical_studio_state( $faluss_id, $request['active_collection'] ) );
+            }
             if ( 'save_profile' === $mutation ) {
                 if ( false === Faluss_Identity_Public_Profile::persist_studio_profile_in_transaction( $faluss_id, $request['payload'] ) ) { throw new RuntimeException( 'profile' ); }
             } elseif ( in_array( $mutation, array( 'save_appearance', 'save_header', 'save_link_style' ), true ) ) {

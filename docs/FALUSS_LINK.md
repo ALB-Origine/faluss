@@ -42,6 +42,12 @@ Après une sauvegarde préalable de la base, un administrateur peut exécuter `w
 
 Cette vérification n’est pas une récupération. En cas d’écart, conserver la sauvegarde et les empreintes, ne modifier aucune ligne et décider séparément d’une restauration depuis une source connue.
 
+### Lecture seule et interrupteurs du Studio (FL-HOTFIX-01.1)
+
+L’ouverture du Studio est strictement en lecture seule. Un ancien profil qui possède encore uniquement sa projection Identity `external_links` continue d’afficher ces liens, mais le rendu ne crée aucun bloc et ne démarre aucune transaction. Une mutation de lien ou de collection échoue alors explicitement avec `legacy_blocks_not_initialized` ; tout import éventuel appartient à une procédure séparée et volontaire.
+
+Les interrupteurs **Afficher Disponible**, **Afficher l’avatar** et **Afficher la bordure de l’avatar** distinguent désormais leur case métier du champ caché de repli HTML. Leur valeur cochée ou décochée est envoyée par la mutation d’en-tête, puis restaurée depuis la réponse canonique sans modifier la valeur HTML de la case. La sauvegarde manuelle transmet toujours l’état de publication sous la forme `published` ou `draft`.
+
 ## Couleur du nom et future fondation de styles (FL-07)
 
 Dans **Studio Faluss > Style**, le membre choisit la couleur de son nom parmi les quatre pastilles Faluss accessibles : Rose (`#BE79FF`), Blanc (`#FFFFFF`), Noir (`#000000`, valeur par défaut) et Prune (`#82206B`). Ce choix n’affecte ni le handle, ni le statut, ni la bio, ni les liens. Une couleur explicitement renseignée dans le widget Elementor **Carte Faluss** peut la surcharger ; un contrôle Elementor laissé vide conserve la préférence membre.
@@ -50,7 +56,7 @@ Faluss Link résout les styles de carte selon la priorité : thème sélectionn�
 
 ## Blocs de contenu v1 (FL-08)
 
-L’onglet **Liens** contient un compositeur de contenu mobile : **Titre de section**, **Texte** et **Lien**. Chaque bloc est ajouté, déplacé avec les actions Monter/Descendre ou supprimé sans position technique visible. Les liens historiques sont importés de façon idempotente dans la source Faluss Link à la première ouverture du Studio ; tant que cette migration n’a pas eu lieu, la carte publique les rend depuis le profil Identity sans perte.
+L’onglet **Liens** contient un compositeur de contenu mobile : **Titre de section**, **Texte** et **Lien**. Chaque bloc est ajouté, déplacé avec les actions Monter/Descendre ou supprimé sans position technique visible. Les liens historiques qui existent uniquement dans la projection Identity restent affichés en lecture seule, sans import lors de l’ouverture du Studio. Leur éventuelle initialisation dans la source Faluss Link exige une opération explicite appartenant à un lot séparé ; tant qu’elle n’a pas eu lieu, la carte publique et le Studio les rendent depuis le profil Identity sans perte.
 
 Les modules ultérieurs pourront fournir leurs propres blocs validés, par exemple un produit `pro.faluss`, un contenu verrouillé ou une récompense quotidienne. Faluss Link ne portera jamais leurs règles d’accès, de paiement, de token ou d’abonnement : elles resteront dans les moteurs communs de l’écosystème.
 

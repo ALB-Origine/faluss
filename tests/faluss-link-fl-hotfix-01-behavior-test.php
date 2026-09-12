@@ -2,6 +2,7 @@
 
 define( 'ABSPATH', __DIR__ . '/' );
 define( 'ARRAY_A', 'ARRAY_A' );
+define( 'FALUSS_LINK_FILE', dirname( __DIR__ ) . '/plugins/faluss-link/faluss-link.php' );
 
 function fl_hotfix_assert( $condition, $message ) { if ( ! $condition ) { fwrite( STDERR, "FAIL: $message\n" ); exit( 1 ); } }
 function __( $value ) { return (string) $value; }
@@ -27,6 +28,8 @@ function wp_parse_args( $value, $defaults ) { return array_merge( $defaults, (ar
 function current_time() { return '2026-09-12 12:00:00'; }
 function get_current_user_id() { return 17; }
 function home_url( $path = '' ) { return 'https://faluss.test' . $path; }
+function admin_url( $path = '' ) { return 'https://faluss.test/wp-admin/' . ltrim( $path, '/' ); }
+function plugins_url( $path = '' ) { return 'https://faluss.test/wp-content/plugins/faluss-link/' . ltrim( $path, '/' ); }
 function get_permalink() { return 'https://faluss.test/studio/'; }
 function add_query_arg( $args, $url ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . http_build_query( $args ); }
 function wp_generate_uuid4() { static $suffix = 100; ++$suffix; return '99999999-9999-4999-8999-' . str_pad( (string) $suffix, 12, '0', STR_PAD_LEFT ); }
@@ -37,6 +40,14 @@ function wp_get_attachment_image( $id, $size, $icon = false, $attributes = array
 function is_user_logged_in() { return true; }
 function wp_logout_url( $url ) { return $url; }
 function wp_list_pluck( $items, $field ) { return array_map( static function( $item ) use ( $field ) { return $item[ $field ] ?? null; }, $items ); }
+function wp_style_is() { return true; }
+function wp_enqueue_style() {}
+function wp_enqueue_script() {}
+function wp_localize_script() {}
+function wp_create_nonce( $action ) { return 'nonce-' . $action; }
+function wp_nonce_field( $action, $name ) { echo '<input type="hidden" name="' . esc_attr( $name ) . '" value="nonce">'; }
+function checked( $checked, $current = true, $echo = true ) { $value = (string) $checked === (string) $current ? 'checked="checked"' : ''; if ( $echo ) { echo $value; } return $value; }
+function selected( $selected, $current = true, $echo = true ) { $value = (string) $selected === (string) $current ? 'selected="selected"' : ''; if ( $echo ) { echo $value; } return $value; }
 function apply_filters( $hook, $value, ...$args ) { global $fl_hotfix_fail_stage; return 'faluss_link_studio_mutation_checkpoint' === $hook && ( $args[0] ?? '' ) === $fl_hotfix_fail_stage ? false : $value; }
 function is_wp_error( $value ) { return $value instanceof WP_Error; }
 
@@ -57,6 +68,10 @@ final class Faluss_Link_Schema {
 }
 final class Faluss_Identity_Registry {
     public static function is_valid_faluss_id( $value ) { return 1 === preg_match( '/^[0-9a-f-]{36}$/', (string) $value ); }
+    public static function get_active_for_wp_user() { global $wpdb; return $wpdb->identity['faluss_id'] ?? ''; }
+}
+final class Faluss_Identity_Schema {
+    public static function get_status() { return array( 'ready' => true ); }
 }
 final class Faluss_Catalog_Themes {
     public static function active_for_scope() { return self::themes(); }
@@ -74,6 +89,8 @@ final class FL_Hotfix_WPDB {
     public $identity = array();
     public $fail_projection = false;
     public $fail_commit = false;
+    public $write_count = 0;
+    public $transaction_count = 0;
     private $snapshot = null;
 
     public function prepare( $query, ...$args ) {
@@ -83,9 +100,10 @@ final class FL_Hotfix_WPDB {
         return $query;
     }
     public function query( $query ) {
-        if ( 'START TRANSACTION' === $query ) { $this->snapshot = serialize( array( $this->card, $this->blocks, $this->identity ) ); return 1; }
+        if ( 'START TRANSACTION' === $query ) { ++$this->transaction_count; $this->snapshot = serialize( array( $this->card, $this->blocks, $this->identity ) ); return 1; }
         if ( 'COMMIT' === $query ) { if ( $this->fail_commit ) { return false; } $this->snapshot = null; return 1; }
         if ( 'ROLLBACK' === $query ) { if ( null !== $this->snapshot ) { list( $this->card, $this->blocks, $this->identity ) = unserialize( $this->snapshot ); } $this->snapshot = null; return 1; }
+        if ( 1 === preg_match( '/^(?:INSERT|UPDATE|DELETE)\b/i', trim( $query ) ) ) { ++$this->write_count; }
         if ( false !== strpos( $query, 'UPDATE wp_faluss_link_blocks SET sort_order=sort_order+100' ) ) {
             $minimum = preg_match( '/sort_order>=(\d+)/', $query, $matches ) ? (int) $matches[1] : null;
             foreach ( $this->blocks as &$row ) { if ( null === $minimum || (int) $row['sort_order'] >= $minimum ) { $row['sort_order'] += 100; } } unset( $row ); return 1;
@@ -108,11 +126,13 @@ final class FL_Hotfix_WPDB {
         return $rows;
     }
     public function insert( $table, $data ) {
+        ++$this->write_count;
         if ( 'wp_faluss_link_cards' === $table ) { if ( $this->card ) { return false; } $this->card = $data; return 1; }
         foreach ( $this->blocks as $row ) { if ( $row['block_id'] === $data['block_id'] ) { return false; } }
         $data['id'] = count( $this->blocks ) + 1; $this->blocks[] = $data; return 1;
     }
     public function update( $table, $values, $where, $formats = null, $where_formats = null ) {
+        ++$this->write_count;
         if ( 'wp_faluss_link_cards' === $table ) { if ( ! $this->card || $this->card['faluss_id'] !== ( $where['faluss_id'] ?? '' ) ) { return 0; } $this->card = array_merge( $this->card, $values ); return 1; }
         foreach ( $this->blocks as &$row ) {
             $matches = true;
@@ -122,6 +142,7 @@ final class FL_Hotfix_WPDB {
         unset( $row ); return 0;
     }
     public function delete( $table, $where ) {
+        ++$this->write_count;
         $deleted = 0;
         foreach ( array_keys( $this->blocks ) as $index ) {
             $matches = true;
@@ -140,7 +161,7 @@ final class Faluss_Identity_Public_Profile {
     public static function persist_studio_profile_in_transaction( $faluss_id, $fields ) { global $wpdb; if ( isset( $fields['publication_status'] ) && ! in_array( $fields['publication_status'], array( 'draft', 'published' ), true ) ) { return false; } $wpdb->identity = array_merge( $wpdb->identity, $fields ); if ( isset( $fields['publication_status'] ) && 'published' === $fields['publication_status'] && empty( $wpdb->identity['published_at'] ) ) { $wpdb->identity['published_at'] = current_time(); } return true; }
 }
 
-$root = dirname( __DIR__ );
+$root = getenv( 'FALUSS_HOTFIX_SOURCE_ROOT' ) ?: dirname( __DIR__ );
 $source = file_get_contents( $root . '/plugins/faluss-link/includes/class-faluss-link.php' );
 $identity_source = file_get_contents( $root . '/plugins/faluss-identity/includes/class-faluss-identity-public-profile.php' );
 $editor = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
@@ -183,6 +204,23 @@ $request_method = new ReflectionMethod( 'Faluss_Link', 'studio_mutation_request'
 $prefs_method = new ReflectionMethod( 'Faluss_Link', 'prefs' );
 $version = static function() use ( $version_method, $member ) { return $version_method->invoke( null, $member ); };
 $run = static function( $mutation, $payload, $supplied_version = null, $active_collection = '' ) use ( $run_method, $version, $member ) { return $run_method->invoke( null, $member, array( 'mutation' => $mutation, 'payload' => $payload, 'version' => null === $supplied_version ? $version() : $supplied_version, 'active_collection' => $active_collection ) ); };
+
+$canonical_blocks = $wpdb->blocks;
+$canonical_identity = $wpdb->identity;
+$wpdb->blocks = array();
+$before_render = $wpdb->digest();
+$writes_before_render = $wpdb->write_count;
+$transactions_before_render = $wpdb->transaction_count;
+$_GET = array();
+$legacy_markup = Faluss_Link::render_studio();
+fl_hotfix_assert( false !== strpos( $legacy_markup, 'Libre' ) && false !== strpos( $legacy_markup, 'Dans A' ), 'A legacy Identity-only profile must remain visible in the Studio read model.' );
+fl_hotfix_assert( $before_render === $wpdb->digest() && $writes_before_render === $wpdb->write_count && $transactions_before_render === $wpdb->transaction_count && array() === $wpdb->blocks, 'Opening render_studio must perform no write, transaction, projection, or implicit block import.' );
+$legacy_version = $version();
+$before_legacy_mutation = $wpdb->digest();
+$legacy_mutation = $run( 'create_link', array( 'block_id' => 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', 'label' => 'Refusé', 'url' => 'https://example.test/refused', 'collection_id' => '' ), $legacy_version );
+fl_hotfix_assert( ! $legacy_mutation['ok'] && 409 === $legacy_mutation['status'] && 'legacy_blocks_not_initialized' === $legacy_mutation['code'] && $before_legacy_mutation === $wpdb->digest() && array() === $wpdb->blocks, 'A block mutation against a legacy-only state must fail explicitly without importing or changing data.' );
+$wpdb->blocks = $canonical_blocks;
+$wpdb->identity = $canonical_identity;
 
 $invalid_full_form = $request_method->invoke( null, array( 'mutation' => 'save_appearance', 'aggregate_version' => str_repeat( 'a', 64 ), 'page_background' => '#112233', 'content_blocks' => array() ) );
 fl_hotfix_assert( is_wp_error( $invalid_full_form ), 'A complete or hidden DOM block payload must be rejected by a preference mutation.' );
@@ -249,4 +287,4 @@ $commit_failure = $run( 'update_link', array( 'block_id' => $link_a, 'label' => 
 $wpdb->fail_commit = false;
 fl_hotfix_assert( ! $commit_failure['ok'] && $before_commit_failure === $wpdb->digest(), 'A failed commit must trigger a full rollback.' );
 
-echo "FL-HOTFIX-01 behavior contract: OK\n";
+echo "FL-HOTFIX-01.1 transactional and read-only render contract: OK\n";

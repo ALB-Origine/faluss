@@ -8,9 +8,9 @@ function assert(condition, message) {
     if (!condition) { throw new Error(message); }
 }
 
-const root = path.resolve(__dirname, '..');
+const root = process.env.FALUSS_HOTFIX_SOURCE_ROOT ? path.resolve(process.env.FALUSS_HOTFIX_SOURCE_ROOT) : path.resolve(__dirname, '..');
 let source = fs.readFileSync(path.join(root, 'plugins/faluss-link/assets/js/faluss-link-editor.js'), 'utf8');
-source = source.replace(/}\(jQuery\)\);\s*$/, "window.__falussHotfixTest = { enqueueStudioMutation: enqueueStudioMutation, hydrateCanonicalBlocks: hydrateCanonicalBlocks };}(jQuery));");
+source = source.replace(/}\(jQuery\)\);\s*$/, "window.__falussHotfixTest = { enqueueStudioMutation: enqueueStudioMutation, hydrateCanonicalBlocks: hydrateCanonicalBlocks, studioFieldValue: studioFieldValue, setCanonicalField: setCanonicalField, saveHeaderAndProfile: saveHeaderAndProfile };}(jQuery));");
 
 function makeChain(length) {
     const values = Object.create(null);
@@ -34,12 +34,45 @@ function makeChain(length) {
     return proxy;
 }
 
+class FieldCollection {
+    constructor(elements) { this.elements = elements || []; this.length = this.elements.length; }
+    first() { return new FieldCollection(this.elements.slice(0, 1)); }
+    filter(selector) {
+        let match;
+        if (selector === 'input[type="checkbox"]') { return new FieldCollection(this.elements.filter((field) => field.tagName === 'INPUT' && field.type === 'checkbox')); }
+        if (selector === 'input[type="radio"]') { return new FieldCollection(this.elements.filter((field) => field.tagName === 'INPUT' && field.type === 'radio')); }
+        if (selector === ':checked') { return new FieldCollection(this.elements.filter((field) => field.checked)); }
+        match = selector.match(/^\[value="([^"]*)"\]$/);
+        return new FieldCollection(match ? this.elements.filter((field) => field.value === match[1]) : []);
+    }
+    prop(name, value) {
+        if (arguments.length === 1) { return this.length ? this.elements[0][name] : undefined; }
+        this.elements.forEach((field) => { field[name] = value; });
+        return this;
+    }
+    val(value) {
+        if (!arguments.length) { return this.length ? this.elements[0].value : '' ; }
+        this.elements.forEach((field) => { field.value = value; });
+        return this;
+    }
+    attr(name, value) {
+        if (arguments.length === 1) { return this.length ? (this.elements[0][name] || '') : ''; }
+        this.elements.forEach((field) => { field[name] = value; });
+        return this;
+    }
+}
+
+function input(name, type, value, checked) {
+    return { tagName: 'INPUT', name: name, type: type, value: value, checked: !!checked };
+}
+
 class FakeStudio {
     constructor(version) {
         this.store = Object.create(null);
         this.attributes = { 'data-faluss-studio-version': version };
         this.version = version;
         this.collection = '';
+        this.fields = Object.create(null);
         this.form = makeChain(1);
         this.form.attr = (name) => name === 'action' ? 'https://faluss.test/wp-admin/admin-post.php' : '';
         this.form.find = (selector) => {
@@ -51,8 +84,13 @@ class FakeStudio {
     removeData(key) { delete this.store[key]; return this; }
     addClass() { return this; }
     removeClass() { return this; }
+    addField(field) { if (!this.fields[field.name]) { this.fields[field.name] = []; } this.fields[field.name].push(field); return field; }
     attr(key, value) { if (arguments.length > 1) { this.attributes[key] = value; if (key === 'data-faluss-studio-version') { this.version = value; } return this; } return this.attributes[key] || ''; }
     find(selector) {
+        let match = selector.match(/^\[name="([^"]+)"\]$/);
+        if (match) { return new FieldCollection(this.fields[match[1]] || []); }
+        match = selector.match(/^input\[name="([^"]+)"\]\[type="checkbox"\]$/);
+        if (match) { return new FieldCollection((this.fields[match[1]] || []).filter((field) => field.tagName === 'INPUT' && field.type === 'checkbox')); }
         if (selector === '.faluss-link-studio__form') { return this.form; }
         if (selector === '[data-fl-aggregate-version]') { const field = makeChain(1), owner = this; field.val = function (value) { if (arguments.length) { owner.version = value; return field; } return owner.version; }; return field; }
         if (selector === '[data-fl-active-collection]') { const field = makeChain(1), owner = this; field.val = function (value) { if (arguments.length) { owner.collection = value; return field; } return owner.collection; }; return field; }
@@ -99,11 +137,34 @@ const context = {
 vm.runInNewContext(source, context, { filename: 'faluss-link-editor.js' });
 const enqueue = fakeWindow.__falussHotfixTest.enqueueStudioMutation;
 const hydrate = fakeWindow.__falussHotfixTest.hydrateCanonicalBlocks;
+const fieldValue = fakeWindow.__falussHotfixTest.studioFieldValue;
+const setCanonicalField = fakeWindow.__falussHotfixTest.setCanonicalField;
+const saveHeaderAndProfile = fakeWindow.__falussHotfixTest.saveHeaderAndProfile;
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const response = (ok, code, version) => ({
     ok: ok,
     json: () => Promise.resolve({ success: ok, data: { code: code, message: ok ? 'saved' : 'conflict', state: { blocks: [], version: version, profile: {}, preferences: {}, links_html: '', collections_html: '', collection_html: '', preview_html: '' } } })
 });
+
+function headerStudio(version, enabled, published) {
+    const studio = new FakeStudio(version);
+    ['available', 'avatar_visible', 'avatar_border'].forEach(function (name) {
+        studio.addField(input(name, 'hidden', '0', false));
+        studio.addField(input(name, 'checkbox', '1', enabled));
+    });
+    studio.addField(input('publication_status', 'checkbox', 'published', published));
+    studio.addField(input('display_name', 'text', 'Membre', false));
+    studio.addField(input('bio', 'text', 'Bio', false));
+    studio.addField(input('faluss_identity_avatar_id', 'hidden', '0', false));
+    studio.addField(input('name_font', 'text', 'outfit', false));
+    studio.addField(input('name_treatment', 'text', 'strong', false));
+    studio.addField(input('name_color', 'text', '#000000', false));
+    studio.addField(input('alignment', 'radio', 'left', false));
+    studio.addField(input('alignment', 'radio', 'center', true));
+    studio.addField(input('social_layout', 'text', 'bubbles', false));
+    studio.addField(input('social_variant', 'text', 'outline', false));
+    return studio;
+}
 
 (async function () {
     const studio = new FakeStudio('a'.repeat(64));
@@ -135,5 +196,41 @@ const response = (ok, code, version) => ({
     hydrate(conflictStudio, { blocks: [], active_collection: collectionId, version: 'f'.repeat(64), links_html: '', collections_html: '', collection_html: '', preview_html: '' });
     assert(conflictStudio.collection === collectionId && conflictStudio.attr('data-faluss-studio-collection') === collectionId, 'Canonical hydration must restore the active collection as well as its panels.');
 
-    process.stdout.write('FL-HOTFIX-01 autosave queue: OK\n');
+    const enabledStudio = headerStudio('1'.repeat(64), true, true);
+    ['available', 'avatar_visible', 'avatar_border'].forEach(function (name) {
+        assert(enabledStudio.find('[name="' + name + '"]').length === 2, name + ' must faithfully expose the hidden fallback and checkbox with the same name.');
+        assert(fieldValue(enabledStudio, name) === '1', name + ' must read the checked checkbox instead of the first hidden fallback.');
+        setCanonicalField(enabledStudio, name, 0);
+        assert(enabledStudio.find('[name="' + name + '"]').filter('input[type="checkbox"]').prop('checked') === false, name + ' must become visually unchecked after canonical hydration.');
+        assert(enabledStudio.find('[name="' + name + '"]').filter('input[type="checkbox"]').val() === '1', name + ' must retain its business HTML value after canonical hydration.');
+        assert(enabledStudio.find('[name="' + name + '"]').first().val() === '0', name + ' must leave the hidden HTML fallback unchanged.');
+        setCanonicalField(enabledStudio, name, 1);
+        assert(enabledStudio.find('[name="' + name + '"]').filter('input[type="checkbox"]').prop('checked') === true, name + ' must become visually checked after canonical hydration.');
+    });
+    setCanonicalField(enabledStudio, 'publication_status', 'draft');
+    assert(enabledStudio.find('[name="publication_status"]').prop('checked') === false && enabledStudio.find('[name="publication_status"]').val() === 'published', 'Canonical draft hydration must uncheck publication without replacing its published HTML value.');
+    setCanonicalField(enabledStudio, 'publication_status', 'published');
+    const enabledStart = sent.length;
+    const enabledSave = saveHeaderAndProfile(enabledStudio);
+    assert(sent[enabledStart].mutation === 'save_profile' && sent[enabledStart].publication_status === 'published', 'A manual save of a visible profile must explicitly send publication_status=published.');
+    pendingFetches.shift()(response(true, 'saved', '2'.repeat(64)));
+    await tick(); await tick(); await tick();
+    assert(sent[enabledStart + 1].mutation === 'save_header', 'The header mutation must run after the visible profile mutation.');
+    ['available', 'avatar_visible', 'avatar_border'].forEach((name) => assert(sent[enabledStart + 1][name] === '1', name + '=1 must be present in the sent FormData.'));
+    pendingFetches.shift()(response(true, 'saved', '3'.repeat(64)));
+    assert(await enabledSave, 'The visible manual save and its header mutation must both complete.');
+
+    const disabledStudio = headerStudio('4'.repeat(64), false, false);
+    ['available', 'avatar_visible', 'avatar_border'].forEach((name) => assert(fieldValue(disabledStudio, name) === '0', name + ' must produce 0 when its checkbox is unchecked.'));
+    const disabledStart = sent.length;
+    const disabledSave = saveHeaderAndProfile(disabledStudio);
+    assert(sent[disabledStart].mutation === 'save_profile' && sent[disabledStart].publication_status === 'draft', 'A manual save of a hidden profile must explicitly send publication_status=draft.');
+    pendingFetches.shift()(response(true, 'saved', '5'.repeat(64)));
+    await tick(); await tick(); await tick();
+    assert(sent[disabledStart + 1].mutation === 'save_header', 'The header mutation must still run after the hidden profile mutation.');
+    ['available', 'avatar_visible', 'avatar_border'].forEach((name) => assert(sent[disabledStart + 1][name] === '0', name + '=0 must be present in the sent FormData.'));
+    pendingFetches.shift()(response(true, 'saved', '6'.repeat(64)));
+    assert(await disabledSave, 'The hidden manual save and its header mutation must both complete.');
+
+    process.stdout.write('FL-HOTFIX-01.1 Studio switches and autosave: OK\n');
 })().catch(function (error) { process.stderr.write('FAIL: ' + error.message + '\n'); process.exit(1); });
