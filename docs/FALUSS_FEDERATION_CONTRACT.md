@@ -1,8 +1,8 @@
-# FED-01A — Contrat du transport privé fédéré Faluss
+# FED-01A.1 — Contrat du transport privé fédéré Faluss
 
 ## Statut et frontière
 
-FED-01A définit uniquement le contrat du futur transport privé fédéré entre des
+FED-01A.1 ferme uniquement le contrat du futur transport privé fédéré entre des
 nœuds Faluss approuvés : `faluss.com`, `faluss.me` et un domaine futur déclaré
 explicitement. Il ne livre aucun plugin, route, table, migration, option,
 écran, clé, appel réseau, donnée membre, cache durable, asset ou archive.
@@ -35,11 +35,27 @@ dans un runtime futur, ce runtime échoue fermé sans erreur fatale et n'émet n
 n'accepte aucun échange.
 
 La confiance est une politique locale attachée à une clé publique : identité
-exacte du nœud et de l'application émetteurs, opérations admises, applications
-propriétaires, capacités exactes, audiences maximales, état de clé et période
-de validité. Aucun wildcard global, rôle WordPress, authentification navigateur,
-origine, IP, `Referer` ou `Origin` n'élargit cette politique. Un manifeste
-distant n'installe pas une clé et ne crée pas de confiance.
+exacte du nœud et de l'application émetteurs, nœud et application destinataires
+exacts, origine HTTPS canonique exacte du pair, opérations admises,
+applications propriétaires, capacités exactes, audiences maximales, état de clé
+et période de validité. L'URL sortante vient exclusivement de cette
+configuration locale approuvée, jamais d'un navigateur, d'une requête, d'un
+manifeste distant ou d'un payload. Aucun wildcard global, rôle WordPress,
+authentification navigateur, DNS, IP, `Referer` ou `Origin` n'élargit cette
+politique. Un manifeste distant n'installe pas une clé et ne crée pas de
+confiance.
+
+La politique applique quatre contrôles séparés et cumulatifs : cryptographie,
+politique locale, manifeste signé accepté/compatible et contrat spécialisé. La
+réussite de l'un ne remplace jamais les trois autres. Pour
+`diagnostic.read`, elle exige l'opération, l'émetteur, la clé et le destinataire
+exacts, sans sujet ni paramètre. Pour `manifest.read`, `parameters.app_key`
+doit être dans `owner_apps` et être exactement `recipient.app_key`. Pour
+`read_model.read`, `owner_app_key` doit être dans `owner_apps` et être
+exactement `recipient.app_key`; la capacité, l'interface, le type de document,
+la version et l'audience doivent être déclarés par le manifeste signé, accepté
+et compatible du propriétaire. Aucune capacité ou interface absente d'un
+manifeste ne peut être demandée ou inventée.
 
 ## Transport réservé et limites
 
@@ -63,6 +79,17 @@ de 4 096 octets, connexion 3 secondes et total 10 secondes. Les réponses
 porteront `Cache-Control: private, no-store` et `X-Content-Type-Options:
 nosniff`; aucun payload métier n'est durablement mis en cache.
 
+Chaque réponse porte exactement une fois les en-têtes `Content-Type:
+application/json`, `Cache-Control: private, no-store`,
+`X-Content-Type-Options: nosniff`, `X-Faluss-Federation-Key-Id`,
+`X-Faluss-Federation-Content-SHA256` et
+`X-Faluss-Federation-Signature`. Les trois derniers sont chacun uniques : le
+premier égale `responder.key_id`, le deuxième est le SHA-256 hexadécimal
+minuscule des octets bruts exacts de la réponse et le troisième est la
+signature Ed25519 détachée base64url canonique sans padding. Ils ne sont jamais
+dans le corps JSON. Leur absence, duplication, format invalide ou contradiction
+est un refus fermé.
+
 ## Enveloppe de requête
 
 Le schéma autonome Draft 2020-12
@@ -77,17 +104,20 @@ impose une enveloppe fermée :
   `recipient` contient le nœud et l'application exacts ;
 - `issued_at` et `expires_at` sont RFC3339 UTC ; la durée maximale est cinq
   minutes et la dérive d'horloge serveur maximale est 60 secondes ;
-- `nonce` est une valeur aléatoire forte, base64url sans padding, bornée et
-  non rejouable ;
+- `nonce` est exactement `random_bytes(32)` encodé base64url canonique sans
+  padding sur 43 caractères, non rejouable ;
 - `subject_context` est soit `null`, soit seulement un `subject_faluss_id`
-  UUID v4 et l'audience demandée ;
+  UUID v4 ;
 - `parameters` est fermé par opération.
 
+`parameters.audience` est l'unique audience demandée et l'unique valeur de
+politique, manifeste/interface, filtrage producteur et contrat spécialisé.
+`requested_audience` et toute deuxième audience sont invalides.
 `subject_context` est nul pour `diagnostic.read` et `manifest.read`. Pour
 `read_model.read`, le contrat spécialisé décide si le contexte sujet est
-obligatoire : lorsqu'il lie le document à un sujet, il l'est. Le Faluss ID ne
-vient jamais d'un navigateur, n'apparaît jamais dans une URL, le DOM, un cache
-public ou un journal, et ne constitue jamais seul une autorisation. Le
+présent : il l'est uniquement lorsqu'il lie le document à un membre. Le Faluss
+ID ne vient jamais d'un navigateur, n'apparaît jamais dans une URL, le DOM, un
+cache public ou un journal, et ne constitue jamais seul une autorisation. Le
 producteur le résout et le réautorise côté serveur.
 
 | Opération | Paramètres admis | Résultat interdit |
@@ -104,10 +134,16 @@ transport ne transforme jamais le read-model reçu.
 
 ## Canonicalisation, signature et anti-rejeu de requête
 
-Le corps JSON est sérialisé une seule fois. Le même octet brut est haché
-SHA-256 hexadécimal minuscule, envoyé et vérifié avant toute relecture JSON.
-La signature Ed25519 détachée est base64url sans padding. Les en-têtes futurs
-obligatoires sont :
+Le corps JSON est sérialisé une seule fois, comme chaîne UTF-8 sans BOM. Ses
+octets bruts réellement transmis sont hachés SHA-256 hexadécimal minuscule,
+envoyés et vérifiés sans décodage, normalisation ni réencodage JSON. Aucune
+nouvelle canonicalisation JSON n'existe. La signature Ed25519 détachée et le
+nonce sont base64url canoniques sans padding : le nonce se décode en exactement
+32 octets et sa réencodage est identique; la signature se décode en exactement
+64 octets et sa réencodage est identique. Une simple expression régulière ne
+suffit jamais.
+
+Les en-têtes de requête obligatoires, uniques et hors corps sont :
 
 ```text
 X-Faluss-Federation-Key-Id
@@ -115,19 +151,25 @@ X-Faluss-Federation-Content-SHA256
 X-Faluss-Federation-Signature
 ```
 
-La chaîne canonique de requête est formée dans cet ordre fixe, séparée par LF :
+La chaîne canonique de requête est formée dans cet ordre fixe, séparée
+exclusivement par l'octet LF `0x0A` :
 `protocol_version`, méthode HTTP, chemin exact, `sender.node_id`,
 `recipient.node_id`, `sender.key_id`, `issued_at`, `expires_at`, `nonce` et
-SHA-256 hexadécimal des octets bruts. Les valeurs de l'enveloppe, des en-têtes,
-de la chaîne et du corps doivent toutes correspondre ; tout écart est rejeté
-avant le dispatch.
+SHA-256 hexadécimal des octets bruts. La méthode est exactement `POST`, le
+chemin exactement `/wp-json/faluss-federation/v1/exchange`. Il n'y a ni CR,
+ni LF final, ni CR/LF dans une valeur composante. Les valeurs de l'enveloppe,
+des en-têtes, de la chaîne et du corps doivent toutes correspondre ; le
+vérificateur reconstruit la même chaîne à partir des données reçues et de ses
+attentes locales, avant dispatch.
 
 Le nonce provient de `random_bytes` dans le runtime futur. Après vérification
 crypto et avant dispatch, sa consommation est atomique sur le triplet
-`(sender_node_id, key_id, nonce)`. Un `request_id` ne peut jamais être lié à un
-hash de corps différent. La rétention anti-rejeu est au minimum la durée de la
-requête plus la dérive admise. Une réémission automatique ne contourne pas ces
-contrôles.
+`(sender_node_id, key_id, nonce)`. La liaison du `request_id` est conservée par
+émetteur : `(sender_node_id, request_id) → request_body_sha256`. Un même
+émetteur ne peut jamais le réutiliser avec un autre corps, même après rotation
+de clé; un autre nœud reste isolé dans son propre espace. La rétention
+anti-rejeu est au minimum la durée de la requête plus la dérive admise. Une
+réémission automatique ne contourne pas ces contrôles.
 
 ## Opérations closes et interdictions
 
@@ -146,7 +188,7 @@ Toute demande invalide, non autorisée, expirée, incompatible ou non conforme
 échoue fermée. Elle n'entraîne ni accès direct, ni cache ancien, ni valeur
 inventée, ni deuxième transport de secours.
 
-## Enveloppe et signature de réponse
+## Enveloppe, signature et fraîcheur de réponse
 
 Le schéma autonome Draft 2020-12
 [`faluss-federation-response.schema.json`](../contracts/faluss-federation-response.schema.json)
@@ -159,17 +201,32 @@ Les statuts sont exclusivement `success`, `empty`, `not_available`,
 `not_authorized`, `incompatible`, `temporarily_unavailable`, `invalid_request`
 et `replay_rejected`. Un succès porte obligatoirement un type et une version de
 contrat de payload exacts avec un payload non vide. `empty` porte exactement
-`{}` et aucun contrat inventé. Les autres statuts n'emportent aucun payload ;
-ils peuvent seulement produire une erreur publique, bornée et non sensible.
+`{}` et aucun contrat inventé. Pour chaque autre statut,
+`payload_contract` est `null`, `payload` est exactement `{}` et `error` est
+obligatoire, non nul, borné, sans donnée sensible ni retour ligne, avec
+`error.code` strictement égal au statut. Les branches sont exprimées dans le
+schéma JSON, pas seulement dans un helper.
 
-La réponse est sérialisée une seule fois et signée Ed25519. Sa chaîne canonique
-séparée par LF lie dans cet ordre : `protocol_version`, statut HTTP,
+La réponse est sérialisée une seule fois et signée Ed25519 hors corps. Sa chaîne
+UTF-8 sans BOM est séparée exclusivement par LF `0x0A`, sans CR, sans LF final
+ni CR/LF de composante. Elle lie dans cet ordre : `protocol_version`, statut HTTP
+numérique réellement reçu,
 `request_id`, hash du corps de requête, `responder.node_id`,
 `recipient.node_id`, `responder.key_id`, `generated_at`, `expires_at` et
-SHA-256 hexadécimal du corps brut de réponse. Le consommateur vérifie identité
-du répondeur, état/période de clé, signature, liaison requête/hash,
-destinataire, fraîcheur et contrat spécialisé du payload. Une signature valide
-ne remplace pas la validation du contrat de payload.
+SHA-256 hexadécimal du corps brut de réponse. Le consommateur reconstruit la
+même chaîne à partir des données reçues et de ses attentes locales.
+
+Une réponse n'est valide que si son `request_id` et son hash correspondent à la
+requête originale, si `responder.node_id`/`responder.app_key` égalent le nœud et
+l'application `recipient` de la requête, si son destinataire égale l'émetteur
+initial et si l'en-tête de clé correspond à une clé du nœud/application attendus
+à l'état et dans la période valides. Le consommateur vérifie aussi signature,
+hash brut, en-têtes, contrat spécialisé et fraîcheur. À l'instant de validation,
+`expires_at > generated_at`, la durée vaut au plus 300 secondes,
+`generated_at` ne dépasse pas 60 secondes dans le futur, une expiration au-delà
+de 60 secondes est refusée et `generated_at` ne précède pas
+`request.issued_at` de plus de 60 secondes. Une signature valide ne remplace
+aucun de ces contrôles.
 
 ## Confidentialité, audit et coordination
 
@@ -195,9 +252,9 @@ persistante ancienne de read-model.
 
 ## Portée vérifiable
 
-FED-01A est limité exactement à neuf artefacts : ce contrat, les deux schémas,
-son test et les cinq mises à jour de coordination CAP/MP/architecture/modèle de
-données/roadmap listées dans `x-fed01a-scope`. Il ne modifie aucun fichier sous
-`plugins/`, aucun transport existant, runtime CAP-01B/EVT/MP, interface,
-migration, donnée WordPress réelle ou asset. Il ne fournit aucune recette
-WordPress, puisqu'aucun runtime n'est installé.
+`x-fed01a-scope` conserve historiquement les neuf artefacts de FED-01A. Le
+correctif FED-01A.1 modifie exactement quatre fichiers : ce contrat, les deux
+schémas et son test. Il ne modifie aucun autre document, fichier sous
+`plugins/`, transport existant, runtime CAP-01B/EVT/MP, interface, migration,
+option, clé, appel réseau, donnée WordPress réelle ou asset. Il ne fournit
+aucune recette WordPress, puisqu'aucun runtime n'est installé.
