@@ -15,7 +15,7 @@ $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 $roadmap = file_get_contents( $root . '/docs/ROADMAP.md' );
 
-fpr01_assert( false !== strpos( $bootstrap, 'Plugin Name: Faluss Production Reset' ) && false !== strpos( $bootstrap, "Version: 0.1.2" ) && false !== strpos( $service, "const VERSION = '0.1.2'" ), 'FPR-01.2 must be an isolated Faluss Production Reset 0.1.2 plugin.' );
+fpr01_assert( false !== strpos( $bootstrap, 'Plugin Name: Faluss Production Reset' ) && false !== strpos( $bootstrap, "Version: 0.1.3" ) && false !== strpos( $service, "const VERSION = '0.1.3'" ), 'FPR-01.3 must be an isolated Faluss Production Reset 0.1.3 plugin.' );
 fpr01_assert( false !== strpos( $service, "'faluss.me'" ) && false !== strpos( $service, "'faluss.com'" ) && false !== strpos( $service, 'HUB_RECEIVER_URL' ), 'The isolated plugin must have only the two canonical Faluss sites in scope.' );
 
 // 1. No browser operation bypasses capability, nonce and the exact confirmation.
@@ -44,10 +44,13 @@ foreach ( array( 'faluss_identity_profiles', 'faluss_identity_public_profiles', 
 }
 fpr01_assert( false === strpos( $service, "'faluss_identity_clients'" ), 'The SSO client registry must not be listed for FPR-01 deletion.' );
 
-// 7-8. Media safety is WordPress-mediated and ambiguous ownership/reference stops the preflight.
+// 7-8. Member ownership alone selects media; deletion remains WordPress-mediated and path-verified.
 fpr01_assert( false !== strpos( $service, 'wp_delete_attachment( $attachment_id, true )' ), 'Member media must be deleted through wp_delete_attachment(..., true).' );
-foreach ( array( 'attachment_referenced_by_preserved_content', 'fpr_media_ambiguous', 'fpr_media_shared', 'fpr_media_payload_ambiguous', 'fpr_attachment_file_remains' ) as $needle ) {
-    fpr01_assert( false !== strpos( $service, $needle ), 'Media preflight fail-closed invariant is missing: ' . $needle );
+foreach ( array( 'author_attachments', "post_type = 'attachment' AND post_author IN ({\$ids})", 'attachment_paths', 'fpr_attachment_file_remains' ) as $needle ) {
+    fpr01_assert( false !== strpos( $service, $needle ), 'Member-owned media selection or path verification invariant is missing: ' . $needle );
+}
+foreach ( array( 'identity_attachments', 'attachment_referenced_by_preserved_content', 'avatar_attachment_id', 'cover_attachment_id', 'media_teaser', 'fpr_media_ambiguous', 'fpr_media_shared', 'fpr_media_reference_ambiguous', '_thumbnail_id', '_elementor_data', 'parse_blocks', 'post_parent', 'post_content' ) as $forbidden ) {
+    fpr01_assert( false === strpos( $service, $forbidden ), 'FPR-01.3 must not infer media ownership from a reference or preserved content: ' . $forbidden );
 }
 foreach ( array( 'unlink(', 'rmdir(', 'RecursiveDirectoryIterator', 'rm -rf', 'wp_delete_file' ) as $forbidden ) {
     fpr01_assert( false === strpos( $service, $forbidden ), 'FPR-01 must never recursively or directly delete uploads: ' . $forbidden );

@@ -18,7 +18,7 @@ enregistré uniquement sur `faluss.com` pendant son armement explicite.
 1. Contrôler la sauvegarde exploitable des deux sites selon la procédure de
    l'hébergeur. FPR-01 n'en crée, n'en exporte et n'en télécharge aucune.
 2. Installer ou mettre à jour avec le même fichier
-   `faluss-production-reset-0.1.2.zip` sur
+   `faluss-production-reset-0.1.3.zip` sur
    `faluss.me` et `faluss.com`, puis activer **Faluss Production Reset** sur
    les deux installations.
 3. Dans les deux `wp-config.php`, avant la ligne qui invite à arrêter les
@@ -36,10 +36,10 @@ enregistré uniquement sur `faluss.com` pendant son armement explicite.
    `ARMER LE RESET FALUSS`. Le reset ne peut pas commencer si l'un des deux
    sites n'est pas armé.
 
-### Mise à jour FPR-01.2 et réarmement
+### Mise à jour FPR-01.3 et réarmement
 
-L'installation de `0.1.2` invalide tout armement créé sous une version
-antérieure, y compris `0.1.1` : chaque installation alors armée devient
+L'installation de `0.1.3` invalide tout armement créé sous une version
+antérieure, y compris `0.1.2` : chaque installation alors armée devient
 désarmée, sans lancer de préflight ni reset. Un verrouillage déjà présent reste
 strictement verrouillé. Après la mise à jour du ZIP sur les deux sites,
 constater le désarmement puis réarmer explicitement `faluss.me` et
@@ -110,32 +110,32 @@ référence destructivement `*_token_engine_ledger` (ALB).
 
 ## Médias et caches
 
-Avant toute suppression, le plugin rassemble uniquement les attachments dont
-l'auteur est un membre candidat, les `avatar_attachment_id` des profils publics
-Identity, les `cover_attachment_id` des cards Link et les `attachment_id` des
-teasers Link `media_teaser`. Chaque élément doit être un attachment WordPress
-appartenant à un membre non privilégié et ne doit pas être référencé par un
-contenu conservé. Toute ambiguïté, métadonnée incomplète ou partage bloque le
-préflight.
+Avant toute suppression, le plugin rassemble exclusivement les attachments
+WordPress dont le `post_author` est un membre candidat non privilégié. Cette
+règle de propriété inclut tous les médias de ce membre, même sans profil,
+avatar, card ou teaser Faluss et même s'ils sont réutilisés par une page, un
+modèle administratif, Elementor, Gutenberg, une miniature ou un autre contenu
+conservé.
 
-Une référence conservée est reconnue uniquement par des structures explicites :
-un `post_parent` conservé, une valeur `_thumbnail_id` exactement égale, un bloc
-Gutenberg image ou galerie correctement analysé, une URL exacte du fichier
-original ou d'une taille WordPress déclarée dans un attribut HTML, ou un objet
-image `_elementor_data` qui associe l'ID exact à cette URL exacte. Les contenus
-et métadonnées des comptes destinés à être supprimés ne sont jamais traités
-comme du contenu conservé. Une suite de chiffres incidente comme `1420`,
-`202642` ou `setting_42` n'est pas une référence média. Les données Gutenberg
-ou Elementor pertinentes mais malformées, incomplètes ou impossibles à
-interpréter bloquent génériquement le préflight, sans exposer d'ID, d'URL, de
-chemin ni de contenu conservé.
+Les références `avatar_attachment_id`, `cover_attachment_id` et
+`media_teaser` sont des données membres supprimées avec leurs tables. Elles ne
+sélectionnent aucun média, ne bloquent pas le préflight et ne peuvent jamais
+élargir la suppression à un attachment administratif, absent, externe,
+invalide ou non WordPress. Aucun `post_parent`, contenu, postmeta, URL ou arbre
+Elementor/Gutenberg n'est analysé. Un attachment appartenant à un compte
+capable de `manage_options` est toujours préservé, même lorsqu'une donnée
+membre le référence.
+
+Par décision FPR-01.3, une référence conservée vers un média appartenant au
+membre peut devenir cassée après le reset. Cet effet est accepté pour cette
+remise à zéro pré-lancement ; la sauvegarde préalable constitue le mécanisme de
+récupération.
 
 La suppression utilise exclusivement `wp_delete_attachment( $attachment_id,
 true )`. Les chemins contrôlés sont ceux retournés par WordPress et les tailles
 déclarées par ses métadonnées; leur absence est vérifiée après suppression. Le
 plugin ne parcourt ni ne supprime récursivement `uploads`, ne déduit jamais un
-nom de fichier et ne supprime aucun média plateforme, Elementor ou
-administratif ambigu.
+nom de fichier et ne supprime aucun média administratif.
 
 Seuls le cache objet WordPress et le hook LiteSpeed connu sont purgés. Les
 sauvegardes hébergeur, CDN tiers et stockages externes ne sont ni effacés ni
@@ -146,7 +146,7 @@ contrôlés par FPR-01.
 La recette ci-dessous est une procédure de mise en production; elle n'est pas
 une preuve fournie par les tests statiques du dépôt.
 
-1. Après sauvegarde, mettre à jour et activer le ZIP `0.1.2` sur les deux
+1. Après sauvegarde, mettre à jour et activer le ZIP `0.1.3` sur les deux
    sites, puis vérifier que les deux installations auparavant armées sont
    désarmées. Poser ou conserver la constante identique et réarmer
    explicitement les deux sites.
