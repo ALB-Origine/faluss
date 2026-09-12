@@ -175,6 +175,26 @@ au prochain échange lorsque la projection n'est plus fournie. Portal ne la lit
 que par la façade Identity Client et ne reçoit ni slug public, ni contenu de
 carte, ni donnée économique.
 
+
+## Registre d'applications et capacités CAP-01A
+
+CAP-01A n'ajoute aucune table, colonne, option, migration, cache persistant,
+donnée membre ou copie de donnée métier. Il définit seulement un manifeste
+d'application sans identité membre et un futur read-model éphémère
+apps.registry, filtré côté serveur. Celui-ci distingue disponibilité de
+l'application, relation membre, état de capacité, source/fraîcheur du
+read-model spécialisé, compatibilité de surface, bindings actifs et actions
+effectivement autorisées.
+
+Le faluss_id peut servir uniquement dans l'enveloppe serveur MP-01A avant
+suppression au rendu ; il n'entre pas dans apps.registry. Aucun navigateur ne
+décide l'activation ou le slot, aucune surface ne lit directement une table
+dérivée, et une absence ne devient jamais une valeur ou une projection
+inventée. Les deux schémas contractuels sans transport ni stockage sont
+[faluss-app-capability-manifest.schema.json](../contracts/faluss-app-capability-manifest.schema.json)
+et
+[faluss-apps-registry-read-model.schema.json](../contracts/faluss-apps-registry-read-model.schema.json).
+
 ## Master Profile MP-01A
 
 MP-01A n'ajoute aucune table, colonne, option, migration, donnée membre ou copie

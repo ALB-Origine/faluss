@@ -264,6 +264,14 @@ mêmes variables CSS `--faluss-app-accent` et
 `--faluss-app-title-accent`. Explorer ajoute uniquement la description et son
 action d'état ; aucune seconde variante de données n'existe.
 
+Ce registre AP-01 codé en dur reste un mécanisme transitoire de présentation :
+CAP-01A ne modifie ni cette fonction PHP, ni ses cartes, ni ses assets, et ne
+la déclare pas comme autorité future. Le moteur réservé faluss-apps-registry et
+son read-model apps.registry sont seulement contractuels dans CAP-01A. CAP-01B
+devra fournir le registre runtime réel avant de remplacer des décisions codées
+en dur ; la projection AP-02A de Faluss Me reste, jusque-là, un read-model
+étroit et propriétaire.
+
 AP-01E conserve ce renderer et ce registre sans variation : son header unique
 aligne verticalement le logo, l'identité et, dans `Mes apps`, l'action de droite.
 Les limites visuelles mobiles restent explicites pour Hub `18 × 22 px`, Date

@@ -110,6 +110,39 @@ Master Profile qu'après validation d'un transport privé distinct et sans lectu
 directe de table, duplication de source, fusion de scores ou exposition du
 `faluss_id` technique.
 
+
+## CAP-01A — Contrat du registre et des capacités — livré contractuellement
+
+CAP-01A réserve l'autorité faluss-apps-registry, le read-model spécialisé
+apps.registry, les états fermés d'application, relation et capacité, les
+interfaces fermées et les emplacements contextuels v1. Les deux schémas
+machine-readable définissent un manifeste d'application sans identité membre et
+un read-model membre filtré, avec fraîcheur, compatibilité, bindings actifs et
+actions déléguées. Portal et AP-02A conservent leurs mécanismes actuels : aucun
+registre runtime ni remplacement de décision codée en dur n'est livré.
+
+CAP-01A ne crée aucun runtime, plugin, transport, endpoint, écran, table,
+migration, asset, ZIP ou changement de comportement WordPress. Il ne livre ni
+Fans, Shop, Cosmetics, Analytics, Quêtes ni Progression, et ne corrige pas le
+défaut mobile reporté DR-02A.2 de Portal 0.1.20.
+
+L'ordre de livraison conservé est :
+
+1. CAP-01A — contrat du registre et des capacités ;
+2. FED-01 — transport privé fédéré ;
+3. CAP-01B — registre runtime et projection réelle apps.registry ;
+4. EVT-01 — enveloppe commune d'événements ;
+5. AN-01 — moteur Analytics et premiers événements réels Hub/Me ;
+6. MP-01B — assembleur réel du Master Profile ;
+7. COS-01 — catalogue, inventaire et équipement cosmétique ;
+8. SHOP-01 — boutique Premium sur faluss.com ;
+9. intégrations contextuelles Faluss.me ;
+10. Quêtes et Progression après stabilisation des événements.
+
+SUB-01C et SUB-01D, le Daily Reward Faluss Me 75 PF, Fans, Date, Shop et Hall
+of Fame comme moteurs propriétaires futurs, ainsi que le staging opérationnel,
+restent à réaliser et ne sont pas déclarés livrés par CAP-01A.
+
 ## PF-02A — Contrat Points Faluss et droits économiques — livré contractuellement
 
 Le contrat PF réserve un futur ledger append-only à classes `earned`, `funded`

@@ -62,6 +62,21 @@ machine-readable sont définis dans
 [`MASTER_PROFILE_CONTRACT.md`](MASTER_PROFILE_CONTRACT.md). MP-01A ne modifie
 aucun plugin, route, écran, table, migration ou comportement WordPress.
 
+
+## Registre d'applications et capacités CAP-01A
+
+CAP-01A réserve faluss-apps-registry comme autorité du futur read-model
+apps.registry. Les applications productrices déclarent seulement un manifeste
+versionné, des capacités et des références ou actions symboliques ; elles ne
+transportent ni code exécutable, ni identité rendue, ni donnée métier. Les
+surfaces Portal, Master Profile et Faluss Me restent propriétaires de leur
+rendu et n'activent un module qu'après un binding actif, résolu côté serveur.
+
+Le registre ne remplace ni la projection AP-02A ni le registre de présentation
+AP-01 déjà codé dans Portal. CAP-01A ne crée aucun plugin, transport, endpoint,
+table, migration ou comportement WordPress. FED-01 définira le transport privé,
+puis CAP-01B le registre runtime ; aucun de ces lots n'est livré ici.
+
 ## Production Reset FPR-01
 
 `Faluss Production Reset` est un plugin isolé, installé identiquement sur

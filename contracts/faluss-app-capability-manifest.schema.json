@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.faluss.com/capabilities/v1/faluss-app-capability-manifest.schema.json",
+  "title": "Faluss application capability manifest v1",
+  "description": "CAP-01A contract only. This manifest declares no runtime, transport, endpoint, executable content or WordPress behavior.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest_version",
+    "app_key",
+    "capability_namespace",
+    "owner",
+    "product_state",
+    "canonical_origins",
+    "public_presentation",
+    "official_asset",
+    "capabilities",
+    "compatibility"
+  ],
+  "properties": {
+    "manifest_version": {
+      "$ref": "#/$defs/semanticVersion"
+    },
+    "app_key": {
+      "$ref": "#/$defs/appKey"
+    },
+    "capability_namespace": {
+      "$ref": "#/$defs/namespaceSegment"
+    },
+    "owner": {
+      "$ref": "#/$defs/owner"
+    },
+    "product_state": {
+      "enum": ["planned", "active", "maintenance", "retired"]
+    },
+    "canonical_origins": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/httpsOrigin"
+      }
+    },
+    "public_presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name", "summary"],
+      "properties": {
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 280
+        }
+      }
+    },
+    "official_asset": {
+      "$ref": "#/$defs/officialAsset"
+    },
+    "capabilities": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/capability"
+      }
+    },
+    "compatibility": {
+      "$ref": "#/$defs/compatibility"
+    }
+  },
+  "$defs": {
+    "semanticVersion": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*\\.[0-9]+\\.[0-9]+$"
+    },
+    "appKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,63}$"
+    },
+    "namespaceSegment": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,63}$"
+    },
+    "capabilityKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,63}(?:\\.[a-z][a-z0-9_.-]{1,127})+$"
+    },
+    "httpsOrigin": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?$"
+    },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine", "authority"],
+      "properties": {
+        "engine": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,63}$"
+        },
+        "authority": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,63}(?:\\.[a-z][a-z0-9-]{1,63})*$"
+        }
+      }
+    },
+    "interface": {
+      "enum": ["module_read_model", "delegated_action", "event_source", "content_reference_source"]
+    },
+    "slot": {
+      "enum": [
+        "portal.apps.card_action",
+        "portal.analytics.dataset",
+        "master_profile.module",
+        "master_profile.footer_action",
+        "me.studio.tab",
+        "me.studio.block_source",
+        "me.public.tab",
+        "me.public.block",
+        "analytics.events",
+        "quests.events",
+        "progression.events"
+      ]
+    },
+    "requestedBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interface", "slot"],
+      "properties": {
+        "interface": {
+          "$ref": "#/$defs/interface"
+        },
+        "slot": {
+          "$ref": "#/$defs/slot"
+        }
+      }
+    },
+    "readModelContract": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["document_type", "contract_version"],
+          "properties": {
+            "document_type": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,63}(?:\\.[a-z][a-z0-9-]{1,63})+$"
+            },
+            "contract_version": {
+              "$ref": "#/$defs/semanticVersion"
+            }
+          }
+        }
+      ]
+    },
+    "symbolicAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action_key", "kind"],
+      "properties": {
+        "action_key": {
+          "$ref": "#/$defs/capabilityKey"
+        },
+        "kind": {
+          "const": "delegated_action"
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_consumer_version",
+        "compatible_with",
+        "deprecated",
+        "sunset_at",
+        "replacement_capability_key"
+      ],
+      "properties": {
+        "minimum_consumer_version": {
+          "$ref": "#/$defs/semanticVersion"
+        },
+        "compatible_with": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/semanticVersion"
+          }
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "sunset_at": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "format": "date-time" }
+          ]
+        },
+        "replacement_capability_key": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/capabilityKey" }
+          ]
+        }
+      }
+    },
+    "officialAsset": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["asset_key", "mime_type", "sha256", "intrinsic_dimensions", "distribution"],
+          "properties": {
+            "asset_key": {
+              "$ref": "#/$defs/capabilityKey"
+            },
+            "mime_type": {
+              "enum": ["image/svg+xml", "image/png", "image/jpeg", "image/webp"]
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "intrinsic_dimensions": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["width", "height"],
+              "properties": {
+                "width": { "type": "integer", "minimum": 1, "maximum": 32768 },
+                "height": { "type": "integer", "minimum": 1, "maximum": 32768 }
+              }
+            },
+            "distribution": {
+              "enum": ["owner_hosted", "immutable_embedded"]
+            }
+          }
+        }
+      ]
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_key",
+        "interfaces",
+        "requested_bindings",
+        "read_model_contract",
+        "symbolic_actions",
+        "compatibility"
+      ],
+      "properties": {
+        "capability_key": {
+          "$ref": "#/$defs/capabilityKey"
+        },
+        "interfaces": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/interface"
+          }
+        },
+        "requested_bindings": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/requestedBinding"
+          }
+        },
+        "read_model_contract": {
+          "$ref": "#/$defs/readModelContract"
+        },
+        "symbolic_actions": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/symbolicAction"
+          }
+        },
+        "compatibility": {
+          "$ref": "#/$defs/compatibility"
+        }
+      }
+    }
+  },
+  "x-cap01a-scope": {
+    "nature": "documentary-contract-only",
+    "wordpress_runtime_changes": false,
+    "transports": false,
+    "migrations": false,
+    "routes": false,
+    "portal_ui_changes": false,
+    "installable_artifact": false,
+    "allowed_changed_paths": [
+      "docs/FALUSS_CAPABILITIES_CONTRACT.md",
+      "contracts/faluss-app-capability-manifest.schema.json",
+      "contracts/faluss-apps-registry-read-model.schema.json",
+      "tests/faluss-capabilities-cap01a-contract-test.php",
+      "docs/MASTER_PROFILE_CONTRACT.md",
+      "docs/FALUSS_PORTAL.md",
+      "docs/ARCHITECTURE.md",
+      "docs/DATA_MODEL.md",
+      "docs/ROADMAP.md"
+    ]
+  }
+}

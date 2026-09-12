@@ -18,6 +18,13 @@ Le schéma générique v1 est
 Il décrit un document échangé ; il ne prescrit aucun transport et n'autorise
 donc implicitement aucune route.
 
+CAP-01A relie le namespace spécialisé apps.registry au contrat du registre
+d'applications. Le Master Profile le consomme comme un read-model serveur
+filtré, sans devenir son propriétaire ni transformer son enveloppe générique.
+Un module contextuel ne peut apparaître qu'après la résolution d'un binding
+actif ; les règles existantes d'audience, de fraîcheur, de mode fantôme et
+d'absence restent inchangées.
+
 ## Principes normatifs
 
 Les mots **DOIT**, **NE DOIT PAS** et **PEUT** sont normatifs.
@@ -81,6 +88,14 @@ ordre, sans raccourci :
 Un échec est fermé. Une projection invalide ne peut pas être remplacée par une
 ancienne copie persistée, un accès direct à la base du moteur ou une valeur de
 secours supposée.
+
+Pour apps.registry, la résolution vérifie aussi la disponibilité de
+l'application, la relation réellement prouvée avec le membre, l'état de la
+capacité, la source et la fraîcheur de son read-model spécialisé, ainsi que la
+compatibilité de la surface. Une application disponible, une relation présente
+ou une capacité déclarée ne sont jamais des raccourcis vers un binding actif.
+L'échec, l'expiration ou l'absence omet le module sans inventer une projection
+ni révéler le faluss_id réservé au serveur.
 
 ## Enveloppe de module v1
 
