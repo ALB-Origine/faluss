@@ -74,8 +74,19 @@ rendu et n'activent un module qu'après un binding actif, résolu côté serveur
 
 Le registre ne remplace ni la projection AP-02A ni le registre de présentation
 AP-01 déjà codé dans Portal. CAP-01A ne crée aucun plugin, transport, endpoint,
-table, migration ou comportement WordPress. FED-01 définira le transport privé,
-puis CAP-01B le registre runtime ; aucun de ces lots n'est livré ici.
+table, migration ou comportement WordPress. FED-01A définit le transport privé
+contractuel, FED-01B le runtime futur, puis CAP-01B le registre runtime ; aucun
+de ces runtimes n'est livré ici.
+
+## Transport privé fédéré FED-01A
+
+FED-01A réserve un échange HTTPS serveur-à-serveur entre nœuds approuvés, signé
+uniquement Ed25519, à clés locales rotationnées et politique exacte par nœud,
+application, opération, capacité et audience. Il ferme l'échange à trois
+lectures bornées, impose canonicalisation, durée courte et anti-rejeu atomique,
+et ne partage ni session WordPress ni table. FPR, Identity, Token Connector et
+Stripe restent séparés. La route, les clés runtime et toute exécution sont
+réservées à FED-01B.
 
 ## Production Reset FPR-01
 

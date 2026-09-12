@@ -25,6 +25,12 @@ Un module contextuel ne peut apparaître qu'après la résolution d'un binding
 actif ; les règles existantes d'audience, de fraîcheur, de mode fantôme et
 d'absence restent inchangées.
 
+FED-01A ne transporte que des enveloppes privées signées entre nœuds approuvés.
+Il ne devient ni propriétaire du module, ni autorité d'audience, ni source de
+fraîcheur ou d'absence. Un Faluss ID présent dans un contexte serveur fédéré est
+retiré avant tout rendu ; Federation n'autorise ni table directe ni copie
+persistante ancienne d'un read-model.
+
 ## Principes normatifs
 
 Les mots **DOIT**, **NE DOIT PAS** et **PEUT** sont normatifs.
@@ -96,6 +102,12 @@ compatibilité de la surface. Une application disponible, une relation présente
 ou une capacité déclarée ne sont jamais des raccourcis vers un binding actif.
 L'échec, l'expiration ou l'absence omet le module sans inventer une projection
 ni révéler le faluss_id réservé au serveur.
+
+Lorsqu'un read-model arrive par le futur transport FED-01B, son enveloppe
+Ed25519, sa clé, son destinataire, sa requête liée et sa fraîcheur sont validés
+avant la validation indépendante du contrat spécialisé. Toute réponse absente,
+invalide, expirée ou incompatible est omise, sans fallback direct, cache ancien
+ni valeur inventée.
 
 ## Enveloppe de module v1
 

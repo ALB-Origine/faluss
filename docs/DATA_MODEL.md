@@ -195,6 +195,17 @@ inventée. Les deux schémas contractuels sans transport ni stockage sont
 et
 [faluss-apps-registry-read-model.schema.json](../contracts/faluss-apps-registry-read-model.schema.json).
 
+## Transport privé fédéré FED-01A
+
+FED-01A n'ajoute aucune table, colonne, option, migration, clé, cache durable
+ni copie de read-model. Il définit les enveloppes éphémères de requête et de
+réponse signées Ed25519 : identités exactes de nœud/application, `key_id`,
+requête liée, dates UTC courtes, nonce anti-rejeu et payload spécialisé validé
+indépendamment. Un contexte serveur peut contenir le `faluss_id` opaque mais
+celui-ci n'est jamais rendu, journalisé ni une autorisation suffisante. Les
+clés privées demeurent hors Git et hors données WordPress exportables ; les
+clés publiques et politiques de confiance ne seront gérées qu'en FED-01B.
+
 ## Master Profile MP-01A
 
 MP-01A n'ajoute aucune table, colonne, option, migration, donnée membre ou copie

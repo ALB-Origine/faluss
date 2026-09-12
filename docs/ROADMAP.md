@@ -129,19 +129,34 @@ défaut mobile reporté DR-02A.2 de Portal 0.1.20.
 L'ordre de livraison conservé est :
 
 1. CAP-01A — contrat du registre et des capacités ;
-2. FED-01 — transport privé fédéré ;
-3. CAP-01B — registre runtime et projection réelle apps.registry ;
-4. EVT-01 — enveloppe commune d'événements ;
-5. AN-01 — moteur Analytics et premiers événements réels Hub/Me ;
-6. MP-01B — assembleur réel du Master Profile ;
-7. COS-01 — catalogue, inventaire et équipement cosmétique ;
-8. SHOP-01 — boutique Premium sur faluss.com ;
-9. intégrations contextuelles Faluss.me ;
-10. Quêtes et Progression après stabilisation des événements.
+2. FED-01A — contrat du transport privé fédéré ;
+3. FED-01B — runtime plugin du transport privé fédéré ;
+4. CAP-01B — registre runtime et projection réelle apps.registry ;
+5. EVT-01 — enveloppe commune d'événements ;
+6. AN-01 — moteur Analytics et premiers événements réels Hub/Me ;
+7. MP-01B — assembleur réel du Master Profile ;
+8. COS-01 — catalogue, inventaire et équipement cosmétique ;
+9. SHOP-01 — boutique Premium sur faluss.com ;
+10. intégrations contextuelles Faluss.me ;
+11. Quêtes et Progression après stabilisation des événements.
 
 SUB-01C et SUB-01D, le Daily Reward Faluss Me 75 PF, Fans, Date, Shop et Hall
 of Fame comme moteurs propriétaires futurs, ainsi que le staging opérationnel,
 restent à réaliser et ne sont pas déclarés livrés par CAP-01A.
+
+## FED-01A — Contrat du transport privé fédéré — livré contractuellement
+
+FED-01A réserve le seul échange privé bidirectionnel entre nœuds Faluss
+explicitement approuvés. Il fixe les trois lectures fermées, HTTPS canonique,
+Ed25519, clés locales hors Git et options WordPress exportables, politique
+exacte, canonicalisation du corps, anti-rejeu atomique et réponses privées
+bornées. Il n'installe aucune route, clé, table, migration, option, plugin,
+cache, UI, donnée membre, asset ou transport runtime. FPR, Identity, Token
+Connector, Stripe/Subscriptions et les mutations métier restent exclus.
+
+FED-01B est le prochain lot réservé à son plugin runtime ; CAP-01B ne pourra
+ensuite résoudre apps.registry qu'à partir de manifestes signés acceptés, sans
+ajouter une application, capacité, binding ou action absente du manifeste.
 
 ## PF-02A — Contrat Points Faluss et droits économiques — livré contractuellement
 

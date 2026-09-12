@@ -205,13 +205,13 @@ URL future doit être HTTPS, issue d'une origine canonique déclarée et validé
 côté serveur. Les métriques progression.*, fans.*, date.* et hof.* restent chez
 leurs propriétaires ; le Master Profile ne calcule aucun score composite.
 
-CAP-01A ne crée aucun transport. Le lot fédéré ultérieur DOIT imposer HTTPS,
-authentification serveur-à-serveur, autorisations par application et capacité,
+CAP-01A ne crée aucun transport. FED-01A fixe séparément le contrat HTTPS
+serveur-à-serveur, Ed25519, autorisations exactes par application et capacité,
 corps canonique signé, durée courte, anti-rejeu, versions strictes, refus fermé
-et réponses privées bornées. Aucun secret ne peut résider dans Git, WordPress,
-le navigateur ou une URL publique. Les transports spécialisés SSO Identity,
-Token Engine Connector et FPR restent spécialisés et ne deviennent pas un bus
-universel.
+et réponses privées bornées ; FED-01B seul pourra l'implémenter. Aucun secret
+ne peut résider dans Git, WordPress, le navigateur ou une URL publique. Les
+transports spécialisés SSO Identity, Token Engine Connector et FPR restent
+spécialisés et ne deviennent pas un bus universel.
 
 ## Exemples de frontières valides
 
@@ -246,21 +246,25 @@ décidée par le navigateur.
 Le Master Profile consomme apps.registry comme read-model spécialisé sans
 devenir son propriétaire. Il conserve ses règles d'audience, de fraîcheur, de
 mode fantôme et d'absence ; un module contextuel n'apparaît qu'après résolution
-d'un binding actif. CAP-01A ne modifie pas
+d'un binding actif. FED-01A n'authentifie que le transport : les manifestes
+signés acceptés bornent les applications, capacités, bindings et actions, sans
+que leur origine n'installe de confiance. CAP-01B résoudra ce registre et
+revalidera la version du manifeste. CAP-01A ne modifie pas
 contracts/master-profile-module.schema.json.
 
 Les étapes futures, sans implémentation ici, sont :
 
 1. CAP-01A — contrat du registre et des capacités ;
-2. FED-01 — transport privé fédéré ;
-3. CAP-01B — registre runtime et projection réelle apps.registry ;
-4. EVT-01 — enveloppe commune d'événements ;
-5. AN-01 — moteur Analytics et premiers événements réels Hub/Me ;
-6. MP-01B — assembleur réel du Master Profile ;
-7. COS-01 — catalogue, inventaire et équipement cosmétique ;
-8. SHOP-01 — boutique Premium sur faluss.com ;
-9. intégrations contextuelles Faluss.me ;
-10. Quêtes et Progression après stabilisation des événements.
+2. FED-01A — contrat du transport privé fédéré ;
+3. FED-01B — runtime plugin du transport privé fédéré ;
+4. CAP-01B — registre runtime et projection réelle apps.registry ;
+5. EVT-01 — enveloppe commune d'événements ;
+6. AN-01 — moteur Analytics et premiers événements réels Hub/Me ;
+7. MP-01B — assembleur réel du Master Profile ;
+8. COS-01 — catalogue, inventaire et équipement cosmétique ;
+9. SHOP-01 — boutique Premium sur faluss.com ;
+10. intégrations contextuelles Faluss.me ;
+11. Quêtes et Progression après stabilisation des événements.
 
 SUB-01C et SUB-01D, le Daily Reward Faluss Me 75 PF, Fans, Date, Shop et Hall
 of Fame comme moteurs propriétaires futurs, ainsi que le staging comme chantier
