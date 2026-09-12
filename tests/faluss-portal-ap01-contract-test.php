@@ -109,8 +109,9 @@ ap01_assert( 1 === preg_match( '/@media \(max-width:\s*720px\).*?data-faluss-app
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-logo\s*\{[^}]*width:\s*var\(--faluss-app-symbol-width\);[^}]*height:\s*var\(--faluss-app-symbol-height\);[^}]*place-items:\s*center;[^}]*overflow:\s*hidden;[^}]*line-height:\s*0;/s', $css ), 'The logo column must expose the actual per-app visual bounds and remove image baseline drift.' );
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-logo img\s*\{[^}]*display:\s*block;[^}]*width:\s*var\(--faluss-app-asset-width\);[^}]*height:\s*var\(--faluss-app-asset-height\);[^}]*max-width:\s*none;[^}]*max-height:\s*none;[^}]*object-fit:\s*contain;[^}]*line-height:\s*0;/s', $css ), 'No global image sizing may override the measured symbol asset dimensions.' );
 ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s+\.faluss-portal__app-logo\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\);[^}]*overflow:\s*visible;/s', $css ), 'AP-01E must center the official Faluss Me canvas in a non-clipping grid cell rather than an intrinsic-width track.' );
-ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s+\.faluss-portal__app-logo img\s*\{[^}]*justify-self:\s*center;[^}]*align-self:\s*center;/s', $css ), 'AP-01E must center the complete Faluss Me canvas inside the shared Hub-sized wrapper without a positional offset.' );
-ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s+\.faluss-portal__app-logo img\s*\{[^}]*transform:\s*scale\(2\.61\);[^}]*transform-origin:\s*center\s+center;/s', $css ), 'AP-01G must set only the Faluss Me painted symbol to scale 2.61 around its existing center.' );
+ap01_assert( 1 === preg_match( '/data-faluss-app="me"\]\s+\.faluss-portal__app-logo img\s*\{[^}]*justify-self:\s*center;[^}]*align-self:\s*center;[^}]*object-fit:\s*contain;/s', $css ), 'AP-02A.2 must center the transparent Faluss Me symbol with explicit contained geometry in both Apps views.' );
+$me_logo_rule = preg_match( '/data-faluss-app="me"\]\s+\.faluss-portal__app-logo img\s*\{([^}]*)\}/s', $css, $me_logo_match ) ? $me_logo_match[1] : '';
+ap01_assert( false === strpos( $me_logo_rule, 'scale(2.61)' ) && false === strpos( $me_logo_rule, 'filter:' ) && false === strpos( $me_logo_rule, 'mix-blend-mode:' ) && false === strpos( $me_logo_rule, 'background:' ), 'The transparent Faluss Me asset must need no scaling, filter, blend mode or painted container.' );
 ap01_assert( false === strpos( $css, 'faluss-app-me-asset-left' ) && false === strpos( $css, 'faluss-app-me-asset-top' ) && 0 === preg_match( '/data-faluss-app="me"\]\s+\.faluss-portal__app-logo img\s*\{[^}]*position:\s*absolute/s', $css ), 'AP-01E must remove every Faluss Me crop offset and absolute clipping path.' );
 ap01_assert( false !== strpos( $css, 'grid-template-columns: var(--faluss-app-logo-column-width) minmax(0, 1fr)' ) && 0 === preg_match( '/data-faluss-app="(?:hub|me|date|pro)"\]\s*\{[^}]*--faluss-app-logo-column-width/s', $css ), 'AP-01E must start every identity column from one Hub-sized track, never an app-specific canvas width.' );
 ap01_assert( 0 === preg_match( '/^\.faluss-portal__app-logo(?:\s+img)?\s*\{[^}]*transform:/m', $css ), 'AP-01E must not use a generic logo translation.' );
@@ -119,12 +120,11 @@ ap01_assert( 1 === substr_count( $source, '<div class="faluss-portal__app-head">
 ap01_assert( 1 === preg_match( '/\.faluss-portal__app-action\s*\{[^}]*display:\s*inline-grid;[^}]*place-items:\s*center;[^}]*border:\s*0 !important;[^}]*outline:\s*0 !important;[^}]*border-radius:\s*100px !important;[^}]*box-shadow:\s*none !important;/s', $css ), 'The real Hub action must remain a centered pill immune to Elementor and browser frames.' );
 ap01_assert( false !== strpos( $css, '.faluss-portal__app-action::before' ) && false !== strpos( $css, '.faluss-portal__app-action::after { border-radius: 100px !important; }' ), 'The action pseudo-elements must inherit the same fully rounded geometry.' );
 ap01_assert( false !== strpos( $javascript, '[data-faluss-app-current]' ) && false !== strpos( $javascript, '2800' ) && false !== strpos( $javascript, 'message.hidden = true' ), 'The active-app message must be local and automatically disappear within three seconds.' );
-ap01_assert( 1 === substr_count( $javascript, 'window.fetch(form.action' ) && false === strpos( $javascript, 'XMLHttpRequest' ), 'Apps Faluss may use only the fixed authenticated Hub daily-claim request, never a request to infer ownership.' );
+ap01_assert( 1 === substr_count( $javascript, "window.fetch(form.getAttribute('action')" ) && false === strpos( $javascript, 'XMLHttpRequest' ), 'Apps Faluss may use only the fixed authenticated Hub daily-claim request, never a request to infer ownership.' );
 ap01_assert( 1 === preg_match( '/private static function app_registry.*?private static function home_panel/s', $source, $apps_source ) && false === strpos( $apps_source[0], 'wp_remote_' ), 'The Apps registry and renderer must make no server-side cross-domain request.' );
 
 $official_assets = array(
     'faluss-hub.png'  => $root . '/plugins/faluss-link/assets/images/studio-ecosystem/faluss-studio-hub.png',
-    'faluss-me.png'   => $root . '/plugins/faluss-link/assets/images/faluss-onboarding-header-logo.png',
     'faluss-date.png' => $root . '/plugins/faluss-link/assets/images/studio-ecosystem/faluss-studio-date.png',
     'faluss-pro.png'  => $root . '/plugins/faluss-link/assets/images/studio-ecosystem/faluss-studio-pro.png',
 );
@@ -132,6 +132,8 @@ foreach ( $official_assets as $name => $source_asset ) {
     $portal_asset = $plugin . '/assets/images/apps/' . $name;
     ap01_assert( is_file( $portal_asset ) && hash_file( 'sha256', $source_asset ) === hash_file( 'sha256', $portal_asset ), 'AP-01C must embed the unchanged official source asset and correct only its rendered box: ' . $name );
 }
+$me_asset = $plugin . '/assets/images/apps/faluss-me.png';
+ap01_assert( is_file( $me_asset ) && hash_file( 'sha256', $root . '/plugins/faluss-link/assets/images/faluss-onboarding-header-logo.png' ) !== hash_file( 'sha256', $me_asset ), 'AP-02A.2 must replace the flattened Faluss Me copy with its mechanically derived transparent PNG.' );
 ap01_assert( 1 === substr_count( $published_owned_html, 'src="https://faluss.com/wp-content/plugins/faluss-portal/assets/images/apps/faluss-me.png"' ) && 1 === substr_count( $explore_html, 'src="https://faluss.com/wp-content/plugins/faluss-portal/assets/images/apps/faluss-me.png"' ), 'AP-01C must render the official Faluss Me image in both owned and Explorer cards.' );
 
 ap01_assert( 0 === preg_match( '/[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}/i', $explore_html . $published_owned_html ), 'No Faluss ID may be rendered in either Apps view.' );

@@ -92,7 +92,7 @@ $documentation = file_get_contents( $root . '/docs/FALUSS_PORTAL.md' );
 $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 
-foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.18'", 'class-faluss-portal.php' ) as $needle ) {
+foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.19'", 'class-faluss-portal.php' ) as $needle ) {
     pf01_assert( false !== strpos( $bootstrap, $needle ), 'PF-01 requires an isolated versioned Faluss Portal plugin: ' . $needle );
 }
 foreach ( array( "add_shortcode( self::SHORTCODE", "[faluss_portal]", 'Faluss_Identity_Client_Schema::tables()', 'WHERE wp_user_id = %d', "array( 'subscriber' )", 'Faluss_Identity_Client::button' ) as $needle ) {
@@ -231,7 +231,7 @@ pf01_assert( 0 === preg_match( '/faluss-portal__master[^\n{]*\{[^}]*opacity/s', 
 foreach ( array( 'history.pushState', 'popstate', 'requestAnimationFrame', 'showModal', 'closeProfile', 'setMasterTab', 'falussPortalSidebarCollapsed', 'aria-expanded', 'localStorage.setItem' ) as $needle ) {
     pf01_assert( false !== strpos( $javascript, $needle ), 'Navigation and Master Profile must be progressive, animated and history-aware: ' . $needle );
 }
-pf01_assert( 1 === substr_count( $javascript, 'window.fetch(form.action' ) && false === strpos( $javascript, 'Stripe' ), 'The browser must not read Stripe and may make only the fixed Hub daily-claim request.' );
+pf01_assert( 1 === substr_count( $javascript, "window.fetch(form.getAttribute('action')" ) && false === strpos( $javascript, 'Stripe' ), 'The browser must not read Stripe and may make only the fixed Hub daily-claim request.' );
 foreach ( array( 'sources de vérité', 'Master Profile', 'Point Faluss', 'faluss_pf', 'ALB / Alternative LAB', 'crée aucune', 'trialing', 'Customer Portal' ) as $needle ) {
     pf01_assert( false !== strpos( $documentation, $needle ), 'PF-01 documentation is missing its architecture or data-boundary contract: ' . $needle );
 }

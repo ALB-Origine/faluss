@@ -116,10 +116,12 @@ lit ni n'écrit droit, essai, abonnement, audit ou état Stripe.
   `daily_accrual`, propriétaire `faluss-hub`, clé `hub.daily_accrual`.
   Portal ne lit ni n'écrit aucun ledger, ne conserve aucun cache métier et ne
   reçoit jamais du navigateur le sujet, le montant, la classe, la date, la clé
-  de reward ou une clé d'idempotence. `claimable` affiche uniquement le badge PF
-  officiel et `20` dans la zone glass circulaire historique ; seul ce statut
-  délègue `owner_claim`. Après la réponse réellement `claimed` du Core, la même
-  zone conserve le badge PF et `20`, sans bouton ni second claim. Les états
+  de reward ou une clé d'idempotence. Depuis AP-02A.2, `claimable` affiche le badge PF
+  officiel et `20` dans une pill glass compacte : cette pill visible est le véritable
+  bouton POST, sans calque interactif superposé. Seul ce statut délègue
+  `owner_claim`. Après la réponse réellement `claimed` du Core, la même
+  géométrie pill conserve le badge PF et `20` dans un état non interactif, sans
+  second claim. Les états
   `ineligible`, `unavailable` et `not_supported` redeviennent une action de
   navigation sans promesse de gain. Le clic de claim reste isolé de l'accès
   normal de la card Hub.
@@ -131,12 +133,20 @@ lit ni n'écrit droit, essai, abonnement, audit ou état Stripe.
   reward conservent uniquement la zone glass de navigation, sans `0 PF`, sans
   `75 PF` et sans action économique fictive.
 
-Toutes les cards de `Mes apps` partagent le même composant d'action circulaire
-glass, bordé d'un filet translucide. La card entière reste navigable vers sa
+Toutes les cards de `Mes apps` partagent la même primitive glass, bordée d'un
+filet translucide : cercle pour une navigation simple, pill allongée pour une
+récupération économique déclarée. La card entière reste navigable vers sa
 destination membre ; seule une action métier explicitement autorisée, aujourd'hui
-`hub.daily_accrual`, intercepte son propre clic. Faluss Hub vise toujours
+`hub.daily_accrual`, intercepte son propre clic. Les styles Elementor sont
+neutralisés sur le véritable bouton et le focus clavier utilise uniquement un
+anneau blanc suivant le rayon de la pill. Faluss Hub vise toujours
 `https://faluss.com/mon-faluss` depuis Faluss Me et depuis son registre ; aucune
 card possédée ne retombe sur une home marketing générique.
+
+Le symbole Faluss Me de Portal est dérivé mécaniquement de l'asset officiel :
+fond blanc retiré, symbole blanc conservé et canal alpha réel. Ce même PNG et la
+même géométrie `object-fit: contain` sont utilisés dans `Mes apps` et `Explorer`,
+sans filtre, mode de fusion, agrandissement CSS ni fond de conteneur.
 - **Analytics** rend des composants réutilisables de KPI, graphe, tableau et
   filtre à l'état vide. Le futur contrat par application devra fournir une
   date, une source, une métrique, une portée et l'autorisation de lecture ; il

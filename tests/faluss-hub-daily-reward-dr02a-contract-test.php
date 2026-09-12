@@ -49,8 +49,8 @@ $token_bootstrap = file_get_contents( $root . '/plugins/token-engine/token-engin
 $token_schema = file_get_contents( $root . '/plugins/token-engine/includes/class-token-engine-schema.php' );
 $badge = $plugin . '/assets/images/pf/faluss-pf-badge.png';
 
-foreach ( array( "FALUSS_PORTAL_VERSION', '0.1.18'", "TOKEN_ENGINE_VERSION', '0.4.1'", "const VERSION = '5'" ) as $needle ) {
-    dr02a_assert( false !== strpos( $bootstrap . $token_bootstrap . $token_schema, $needle ), 'DR-02A must consume Portal 0.1.18 with Token Engine 0.4.1 schema 5: ' . $needle );
+foreach ( array( "FALUSS_PORTAL_VERSION', '0.1.19'", "TOKEN_ENGINE_VERSION', '0.4.1'", "const VERSION = '5'" ) as $needle ) {
+    dr02a_assert( false !== strpos( $bootstrap . $token_bootstrap . $token_schema, $needle ), 'DR-02A must consume Portal 0.1.19 with Token Engine 0.4.1 schema 5: ' . $needle );
 }
 dr02a_assert( false === strpos( $portal, 'token_engine_ledger' ) && false === strpos( $portal, 'token_engine_pf_ledger' ) && false === strpos( $portal, 'dbDelta' ) && false === strpos( $portal, 'CREATE TABLE' ), 'Portal must not alter, query or create either Token Engine ledger/table.' );
 foreach ( array( 'register_rest_route', 'wp_ajax_nopriv_', 'wp_schedule', 'wp_cron', 'token-engine-connector', 'Token_Engine_Connector' ) as $forbidden ) {
@@ -116,12 +116,12 @@ foreach ( array( $faluss_id, 'amount_pf', 'economic_class', 'logical_date', 'rew
 ob_start();
 $render->invoke( null, $claimed );
 $claimed_markup = ob_get_clean();
-dr02a_assert( false === strpos( $claimed_markup, '<form' ) && false === strpos( $claimed_markup, '<button' ) && false !== strpos( $claimed_markup, '>20</span>' ), 'The claimed Hub card must preserve the same integrated visual without offering a second claim.' );
+dr02a_assert( false === strpos( $claimed_markup, '<form' ) && false === strpos( $claimed_markup, '<button' ) && false !== strpos( $claimed_markup, 'faluss-portal__app-open--reward' ) && false !== strpos( $claimed_markup, '>20</span>' ), 'The claimed Hub card must preserve the same reward pill without offering a second claim.' );
 
 foreach ( array( '$_GET', 'faluss_id', 'amount_pf', 'economic_class', 'logical_date', 'reward_key', 'idempotency' ) as $forbidden ) {
     dr02a_assert( false === strpos( $javascript, $forbidden ), 'The browser code must not send or hold a PF business parameter: ' . $forbidden );
 }
-dr02a_assert( false !== strpos( $javascript, "window.fetch(form.action" ) && false !== strpos( $javascript, "method: 'POST'" ) && false !== strpos( $javascript, 'new FormData(form)' ) && false !== strpos( $javascript, "credentials: 'same-origin'") && false !== strpos( $javascript, "cache: 'no-store'") && false !== strpos( $javascript, "dailyReward.status !== 'claimed'") && false !== strpos( $javascript, 'button.disabled = true' ) && false !== strpos( $javascript, 'action.replaceChildren(claimed)' ), 'The Hub action must be nonce-form POST only, disable double-clicks and render claimed only after a real Core result.' );
+dr02a_assert( false !== strpos( $javascript, "window.fetch(form.getAttribute('action')" ) && false !== strpos( $javascript, "method: 'POST'" ) && false !== strpos( $javascript, 'new FormData(form)' ) && false !== strpos( $javascript, "credentials: 'same-origin'") && false !== strpos( $javascript, "cache: 'no-store'") && false !== strpos( $javascript, "dailyReward.status !== 'claimed'") && false !== strpos( $javascript, 'button.disabled = true' ) && false !== strpos( $javascript, 'action.replaceChildren(claimed)' ), 'The Hub action must use the explicit form action for its nonce-form POST, disable double-clicks and render claimed only after a real Core result.' );
 dr02a_assert( false === strpos( $javascript, 'setInterval' ) && false === strpos( $javascript, 'location.reload' ) && false === strpos( $javascript, 'window.location.assign' ), 'Daily reward UI must not poll, reload or navigate to perform a claim.' );
 
 $handler = '';

@@ -79,7 +79,7 @@ ob_start();
 $panel_method->invoke( null, 'my-apps', $faluss_id );
 $owned = ob_get_clean();
 ap02a_assert( 2 === substr_count( $owned, 'data-faluss-app-card' ), 'Hub and published Faluss Me must appear immediately in Mes Apps.' );
-ap02a_assert( 2 === substr_count( $owned, 'faluss-portal__app-card-access' ) && 2 === substr_count( $owned, 'faluss-portal__app-open' ), 'Every Mes Apps card must use the same card access and integrated glass action zone.' );
+ap02a_assert( 2 === substr_count( $owned, 'faluss-portal__app-card-access' ) && 2 === preg_match_all( '/class="[^"]*faluss-portal__app-open(?:\s|")/', $owned ), 'Every Mes Apps card must use the same card access and integrated glass action zone.' );
 ap02a_assert( false !== strpos( $owned, 'href="https://faluss.com/mon-faluss"' ) && false !== strpos( $owned, 'href="https://faluss.me/mon-faluss"' ), 'Mes Apps must not fall back to either marketing home when member routes exist.' );
 
 preg_match( '/<article[^>]*data-faluss-app="hub".*?<\/article>/s', $owned, $hub_card );
@@ -102,9 +102,9 @@ ap02a_assert( false === $invalid['me']['owned'], 'A projection outside the exact
 ob_start();
 $render_daily->invoke( null, array( 'status' => 'claimed' ) );
 $claimed = ob_get_clean();
-ap02a_assert( false === strpos( $claimed, '<button' ) && false === strpos( $claimed, '<form' ) && false !== strpos( $claimed, 'faluss-portal__app-open' ) && false !== strpos( $claimed, '>20</span>' ), 'Claimed Hub must keep the same visual zone with no second action.' );
+ap02a_assert( false === strpos( $claimed, '<button' ) && false === strpos( $claimed, '<form' ) && false !== strpos( $claimed, 'faluss-portal__app-open--reward' ) && false !== strpos( $claimed, '>20</span>' ), 'Claimed Hub must keep the same reward pill with no second action.' );
 
-foreach ( array( '0.1.18', '0.4.15', '0.5.2', '0.3.17' ) as $version ) {
+foreach ( array( '0.1.19', '0.4.15', '0.5.2', '0.3.17' ) as $version ) {
     ap02a_assert( false !== strpos( $portal_bootstrap . $identity_bootstrap . $client_bootstrap . $link_bootstrap, $version ), 'Every modified plugin must expose its AP-02A patch version: ' . $version );
 }
 foreach ( array( 'member_app_projection', "'publication_status' => 'published'", "home_url( '/mon-faluss' )" ) as $needle ) {

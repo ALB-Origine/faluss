@@ -227,7 +227,7 @@
       button.setAttribute('aria-busy', 'true');
       if (feedback) feedback.hidden = true;
 
-      window.fetch(form.action, {
+      window.fetch(form.getAttribute('action'), {
         method: 'POST',
         body: new FormData(form),
         credentials: 'same-origin',
@@ -241,7 +241,7 @@
             throw new Error('hub_daily_not_claimed');
           }
           const claimed = document.createElement('span');
-          claimed.className = 'faluss-portal__app-open';
+          claimed.className = 'faluss-portal__app-open faluss-portal__app-open--reward';
           claimed.setAttribute('role', 'status');
           claimed.setAttribute('aria-label', 'Gain quotidien déjà reçu : 20 Points Faluss');
           const visual = form.querySelector('.faluss-portal__app-open');
