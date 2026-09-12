@@ -298,11 +298,20 @@ décisionnaire ; son message `Impossible d’ouvrir, vous y êtes déjà` dispar
 automatiquement en moins de trois secondes. Aucun Faluss ID, état Stripe,
 référence de compte ou autre donnée technique n'est rendu.
 
+DR-02A.1 rend la pill PF prioritaire dans le hit-testing Safari/WebKit sans
+changer sa géométrie ni son rendu. Le lien global de la carte reste en couche 1,
+alors que l'action PF, son formulaire et le bouton réel occupent respectivement
+les couches 3, 4 et 5. Le header compact ne crée plus de contexte ou de barrière
+`pointer-events` qui placerait le lien au-dessus du bouton. L'état indisponible
+laisse toujours passer le clic vers la carte ; les états `claimable` et
+`claimed` absorbent la zone exacte de la pill, de sorte qu'un clic PF ne peut ni
+naviguer ni ouvrir une nouvelle page.
+
 ## Installation et recette technique
 
 1. Sauvegarder les deux installations, puis mettre à jour Faluss Identity
    `0.4.14` et Faluss Link `0.3.14` sur faluss.me ; mettre à jour Faluss Identity
-   Client `0.5.2` et Faluss Portal `0.1.17` sur faluss.com. Aucun autre plugin
+   Client `0.5.2` et Faluss Portal `0.1.20` sur faluss.com. Aucun autre plugin
    n'est concerné.
 2. Conserver `[faluss_portal]` sur la page Elementor Canvas `/mon-faluss/`.
 3. Conserver le client officiel Faluss.com activé côté Identity. Le plugin

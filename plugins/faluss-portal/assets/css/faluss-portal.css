@@ -415,18 +415,22 @@ body.faluss-portal-page {
 }
 .faluss-portal__app-card--compact .faluss-portal__app-head {
   position: relative;
-  z-index: 2;
-  pointer-events: none;
+  z-index: auto;
+  pointer-events: auto;
 }
 .faluss-portal__hub-daily-action {
   position: relative;
   z-index: 3;
   display: inline-grid;
   justify-self: end;
+  pointer-events: auto;
+}
+.faluss-portal__hub-daily-action[data-faluss-portal-hub-daily-state="unavailable"] {
   pointer-events: none;
 }
 .faluss-portal__hub-daily-form {
   position: relative;
+  z-index: 4;
   width: max-content;
   max-width: 100%;
   margin: 0;
@@ -552,10 +556,14 @@ body.faluss-portal-page {
 .elementor .elementor-widget .faluss-portal button.faluss-portal__app-open--reward {
   -webkit-appearance: none;
   appearance: none;
+  position: relative;
+  z-index: 5;
   margin: 0;
   border: 0 !important;
   outline: 0 !important;
   cursor: pointer;
+  pointer-events: auto !important;
+  touch-action: manipulation;
 }
 .faluss-portal button.faluss-portal__app-open--reward:disabled { cursor: wait; }
 .faluss-portal button.faluss-portal__app-open--reward:focus,
