@@ -13,7 +13,7 @@ $link      = file_get_contents( $root . '/plugins/faluss-link/includes/class-fal
 $editor    = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
 $studio    = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-studio.css' );
 
-studio_v1_regression_assert( false !== strpos( $bootstrap, 'Version: 0.3.17' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.17'" ), 'The Studio regression patch must rotate Faluss Link assets to 0.3.17.' );
+studio_v1_regression_assert( false !== strpos( $bootstrap, 'Version: 0.3.18' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.18'" ), 'The Studio regression patch must rotate Faluss Link assets to 0.3.18.' );
 
 foreach ( array( '@media (max-width: 767px)', '.faluss-link-studio input,', '.faluss-link-studio select,', '.faluss-link-studio textarea { font-size: 16px; }' ) as $needle ) {
     studio_v1_regression_assert( false !== strpos( $studio, $needle ), 'Studio editing controls must use a 16px mobile font without disabling browser zoom: ' . $needle );

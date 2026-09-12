@@ -163,7 +163,10 @@ final class Faluss_Identity_Public_Profile {
 
 $root = getenv( 'FALUSS_HOTFIX_SOURCE_ROOT' ) ?: dirname( __DIR__ );
 $source = file_get_contents( $root . '/plugins/faluss-link/includes/class-faluss-link.php' );
+$link_bootstrap = file_get_contents( $root . '/plugins/faluss-link/faluss-link.php' );
 $identity_source = file_get_contents( $root . '/plugins/faluss-identity/includes/class-faluss-identity-public-profile.php' );
+$identity_bootstrap = file_get_contents( $root . '/plugins/faluss-identity/faluss-identity.php' );
+$portal_bootstrap = file_get_contents( $root . '/plugins/faluss-portal/faluss-portal.php' );
 $editor = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
 $onboarding = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-onboarding.js' );
 $studio_css = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-studio.css' );
@@ -179,6 +182,8 @@ foreach ( array( 'enqueueStudioMutation', 'queue.pending', 'queue.running', 'dra
 fl_hotfix_assert( false !== strpos( $editor, 'if (state) { hydrateCanonicalBlocks(studio, state); hydrateCanonicalForm(studio, state); }' ), 'Any rejected mutation with canonical state must restore the form, including locked themes.' );
 fl_hotfix_assert( false === strpos( $editor, 'new FormData(form[0])' ) && false === strpos( $editor, 'if (studio.data(\'falussLinkSaving\')) { return' ), 'A full form or active-save early return may not drive Studio persistence.' );
 fl_hotfix_assert( false !== strpos( $onboarding, 'applyOnboardingTheme' ) && false !== strpos( $source, 'self::theme_picker( $preferences )' ), 'Onboarding must expose and persist the canonical theme selector.' );
+fl_hotfix_assert( false === strpos( $source, "studio_empty_state( 'collection' )" ) && false !== strpos( $source, "array( 'links', 'collections' )" ), 'The generic Empty State helper must accept only the two real empty-panel kinds.' );
+fl_hotfix_assert( false !== strpos( $link_bootstrap, "FALUSS_LINK_VERSION','0.3.18'" ) && false !== strpos( $identity_bootstrap, "FALUSS_IDENTITY_VERSION', '0.4.15'" ) && false !== strpos( $portal_bootstrap, "FALUSS_PORTAL_VERSION', '0.1.19'" ), 'FL-HOTFIX-01.3 must version only Faluss Link and preserve Identity and Portal.' );
 
 global $wpdb, $fl_hotfix_fail_stage, $fl_hotfix_permalink;
 $fl_hotfix_fail_stage = '';
@@ -203,8 +208,12 @@ $version_method = new ReflectionMethod( 'Faluss_Link', 'studio_aggregate_version
 $run_method = new ReflectionMethod( 'Faluss_Link', 'run_studio_mutation' );
 $request_method = new ReflectionMethod( 'Faluss_Link', 'studio_mutation_request' );
 $prefs_method = new ReflectionMethod( 'Faluss_Link', 'prefs' );
+$collections_panel_method = new ReflectionMethod( 'Faluss_Link', 'studio_collections_panel' );
+$collection_panel_method = new ReflectionMethod( 'Faluss_Link', 'studio_collection_panel' );
+$links_panel_method = new ReflectionMethod( 'Faluss_Link', 'studio_links_panel' );
 $version = static function() use ( $version_method, $member ) { return $version_method->invoke( null, $member ); };
 $run = static function( $mutation, $payload, $supplied_version = null, $active_collection = '' ) use ( $run_method, $version, $member ) { return $run_method->invoke( null, $member, array( 'mutation' => $mutation, 'payload' => $payload, 'version' => null === $supplied_version ? $version() : $supplied_version, 'active_collection' => $active_collection ) ); };
+$render_panel = static function( $method, $payload ) { ob_start(); $method->invoke( null, $payload ); return (string) ob_get_clean(); };
 
 $canonical_blocks = $wpdb->blocks;
 $canonical_identity = $wpdb->identity;
@@ -222,6 +231,25 @@ $legacy_mutation = $run( 'create_link', array( 'block_id' => 'aaaaaaaa-bbbb-4ccc
 fl_hotfix_assert( ! $legacy_mutation['ok'] && 409 === $legacy_mutation['status'] && 'legacy_blocks_not_initialized' === $legacy_mutation['code'] && $before_legacy_mutation === $wpdb->digest() && array() === $wpdb->blocks, 'A block mutation against a legacy-only state must fail explicitly without importing or changing data.' );
 $wpdb->blocks = $canonical_blocks;
 $wpdb->identity = $canonical_identity;
+
+$before_empty_collection_render = $wpdb->digest();
+$writes_before_empty_collection_render = $wpdb->write_count;
+$transactions_before_empty_collection_render = $wpdb->transaction_count;
+$no_collections_markup = $render_panel( $collections_panel_method, array() );
+$empty_collection = array( 'block_id' => $collection_a, 'name' => 'Collection vide', 'description' => '', 'links' => array() );
+$collections_with_empty_markup = $render_panel( $collections_panel_method, array( $collection_a => $empty_collection ) );
+$empty_collection_markup = $render_panel( $collection_panel_method, $empty_collection );
+$linked_collection = $empty_collection;
+$linked_collection['links'][] = array( 'block_id' => $link_b, 'type' => 'link', 'label' => 'Lien conservé', 'url' => 'https://example.test/kept' );
+$linked_collection_markup = $render_panel( $collection_panel_method, $linked_collection );
+$no_links_markup = $render_panel( $links_panel_method, array() );
+fl_hotfix_assert( 1 === substr_count( $no_collections_markup, 'Zéro collection' ) && 1 === substr_count( $no_collections_markup, 'class="faluss-link-studio__empty"' ), 'A truly empty Collections panel must retain exactly one global Zéro collection state.' );
+fl_hotfix_assert( false !== strpos( $collections_with_empty_markup, 'faluss-link-studio__collection-card' ) && false !== strpos( $collections_with_empty_markup, 'Collection vide' ) && false === strpos( $collections_with_empty_markup, 'faluss-link-studio__empty' ), 'An existing empty collection must render its canonical card without a global Empty State.' );
+fl_hotfix_assert( false !== strpos( $empty_collection_markup, 'Collection vide' ) && false !== strpos( $empty_collection_markup, '0 lien' ), 'Opening an existing empty collection must retain its name and zero-link counter.' );
+fl_hotfix_assert( false === strpos( $empty_collection_markup, 'faluss-link-studio__empty' ) && false === strpos( $empty_collection_markup, 'Zéro collection' ) && false === strpos( $empty_collection_markup, 'Zéro lien' ), 'An open existing collection must never contain a contradictory generic Empty State.' );
+fl_hotfix_assert( false !== strpos( $linked_collection_markup, 'Lien conservé' ) && false === strpos( $linked_collection_markup, 'faluss-link-studio__empty' ), 'A collection containing a link must keep rendering that link without an Empty State.' );
+fl_hotfix_assert( 1 === substr_count( $no_links_markup, 'Zéro lien' ) && 1 === substr_count( $no_links_markup, 'class="faluss-link-studio__empty"' ), 'A truly empty All-links panel must retain exactly one Zéro lien state.' );
+fl_hotfix_assert( $before_empty_collection_render === $wpdb->digest() && $writes_before_empty_collection_render === $wpdb->write_count && $transactions_before_empty_collection_render === $wpdb->transaction_count, 'Empty and populated collection renderers must perform no write, transaction, or migration.' );
 
 $invalid_full_form = $request_method->invoke( null, array( 'mutation' => 'save_appearance', 'aggregate_version' => str_repeat( 'a', 64 ), 'page_background' => '#112233', 'content_blocks' => array() ) );
 fl_hotfix_assert( is_wp_error( $invalid_full_form ), 'A complete or hidden DOM block payload must be rejected by a preference mutation.' );
@@ -317,4 +345,4 @@ $commit_failure = $run( 'update_link', array( 'block_id' => $link_a, 'label' => 
 $wpdb->fail_commit = false;
 fl_hotfix_assert( ! $commit_failure['ok'] && $before_commit_failure === $wpdb->digest(), 'A failed commit must trigger a full rollback.' );
 
-echo "FL-HOTFIX-01.2 transactional, read-only render and collection route contract: OK\n";
+echo "FL-HOTFIX-01.3 transactional, read-only render and collection route contract: OK\n";

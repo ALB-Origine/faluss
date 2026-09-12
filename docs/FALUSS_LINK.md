@@ -54,6 +54,10 @@ Après la création réussie d’une collection, le Studio revient immédiatemen
 
 Chaque carte de collection est un véritable lien HTML vers la route membre serveur `/mon-faluss/`. Son URL porte exclusivement `faluss_studio_tab=links`, `faluss_studio_section=collection` et l’UUID exact `faluss_studio_collection` issu du flux canonique. Elle ne dépend jamais du permalien ambiant d’une requête `admin-post`; une collection absente ou invalide ramène proprement au panneau **Collections**, en lecture seule.
 
+### Empty State des Collections (FL-HOTFIX-01.3)
+
+Les Empty States génériques appartiennent uniquement aux panneaux réellement vides : **Zéro collection** lorsque le membre ne possède aucune collection et **Zéro lien** lorsque l’onglet **Tous** ne contient aucun lien. Une collection canonique existante sans lien conserve seulement son en-tête, son nom et son compteur à zéro ; elle n’affiche aucun Empty State contradictoire. Ce rendu reste strictement en lecture seule et ne crée, ne migre ni ne modifie aucune donnée membre.
+
 ## Couleur du nom et future fondation de styles (FL-07)
 
 Dans **Studio Faluss > Style**, le membre choisit la couleur de son nom parmi les quatre pastilles Faluss accessibles : Rose (`#BE79FF`), Blanc (`#FFFFFF`), Noir (`#000000`, valeur par défaut) et Prune (`#82206B`). Ce choix n’affecte ni le handle, ni le statut, ni la bio, ni les liens. Une couleur explicitement renseignée dans le widget Elementor **Carte Faluss** peut la surcharger ; un contrôle Elementor laissé vide conserve la préférence membre.
