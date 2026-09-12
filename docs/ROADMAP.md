@@ -154,9 +154,22 @@ bornées. Il n'installe aucune route, clé, table, migration, option, plugin,
 cache, UI, donnée membre, asset ou transport runtime. FPR, Identity, Token
 Connector, Stripe/Subscriptions et les mutations métier restent exclus.
 
-FED-01B est le prochain lot réservé à son plugin runtime ; CAP-01B ne pourra
-ensuite résoudre apps.registry qu'à partir de manifestes signés acceptés, sans
-ajouter une application, capacité, binding ou action absente du manifeste.
+FED-01B est livré techniquement par le plugin Federation `0.1.0`, avec transport
+Ed25519, politique locale, anti-rejeu et seul diagnostic intégré. CAP-01B ne
+pourra ensuite résoudre apps.registry qu'à partir de manifestes signés acceptés,
+sans ajouter une application, capacité, binding ou action absente du manifeste.
+
+## FED-01B — Runtime privé Faluss Federation — livré techniquement
+
+Faluss Federation `0.1.0`, schéma `1`, ajoute le seul receiver privé
+`/wp-json/faluss-federation/v1/exchange`, le client PHP fermé, les clés
+publiques et politiques de pairs, le contrôle anti-rejeu transactionnel et
+l'audit technique borné. Sodium ou toute constante locale manquante maintient
+le runtime fermé sans fatal ni appel réseau. Seul `diagnostic.read` est produit
+en 0.1.0 ; `manifest.read` et `read_model.read` retournent `not_available`
+sans provider propriétaire enregistré. Aucun registre CAP-01B, manifeste Hub/Me,
+read-model membre, mutation, paiement, entitlement ou transport des autres
+moteurs n'est ajouté.
 
 ## PF-02A — Contrat Points Faluss et droits économiques — livré contractuellement
 

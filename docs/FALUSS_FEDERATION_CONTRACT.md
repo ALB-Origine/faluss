@@ -258,3 +258,12 @@ schémas et son test. Il ne modifie aucun autre document, fichier sous
 `plugins/`, transport existant, runtime CAP-01B/EVT/MP, interface, migration,
 option, clé, appel réseau, donnée WordPress réelle ou asset. Il ne fournit
 aucune recette WordPress, puisqu'aucun runtime n'est installé.
+
+## Implémentation FED-01B
+
+FED-01B matérialise désormais ce contrat dans le plugin autonome
+[`FALUSS_FEDERATION.md`](FALUSS_FEDERATION.md). Le runtime reste limité aux
+trois opérations fermées, au transport Ed25519, aux politiques locales et aux
+quatre tables techniques dédiées. Il ne livre ni provider de manifeste ou de
+read-model métier, ni CAP-01B, ni clé de production. Les exigences normatives
+du présent contrat prévalent sur toute future extension de provider.

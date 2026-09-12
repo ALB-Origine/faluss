@@ -208,7 +208,8 @@ leurs propriétaires ; le Master Profile ne calcule aucun score composite.
 CAP-01A ne crée aucun transport. FED-01A fixe séparément le contrat HTTPS
 serveur-à-serveur, Ed25519, autorisations exactes par application et capacité,
 corps canonique signé, durée courte, anti-rejeu, versions strictes, refus fermé
-et réponses privées bornées ; FED-01B seul pourra l'implémenter. Aucun secret
+et réponses privées bornées ; FED-01B l'implémente sans registre ni provider
+de manifeste ou de read-model métier. Aucun secret
 ne peut résider dans Git, WordPress, le navigateur ou une URL publique. Les
 transports spécialisés SSO Identity, Token Engine Connector et FPR restent
 spécialisés et ne deviennent pas un bus universel.
@@ -256,7 +257,7 @@ Les étapes futures, sans implémentation ici, sont :
 
 1. CAP-01A — contrat du registre et des capacités ;
 2. FED-01A — contrat du transport privé fédéré ;
-3. FED-01B — runtime plugin du transport privé fédéré ;
+3. FED-01B — runtime plugin du transport privé fédéré, livré sans CAP-01B ;
 4. CAP-01B — registre runtime et projection réelle apps.registry ;
 5. EVT-01 — enveloppe commune d'événements ;
 6. AN-01 — moteur Analytics et premiers événements réels Hub/Me ;

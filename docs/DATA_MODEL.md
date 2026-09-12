@@ -195,7 +195,7 @@ inventée. Les deux schémas contractuels sans transport ni stockage sont
 et
 [faluss-apps-registry-read-model.schema.json](../contracts/faluss-apps-registry-read-model.schema.json).
 
-## Transport privé fédéré FED-01A
+## Transport privé fédéré FED-01A et runtime FED-01B
 
 FED-01A n'ajoute aucune table, colonne, option, migration, clé, cache durable
 ni copie de read-model. Il définit les enveloppes éphémères de requête et de
@@ -204,7 +204,13 @@ requête liée, dates UTC courtes, nonce anti-rejeu et payload spécialisé vali
 indépendamment. Un contexte serveur peut contenir le `faluss_id` opaque mais
 celui-ci n'est jamais rendu, journalisé ni une autorisation suffisante. Les
 clés privées demeurent hors Git et hors données WordPress exportables ; les
-clés publiques et politiques de confiance ne seront gérées qu'en FED-01B.
+clés publiques et politiques de confiance sont gérées par FED-01B uniquement
+dans ses quatre tables préfixées : `faluss_federation_peers`,
+`faluss_federation_request_bindings`, `faluss_federation_nonces` et
+`faluss_federation_audit`. Elles ne contiennent ni seed, clé privée, payload,
+Faluss ID, e-mail, session ni donnée métier. Les deux tables anti-rejeu ont une
+rétention technique d'au moins 15 minutes ; l'audit minimal est purgé au plus
+après 30 jours. Aucune projection CAP-01B ou Master Profile n'est persistée.
 
 ## Master Profile MP-01A
 

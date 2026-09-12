@@ -1,0 +1,82 @@
+# Faluss Federation 0.1.0 — exploitation privée
+
+## Frontière
+
+`plugins/faluss-federation/` matérialise FED-01A.1 sur un nœud WordPress approuvé. Il ne transporte que `diagnostic.read`, `manifest.read` et `read_model.read`, par HTTPS serveur-à-serveur, Ed25519 et politique locale fermée. Il n'est ni un RPC générique, ni un transport de paiement, claim, entitlement, profil, média ou donnée métier. Il ne remplace pas FPR, Identity, Token Engine Connector, Stripe ou Faluss Subscriptions.
+
+En version 0.1.0, seul `diagnostic.read` possède un producteur. Les deux autres opérations renvoient une réponse signée `not_available` tant qu'un plugin propriétaire de confiance n'a pas enregistré son provider et son validateur spécialisés. Cette version ne livre donc ni CAP-01B, ni manifeste Hub/Me, ni read-model membre fédéré.
+
+## Préconditions et configuration locale
+
+Le plugin demande WordPress 6.4 et PHP 7.4. Sodium est nécessaire pour rendre le transport opérationnel, pas pour activer le plugin : sans Sodium valide, l'administration indique `Transport indisponible : Sodium absent ou invalide`, aucune route n'est enregistrée et toutes les façades échouent fermées.
+
+Avant d'activer réellement le transport, définir exclusivement dans la configuration protégée du serveur, jamais dans Git ni dans la base :
+
+```php
+define( 'FALUSS_FEDERATION_LOCAL_NODE_ID', '...' );
+define( 'FALUSS_FEDERATION_LOCAL_APP_KEY', '...' );
+define( 'FALUSS_FEDERATION_LOCAL_ORIGIN', 'https://example.invalid' );
+define( 'FALUSS_FEDERATION_LOCAL_KEY_ID', '...' );
+define( 'FALUSS_FEDERATION_LOCAL_KEY_VALID_FROM', '2026-01-01T00:00:00Z' );
+define( 'FALUSS_FEDERATION_LOCAL_KEY_VALID_UNTIL', '2027-01-01T00:00:00Z' );
+define( 'FALUSS_FEDERATION_PRIVATE_SEED', 'base64url-canonique-de-43-caracteres' );
+```
+
+Le seed est exactement 32 octets en base64url canonique sans padding. Il sert uniquement à dériver ponctuellement la paire Ed25519 et est effacé en mémoire. Le plugin ne l'affiche, ne l'exporte, ne le journalise et ne le persiste jamais. L'origine doit être HTTPS canonique et identique à l'origine WordPress.
+
+Les identités initiales attendues sont documentées, jamais déduites depuis le hostname :
+
+| Site | node_id | app_key | origine |
+| --- | --- | --- | --- |
+| faluss.com | `hub-node` | `faluss-hub` | `https://faluss.com` |
+| faluss.me | `me-node` | `faluss-me` | `https://faluss.me` |
+
+Tout nœud futur définit ses propres constantes explicites.
+
+## État et schéma
+
+Le transport est `ready` seulement avec schéma 1 exact, Sodium et auto-test Ed25519 valides, constantes valides, origine locale exacte, période de clé active, seed dérivable et au moins un pair exploitable. L'activation ne génère ni clé ni pair et n'appelle aucun domaine.
+
+L'installation fraîche, sous verrou MariaDB borné, crée exclusivement quatre tables InnoDB préfixées WordPress :
+
+| Table | Contenu et rétention |
+| --- | --- |
+| `faluss_federation_peers` | clés publiques et politiques locales exactes ; aucune clé privée |
+| `faluss_federation_request_bindings` | liaison `(sender_node_id, request_id)` vers hash du corps ; au moins 15 minutes |
+| `faluss_federation_nonces` | hash de nonce, clé émettrice, opération et consommation ; au moins 15 minutes |
+| `faluss_federation_audit` | audit technique allowlisté ; maximum 30 jours |
+
+Le schéma partiel ou divergent échoue fermé : aucune réparation automatique, aucun `dbDelta()`, aucune table existante modifiée. La purge est opportuniste, bornée et sans cron.
+
+## Administration et pairage
+
+Le seul écran est **Outils → Faluss Federation**, réservé à `manage_options`. Il utilise un nonce WordPress et POST pour chaque mutation, sans CSS ni JavaScript personnalisé. Il présente les métadonnées publiques locales, l'état du schéma/Sodium, les compteurs techniques et un bundle public copiable ; il ne présente jamais seed, clé secrète, nonce, signature, payload ou Faluss ID.
+
+Échanger les bundles publics par un canal approuvé puis saisir le pair exact : nœud, application, origine HTTPS, `key_id`, clé publique, période, opérations, applications propriétaires, capacités et audiences. Les opérations et audiences sont des listes fermées et n'acceptent aucun wildcard. Créer une nouvelle clé active pour le même couple fait passer l'ancienne active à `rotating`; une seule clé de chaque état peut coexister. L'enregistrement exige la phrase exacte `ENREGISTRER LE PAIR FEDERATION`; la révocation exige `REVOQUER LA CLE FEDERATION`.
+
+Le diagnostic distant est volontaire et utilise exclusivement l'origine du pair déjà enregistrée côté serveur. Il ne prend aucune URL du navigateur.
+
+## Transport
+
+La route unique, disponible seulement lorsque le transport est prêt, est :
+
+```text
+POST /wp-json/faluss-federation/v1/exchange
+```
+
+Le receiver lit et hache les octets bruts une seule fois, vérifie les trois en-têtes cryptographiques uniques, la forme JSON bornée, la clé/politique, la signature et la fraîcheur avant de consommer nonce et binding dans la même transaction InnoDB. Les refus pré-authentification restent génériques. Les réponses post-authentification sont sérialisées une fois, signées sur les octets servis, privées (`Cache-Control: private, no-store`) et limitées à 65 536 octets. Les plafonds JSON sont profondeur 16, 128 champs ou éléments et 4 096 octets par chaîne. Les limites par clé/opération/minute sont 30, 60 et 600.
+
+La façade interne sortante n'expose que `diagnostic_read`, `manifest_read` et `read_model_read`. Elle force HTTPS, `sslverify`, zéro redirection, connexion maximale de trois secondes et durée totale de dix secondes. Elle contrôle l'identité, la liaison requête/réponse, les en-têtes, hash, signature, fraîcheur, statut et validateur spécialisé avant de rendre une réponse. Aucun payload reçu n'est persisté dans une option, table, transient ou cache durable.
+
+## Recette WordPress à exécuter ultérieurement
+
+Cette recette n'est pas exécutée par FED-01B :
+
+1. Installer le même ZIP sur `faluss.com` et `faluss.me`, puis activer le plugin sans constante afin de vérifier l'administration et l'état fermé.
+2. Vérifier dans Outils que les quatre tables préfixées sont InnoDB, que le schéma est `1`, puis vérifier Sodium et son auto-test local.
+3. Confirmer qu'aucune route Federation n'est enregistrée sans constantes et qu'aucun appel réseau n'a été effectué.
+4. Définir, hors Git et hors base, une paire de constantes indépendante par site ; vérifier origine WordPress, période de clé et clé publique dérivée.
+5. Échanger manuellement les bundles publics, enregistrer les politiques minimales exactes dans les deux administrations et confirmer l'état `ready`.
+6. Lancer explicitement `diagnostic.read` dans chaque direction et vérifier la réponse signée, sans enregistrer de manifeste ou de read-model métier.
+
+Ne pas configurer de secret de production durant le développement et ne pas enregistrer de provider CAP-01B avant son contrat et son lot dédié.
