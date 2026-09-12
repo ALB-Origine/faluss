@@ -30,7 +30,7 @@ function get_current_user_id() { return 17; }
 function home_url( $path = '' ) { return 'https://faluss.test' . $path; }
 function admin_url( $path = '' ) { return 'https://faluss.test/wp-admin/' . ltrim( $path, '/' ); }
 function plugins_url( $path = '' ) { return 'https://faluss.test/wp-content/plugins/faluss-link/' . ltrim( $path, '/' ); }
-function get_permalink() { return 'https://faluss.test/studio/'; }
+function get_permalink() { global $fl_hotfix_permalink; return $fl_hotfix_permalink ?: 'https://faluss.test/studio/'; }
 function add_query_arg( $args, $url ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . http_build_query( $args ); }
 function wp_generate_uuid4() { static $suffix = 100; ++$suffix; return '99999999-9999-4999-8999-' . str_pad( (string) $suffix, 12, '0', STR_PAD_LEFT ); }
 function wp_unique_id( $prefix = '' ) { static $id = 0; return $prefix . ++$id; }
@@ -180,8 +180,9 @@ fl_hotfix_assert( false !== strpos( $editor, 'if (state) { hydrateCanonicalBlock
 fl_hotfix_assert( false === strpos( $editor, 'new FormData(form[0])' ) && false === strpos( $editor, 'if (studio.data(\'falussLinkSaving\')) { return' ), 'A full form or active-save early return may not drive Studio persistence.' );
 fl_hotfix_assert( false !== strpos( $onboarding, 'applyOnboardingTheme' ) && false !== strpos( $source, 'self::theme_picker( $preferences )' ), 'Onboarding must expose and persist the canonical theme selector.' );
 
-global $wpdb, $fl_hotfix_fail_stage;
+global $wpdb, $fl_hotfix_fail_stage, $fl_hotfix_permalink;
 $fl_hotfix_fail_stage = '';
+$fl_hotfix_permalink = '';
 $wpdb = new FL_Hotfix_WPDB();
 $member = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 $link_a = '11111111-1111-4111-8111-111111111111';
@@ -245,11 +246,40 @@ fl_hotfix_assert( $cover['ok'] && 77 === (int) $prefs_method->invoke( null, $mem
 $collection_b = '55555555-5555-4555-8555-555555555555';
 $description_b = '66666666-6666-4666-8666-666666666666';
 $link_c = '77777777-7777-4777-8777-777777777777';
+$fl_hotfix_permalink = 'https://faluss.test/wp-admin/admin-post.php';
 $created_collection = $run( 'create_collection', array( 'block_id' => $collection_b, 'description_block_id' => $description_b, 'name' => 'Collection B', 'description' => 'Description B' ), null, $collection_b );
 fl_hotfix_assert( $created_collection['ok'] && false !== strpos( $created_collection['state']['collections_html'], 'Collection B' ), 'A created collection must remain in the canonical Collections panel.' );
+preg_match( '/<a[^>]+href="([^"]+)"[^>]+data-fl-open-collection="' . preg_quote( $collection_b, '/' ) . '"/', $created_collection['state']['collections_html'], $collection_link_match );
+$collection_url = html_entity_decode( $collection_link_match[1] ?? '', ENT_QUOTES, 'UTF-8' );
+$collection_url_parts = parse_url( $collection_url );
+parse_str( $collection_url_parts['query'] ?? '', $collection_query );
+fl_hotfix_assert( 'https' === ( $collection_url_parts['scheme'] ?? '' ) && 'faluss.test' === ( $collection_url_parts['host'] ?? '' ) && '/mon-faluss/' === ( $collection_url_parts['path'] ?? '' ), 'Collections HTML produced during admin-post must use the canonical member route.' );
+fl_hotfix_assert( array( 'faluss_studio_tab' => 'links', 'faluss_studio_section' => 'collection', 'faluss_studio_collection' => $collection_b ) === $collection_query, 'A collection link must contain only the three closed navigation parameters and the exact canonical block UUID.' );
+fl_hotfix_assert( false === strpos( $collection_url, 'wp-admin' ) && false === strpos( $collection_url, 'admin-post' ), 'A canonical collection link may never inherit an admin or admin-post URL.' );
 $created_link = $run( 'create_link', array( 'block_id' => $link_c, 'label' => 'Dans B', 'url' => 'https://example.test/b', 'collection_id' => $collection_b ), null, $collection_b );
 fl_hotfix_assert( $created_link['ok'] && false !== strpos( $created_link['state']['collection_html'], 'Dans B' ) && false !== strpos( $created_link['state']['collections_html'], 'Collection A' ), 'Adding a link must preserve its collection and every other collection.' );
 foreach ( array( 'blocks', 'links_html', 'collections_html', 'collection_html', 'active_collection', 'preview_html', 'version' ) as $field ) { fl_hotfix_assert( array_key_exists( $field, $created_link['state'] ), 'Canonical rehydration field missing: ' . $field ); }
+
+$before_collection_navigation = $wpdb->digest();
+$writes_before_collection_navigation = $wpdb->write_count;
+$transactions_before_collection_navigation = $wpdb->transaction_count;
+$_GET = array( 'faluss_studio_tab' => 'links', 'faluss_studio_section' => 'collection', 'faluss_studio_collection' => $collection_b );
+$collection_markup = Faluss_Link::render_studio();
+fl_hotfix_assert( false !== strpos( $collection_markup, 'data-faluss-studio-section="collection"' ) && false !== strpos( $collection_markup, 'data-faluss-studio-collection="' . $collection_b . '"' ) && false !== strpos( $collection_markup, 'Collection B' ) && false !== strpos( $collection_markup, 'Dans B' ), 'Opening the canonical route must select the requested collection and render its canonical links.' );
+fl_hotfix_assert( $before_collection_navigation === $wpdb->digest() && $writes_before_collection_navigation === $wpdb->write_count && $transactions_before_collection_navigation === $wpdb->transaction_count, 'Opening or reloading a collection route must perform no write, transaction, or migration.' );
+
+foreach ( array( null, 'not-a-block-uuid' ) as $requested_collection ) {
+    $before_invalid_navigation = $wpdb->digest();
+    $writes_before_invalid_navigation = $wpdb->write_count;
+    $transactions_before_invalid_navigation = $wpdb->transaction_count;
+    $_GET = array( 'faluss_studio_tab' => 'links', 'faluss_studio_section' => 'collection' );
+    if ( null !== $requested_collection ) { $_GET['faluss_studio_collection'] = $requested_collection; }
+    $invalid_markup = Faluss_Link::render_studio();
+    fl_hotfix_assert( false !== strpos( $invalid_markup, 'data-faluss-studio-section="collections"' ) && false !== strpos( $invalid_markup, 'data-faluss-studio-collection=""' ), 'A missing or invalid collection UUID must fall back cleanly to the Collections panel.' );
+    fl_hotfix_assert( $before_invalid_navigation === $wpdb->digest() && $writes_before_invalid_navigation === $wpdb->write_count && $transactions_before_invalid_navigation === $wpdb->transaction_count, 'Invalid collection navigation must change no member data.' );
+}
+$fl_hotfix_permalink = '';
+$_GET = array();
 
 $other_blocks_before = array_values( array_filter( $wpdb->blocks, static function( $row ) use ( $link_a ) { return $link_a !== $row['block_id']; } ) );
 $updated_link = $run( 'update_link', array( 'block_id' => $link_a, 'label' => 'Libre modifié', 'url' => 'https://example.test/free-2' ) );
@@ -287,4 +317,4 @@ $commit_failure = $run( 'update_link', array( 'block_id' => $link_a, 'label' => 
 $wpdb->fail_commit = false;
 fl_hotfix_assert( ! $commit_failure['ok'] && $before_commit_failure === $wpdb->digest(), 'A failed commit must trigger a full rollback.' );
 
-echo "FL-HOTFIX-01.1 transactional and read-only render contract: OK\n";
+echo "FL-HOTFIX-01.2 transactional, read-only render and collection route contract: OK\n";

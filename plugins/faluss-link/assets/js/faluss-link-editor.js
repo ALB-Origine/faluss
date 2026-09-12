@@ -946,7 +946,7 @@
             var name = $.trim(screen.find('[data-fl-new-collection-name]').val() || ''), description = $.trim(screen.find('[data-fl-new-collection-description]').val() || '');
             if (!name) { showStatus(studio, 'Le nom de la collection est requis.', true); return; }
             if (storedBlocks(studio).length + (description ? 2 : 1) > 32) { showStatus(studio, 'Votre carte contient déjà le nombre maximal d’éléments.', true); return; }
-            enqueueStudioMutation(studio, 'create_collection', { block_id: blockId(), description_block_id: blockId(), name: name, description: description }, { onSaved: function () { activateSection(studio, 'collections', false); } });
+            enqueueStudioMutation(studio, 'create_collection', { block_id: blockId(), description_block_id: blockId(), name: name, description: description }, { onSaved: function () { restoreStudioState(studio, { tab: 'links', section: 'collections', collection: '' }, true); } });
         })
         .on('click.falussLink', '.faluss-link-studio [data-fl-link-card] .faluss-link-studio__link-summary', function () {
             var cardNode = $(this).closest('[data-fl-link-card]'), studio = cardNode.closest('.faluss-link-studio'), opening = $(this).attr('aria-expanded') !== 'true';

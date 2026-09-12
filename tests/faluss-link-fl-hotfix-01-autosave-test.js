@@ -69,8 +69,11 @@ function input(name, type, value, checked) {
 class FakeStudio {
     constructor(version) {
         this.store = Object.create(null);
-        this.attributes = { 'data-faluss-studio-version': version };
+        this.attributes = { 'data-faluss-studio-version': version, 'data-faluss-studio-tab': 'style', 'data-faluss-studio-section': 'appearance', 'data-faluss-studio-screen': 'create-collection' };
         this.version = version;
+        this.tab = 'style';
+        this.section = 'appearance';
+        this.screen = 'create-collection';
         this.collection = '';
         this.fields = Object.create(null);
         this.form = makeChain(1);
@@ -85,13 +88,27 @@ class FakeStudio {
     addClass() { return this; }
     removeClass() { return this; }
     addField(field) { if (!this.fields[field.name]) { this.fields[field.name] = []; } this.fields[field.name].push(field); return field; }
-    attr(key, value) { if (arguments.length > 1) { this.attributes[key] = value; if (key === 'data-faluss-studio-version') { this.version = value; } return this; } return this.attributes[key] || ''; }
+    attr(key, value) {
+        if (arguments.length > 1) {
+            this.attributes[key] = value;
+            if (key === 'data-faluss-studio-version') { this.version = value; }
+            if (key === 'data-faluss-studio-tab') { this.tab = value; }
+            if (key === 'data-faluss-studio-section') { this.section = value; }
+            if (key === 'data-faluss-studio-screen') { this.screen = value; }
+            return this;
+        }
+        return this.attributes[key] || '';
+    }
     find(selector) {
         let match = selector.match(/^\[name="([^"]+)"\]$/);
         if (match) { return new FieldCollection(this.fields[match[1]] || []); }
         match = selector.match(/^input\[name="([^"]+)"\]\[type="checkbox"\]$/);
         if (match) { return new FieldCollection((this.fields[match[1]] || []).filter((field) => field.tagName === 'INPUT' && field.type === 'checkbox')); }
         if (selector === '.faluss-link-studio__form') { return this.form; }
+        if (selector === '[data-fl-main-panel]') { return makeChain(1); }
+        if (selector.indexOf('[data-fl-tab][aria-pressed="true"]') === 0) { const field = makeChain(1), owner = this; field.first = function () { return field; }; field.data = function (key) { return key === 'fl-tab' ? owner.tab : ''; }; return field; }
+        if (selector === '[data-fl-active-tab]') { const field = makeChain(1), owner = this; field.val = function (value) { if (arguments.length) { owner.tab = value; return field; } return owner.tab; }; return field; }
+        if (selector === '[data-fl-active-section]') { const field = makeChain(1), owner = this; field.val = function (value) { if (arguments.length) { owner.section = value; return field; } return owner.section; }; return field; }
         if (selector === '[data-fl-aggregate-version]') { const field = makeChain(1), owner = this; field.val = function (value) { if (arguments.length) { owner.version = value; return field; } return owner.version; }; return field; }
         if (selector === '[data-fl-active-collection]') { const field = makeChain(1), owner = this; field.val = function (value) { if (arguments.length) { owner.collection = value; return field; } return owner.collection; }; return field; }
         return makeChain(selector === '.faluss-link-studio__notice' ? 1 : 0);
@@ -100,6 +117,10 @@ class FakeStudio {
 
 const sent = [];
 const pendingFetches = [];
+const eventHandlers = Object.create(null);
+let collectionButton = null;
+let collectionButtonStudio = null;
+let collectionButtonScreen = null;
 const fakeWindow = {
     setTimeout: function () { return 1; },
     clearTimeout: function () {},
@@ -112,8 +133,14 @@ const fakeWindow = {
     }
 };
 const fakeDocument = {};
+const documentChain = {
+    off: function () { return documentChain; },
+    on: function (event, selector, handler) { if (typeof selector === 'string' && typeof handler === 'function') { eventHandlers[selector] = handler; } return documentChain; }
+};
 function jquery(value) {
     if (typeof value === 'function') { return makeChain(0); }
+    if (value === fakeDocument) { return documentChain; }
+    if (value === collectionButton) { return { closest: function (selector) { return selector === '.faluss-link-studio' ? collectionButtonStudio : collectionButtonScreen; } }; }
     return makeChain(value && typeof value === 'string' && value.charAt(0) === '<' ? 1 : 0);
 }
 jquery.trim = function (value) { return String(value || '').trim(); };
@@ -232,5 +259,20 @@ function headerStudio(version, enabled, published) {
     pendingFetches.shift()(response(true, 'saved', '6'.repeat(64)));
     assert(await disabledSave, 'The hidden manual save and its header mutation must both complete.');
 
-    process.stdout.write('FL-HOTFIX-01.1 Studio switches and autosave: OK\n');
+    const collectionStudio = new FakeStudio('7'.repeat(64));
+    const collectionValues = { '[data-fl-new-collection-name]': 'Nouvelle collection canonique', '[data-fl-new-collection-description]': 'Description' };
+    collectionButtonStudio = collectionStudio;
+    collectionButtonScreen = { find: function (selector) { const field = makeChain(1); field.val = function () { return collectionValues[selector] || ''; }; return field; } };
+    collectionButton = {};
+    const createCollectionHandler = eventHandlers['.faluss-link-studio [data-fl-create-collection-submit]'];
+    assert(typeof createCollectionHandler === 'function', 'The real delegated collection creation handler must be registered.');
+    const beforeCollectionCreation = sent.length;
+    createCollectionHandler.call(collectionButton);
+    assert(sent.length === beforeCollectionCreation + 1 && sent[beforeCollectionCreation].mutation === 'create_collection', 'Collection creation must issue exactly its targeted mutation.');
+    pendingFetches.shift()(response(true, 'saved', '8'.repeat(64)));
+    await tick(); await tick(); await tick();
+    assert(collectionStudio.screen === 'main' && collectionStudio.tab === 'links' && collectionStudio.section === 'collections' && collectionStudio.collection === '', 'A successful collection callback must restore main > links > collections with no active collection.');
+    assert(sent.length === beforeCollectionCreation + 1, 'Returning to the canonical Collections panel must not issue a second mutation.');
+
+    process.stdout.write('FL-HOTFIX-01.2 Studio collection navigation, switches and autosave: OK\n');
 })().catch(function (error) { process.stderr.write('FAIL: ' + error.message + '\n'); process.exit(1); });

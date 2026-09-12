@@ -13,7 +13,7 @@ $link      = file_get_contents( $root . '/plugins/faluss-link/includes/class-fal
 $editor    = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
 $studio    = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-studio.css' );
 
-studio_v1_regression_assert( false !== strpos( $bootstrap, 'Version: 0.3.16' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.16'" ), 'The Studio regression patch must rotate Faluss Link assets to 0.3.16.' );
+studio_v1_regression_assert( false !== strpos( $bootstrap, 'Version: 0.3.17' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.17'" ), 'The Studio regression patch must rotate Faluss Link assets to 0.3.17.' );
 
 foreach ( array( '@media (max-width: 767px)', '.faluss-link-studio input,', '.faluss-link-studio select,', '.faluss-link-studio textarea { font-size: 16px; }' ) as $needle ) {
     studio_v1_regression_assert( false !== strpos( $studio, $needle ), 'Studio editing controls must use a 16px mobile font without disabling browser zoom: ' . $needle );
@@ -27,6 +27,15 @@ $create_link_start = strpos( $editor, "[data-fl-create-link-submit]" );
 $create_link_end   = false === $create_link_start ? false : strpos( $editor, "[data-fl-create-collection-submit]", $create_link_start );
 $create_link       = false === $create_link_start || false === $create_link_end ? '' : substr( $editor, $create_link_start, $create_link_end - $create_link_start );
 studio_v1_regression_assert( false === strpos( $create_link, 'window.location.reload()' ), 'Creating a link must not need a hard reload before the visible list is current.' );
+
+studio_v1_regression_assert( false !== strpos( $editor, "enqueueStudioMutation(studio, 'create_collection'" ) && false !== strpos( $editor, "onSaved: function () { restoreStudioState(studio, { tab: 'links', section: 'collections', collection: '' }, true); }" ), 'A successful collection creation must restore main > links > collections from its canonical response.' );
+$collection_url_start = strpos( $link, 'private static function studio_collection_url' );
+$collection_url_end = false === $collection_url_start ? false : strpos( $link, 'public static function upload_cover', $collection_url_start );
+$collection_url = false === $collection_url_start || false === $collection_url_end ? '' : substr( $link, $collection_url_start, $collection_url_end - $collection_url_start );
+foreach ( array( "home_url( '/mon-faluss/' )", "'faluss_studio_tab' => 'links'", "'faluss_studio_section' => 'collection'", "'faluss_studio_collection' => \$block_id" ) as $needle ) {
+    studio_v1_regression_assert( false !== strpos( $collection_url, $needle ), 'Collection cards must use the closed canonical member route: ' . $needle );
+}
+studio_v1_regression_assert( false === strpos( $collection_url, 'get_permalink' ) && false === strpos( $collection_url, 'admin_url' ) && false === strpos( $collection_url, 'admin-post' ), 'Collection routes must not depend on ambient or administrative request URLs.' );
 
 foreach ( array( 'flex: 0 0 36px', 'width: 36px; height: 36px', 'width: 16px; height: 16px', 'align-items: center', 'data-fl-open-social-manager', 'function openSocialManager', "activate(studio, 'style', false)", "activateSection(studio, 'header', false)" ) as $needle ) {
     studio_v1_regression_assert( false !== strpos( $studio . $link . $editor, $needle ), 'The social shortcut must be compact, aligned, and retain the Header destination: ' . $needle );

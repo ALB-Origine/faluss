@@ -325,6 +325,7 @@ final class Faluss_Link {
         $active_tab = 'profile' === $active_tab ? 'style' : $active_tab;
         $active_section = self::studio_section( $_GET['faluss_studio_section'] ?? ( 'style' === $active_tab ? 'appearance' : 'all' ), $active_tab );
         $active_collection = self::studio_collection_id( $_GET['faluss_studio_collection'] ?? '', $collections );
+        if ( 'collection' === $active_section && '' === $active_collection ) { $active_section = 'collections'; }
         $public_url = '' !== $profile['public_slug'] && 'published' === $profile['publication_status'] ? home_url( '/' . $profile['public_slug'] ) : '';
         ob_start();
         ?>
@@ -894,7 +895,7 @@ final class Faluss_Link {
 
     private static function studio_collections_panel( $collections ) {
         if ( ! $collections ) { self::studio_empty_state( 'collections' ); return; }
-        ?><div class="faluss-link-studio__collection-grid"><?php foreach ( $collections as $collection ) : ?><a class="faluss-link-studio__collection-card" href="<?php echo esc_url( self::studio_url( array( 'faluss_studio_tab' => 'links', 'faluss_studio_section' => 'collection', 'faluss_studio_collection' => $collection['block_id'] ) ) ); ?>" data-fl-open-collection="<?php echo esc_attr( $collection['block_id'] ); ?>"><strong><?php echo esc_html( $collection['name'] ); ?></strong><span><?php echo esc_html( sprintf( _n( '%d lien actif', '%d liens actifs', count( $collection['links'] ), 'faluss-link' ), count( $collection['links'] ) ) ); ?></span><i aria-hidden="true"></i></a><?php endforeach; ?></div><?php
+        ?><div class="faluss-link-studio__collection-grid"><?php foreach ( $collections as $collection ) : ?><a class="faluss-link-studio__collection-card" href="<?php echo esc_url( self::studio_collection_url( $collection['block_id'] ) ); ?>" data-fl-open-collection="<?php echo esc_attr( $collection['block_id'] ); ?>"><strong><?php echo esc_html( $collection['name'] ); ?></strong><span><?php echo esc_html( sprintf( _n( '%d lien actif', '%d liens actifs', count( $collection['links'] ), 'faluss-link' ), count( $collection['links'] ) ) ); ?></span><i aria-hidden="true"></i></a><?php endforeach; ?></div><?php
     }
 
     private static function studio_collection_panel( $collection ) {
@@ -985,9 +986,18 @@ final class Faluss_Link {
         ?><fieldset class="faluss-link-studio__palette" data-fl-color-palette="<?php echo esc_attr( $field ); ?>"><legend><?php echo esc_html( $legend ); ?></legend><input class="faluss-link-studio__native-color" name="<?php echo esc_attr( $field ); ?>" type="color" value="<?php echo esc_attr( $value ); ?>" aria-label="<?php echo esc_attr( sprintf( __( 'Couleur personnalisée : %s', 'faluss-link' ), $legend ) ); ?>"><div><?php foreach ( $swatches as $color ) : ?><button type="button" data-fl-color-field="<?php echo esc_attr( $field ); ?>" data-fl-color="<?php echo esc_attr( $color ); ?>" aria-pressed="<?php echo strtoupper( $value ) === $color ? 'true' : 'false'; ?>" aria-label="<?php echo esc_attr( sprintf( '%s %s', $legend, $color ) ); ?>" style="--fl-studio-swatch:<?php echo esc_attr( $color ); ?>"></button><?php endforeach; ?><button class="is-custom" type="button" data-fl-open-color="<?php echo esc_attr( $field ); ?>" aria-label="<?php echo esc_attr( sprintf( __( 'Choisir une couleur personnalisée : %s', 'faluss-link' ), $legend ) ); ?>">✣</button></div></fieldset><?php
     }
 
-    private static function studio_url( $args ) {
-        $base = function_exists( 'get_permalink' ) ? get_permalink() : home_url( '/' );
-        return add_query_arg( $args, $base );
+    /** Server-owned route; never derive canonical response links from admin-post context. */
+    private static function studio_collection_url( $block_id ) {
+        $block_id = strtolower( sanitize_text_field( (string) $block_id ) );
+        if ( ! self::valid_block_id( $block_id ) ) { return home_url( '/mon-faluss/' ); }
+        return add_query_arg(
+            array(
+                'faluss_studio_tab' => 'links',
+                'faluss_studio_section' => 'collection',
+                'faluss_studio_collection' => $block_id,
+            ),
+            home_url( '/mon-faluss/' )
+        );
     }
 
     public static function upload_cover() {

@@ -48,6 +48,12 @@ L’ouverture du Studio est strictement en lecture seule. Un ancien profil qui p
 
 Les interrupteurs **Afficher Disponible**, **Afficher l’avatar** et **Afficher la bordure de l’avatar** distinguent désormais leur case métier du champ caché de repli HTML. Leur valeur cochée ou décochée est envoyée par la mutation d’en-tête, puis restaurée depuis la réponse canonique sans modifier la valeur HTML de la case. La sauvegarde manuelle transmet toujours l’état de publication sous la forme `published` ou `draft`.
 
+### Navigation des Collections (FL-HOTFIX-01.2)
+
+Après la création réussie d’une collection, le Studio revient immédiatement à l’écran principal, dans **Liens > Collections**, sans collection active et sans nouvelle écriture. Le panneau canonique renvoyé par la mutation affiche donc aussitôt la collection créée.
+
+Chaque carte de collection est un véritable lien HTML vers la route membre serveur `/mon-faluss/`. Son URL porte exclusivement `faluss_studio_tab=links`, `faluss_studio_section=collection` et l’UUID exact `faluss_studio_collection` issu du flux canonique. Elle ne dépend jamais du permalien ambiant d’une requête `admin-post`; une collection absente ou invalide ramène proprement au panneau **Collections**, en lecture seule.
+
 ## Couleur du nom et future fondation de styles (FL-07)
 
 Dans **Studio Faluss > Style**, le membre choisit la couleur de son nom parmi les quatre pastilles Faluss accessibles : Rose (`#BE79FF`), Blanc (`#FFFFFF`), Noir (`#000000`, valeur par défaut) et Prune (`#82206B`). Ce choix n’affecte ni le handle, ni le statut, ni la bio, ni les liens. Une couleur explicitement renseignée dans le widget Elementor **Carte Faluss** peut la surcharger ; un contrôle Elementor laissé vide conserve la préférence membre.
