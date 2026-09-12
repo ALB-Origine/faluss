@@ -425,25 +425,21 @@ body.faluss-portal-page {
   justify-self: end;
   pointer-events: none;
 }
-.faluss-portal__hub-daily-form { margin: 0; pointer-events: auto; }
-.faluss-portal__hub-daily-button,
-.faluss-portal__hub-daily-claimed {
-  gap: 4px;
-  padding: 0;
-  border: 0;
-  color: #fff;
-  font: inherit;
-  appearance: none;
-}
-.faluss-portal__hub-daily-button {
-  cursor: pointer;
+.faluss-portal__hub-daily-form {
+  position: relative;
+  margin: 0;
   pointer-events: auto;
-  transition: transform .18s ease, background-color .18s ease, box-shadow .18s ease;
 }
-.faluss-portal__hub-daily-button:hover { background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 1px rgba(255,255,255,.42), 0 8px 20px rgba(0,0,0,.2); transform: translateY(-1px); }
-.faluss-portal__hub-daily-button:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,.42), 0 0 0 2px #fff; }
-.faluss-portal__hub-daily-button:disabled { cursor: wait; opacity: .7; transform: none; }
-.faluss-portal__hub-daily-claimed { color: rgba(255,255,255,.82); }
+.faluss-portal__hub-daily-submit {
+  all: unset;
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  cursor: pointer;
+}
+.faluss-portal__hub-daily-submit:disabled { cursor: wait; }
+.faluss-portal__hub-daily-form:focus-within .faluss-portal__app-open { box-shadow: inset 0 0 0 1px rgba(255,255,255,.42), 0 0 0 2px rgba(255,255,255,.72); }
+.faluss-portal__hub-daily-submit:focus:not(:focus-visible) + .faluss-portal__app-open { box-shadow: inset 0 0 0 1px rgba(255,255,255,.26); }
 .faluss-portal__hub-daily-badge {
   display: block;
   width: 27px;
@@ -494,7 +490,14 @@ body.faluss-portal-page {
   mix-blend-mode: screen;
 }
 .faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: visible; }
-.faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo img { justify-self: center; align-self: center; transform: scale(2.61); transform-origin: center center; }
+.faluss-portal__app-card[data-faluss-app="me"] .faluss-portal__app-logo img {
+  justify-self: center;
+  align-self: center;
+  transform: scale(2.61);
+  transform-origin: center center;
+  filter: invert(1);
+  mix-blend-mode: screen;
+}
 .faluss-portal__app-identity { display: grid; min-width: 0; align-content: center; align-self: center; gap: 2px; }
 .faluss-portal__app-name {
   color: #ffffff;

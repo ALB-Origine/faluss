@@ -504,11 +504,12 @@ final class Faluss_Portal {
             echo '<form class="faluss-portal__hub-daily-form" data-faluss-portal-hub-daily-reward method="post" action="' . esc_url( admin_url( 'admin-ajax.php' ) ) . '">';
             echo '<input type="hidden" name="action" value="' . esc_attr( self::HUB_DAILY_ACTION ) . '">';
             echo '<input type="hidden" name="faluss_portal_hub_daily_nonce" value="' . esc_attr( wp_create_nonce( self::HUB_DAILY_NONCE ) ) . '">';
-            echo '<button class="faluss-portal__app-open faluss-portal__hub-daily-button" type="submit" data-faluss-portal-hub-daily-submit aria-label="Gain quotidien : 20 Points Faluss">' . self::hub_pf_badge() . '<span class="faluss-portal__hub-daily-amount" data-faluss-portal-hub-daily-amount aria-hidden="true">20</span></button>';
+            echo '<button class="faluss-portal__hub-daily-submit" type="submit" data-faluss-portal-hub-daily-submit aria-label="Gain quotidien : 20 Points Faluss"></button>';
+            echo '<span class="faluss-portal__app-open" aria-hidden="true">' . self::hub_pf_badge() . '<span class="faluss-portal__hub-daily-amount" data-faluss-portal-hub-daily-amount>20</span></span>';
             echo '<span class="faluss-portal__hub-daily-feedback" data-faluss-portal-hub-daily-feedback role="status" hidden></span>';
             echo '</form>';
         } elseif ( 'claimed' === $status ) {
-            echo '<span class="faluss-portal__app-open faluss-portal__hub-daily-claimed" role="status" aria-label="Gain quotidien déjà reçu : 20 Points Faluss">' . self::hub_pf_badge() . '<span class="faluss-portal__hub-daily-amount" aria-hidden="true">20</span></span>';
+            echo '<span class="faluss-portal__app-open" role="status" aria-label="Gain quotidien déjà reçu : 20 Points Faluss">' . self::hub_pf_badge() . '<span class="faluss-portal__hub-daily-amount" aria-hidden="true">20</span></span>';
         } else {
             echo '<span class="faluss-portal__app-open" aria-hidden="true">' . self::external_link_icon() . '</span>';
         }

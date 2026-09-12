@@ -104,7 +104,7 @@ $render_daily->invoke( null, array( 'status' => 'claimed' ) );
 $claimed = ob_get_clean();
 ap02a_assert( false === strpos( $claimed, '<button' ) && false === strpos( $claimed, '<form' ) && false !== strpos( $claimed, 'faluss-portal__app-open' ) && false !== strpos( $claimed, '>20</span>' ), 'Claimed Hub must keep the same visual zone with no second action.' );
 
-foreach ( array( '0.1.17', '0.4.14', '0.5.2', '0.3.14' ) as $version ) {
+foreach ( array( '0.1.18', '0.4.14', '0.5.2', '0.3.14' ) as $version ) {
     ap02a_assert( false !== strpos( $portal_bootstrap . $identity_bootstrap . $client_bootstrap . $link_bootstrap, $version ), 'Every modified plugin must expose its AP-02A patch version: ' . $version );
 }
 foreach ( array( 'member_app_projection', "'publication_status' => 'published'", "home_url( '/mon-faluss' )" ) as $needle ) {

@@ -241,12 +241,13 @@
             throw new Error('hub_daily_not_claimed');
           }
           const claimed = document.createElement('span');
-          claimed.className = 'faluss-portal__app-open faluss-portal__hub-daily-claimed';
+          claimed.className = 'faluss-portal__app-open';
           claimed.setAttribute('role', 'status');
           claimed.setAttribute('aria-label', 'Gain quotidien déjà reçu : 20 Points Faluss');
-          const badge = button.querySelector('[data-faluss-portal-pf-badge]');
+          const visual = form.querySelector('.faluss-portal__app-open');
+          const badge = visual && visual.querySelector('[data-faluss-portal-pf-badge]');
           if (badge) claimed.append(badge.cloneNode(true));
-          const amount = button.querySelector('[data-faluss-portal-hub-daily-amount]');
+          const amount = visual && visual.querySelector('[data-faluss-portal-hub-daily-amount]');
           if (amount) claimed.append(amount.cloneNode(true));
           action.replaceChildren(claimed);
           action.dataset.falussPortalHubDailyState = 'claimed';
