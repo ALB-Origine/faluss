@@ -47,6 +47,35 @@ function cap01a_has_required_keys( $value, $required ) {
     return true;
 }
 
+function cap01a_collection_is_unique_by( $items, $fields ) {
+    if ( ! is_array( $items ) || ! is_array( $fields ) || empty( $fields ) ) {
+        return false;
+    }
+
+    $seen = array();
+    foreach ( $items as $item ) {
+        if ( ! is_array( $item ) ) {
+            return false;
+        }
+
+        $parts = array();
+        foreach ( $fields as $field ) {
+            if ( ! array_key_exists( $field, $item ) ) {
+                return false;
+            }
+            $parts[] = json_encode( $item[ $field ] );
+        }
+
+        $key = implode( "\x1F", $parts );
+        if ( isset( $seen[ $key ] ) ) {
+            return false;
+        }
+        $seen[ $key ] = true;
+    }
+
+    return true;
+}
+
 function cap01a_is_semver( $value ) {
     return is_string( $value ) && 1 === preg_match( '/^[1-9][0-9]*\\.[0-9]+\\.[0-9]+$/D', $value );
 }
@@ -238,6 +267,10 @@ function cap01a_manifest_is_valid( $manifest, &$error ) {
         $error = 'invalid_capabilities';
         return false;
     }
+    if ( ! cap01a_collection_is_unique_by( $manifest['capabilities'], array( 'capability_key' ) ) ) {
+        $error = 'duplicate_manifest_capability_key';
+        return false;
+    }
 
     foreach ( $manifest['capabilities'] as $capability ) {
         $required_capability = array( 'capability_key', 'interfaces', 'requested_bindings', 'read_model_contract', 'symbolic_actions', 'compatibility' );
@@ -251,6 +284,11 @@ function cap01a_manifest_is_valid( $manifest, &$error ) {
             || array_diff( $capability['interfaces'], $interfaces )
             || ! cap01a_compatibility_is_valid( $capability['compatibility'], true ) ) {
             $error = 'invalid_capability';
+            return false;
+        }
+        if ( ! cap01a_collection_is_unique_by( $capability['requested_bindings'], array( 'slot', 'interface' ) )
+            || ! cap01a_collection_is_unique_by( $capability['symbolic_actions'], array( 'action_key' ) ) ) {
+            $error = 'duplicate_manifest_capability_member';
             return false;
         }
 
@@ -330,6 +368,7 @@ function cap01a_registry_is_valid( $registry, &$error ) {
     }
 
     $interfaces = array( 'module_read_model', 'delegated_action', 'event_source', 'content_reference_source' );
+    $event_slots = array( 'analytics.events', 'quests.events', 'progression.events' );
     $slots = array(
         'portal.apps.card_action',
         'portal.analytics.dataset',
@@ -343,6 +382,10 @@ function cap01a_registry_is_valid( $registry, &$error ) {
         'quests.events',
         'progression.events',
     );
+    if ( ! cap01a_collection_is_unique_by( $registry['applications'], array( 'app_key' ) ) ) {
+        $error = 'duplicate_registry_app_key';
+        return false;
+    }
 
     foreach ( $registry['applications'] as $application ) {
         $application_fields = array( 'app_key', 'availability', 'member_relationship', 'capabilities' );
@@ -353,6 +396,10 @@ function cap01a_registry_is_valid( $registry, &$error ) {
             || ! in_array( $application['member_relationship'], array( 'active', 'inactive', 'not_linked' ), true )
             || ! is_array( $application['capabilities'] ) ) {
             $error = 'invalid_application';
+            return false;
+        }
+        if ( ! cap01a_collection_is_unique_by( $application['capabilities'], array( 'capability_key' ) ) ) {
+            $error = 'duplicate_registry_capability_key';
             return false;
         }
 
@@ -370,6 +417,11 @@ function cap01a_registry_is_valid( $registry, &$error ) {
                 || ! is_array( $capability['active_bindings'] )
                 || ! is_array( $capability['allowed_actions'] ) ) {
                 $error = 'invalid_registry_capability';
+                return false;
+            }
+            if ( ! cap01a_collection_is_unique_by( $capability['active_bindings'], array( 'slot', 'interface' ) )
+                || ! cap01a_collection_is_unique_by( $capability['allowed_actions'], array( 'action_key' ) ) ) {
+                $error = 'duplicate_registry_capability_member';
                 return false;
             }
 
@@ -408,6 +460,8 @@ function cap01a_registry_is_valid( $registry, &$error ) {
                     || ! cap01a_has_required_keys( $binding, array( 'slot', 'interface', 'binding_state' ) )
                     || ! in_array( $binding['slot'], $slots, true )
                     || ! in_array( $binding['interface'], $capability['interfaces'], true )
+                    || ( in_array( $binding['slot'], $event_slots, true ) && 'event_source' !== $binding['interface'] )
+                    || ( ! in_array( $binding['slot'], $event_slots, true ) && 'event_source' === $binding['interface'] )
                     || 'active' !== $binding['binding_state'] ) {
                     $error = 'invalid_active_binding';
                     return false;
@@ -560,6 +614,84 @@ cap01a_assert(
     && array( 'active', 'inactive', 'not_linked' ) === $registry_schema['$defs']['application']['properties']['member_relationship']['enum']
     && array( 'enabled', 'disabled', 'temporarily_unavailable', 'not_supported' ) === $registry_schema['$defs']['capability']['properties']['state']['enum'],
     'The registry must retain the closed application, relation and capability states.'
+);
+
+// No Draft 2020-12 validator is bundled. These assertions prove the JSON Schema
+// branches are structurally present; dynamic comparisons are tested separately.
+$no_active_outputs = $registry_schema['$defs']['noActiveOutputs']['properties'];
+$application_branches = $registry_schema['$defs']['application']['allOf'];
+$capability_branches = $registry_schema['$defs']['capability']['allOf'];
+cap01a_assert(
+    0 === $no_active_outputs['active_bindings']['maxItems']
+    && 0 === $no_active_outputs['allowed_actions']['maxItems']
+    && array( 'unavailable', 'retired' ) === $application_branches[0]['if']['properties']['availability']['enum']
+    && array( 'inactive', 'not_linked' ) === $application_branches[1]['if']['properties']['member_relationship']['enum']
+    && '#/$defs/noActiveOutputs' === $application_branches[0]['then']['properties']['capabilities']['items']['allOf'][1]['$ref']
+    && '#/$defs/noActiveOutputs' === $application_branches[1]['then']['properties']['capabilities']['items']['allOf'][1]['$ref'],
+    'The application schema must structurally empty outputs for unavailable/retired and inactive/not-linked applications.'
+);
+cap01a_assert(
+    array( 'disabled', 'temporarily_unavailable', 'not_supported' ) === $capability_branches[0]['if']['properties']['state']['enum']
+    && 0 === $capability_branches[0]['then']['properties']['active_bindings']['maxItems']
+    && 0 === $capability_branches[0]['then']['properties']['allowed_actions']['maxItems']
+    && array( 'unavailable', 'expired', 'not_supported' ) === $capability_branches[1]['if']['properties']['specialized_read_model']['properties']['status']['enum']
+    && 0 === $capability_branches[1]['then']['properties']['active_bindings']['maxItems']
+    && 0 === $capability_branches[1]['then']['properties']['allowed_actions']['maxItems']
+    && array( 'incompatible', 'unsupported' ) === $capability_branches[2]['if']['properties']['surface_compatibility']['properties']['status']['enum']
+    && 0 === $capability_branches[2]['then']['properties']['active_bindings']['maxItems']
+    && 0 === $capability_branches[2]['then']['properties']['allowed_actions']['maxItems'],
+    'The capability schema must structurally empty bindings and actions for every unusable state.'
+);
+foreach ( array(
+    $manifest_schema['$defs']['requestedBinding']['allOf'],
+    $registry_schema['$defs']['activeBinding']['allOf'],
+) as $binding_branches ) {
+    cap01a_assert(
+        'event_source' === $binding_branches[0]['if']['properties']['interface']['const']
+        && array( 'analytics.events', 'quests.events', 'progression.events' ) === $binding_branches[0]['then']['properties']['slot']['enum']
+        && array( 'analytics.events', 'quests.events', 'progression.events' ) === $binding_branches[1]['if']['properties']['slot']['enum']
+        && 'event_source' === $binding_branches[1]['then']['properties']['interface']['const'],
+        'The schema must reserve event consumers for event_source and forbid event_source on surface slots.'
+    );
+}
+cap01a_assert(
+    'module_read_model' === $manifest_schema['$defs']['capability']['allOf'][0]['if']['properties']['interfaces']['contains']['const']
+    && 'object' === $manifest_schema['$defs']['capability']['allOf'][0]['then']['properties']['read_model_contract']['type']
+    && 'delegated_action' === $manifest_schema['$defs']['capability']['allOf'][1]['then']['properties']['interfaces']['contains']['const'],
+    'The manifest schema must require a typed read-model and delegated interface when those structures are declared.'
+);
+foreach ( array( $manifest_schema['x-semantic-invariants'], $registry_schema['x-semantic-invariants'] ) as $semantic_invariants ) {
+    cap01a_assert(
+        true === $semantic_invariants['server_validation_required']
+        && 'reject' === $semantic_invariants['on_violation'],
+        'Every dynamic CAP-01A.1 semantic invariant must require fail-closed server validation.'
+    );
+}
+foreach ( array(
+    'capability_key_unique',
+    'requested_binding_slot_interface_unique',
+    'symbolic_action_key_unique',
+    'capability_namespace_ownership',
+    'binding_interface_declared_by_capability',
+) as $invariant ) {
+    cap01a_assert( isset( $manifest_schema['x-semantic-invariants']['manifest'][ $invariant ] ), 'The manifest semantic invariant is missing: ' . $invariant );
+}
+foreach ( array(
+    'app_key_unique',
+    'capability_key_unique',
+    'active_binding_slot_interface_unique',
+    'allowed_action_key_unique',
+    'capability_namespace_ownership',
+    'active_binding_interface_declared_by_capability',
+    'specialized_read_model_source_owner_match',
+    'allowed_action_owner_match',
+) as $invariant ) {
+    cap01a_assert( isset( $registry_schema['x-semantic-invariants']['registry'][ $invariant ] ), 'The registry semantic invariant is missing: ' . $invariant );
+}
+cap01a_assert(
+    false === strpos( json_encode( $manifest_schema ), '"$data"' )
+    && false === strpos( json_encode( $registry_schema ), '"$data"' ),
+    'CAP-01A.1 must not introduce a non-standard data-reference validator extension.'
 );
 
 $expected_scope = array(
@@ -729,6 +861,133 @@ $browser_decision = $hub_registry;
 $browser_decision['applications'][0]['capabilities'][0]['browser_eligibility'] = 'enabled';
 cap01a_assert( ! cap01a_registry_is_valid( $browser_decision, $error ), 'A browser must not supply an eligibility or activation decision.' );
 
+// The structural branches above are inspected separately. These documents
+// exercise the corresponding fail-closed server validation.
+$unavailable_with_binding = $hub_registry;
+$unavailable_with_binding['applications'][0]['availability'] = 'unavailable';
+cap01a_assert( ! cap01a_registry_is_valid( $unavailable_with_binding, $error ), 'An unavailable application must reject an active binding.' );
+
+$retired_with_action = $hub_registry;
+$retired_with_action['applications'][0]['availability'] = 'retired';
+$retired_with_action['applications'][0]['capabilities'][0]['active_bindings'] = array();
+cap01a_assert( ! cap01a_registry_is_valid( $retired_with_action, $error ), 'A retired application must reject an allowed action.' );
+
+$inactive_with_binding = $hub_registry;
+$inactive_with_binding['applications'][0]['member_relationship'] = 'inactive';
+$inactive_with_binding['applications'][0]['capabilities'][0]['allowed_actions'] = array();
+cap01a_assert( ! cap01a_registry_is_valid( $inactive_with_binding, $error ), 'An inactive member relation must reject an active binding.' );
+
+$not_linked_with_action = $hub_registry;
+$not_linked_with_action['applications'][0]['member_relationship'] = 'not_linked';
+$not_linked_with_action['applications'][0]['capabilities'][0]['active_bindings'] = array();
+cap01a_assert( ! cap01a_registry_is_valid( $not_linked_with_action, $error ), 'A not-linked member relation must reject an allowed action.' );
+
+$expired_with_action = $hub_registry;
+$expired_with_action['applications'][0]['capabilities'][0]['specialized_read_model']['status'] = 'expired';
+$expired_with_action['applications'][0]['capabilities'][0]['active_bindings'] = array();
+cap01a_assert( ! cap01a_registry_is_valid( $expired_with_action, $error ), 'An expired specialized read-model must reject an allowed action.' );
+
+$unavailable_with_action = $hub_registry;
+$unavailable_with_action['applications'][0]['capabilities'][0]['specialized_read_model']['status'] = 'unavailable';
+$unavailable_with_action['applications'][0]['capabilities'][0]['active_bindings'] = array();
+cap01a_assert( ! cap01a_registry_is_valid( $unavailable_with_action, $error ), 'An unavailable specialized read-model must reject an allowed action.' );
+
+$incompatible_with_action = $hub_registry;
+$incompatible_with_action['applications'][0]['capabilities'][0]['surface_compatibility']['status'] = 'incompatible';
+$incompatible_with_action['applications'][0]['capabilities'][0]['active_bindings'] = array();
+cap01a_assert( ! cap01a_registry_is_valid( $incompatible_with_action, $error ), 'An incompatible surface must reject an allowed action.' );
+
+$event_source_surface_slot = $multi_capability;
+$event_source_surface_slot['applications'][0]['capabilities'][1]['active_bindings'][0]['slot'] = 'me.public.tab';
+cap01a_assert( ! cap01a_registry_is_valid( $event_source_surface_slot, $error ), 'An event source must not target a surface slot.' );
+
+$read_model_event_slot = $me_active_registry;
+$read_model_event_slot['applications'][0]['capabilities'][0]['active_bindings'][0]['slot'] = 'analytics.events';
+cap01a_assert( ! cap01a_registry_is_valid( $read_model_event_slot, $error ), 'A module read-model must not target an event consumer.' );
+
+$undeclared_binding_interface = $hub_registry;
+$undeclared_binding_interface['applications'][0]['capabilities'][0]['active_bindings'][0]['interface'] = 'module_read_model';
+cap01a_assert( ! cap01a_registry_is_valid( $undeclared_binding_interface, $error ), 'A binding interface absent from its capability must be rejected semantically.' );
+
+$duplicate_app_key = $hub_registry;
+$duplicate_application = $duplicate_app_key['applications'][0];
+$duplicate_application['capabilities'][0]['capability_key'] = 'hub.secondary';
+$duplicate_app_key['applications'][] = $duplicate_application;
+cap01a_assert( ! cap01a_registry_is_valid( $duplicate_app_key, $error ), 'Two applications with the same app_key must be rejected semantically.' );
+
+$duplicate_manifest_capability_key = $hub_manifest;
+$duplicate_manifest_capability = $duplicate_manifest_capability_key['capabilities'][0];
+$duplicate_manifest_capability['requested_bindings'] = array();
+$duplicate_manifest_capability_key['capabilities'][] = $duplicate_manifest_capability;
+cap01a_assert( ! cap01a_manifest_is_valid( $duplicate_manifest_capability_key, $error ), 'Two different manifest capabilities with the same capability_key must be rejected semantically.' );
+
+$duplicate_registry_capability_key = $hub_registry;
+$duplicate_registry_capability = $duplicate_registry_capability_key['applications'][0]['capabilities'][0];
+$duplicate_registry_capability['active_bindings'] = array();
+$duplicate_registry_capability_key['applications'][0]['capabilities'][] = $duplicate_registry_capability;
+cap01a_assert( ! cap01a_registry_is_valid( $duplicate_registry_capability_key, $error ), 'Two different read-model capabilities with the same capability_key must be rejected semantically.' );
+
+$duplicate_binding_pair = $hub_registry;
+$duplicate_binding_pair['applications'][0]['capabilities'][0]['active_bindings'][] = $duplicate_binding_pair['applications'][0]['capabilities'][0]['active_bindings'][0];
+cap01a_assert( ! cap01a_registry_is_valid( $duplicate_binding_pair, $error ), 'Two bindings sharing the same slot/interface pair must be rejected semantically.' );
+cap01a_assert(
+    ! cap01a_collection_is_unique_by(
+        array(
+            array( 'slot' => 'portal.apps.card_action', 'interface' => 'delegated_action', 'non_key_variant' => 'first' ),
+            array( 'slot' => 'portal.apps.card_action', 'interface' => 'delegated_action', 'non_key_variant' => 'second' ),
+        ),
+        array( 'slot', 'interface' )
+    ),
+    'Semantic binding-pair uniqueness must reject different records sharing the same business pair.'
+);
+
+$duplicate_symbolic_action_key = $hub_manifest;
+$duplicate_symbolic_action = $duplicate_symbolic_action_key['capabilities'][0]['symbolic_actions'][0];
+$duplicate_symbolic_action_key['capabilities'][0]['symbolic_actions'][] = $duplicate_symbolic_action;
+cap01a_assert( ! cap01a_manifest_is_valid( $duplicate_symbolic_action_key, $error ), 'Two symbolic actions with the same action_key must be rejected semantically.' );
+
+$duplicate_allowed_action_key = $hub_registry;
+$duplicate_allowed_action = $duplicate_allowed_action_key['applications'][0]['capabilities'][0]['allowed_actions'][0];
+$duplicate_allowed_action['delegation']['target'] = 'hub.other_daily_reward';
+$duplicate_allowed_action_key['applications'][0]['capabilities'][0]['allowed_actions'][] = $duplicate_allowed_action;
+cap01a_assert( ! cap01a_registry_is_valid( $duplicate_allowed_action_key, $error ), 'Two distinct allowed actions with the same action_key must be rejected semantically.' );
+
+$manifest_event_source_surface_slot = $hub_manifest;
+$manifest_event_source_surface_slot['capabilities'][0]['interfaces'] = array( 'event_source' );
+$manifest_event_source_surface_slot['capabilities'][0]['requested_bindings'][0] = array( 'interface' => 'event_source', 'slot' => 'me.public.tab' );
+$manifest_event_source_surface_slot['capabilities'][0]['symbolic_actions'] = array();
+cap01a_assert( ! cap01a_manifest_is_valid( $manifest_event_source_surface_slot, $error ), 'A requested event source must not target a surface slot.' );
+
+$manifest_read_model_event_slot = $hub_manifest;
+$manifest_read_model_event_slot['capabilities'][0]['interfaces'] = array( 'module_read_model' );
+$manifest_read_model_event_slot['capabilities'][0]['requested_bindings'][0] = array( 'interface' => 'module_read_model', 'slot' => 'analytics.events' );
+$manifest_read_model_event_slot['capabilities'][0]['read_model_contract'] = array( 'document_type' => 'hub.module', 'contract_version' => '1.0.0' );
+$manifest_read_model_event_slot['capabilities'][0]['symbolic_actions'] = array();
+cap01a_assert( ! cap01a_manifest_is_valid( $manifest_read_model_event_slot, $error ), 'A requested module read-model must not target an event consumer.' );
+
+$manifest_undeclared_binding_interface = $hub_manifest;
+$manifest_undeclared_binding_interface['capabilities'][0]['requested_bindings'][0]['interface'] = 'module_read_model';
+cap01a_assert( ! cap01a_manifest_is_valid( $manifest_undeclared_binding_interface, $error ), 'A requested binding interface absent from its capability must be rejected semantically.' );
+
+$missing_typed_read_model = $hub_manifest;
+$missing_typed_read_model['capabilities'][0]['interfaces'] = array( 'module_read_model' );
+$missing_typed_read_model['capabilities'][0]['requested_bindings'][0] = array( 'interface' => 'module_read_model', 'slot' => 'me.public.tab' );
+$missing_typed_read_model['capabilities'][0]['symbolic_actions'] = array();
+cap01a_assert( ! cap01a_manifest_is_valid( $missing_typed_read_model, $error ), 'A module_read_model interface must require a typed read-model contract.' );
+
+$symbolic_action_without_interface = $hub_manifest;
+$symbolic_action_without_interface['capabilities'][0]['interfaces'] = array( 'content_reference_source' );
+$symbolic_action_without_interface['capabilities'][0]['requested_bindings'][0] = array( 'interface' => 'content_reference_source', 'slot' => 'me.studio.block_source' );
+cap01a_assert( ! cap01a_manifest_is_valid( $symbolic_action_without_interface, $error ), 'A symbolic action must require the delegated_action interface.' );
+
+$source_owner_mismatch = $hub_registry;
+$source_owner_mismatch['applications'][0]['capabilities'][0]['specialized_read_model']['source']['engine'] = 'faluss-other';
+cap01a_assert( ! cap01a_registry_is_valid( $source_owner_mismatch, $error ), 'A specialized read-model source must match the capability owner.' );
+
+$allowed_action_owner_mismatch = $hub_registry;
+$allowed_action_owner_mismatch['applications'][0]['capabilities'][0]['allowed_actions'][0]['owner'] = 'faluss-other';
+cap01a_assert( ! cap01a_registry_is_valid( $allowed_action_owner_mismatch, $error ), 'An allowed action must match the capability owner.' );
+
 foreach ( array(
     'faluss-apps-registry',
     'apps.registry',
@@ -743,6 +1002,9 @@ foreach ( array(
     'FED-01',
     'CAP-01B',
     'DR-02A.2',
+    'CAP-01A.1',
+    'x-semantic-invariants',
+    'validateur JSON Schema Draft 2020-12',
 ) as $needle ) {
     cap01a_assert( false !== strpos( $contract, $needle ), 'The CAP-01A contract is missing a required boundary: ' . $needle );
 }

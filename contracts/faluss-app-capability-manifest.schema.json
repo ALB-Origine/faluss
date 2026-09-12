@@ -140,7 +140,37 @@
         "slot": {
           "$ref": "#/$defs/slot"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "interface": { "const": "event_source" } },
+            "required": ["interface"]
+          },
+          "then": {
+            "properties": {
+              "slot": {
+                "enum": ["analytics.events", "quests.events", "progression.events"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "slot": {
+                "enum": ["analytics.events", "quests.events", "progression.events"]
+              }
+            },
+            "required": ["slot"]
+          },
+          "then": {
+            "properties": {
+              "interface": { "const": "event_source" }
+            }
+          }
+        }
+      ]
     },
     "readModelContract": {
       "oneOf": [
@@ -297,6 +327,68 @@
         "compatibility": {
           "$ref": "#/$defs/compatibility"
         }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "interfaces": {
+                "contains": { "const": "module_read_model" }
+              }
+            },
+            "required": ["interfaces"]
+          },
+          "then": {
+            "properties": {
+              "read_model_contract": { "type": "object" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "symbolic_actions": { "minItems": 1 }
+            },
+            "required": ["symbolic_actions"]
+          },
+          "then": {
+            "properties": {
+              "interfaces": {
+                "contains": { "const": "delegated_action" }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "x-semantic-invariants": {
+    "server_validation_required": true,
+    "on_violation": "reject",
+    "manifest": {
+      "capability_key_unique": {
+        "collection": "capabilities",
+        "unique_by": ["capability_key"]
+      },
+      "requested_binding_slot_interface_unique": {
+        "collection": "capabilities[].requested_bindings",
+        "unique_by": ["slot", "interface"]
+      },
+      "symbolic_action_key_unique": {
+        "collection": "capabilities[].symbolic_actions",
+        "unique_by": ["action_key"]
+      },
+      "capability_namespace_ownership": {
+        "collection": "capabilities",
+        "capability_key_prefix": "capability_namespace + '.'"
+      },
+      "binding_interface_declared_by_capability": {
+        "collection": "capabilities[].requested_bindings",
+        "must_be_member_of": "capabilities[].interfaces"
+      },
+      "symbolic_action_namespace_ownership": {
+        "collection": "capabilities[].symbolic_actions",
+        "action_key_prefix": "capability_namespace + '.'"
       }
     }
   },

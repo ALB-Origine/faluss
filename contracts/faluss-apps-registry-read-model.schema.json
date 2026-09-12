@@ -167,7 +167,37 @@
         "slot": { "$ref": "#/$defs/slot" },
         "interface": { "$ref": "#/$defs/interface" },
         "binding_state": { "const": "active" }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "interface": { "const": "event_source" } },
+            "required": ["interface"]
+          },
+          "then": {
+            "properties": {
+              "slot": {
+                "enum": ["analytics.events", "quests.events", "progression.events"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "slot": {
+                "enum": ["analytics.events", "quests.events", "progression.events"]
+              }
+            },
+            "required": ["slot"]
+          },
+          "then": {
+            "properties": {
+              "interface": { "const": "event_source" }
+            }
+          }
+        }
+      ]
     },
     "allowedAction": {
       "type": "object",
@@ -247,7 +277,10 @@
             "required": ["specialized_read_model"]
           },
           "then": {
-            "properties": { "active_bindings": { "maxItems": 0 } }
+            "properties": {
+              "active_bindings": { "maxItems": 0 },
+              "allowed_actions": { "maxItems": 0 }
+            }
           }
         },
         {
@@ -256,7 +289,10 @@
             "required": ["surface_compatibility"]
           },
           "then": {
-            "properties": { "active_bindings": { "maxItems": 0 } }
+            "properties": {
+              "active_bindings": { "maxItems": 0 },
+              "allowed_actions": { "maxItems": 0 }
+            }
           }
         }
       ]
@@ -275,6 +311,95 @@
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/capability" }
         }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "availability": { "enum": ["unavailable", "retired"] }
+            },
+            "required": ["availability"]
+          },
+          "then": {
+            "properties": {
+              "capabilities": {
+                "items": {
+                  "allOf": [
+                    { "$ref": "#/$defs/capability" },
+                    { "$ref": "#/$defs/noActiveOutputs" }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "member_relationship": { "enum": ["inactive", "not_linked"] }
+            },
+            "required": ["member_relationship"]
+          },
+          "then": {
+            "properties": {
+              "capabilities": {
+                "items": {
+                  "allOf": [
+                    { "$ref": "#/$defs/capability" },
+                    { "$ref": "#/$defs/noActiveOutputs" }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "noActiveOutputs": {
+      "type": "object",
+      "properties": {
+        "active_bindings": { "maxItems": 0 },
+        "allowed_actions": { "maxItems": 0 }
+      }
+    }
+  },
+  "x-semantic-invariants": {
+    "server_validation_required": true,
+    "on_violation": "reject",
+    "registry": {
+      "app_key_unique": {
+        "collection": "applications",
+        "unique_by": ["app_key"]
+      },
+      "capability_key_unique": {
+        "collection": "applications[].capabilities",
+        "unique_by": ["capability_key"]
+      },
+      "active_binding_slot_interface_unique": {
+        "collection": "applications[].capabilities[].active_bindings",
+        "unique_by": ["slot", "interface"]
+      },
+      "allowed_action_key_unique": {
+        "collection": "applications[].capabilities[].allowed_actions",
+        "unique_by": ["action_key"]
+      },
+      "capability_namespace_ownership": {
+        "collection": "applications[].capabilities",
+        "capability_key_prefix": "application.app_key + '.'"
+      },
+      "active_binding_interface_declared_by_capability": {
+        "collection": "applications[].capabilities[].active_bindings",
+        "must_be_member_of": "application.capabilities[].interfaces"
+      },
+      "specialized_read_model_source_owner_match": {
+        "collection": "applications[].capabilities",
+        "left": "specialized_read_model.source.engine",
+        "equals": "owner"
+      },
+      "allowed_action_owner_match": {
+        "collection": "applications[].capabilities[].allowed_actions",
+        "left": "owner",
+        "equals": "capability.owner"
       }
     }
   }

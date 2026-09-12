@@ -121,6 +121,43 @@ capacité désactivée peut rester déclarée comme état, mais conserve des lis
 vides de bindings et d'actions. Lorsqu'une capacité disparaît ou est révoquée,
 le module est simplement omis sans mutation des données sources.
 
+### Alignement JSON Schema CAP-01A.1
+
+Les deux schémas Draft 2020-12 imposent directement les fermetures
+structurelles suivantes :
+
+- une application unavailable ou retired, ou dont la relation membre est
+  inactive ou not_linked, impose des listes vides de active_bindings et
+  allowed_actions pour chacune de ses capacités ;
+- une capacité disabled, temporarily_unavailable ou not_supported, un
+  read-model spécialisé unavailable, expired ou not_supported, ou une
+  compatibilité incompatible ou unsupported, impose ces deux listes vides ;
+- event_source ne peut viser que analytics.events, quests.events ou
+  progression.events, et ces trois consommateurs n'acceptent aucune autre
+  interface ;
+- une capacité de manifeste portant module_read_model exige un contrat de
+  read-model typé ; une action symbolique exige l'interface delegated_action.
+
+Les deux schémas déclarent aussi x-semantic-invariants avec
+server_validation_required: true et on_violation: reject. Cette extension
+descriptive, sans exécutable ni validation propriétaire, impose au serveur un
+refus fermé pour les comparaisons entre valeurs dynamiques : appartenance d'une
+interface de binding aux interfaces de sa capacité, préfixes de namespace,
+cohérence propriétaire/source, cohérence propriétaire/action et unicité
+sémantique.
+
+Les clés métier suivantes sont uniques dans leur collection : app_key dans un
+document apps.registry, capability_key dans un manifeste et dans chaque
+application du read-model, la paire (slot, interface) dans les bindings d'une
+capacité, et action_key dans ses actions symboliques ou autorisées. Une
+collision n'a ni premier ni dernier gagnant : elle échoue fermée, sans fusion ni
+écrasement.
+
+Le dépôt ne fournit pas de validateur JSON Schema Draft 2020-12. Le test
+CAP-01A.1 vérifie donc structurellement les branches if/then ajoutées, puis
+vérifie séparément les invariants sémantiques côté serveur. Le helper PHP n'est
+pas présenté comme une preuve d'exécution d'un validateur JSON Schema standard.
+
 ## Interfaces et emplacements v1
 
 Une capacité peut déclarer une ou plusieurs interfaces parmi cette liste fermée :
@@ -240,3 +277,7 @@ de plugin, aucun asset, ZIP, table, colonne, migration, option, route
 REST/AJAX/admin-post, shortcode, widget, cron, hook runtime, écran ou
 modification UI Portal, Faluss Me ou Master Profile. Il ne produit aucune
 recette WordPress car rien n'est installable.
+
+CAP-01A.1 aligne exclusivement les deux schémas, le présent contrat et le test
+CAP-01A : aucun autre fichier, état, interface, emplacement, valeur métier ou
+étape de roadmap n'est modifié.
