@@ -423,6 +423,95 @@ final class Faluss_Identity_Public_Profile {
         return self::save_profile( $faluss_id, $post, $files );
     }
 
+    /**
+     * Locks and returns the Identity-owned Studio row inside a transaction
+     * already opened by Faluss Link. This primitive never starts, commits or
+     * rolls back a transaction.
+     *
+     * @return array<string,mixed>|false
+     */
+    public static function lock_studio_profile_in_transaction( $faluss_id ) {
+        global $wpdb;
+        $table = Faluss_Identity_Schema::get_public_profiles_table();
+        if ( '' === $table || ! Faluss_Identity_Registry::is_valid_faluss_id( $faluss_id ) || ! self::schema_ready() ) {
+            return false;
+        }
+        $row = $wpdb->get_row( $wpdb->prepare( 'SELECT faluss_id,public_slug,display_name,bio,avatar_attachment_id,publication_status,external_links,published_at FROM ' . self::quote_identifier( $table ) . ' WHERE faluss_id=%s FOR UPDATE', $faluss_id ), ARRAY_A );
+        return is_array( $row ) ? $row : false;
+    }
+
+    /**
+     * Validates and persists only Identity's public-link projection while the
+     * caller owns the surrounding transaction.
+     */
+    public static function persist_external_links_in_transaction( $faluss_id, $links ) {
+        global $wpdb;
+        $table = Faluss_Identity_Schema::get_public_profiles_table();
+        $links = self::sanitize_links( is_array( $links ) ? $links : array() );
+        if ( '' === $table || null === $links || ! Faluss_Identity_Registry::is_valid_faluss_id( $faluss_id ) || ! self::schema_ready() ) {
+            return false;
+        }
+        return false !== $wpdb->update(
+            $table,
+            array( 'external_links' => wp_json_encode( $links ), 'updated_at' => current_time( 'mysql', true ) ),
+            array( 'faluss_id' => $faluss_id ),
+            array( '%s', '%s' ),
+            array( '%s' )
+        );
+    }
+
+    /**
+     * Persists only the closed profile fields supplied by Faluss Link. The
+     * surrounding aggregate transaction is owned by the caller.
+     */
+    public static function persist_studio_profile_in_transaction( $faluss_id, $fields ) {
+        global $wpdb;
+        $allowed = array( 'display_name', 'bio', 'avatar_attachment_id', 'publication_status' );
+        if ( ! is_array( $fields ) || ! $fields || array_diff( array_keys( $fields ), $allowed ) ) {
+            return false;
+        }
+        $row = self::lock_studio_profile_in_transaction( $faluss_id );
+        $table = Faluss_Identity_Schema::get_public_profiles_table();
+        if ( false === $row || '' === $table ) {
+            return false;
+        }
+
+        $values = array();
+        $formats = array();
+        if ( array_key_exists( 'display_name', $fields ) ) {
+            $name = self::limit_text( sanitize_text_field( wp_unslash( (string) $fields['display_name'] ) ), 80 );
+            if ( '' === $name ) { return false; }
+            $values['display_name'] = $name;
+            $formats[] = '%s';
+        }
+        if ( array_key_exists( 'bio', $fields ) ) {
+            $values['bio'] = self::limit_text( sanitize_textarea_field( wp_unslash( (string) $fields['bio'] ) ), 280 );
+            $formats[] = '%s';
+        }
+        if ( array_key_exists( 'avatar_attachment_id', $fields ) ) {
+            $attachment_id = absint( $fields['avatar_attachment_id'] );
+            if ( $attachment_id ) {
+                $attachment = get_post( $attachment_id );
+                if ( ! $attachment instanceof WP_Post || (int) $attachment->post_author !== (int) get_current_user_id() || ! wp_attachment_is_image( $attachment_id ) ) {
+                    return false;
+                }
+            }
+            $values['avatar_attachment_id'] = $attachment_id;
+            $formats[] = '%d';
+        }
+        if ( array_key_exists( 'publication_status', $fields ) ) {
+            $status = sanitize_key( (string) $fields['publication_status'] );
+            if ( ! in_array( $status, array( 'draft', 'published' ), true ) ) { return false; }
+            $values['publication_status'] = $status;
+            $formats[] = '%s';
+            $values['published_at'] = 'published' === $status ? ( 'published' === ( $row['publication_status'] ?? '' ) && ! empty( $row['published_at'] ) ? $row['published_at'] : current_time( 'mysql', true ) ) : null;
+            $formats[] = '%s';
+        }
+        $values['updated_at'] = current_time( 'mysql', true );
+        $formats[] = '%s';
+        return false !== $wpdb->update( $table, $values, array( 'faluss_id' => $faluss_id ), $formats, array( '%s' ) );
+    }
+
     /** @return string */
     public static function render_public_profile( $slug ) {
         self::enqueue_style();

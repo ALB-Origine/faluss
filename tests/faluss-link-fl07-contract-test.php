@@ -17,5 +17,5 @@ fl07_assert( false === strpos( $card, 'faluss-link-card__handle{color:var(--fl-n
 foreach ( array( "[name=\"name_color\"]:checked", "setProperty('--fl-name-color', nameColor)" ) as $needle ) { fl07_assert( false !== strpos( $editor, $needle ), 'Studio preview does not update the name color live: ' . $needle ); }
 foreach ( array( "add_control( 'name_color'", "'{{WRAPPER}} .faluss-link-card__name' => '--fl-name-color:{{VALUE}} !important;'" ) as $needle ) { fl07_assert( false !== strpos( $widgets, $needle ), 'An explicit Elementor name color cannot override the member preference: ' . $needle ); }
 fl07_assert( false === strpos( $widgets, "'name_color', array( 'label' => 'Couleur du nom', 'default'" ), 'An empty Elementor name-color control must not overwrite the member preference.' );
-foreach ( array( 'thème sélectionné, préférences du membre, puis tokens Faluss Theme', 'aucun thème n’est sélectionnable' ) as $needle ) { fl07_assert( false !== strpos( $docs, $needle ), 'Future card-style priority is not documented: ' . $needle ); }
+foreach ( array( 'thème sélectionné, préférences explicitement modifiées par le membre, puis tokens Faluss Theme', 'même sélecteur borné' ) as $needle ) { fl07_assert( false !== strpos( $docs, $needle ), 'Current card-style priority is not documented: ' . $needle ); }
 echo "FL-07 contract: OK\n";

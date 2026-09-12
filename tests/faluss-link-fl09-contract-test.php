@@ -65,9 +65,10 @@ fl09_assert( array_column( $blocks, 'block_id' ) === array_column( $stored['bloc
 fl09_assert( $blocks === $stored['blocks'], 'Stored blocks must preserve the complete normalized payload of all four types.' );
 $reordered = $normalise->invoke( null, array( $source[3], $source[0], $source[2] ) );
 fl09_assert( array( $source[3]['block_id'], $source[0]['block_id'], $source[2]['block_id'] ) === array_column( $reordered, 'block_id' ), 'Reordering or deleting blocks retains remaining IDs without duplication.' );
+$before_legacy_save = $wpdb->rows;
 $saved = ( new ReflectionMethod( 'Faluss_Link', 'save_blocks' ) )->invoke( null, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', $reordered );
 $after_save = ( new ReflectionMethod( 'Faluss_Link', 'stored_blocks' ) )->invoke( null, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' );
-fl09_assert( $saved && array_column( $reordered, 'block_id' ) === array_column( $after_save['blocks'], 'block_id' ) && 3 === count( $after_save['blocks'] ), 'Saving a modified, deleted, and reordered composition must update the same public blocks without duplicates.' );
+fl09_assert( $saved && $before_legacy_save === $wpdb->rows && $blocks === $after_save['blocks'], 'A legacy full-block payload cannot replace, delete, or reorder an existing canonical stream.' );
 $markup = ( new ReflectionMethod( 'Faluss_Link', 'public_blocks_markup' ) )->invoke( null, $stored['blocks'] );
 foreach ( array( 'faluss-link-card__section-title', 'faluss-link-card__content-text', 'faluss-link-card__link', 'faluss-link-card__media-teaser', 'rel="noopener noreferrer nofollow"' ) as $needle ) { fl09_assert( false !== strpos( $markup, $needle ), 'Public normalized block rendering is incomplete: ' . $needle ); }
 fl09_assert( false === strpos( $link, 'premium_lock' ) && false === strpos( $link, 'paywall' ) && false === strpos( $link, 'checkout' ), 'FL-09 must not implement premium, payment, or access mechanics.' );

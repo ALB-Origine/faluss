@@ -41,17 +41,19 @@ studio_v1_assert( false !== strpos( $link, "wp_verify_nonce" ) && false !== strp
 
 foreach ( array(
     "window.fetch(form.attr('action')",
-    'new FormData(form[0])',
+    'new FormData()',
+    "data.append('mutation', task.mutation)",
+    "data.append('aggregate_version'",
     'credentials: \'same-origin\'',
-    'function insertStoredLink',
-    'function insertStoredCollection',
-    'function syncLinkCard',
-    'function saveStudio',
-    "studio.find('[data-fl-link-card]').not(cardNode)",
+    'function enqueueStudioMutation',
+    'function hydrateCanonicalBlocks',
+    'collections_html',
+    'preview_html',
     'safeURL(url)',
 ) as $needle ) {
     studio_v1_assert( false !== strpos( $editor, $needle ), 'Studio mutation or single-card interaction is incomplete: ' . $needle );
 }
+studio_v1_assert( false === strpos( $editor, 'new FormData(form[0])' ) && false === strpos( $editor, 'function saveStudio' ), 'Studio must never post the complete browser form.' );
 
 studio_v1_assert( false === strpos( $editor, 'stopPropagation' ), 'Studio must not capture unrelated clicks.' );
 studio_v1_assert( false === strpos( $editor, 'localStorage' ) && false === strpos( $editor, 'sessionStorage' ), 'Studio state must remain server-canonical.' );

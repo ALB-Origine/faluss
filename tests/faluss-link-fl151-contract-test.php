@@ -64,9 +64,10 @@ $root = dirname( __DIR__ );
 $link = file_get_contents( $root . '/plugins/faluss-link/includes/class-faluss-link.php' );
 $editor = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
 $widgets = file_get_contents( $root . '/plugins/faluss-link/includes/class-faluss-link-widgets.php' );
-foreach ( array( 'resolve_card_presentation', 'get_active_theme', 'migrate_deactivated_theme_references', 'migrate_inactive_catalog_theme_references', 'faluss_catalog_theme_deactivated' ) as $needle ) {
+foreach ( array( 'resolve_card_presentation', 'get_active_theme', 'migrate_deactivated_theme_references', 'migrate_inactive_catalog_theme_references' ) as $needle ) {
     fl151_assert( false !== strpos( $link, $needle ), 'FL-15.1 must use a single active theme resolver and targeted migration: ' . $needle );
 }
+fl151_assert( false === strpos( $link, "add_action( 'faluss_catalog_theme_deactivated'" ) && false === strpos( $link, "add_action( 'admin_init', array( __CLASS__, 'migrate_inactive_catalog_theme_references'" ), 'Opening the Studio, admin, or deactivating a theme must not mutate member rows implicitly.' );
 fl151_assert( false === strpos( $editor, "selected !== 'faluss-default'" ) && false !== strpos( $editor, 'setThemeOverrides(studio, [])' ), 'The default theme must reset old overrides and accept later member overrides.' );
 fl151_assert( false !== strpos( $widgets, '--fl-name-color:{{VALUE}} !important;' ), 'Explicit Elementor name color must retain local final priority.' );
 

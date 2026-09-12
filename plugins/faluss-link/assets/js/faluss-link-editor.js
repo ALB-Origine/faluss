@@ -444,11 +444,13 @@
             if (!response || !response.success) { return; }
             root.find('.faluss-link-editor__cover-id').val(response.data.id);
             root.find('.faluss-link-editor__cover-preview').empty().append($('<img>', { src: response.data.url, alt: '' }));
+            root.find('.faluss-link-editor__remove-cover').prop('hidden', false);
             if (studio.length) {
                 var preview = card(studio);
                 preview.find('.faluss-link-card__cover').empty().append($('<img>', { src: response.data.url, alt: '' })).prop('hidden', false);
                 preview.removeClass('faluss-link-card--cover-no').addClass('faluss-link-card--cover-yes');
                 update(studio);
+                enqueueStudioMutation(studio, 'save_appearance', { cover_attachment_id: response.data.id }, { key: 'appearance:cover_attachment_id' });
             }
         }).always(function () { root.removeClass('is-uploading'); });
     }
@@ -465,6 +467,20 @@
             block.find('.faluss-link-content-block__media-preview').empty().append($('<img>', { src: response.data.url, alt: '' }));
             update(studio);
         }).always(function () { block.removeClass('is-uploading'); });
+    }
+    function uploadStudioAvatar(studio, file) {
+        if (!file || !/^image\//.test(file.type || '') || !window.falussLinkCover || !falussLinkCover.avatarNonce) { return; }
+        var data = new FormData();
+        data.append('action', 'faluss_link_upload_avatar'); data.append('nonce', falussLinkCover.avatarNonce); data.append('avatar', file);
+        studio.addClass('is-uploading');
+        $.ajax({ url: falussLinkCover.url, type: 'POST', data: data, contentType: false, processData: false }).done(function (response) {
+            if (!response || !response.success || !response.data || !response.data.id) { showStatus(studio, 'L’avatar n’a pas pu être envoyé.', true); return; }
+            studio.find('[name="faluss_identity_avatar_id"]').val(response.data.id);
+            card(studio).find('.faluss-link-card__avatar').empty().append($('<img>', { src: response.data.url, alt: '' }));
+            studio.find('.faluss-link-studio__avatar').empty().append($('<img>', { src: response.data.url, alt: '' }));
+            update(studio);
+            enqueueStudioMutation(studio, 'save_profile', { avatar_attachment_id: response.data.id }, { key: 'profile:avatar_attachment_id' });
+        }).fail(function () { showStatus(studio, 'L’avatar n’a pas pu être envoyé.', true); }).always(function () { studio.removeClass('is-uploading'); });
     }
 
     function storedBlocks(studio) { return studio.find('[data-fl-block-store] [data-fl-stored-block]'); }
@@ -483,20 +499,64 @@
         Object.keys(values || {}).forEach(function (key) { if (key !== 'block_id' && key !== 'type') { setStoredField(block, key, values[key]); } });
         return block;
     }
-    function hydrateCanonicalBlocks(studio, payload) {
-        var blocks = payload && Array.isArray(payload.blocks) ? payload.blocks : null;
+    function hydrateCanonicalBlocks(studio, state) {
+        var blocks = state && Array.isArray(state.blocks) ? state.blocks : null;
         if (!blocks) { return false; }
         var store = studio.find('[data-fl-block-store]').empty();
         blocks.forEach(function (block) {
             if (!block || typeof block.block_id !== 'string' || typeof block.type !== 'string') { return; }
             store.append(makeStoredBlock(block.type, block));
         });
-        if (typeof payload.links_html === 'string') {
-            studio.find('[data-fl-main-panel="links"] [data-fl-section-panel="all"]').html(payload.links_html);
+        if (typeof state.links_html === 'string') {
+            studio.find('[data-fl-main-panel="links"] [data-fl-section-panel="all"]').html(state.links_html);
         }
+        if (typeof state.collections_html === 'string') { studio.find('[data-fl-section-panel="collections"]').html(state.collections_html); }
+        if (typeof state.active_collection === 'string') {
+            studio.attr('data-faluss-studio-collection', state.active_collection);
+            studio.find('[data-fl-active-collection]').val(state.active_collection);
+        }
+        var collectionPanel = studio.find('[data-fl-section-panel="collection"]');
+        if (state.collection_html) {
+            if (!collectionPanel.length) { collectionPanel = $('<section>', { id: 'faluss-studio-panel-collection', role: 'tabpanel', 'aria-labelledby': 'faluss-studio-tab-collections', 'data-fl-section-panel': 'collection' }).appendTo(studio.find('[data-fl-main-panel="links"] .faluss-link-studio__content')); }
+            collectionPanel.html(state.collection_html);
+        } else { collectionPanel.remove(); }
+        if (typeof state.preview_html === 'string' && state.preview_html) {
+            var previewCard = card(studio), replacement = $(state.preview_html).first();
+            if (previewCard.length && replacement.length) { previewCard.replaceWith(replacement); }
+        }
+        if (typeof state.version === 'string') { studio.attr('data-faluss-studio-version', state.version).find('[data-fl-aggregate-version]').val(state.version); }
         renumberBlocks(studio);
         update(studio);
         return true;
+    }
+
+    function setCanonicalField(studio, name, value) {
+        var fields = studio.find('[name="' + name + '"]');
+        if (!fields.length) { return; }
+        var type = (fields.first().attr('type') || '').toLowerCase();
+        if (type === 'radio') { fields.prop('checked', false).filter('[value="' + value + '"]').prop('checked', true); }
+        else if (type === 'checkbox') { fields.prop('checked', value === true || value === 1 || value === '1' || value === 'published'); }
+        else { fields.val(value === null || typeof value === 'undefined' ? '' : value); }
+    }
+    function hydrateCanonicalForm(studio, state) {
+        var profile = state.profile || {}, preferences = state.preferences || {};
+        ['public_slug', 'display_name', 'bio', 'publication_status'].forEach(function (name) { if (Object.prototype.hasOwnProperty.call(profile, name)) { setCanonicalField(studio, name, profile[name]); } });
+        setCanonicalField(studio, 'faluss_identity_avatar_id', profile.avatar_attachment_id || 0);
+        ['cover_attachment_id', 'available', 'avatar_visible', 'avatar_border', 'name_font', 'name_treatment', 'name_color', 'alignment', 'social_layout', 'social_variant', 'link_style', 'page_background', 'button_color', 'hero_transition_color', 'hero_transition_intensity', 'hero_transition_position'].forEach(function (name) {
+            if (Object.prototype.hasOwnProperty.call(preferences, name)) { setCanonicalField(studio, name, preferences[name]); }
+        });
+        setCanonicalField(studio, 'selected_theme', preferences.theme_reference || preferences.selected_theme || 'faluss-default');
+        setCanonicalField(studio, 'theme_overrides', JSON.stringify(preferences.theme_overrides || []));
+        studio.find('.faluss-link-theme-picker__theme').attr('aria-pressed', 'false').filter('[data-faluss-theme="' + (preferences.theme_reference || 'faluss-default') + '"]').attr('aria-pressed', 'true');
+        var media = studio.find('.faluss-link-studio__cover-control'), coverURL = preferences.cover_url || '';
+        media.find('.faluss-link-editor__cover-preview').empty();
+        if (coverURL) { media.find('.faluss-link-editor__cover-preview').append($('<img>', { src: coverURL, alt: '' })); }
+        media.find('.faluss-link-editor__remove-cover').prop('hidden', !coverURL);
+        var list = studio.find('.faluss-link-studio__network-list').empty();
+        (preferences.social_links || []).forEach(function (item, index) { var row = networkRow(index); row.find('select').val(item.network); row.find('input[type="url"]').val(item.url); list.append(row); });
+        renumberRows(studio);
+        update(studio);
+        studio.data('falussLinkInitialState', formState(studio));
     }
     function insertStoredLink(studio, values, collectionId) {
         var store = studio.find('[data-fl-block-store]'), block = makeStoredBlock('link', values);
@@ -556,29 +616,107 @@
             }, statusLifetime));
         }
     }
-    function saveStudio(studio, reload, onSaved) {
-        var form = studio.find('.faluss-link-studio__form');
-        if (!form.length || studio.data('falussLinkSaving')) { return Promise.resolve(false); }
-        studio.data('falussLinkSaving', true).addClass('is-saving');
+    function appendMutationValue(data, key, value) {
+        if (Array.isArray(value)) {
+            value.forEach(function (item, index) {
+                if (item && typeof item === 'object') { Object.keys(item).forEach(function (child) { data.append(key + '[' + index + '][' + child + ']', item[child]); }); }
+                else { data.append(key + '[]', item); }
+            });
+        } else { data.append(key, value === null || typeof value === 'undefined' ? '' : value); }
+    }
+    function mutationData(studio, task) {
+        var form = studio.find('.faluss-link-studio__form'), data = new FormData(), payload = typeof task.payload === 'function' ? task.payload() : task.payload;
+        data.append('action', 'faluss_link_save_studio');
+        data.append('faluss_studio_response', 'json');
+        data.append('faluss_link_studio_nonce', form.find('[name="faluss_link_studio_nonce"]').val() || '');
+        data.append('mutation', task.mutation);
+        data.append('aggregate_version', studio.find('[data-fl-aggregate-version]').val() || studio.attr('data-faluss-studio-version') || '');
+        data.append('faluss_studio_collection', studio.find('[data-fl-active-collection]').val() || '');
+        Object.keys(payload || {}).forEach(function (key) { appendMutationValue(data, key, payload[key]); });
+        return data;
+    }
+    function studioMutationQueue(studio) {
+        var queue = studio.data('falussLinkMutationQueue');
+        if (!queue) { queue = { running: false, pending: [], keyed: {} }; studio.data('falussLinkMutationQueue', queue); }
+        return queue;
+    }
+    function drainStudioMutations(studio) {
+        var queue = studioMutationQueue(studio), form = studio.find('.faluss-link-studio__form');
+        if (queue.running || !queue.pending.length || !form.length) { return; }
+        var task = queue.pending.shift();
+        if (task.key) { delete queue.keyed[task.key]; }
+        queue.running = true; studio.data('falussLinkSaving', true).addClass('is-saving');
         showStatus(studio, 'Enregistrement…', false, false);
-        return window.fetch(form.attr('action'), { method: 'POST', body: new FormData(form[0]), credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        window.fetch(form.attr('action'), { method: 'POST', body: mutationData(studio, task), credentials: 'same-origin', headers: { Accept: 'application/json' } })
             .then(function (response) { return response.json().catch(function () { return null; }).then(function (body) { return { ok: response.ok, body: body }; }); })
             .then(function (result) {
-                if (!result.ok || !result.body || !result.body.success) { throw new Error(result.body && result.body.data && result.body.data.message ? result.body.data.message : 'Enregistrement impossible.'); }
-                if (typeof onSaved === 'function') { onSaved(result.body.data || {}); }
-                showStatus(studio, result.body.data.message || 'Studio enregistré.', false, true);
-                studio.data('falussLinkInitialState', formState(studio));
+                var data = result.body && result.body.data ? result.body.data : {}, state = data.state || null;
+                if (!result.ok || !result.body || !result.body.success) {
+                    if (state) { hydrateCanonicalBlocks(studio, state); hydrateCanonicalForm(studio, state); }
+                    throw new Error(data.message || 'Enregistrement impossible.');
+                }
+                if (state) { hydrateCanonicalBlocks(studio, state); }
+                if (typeof task.onSaved === 'function') { task.onSaved(state || {}); }
+                showStatus(studio, data.message || 'Studio enregistré.', false, true);
+                if (!queue.pending.length) { studio.data('falussLinkInitialState', formState(studio)); }
                 updateDirty(studio);
-                form.find('input[type="file"]').val('');
-                if (reload) { window.location.reload(); }
-                return true;
+                task.resolvers.forEach(function (resolve) { resolve(true); });
             })
-            .catch(function (error) { showStatus(studio, error.message || 'Enregistrement impossible.', true); return false; })
-            .finally(function () { studio.data('falussLinkSaving', false).removeClass('is-saving'); });
+            .catch(function (error) { showStatus(studio, error.message || 'Enregistrement impossible.', true); task.resolvers.forEach(function (resolve) { resolve(false); }); })
+            .finally(function () {
+                queue.running = false; studio.data('falussLinkSaving', false).removeClass('is-saving');
+                drainStudioMutations(studio);
+            });
     }
-    function queueStudioSave(studio) {
-        window.clearTimeout(studio.data('falussLinkSaveTimer'));
-        studio.data('falussLinkSaveTimer', window.setTimeout(function () { saveStudio(studio, false); }, 450));
+    function enqueueStudioMutation(studio, mutation, payload, options) {
+        options = options || {};
+        return new Promise(function (resolve) {
+            var queue = studioMutationQueue(studio), key = options.key || '';
+            if (key && queue.keyed[key]) {
+                queue.keyed[key].payload = (queue.keyed[key].payload && typeof queue.keyed[key].payload === 'object' && payload && typeof payload === 'object') ? Object.assign({}, queue.keyed[key].payload, payload) : payload;
+                queue.keyed[key].onSaved = options.onSaved || queue.keyed[key].onSaved;
+                queue.keyed[key].resolvers.push(resolve);
+            } else {
+                var task = { mutation: mutation, payload: payload || {}, key: key, onSaved: options.onSaved || null, resolvers: [resolve] };
+                queue.pending.push(task); if (key) { queue.keyed[key] = task; }
+            }
+            drainStudioMutations(studio);
+        });
+    }
+    function queueStudioSave(studio, mutation, payload, key) {
+        var pendingKey = 'falussLinkPending-' + key;
+        studio.data(pendingKey, Object.assign({}, studio.data(pendingKey) || {}, payload || {}));
+        window.clearTimeout(studio.data('falussLinkSaveTimer-' + key));
+        studio.data('falussLinkSaveTimer-' + key, window.setTimeout(function () {
+            var consolidated = studio.data(pendingKey) || {}; studio.removeData(pendingKey);
+            enqueueStudioMutation(studio, mutation, consolidated, { key: key });
+        }, 450));
+    }
+    function studioFieldValue(studio, name) {
+        var fields = studio.find('[name="' + name + '"]'), first = fields.first(), type = (first.attr('type') || '').toLowerCase();
+        if (type === 'radio') { return fields.filter(':checked').val() || ''; }
+        if (type === 'checkbox') { return first.prop('checked') ? (first.val() || '1') : '0'; }
+        return first.val() || '';
+    }
+    function studioFields(studio, names) {
+        var payload = {};
+        names.forEach(function (name) { if (studio.find('[name="' + name + '"]').length) { payload[name] = studioFieldValue(studio, name); } });
+        return payload;
+    }
+    function socialNetworkPayload(studio) {
+        var networks = [];
+        studio.find('.faluss-link-studio__network-row').each(function () { networks.push({ network: $(this).find('select').val() || '', url: $(this).find('input[type="url"]').val() || '' }); });
+        return networks;
+    }
+    function saveHeaderAndProfile(studio) {
+        var profile = studioFields(studio, ['display_name', 'bio', 'publication_status']);
+        profile.avatar_attachment_id = studioFieldValue(studio, 'faluss_identity_avatar_id');
+        return enqueueStudioMutation(studio, 'save_profile', profile).then(function (saved) {
+            if (!saved) { return false; }
+            var header = studioFields(studio, ['available', 'avatar_visible', 'avatar_border', 'name_font', 'name_treatment', 'name_color', 'alignment', 'social_layout', 'social_variant']);
+            header.social_networks = socialNetworkPayload(studio);
+            return enqueueStudioMutation(studio, 'save_header', header);
+        });
     }
     function showScreen(studio, name) {
         studio.find('[data-fl-studio-screen]').each(function () {
@@ -763,16 +901,18 @@
             var root = $(this).closest('.faluss-link-editor__media'), studio = $(this).closest('.faluss-link-studio');
             root.find('.faluss-link-editor__cover-id').val('');
             root.find('.faluss-link-editor__cover-preview').empty();
+            root.find('.faluss-link-editor__remove-cover').prop('hidden', true);
             if (studio.length) {
                 var preview = card(studio);
                 preview.find('.faluss-link-card__cover').empty().prop('hidden', true);
                 preview.removeClass('faluss-link-card--cover-yes').addClass('faluss-link-card--cover-no');
                 update(studio);
+                enqueueStudioMutation(studio, 'save_appearance', { cover_attachment_id: 0 }, { key: 'appearance:cover_attachment_id' });
             }
         })
         .on('click.falussLink', '.faluss-link-studio [data-fl-tab]', function () { activate($(this).closest('.faluss-link-studio'), $(this).data('fl-tab'), true); })
         .on('click.falussLink', '.faluss-link-studio [data-fl-context-tab]', function () { activateSection($(this).closest('.faluss-link-studio'), $(this).data('fl-context-tab'), true); })
-        .on('click.falussLink', '.faluss-link-theme-picker__theme', function () { var studio = $(this).closest('.faluss-link-studio'); applyTheme(studio, $(this).data('faluss-theme')); queueStudioSave(studio); })
+        .on('click.falussLink', '.faluss-link-theme-picker__theme', function () { var studio = $(this).closest('.faluss-link-studio'), selected = $(this).data('faluss-theme'); applyTheme(studio, selected); enqueueStudioMutation(studio, 'save_appearance', { selected_theme: selected }, { key: 'appearance:selected_theme' }); })
         .on('click.falussLink', '.faluss-link-studio [data-fl-preview-toggle]', function () { togglePreview($(this).closest('.faluss-link-studio')); })
         .on('click.falussLink', '.faluss-link-studio [data-fl-preview-close]', function () { togglePreview($(this).closest('.faluss-link-studio'), false); })
         .on('click.falussLink', '.faluss-link-studio [data-fl-studio-back]', function () {
@@ -783,31 +923,29 @@
         .on('click.falussLink', '.faluss-link-studio [data-fl-studio-ecosystem]', function () { openEcosystem($(this).closest('.faluss-link-studio')); })
         .on('click.falussLink', '.faluss-link-studio [data-fl-open-social-manager]', function () { openSocialManager($(this).closest('.faluss-link-studio')); })
         .on('click.falussLink', '.faluss-link-studio [data-fl-create]', function () { openCreate($(this).closest('.faluss-link-studio')); })
-        .on('submit.falussLink', '.faluss-link-studio__form', function (event) { event.preventDefault(); saveStudio($(this).closest('.faluss-link-studio'), false); })
+        .on('submit.falussLink', '.faluss-link-studio__form', function (event) {
+            event.preventDefault();
+            var studio = $(this).closest('.faluss-link-studio'), section = studio.find('[data-fl-active-section]').val() || '';
+            if (section === 'header') { saveHeaderAndProfile(studio); }
+            else if (section === 'link-style') { enqueueStudioMutation(studio, 'save_link_style', studioFields(studio, ['button_color', 'link_style'])); }
+            else { enqueueStudioMutation(studio, 'save_appearance', studioFields(studio, ['cover_attachment_id', 'page_background', 'hero_transition_color', 'hero_transition_intensity', 'hero_transition_position'])); }
+        })
         .on('click.falussLink', '.faluss-link-studio [data-fl-create-link-submit]', function () {
             var studio = $(this).closest('.faluss-link-studio'), screen = $(this).closest('[data-fl-studio-screen]');
             var label = $.trim(screen.find('[data-fl-new-link-label]').val() || ''), url = $.trim(screen.find('[data-fl-new-link-url]').val() || '');
             if (!label || !safeURL(url)) { showStatus(studio, 'Renseignez un nom et une URL HTTPS valide.', true); return; }
             if (storedBlocks(studio).length >= 32) { showStatus(studio, 'Votre carte contient déjà le nombre maximal d’éléments.', true); return; }
-            var created = insertStoredLink(studio, { label: label, url: url }, studio.find('[data-fl-active-collection]').val() || '');
-            saveStudio(studio, false, function (payload) {
-                hydrateCanonicalBlocks(studio, payload);
+            var blockID = blockId(), collectionID = studio.find('[data-fl-active-collection]').val() || '';
+            enqueueStudioMutation(studio, 'create_link', { block_id: blockID, label: label, url: url, collection_id: collectionID }, { onSaved: function () {
                 restoreStudioState(studio, { tab: 'links', section: 'all', collection: '' }, true);
-            }).then(function (saved) {
-                if (saved) { return; }
-                created.remove();
-                renumberBlocks(studio);
-                update(studio);
-            });
+            } });
         })
         .on('click.falussLink', '.faluss-link-studio [data-fl-create-collection-submit]', function () {
             var studio = $(this).closest('.faluss-link-studio'), screen = $(this).closest('[data-fl-studio-screen]');
             var name = $.trim(screen.find('[data-fl-new-collection-name]').val() || ''), description = $.trim(screen.find('[data-fl-new-collection-description]').val() || '');
             if (!name) { showStatus(studio, 'Le nom de la collection est requis.', true); return; }
             if (storedBlocks(studio).length + (description ? 2 : 1) > 32) { showStatus(studio, 'Votre carte contient déjà le nombre maximal d’éléments.', true); return; }
-            insertStoredCollection(studio, name, description);
-            activateSection(studio, 'collections', false);
-            saveStudio(studio, true);
+            enqueueStudioMutation(studio, 'create_collection', { block_id: blockId(), description_block_id: blockId(), name: name, description: description }, { onSaved: function () { activateSection(studio, 'collections', false); } });
         })
         .on('click.falussLink', '.faluss-link-studio [data-fl-link-card] .faluss-link-studio__link-summary', function () {
             var cardNode = $(this).closest('[data-fl-link-card]'), studio = cardNode.closest('.faluss-link-studio'), opening = $(this).attr('aria-expanded') !== 'true';
@@ -816,38 +954,28 @@
             cardNode.find('.faluss-link-studio__link-details').prop('hidden', !opening);
         })
         .on('click.falussLink', '.faluss-link-studio [data-fl-save-link]', function () {
-            var studio = $(this).closest('.faluss-link-studio'), linkCard = $(this).closest('[data-fl-link-card]');
-            if (syncLinkCard(studio, linkCard)) { saveStudio(studio, true); }
+            var studio = $(this).closest('.faluss-link-studio'), linkCard = $(this).closest('[data-fl-link-card]'), label = $.trim(linkCard.find('[data-fl-link-label]').val() || ''), url = $.trim(linkCard.find('[data-fl-link-url]').val() || '');
+            if (!label || !safeURL(url)) { showStatus(studio, 'Renseignez un nom et une URL HTTPS valide.', true); return; }
+            enqueueStudioMutation(studio, 'update_link', { block_id: String(linkCard.data('block-id') || ''), label: label, url: url });
         })
         .on('click.falussLink', '.faluss-link-studio [data-fl-delete-link]', function () {
             var studio = $(this).closest('.faluss-link-studio'), linkCard = $(this).closest('[data-fl-link-card]');
-            storedBlock(studio, linkCard.data('block-id')).remove();
-            renumberBlocks(studio); update(studio); saveStudio(studio, true);
+            enqueueStudioMutation(studio, 'delete_link', { block_id: String(linkCard.data('block-id') || '') });
         })
         .on('click.falussLink', '.faluss-link-studio [data-fl-rename-collection]', function () {
             var editor = $(this).siblings('[data-fl-collection-editor]'), opening = editor.prop('hidden');
             editor.prop('hidden', !opening); $(this).attr('aria-expanded', opening ? 'true' : 'false');
         })
         .on('click.falussLink', '.faluss-link-studio [data-fl-save-collection]', function () {
-            var studio = $(this).closest('.faluss-link-studio'), editor = $(this).closest('[data-fl-collection-editor]'), collection = storedBlock(studio, $(this).data('fl-save-collection'));
-            var name = $.trim(editor.find('[data-fl-collection-name]').val() || ''), description = $.trim(editor.find('[data-fl-collection-description]').val() || ''), descriptionBlock = collectionDescriptionBlock(collection);
-            if (!name || !collection.length) { showStatus(studio, 'Le nom de la collection est requis.', true); return; }
-            setStoredField(collection, 'value', name);
-            if (description) {
-                if (!descriptionBlock.length) { descriptionBlock = makeStoredBlock('text', { value: description }).insertAfter(collection); }
-                else { setStoredField(descriptionBlock, 'value', description); }
-            } else if (descriptionBlock.length) { descriptionBlock.remove(); }
-            renumberBlocks(studio); update(studio); saveStudio(studio, true);
+            var studio = $(this).closest('.faluss-link-studio'), editor = $(this).closest('[data-fl-collection-editor]');
+            var name = $.trim(editor.find('[data-fl-collection-name]').val() || ''), description = $.trim(editor.find('[data-fl-collection-description]').val() || ''), collectionID = String($(this).data('fl-save-collection') || '');
+            if (!name || !collectionID) { showStatus(studio, 'Le nom de la collection est requis.', true); return; }
+            enqueueStudioMutation(studio, 'update_collection', { block_id: collectionID, name: name, description: description });
         })
         .on('click.falussLink', '.faluss-link-studio [data-fl-dissolve-collection]', function () {
-            var studio = $(this).closest('.faluss-link-studio'), collection = storedBlock(studio, $(this).data('fl-dissolve-collection'));
-            if (!collection.length) { return; }
-            var group = $(), next = collection.next();
-            while (next.length && next.data('block-type') !== 'section_title') { group = group.add(next); next = next.next(); }
-            var description = collectionDescriptionBlock(collection); if (description.length) { group = group.not(description); description.remove(); }
-            var firstCollection = studio.find('[data-fl-block-store] [data-block-type="section_title"]').first();
-            if (group.length && firstCollection.length) { group.insertBefore(firstCollection); }
-            collection.remove(); renumberBlocks(studio); activateSection(studio, 'collections', false); update(studio); saveStudio(studio, true);
+            var studio = $(this).closest('.faluss-link-studio'), collectionID = String($(this).data('fl-dissolve-collection') || '');
+            if (!collectionID) { return; }
+            enqueueStudioMutation(studio, 'dissolve_collection', { block_id: collectionID }, { onSaved: function () { activateSection(studio, 'collections', false); } });
         })
         .on('click.falussLink', '.faluss-link-studio [data-fl-color-field][data-fl-color]', function () {
             var studio = $(this).closest('.faluss-link-studio'), field = $(this).data('fl-color-field'), value = $(this).data('fl-color');
@@ -915,8 +1043,17 @@
             var studio = $(this).closest('.faluss-link-studio');
             if (!studio.data('falussLinkApplyingTheme')) { markThemeOverride(studio, $(this).attr('name')); }
             update(studio);
-            var designControl = $(this).closest('[data-fl-main-panel="style"]').length;
-            if (designControl && (/^(?:checkbox|radio|color|range)$/.test((this.type || '').toLowerCase()) || this.tagName.toLowerCase() === 'select')) { queueStudioSave(studio); }
+            var name = $(this).attr('name') || '', type = (this.type || '').toLowerCase();
+            if (type === 'radio' && !$(this).prop('checked')) { return; }
+            var mutation = '';
+            if (/^(?:page_background|hero_transition_color|hero_transition_intensity|hero_transition_position)$/.test(name)) { mutation = 'save_appearance'; }
+            else if (/^(?:available|avatar_visible|avatar_border|name_font|name_treatment|name_color|alignment|social_layout|social_variant)$/.test(name)) { mutation = 'save_header'; }
+            else if (/^(?:button_color|link_style)$/.test(name)) { mutation = 'save_link_style'; }
+            else if (name === 'publication_status') { mutation = 'save_profile'; }
+            if (mutation && (/^(?:checkbox|radio|color|range)$/.test(type) || this.tagName.toLowerCase() === 'select')) {
+                var payload = {}; payload[name === 'publication_status' ? 'publication_status' : name] = name === 'publication_status' ? ($(this).prop('checked') ? 'published' : 'draft') : studioFieldValue(studio, name);
+                queueStudioSave(studio, mutation, payload, mutation);
+            }
         })
         .on('change.falussLink', '.faluss-link-studio [name="faluss_identity_avatar"]', function () {
             var studio = $(this).closest('.faluss-link-studio'), file = this.files[0];
@@ -924,6 +1061,7 @@
             var reader = new FileReader();
             reader.onload = function (event) { card(studio).find('.faluss-link-card__avatar').empty().append($('<img>', { src: event.target.result, alt: '' })); studio.find('.faluss-link-studio__avatar').empty().append($('<img>', { src: event.target.result, alt: '' })); update(studio); };
             reader.readAsDataURL(file);
+            uploadStudioAvatar(studio, file);
         });
 
     $(document).on('keydown.falussLinkPreview', function (event) {

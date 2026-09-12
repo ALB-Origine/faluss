@@ -13,14 +13,14 @@ $link      = file_get_contents( $root . '/plugins/faluss-link/includes/class-fal
 $editor    = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
 $studio    = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-studio.css' );
 
-studio_v1_regression_assert( false !== strpos( $bootstrap, 'Version: 0.3.14' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.14'" ), 'The Studio regression patch must rotate Faluss Link assets to 0.3.14.' );
+studio_v1_regression_assert( false !== strpos( $bootstrap, 'Version: 0.3.15' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.15'" ), 'The Studio regression patch must rotate Faluss Link assets to 0.3.15.' );
 
 foreach ( array( '@media (max-width: 767px)', '.faluss-link-studio input,', '.faluss-link-studio select,', '.faluss-link-studio textarea { font-size: 16px; }' ) as $needle ) {
     studio_v1_regression_assert( false !== strpos( $studio, $needle ), 'Studio editing controls must use a 16px mobile font without disabling browser zoom: ' . $needle );
 }
 studio_v1_regression_assert( false === strpos( $studio, 'user-scalable' ), 'The Studio must never disable browser zoom to avoid iOS field zoom.' );
 
-foreach ( array( 'self::content_blocks( $faluss_id, array(), false )', "\$payload['blocks']", "\$payload['links_html']", 'function studio_links_panel_html', 'function hydrateCanonicalBlocks', 'Array.isArray(payload.blocks)', "[data-fl-main-panel=\"links\"] [data-fl-section-panel=\"all\"]", "saveStudio(studio, false, function (payload)", "restoreStudioState(studio, { tab: 'links', section: 'all', collection: '' }, true)" ) as $needle ) {
+foreach ( array( 'private static function canonical_studio_state', "'blocks' => \$blocks", "'links_html' => self::studio_links_panel_html", 'function studio_links_panel_html', 'function hydrateCanonicalBlocks', 'Array.isArray(state.blocks)', "[data-fl-main-panel=\"links\"] [data-fl-section-panel=\"all\"]", "enqueueStudioMutation(studio, 'create_link'", "restoreStudioState(studio, { tab: 'links', section: 'all', collection: '' }, true)" ) as $needle ) {
     studio_v1_regression_assert( false !== strpos( $link . $editor, $needle ), 'A new link must hydrate from the canonical successful save response: ' . $needle );
 }
 $create_link_start = strpos( $editor, "[data-fl-create-link-submit]" );

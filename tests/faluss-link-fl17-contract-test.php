@@ -102,9 +102,9 @@ fl17_assert( false !== strpos( $markup, 'data-faluss-card-theme="faluss-default"
 ob_start(); $picker->invoke( null, $fallback ); $picker_markup = ob_get_clean();
 fl17_assert( false !== strpos( $picker_markup, 'data-faluss-theme="premium-theme" aria-pressed="true" disabled aria-disabled="true"' ), 'The Studio must retain the prior theme reference as a clearly locked choice.' );
 
-fl17_assert( $save->invoke( null, $id, array( 'selected_theme' => 'premium-theme', 'theme_overrides' => json_encode( $original_payload['theme_overrides'] ), 'social_networks' => array() ) ), 'Saving the Studio while a right is unavailable must still preserve the selected theme reference.' );
+fl17_assert( false === $save->invoke( null, $id, array( 'selected_theme' => 'premium-theme', 'theme_overrides' => json_encode( $original_payload['theme_overrides'] ), 'social_networks' => array() ) ), 'Selecting a locked theme must be refused explicitly.' );
 $after_save = json_decode( $wpdb->card['social_links'], true );
-fl17_assert( 'premium-theme' === $after_save['selected_theme'] && $original_payload['theme_overrides'] === $after_save['theme_overrides'], 'The temporary fallback must not mutate the saved personal override list after a Studio save.' );
+fl17_assert( $original_payload === $after_save, 'Refusing a locked theme must not mutate its saved reference or personal override list.' );
 
 Token_Engine_Connector_Service::$allowed = true;
 $restored = $prefs->invoke( null, $id );

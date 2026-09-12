@@ -26,11 +26,27 @@ Dans **Réglages > Réseaux Faluss Link**, un administrateur peut activer les r�
 
 La couverture s’envoie depuis le Studio avec une action explicite du membre. L’aperçu est vivant et la carte publique reprend l’alignement, le fondu de couverture, les réseaux et les boutons choisis après enregistrement.
 
+## Intégrité transactionnelle du Studio (FL-HOTFIX-01)
+
+Le Studio n’envoie plus son formulaire complet. Chaque écriture utilise une mutation fermée — apparence, en-tête, style de lien, profil, création/mise à jour/suppression d’un lien, création/mise à jour/dissolution d’une collection ou réordonnancement — et le serveur relit l’agrégat canonique avant de modifier seulement les champs possédés par cette mutation. L’absence d’un bloc dans le DOM ou dans une requête ne vaut jamais suppression. Une suppression exige sa mutation dédiée et l’UUID exact du lien ou de la collection.
+
+Les mutations de liens et collections verrouillent le profil Identity, les préférences de carte et le flux ordonné de blocs du membre. Faluss Link ouvre l’unique transaction MariaDB, modifie les lignes visées, recalcule `external_links` depuis les blocs validés, puis demande à la primitive interne Identity d’écrire cette projection sans ouvrir ni valider une seconde transaction. Toute erreur avant le commit annule les deux représentations. Aucune table, colonne, migration de données ni réécriture automatique des cartes existantes n’est ajoutée.
+
+Chaque réponse de succès ou de conflit fournit le store des blocs, **Tous**, **Collections**, la collection active et l’aperçu issus du même état canonique. Une version SHA-256 opaque de l’agrégat accompagne chaque mutation : une version obsolète reçoit un conflit sans écriture et l’interface se réhydrate. Dans le navigateur, une file sérialisée conserve et consolide les modifications survenues pendant une sauvegarde avant de lancer immédiatement la suivante.
+
+Le choix de thème de l’onboarding est persisté dans les préférences existantes et résolu par le même pipeline que le Studio et la carte publique. Les thèmes absents ou verrouillés sont refusés côté serveur. La **Couverture haute** réutilise l’upload membre, la validation de propriété, `cover_attachment_id`, le renderer immersif et son effet de déplacement/dézoom existants ; elle n’introduit aucun second système média.
+
+### Vérification privée en lecture seule
+
+Après une sauvegarde préalable de la base, un administrateur peut exécuter `wp eval-file docs/FL-HOTFIX-01-READONLY-CHECK.php` avec la variable d’environnement privée `FALUSS_LINK_CHECK_ID` définie sur l’identité à contrôler. Le script n’écrit rien et ne demande ni ne restitue aucun e-mail. Sa sortie ne contient ni Faluss ID, ni UUID de bloc, ni libellé, ni URL : seulement les nombres de lignes/types, la continuité de l’ordre, des empreintes globales et le booléen de concordance entre les liens dérivés des blocs et `external_links`. L’empreinte de la ligne `faluss_link_cards` permet de comparer deux captures privées sans exposer les préférences.
+
+Cette vérification n’est pas une récupération. En cas d’écart, conserver la sauvegarde et les empreintes, ne modifier aucune ligne et décider séparément d’une restauration depuis une source connue.
+
 ## Couleur du nom et future fondation de styles (FL-07)
 
 Dans **Studio Faluss > Style**, le membre choisit la couleur de son nom parmi les quatre pastilles Faluss accessibles : Rose (`#BE79FF`), Blanc (`#FFFFFF`), Noir (`#000000`, valeur par défaut) et Prune (`#82206B`). Ce choix n’affecte ni le handle, ni le statut, ni la bio, ni les liens. Une couleur explicitement renseignée dans le widget Elementor **Carte Faluss** peut la surcharger ; un contrôle Elementor laissé vide conserve la préférence membre.
 
-Faluss Link prépare une résolution de styles de carte sans encore introduire de sélecteur de thème, de contenu Premium ou de droit associé. Lorsqu’un thème de carte existera, la priorité sera : thème sélectionné, préférences du membre, puis tokens Faluss Theme. Aujourd’hui, aucun thème n’est sélectionnable et les préférences du membre restent la source effective.
+Faluss Link résout les styles de carte selon la priorité : thème sélectionné, préférences explicitement modifiées par le membre, puis tokens Faluss Theme. Le Studio et l’onboarding exposent le même sélecteur borné ; aucun contenu Premium ou droit métier n’est ajouté à la carte.
 
 ## Blocs de contenu v1 (FL-08)
 
@@ -104,7 +120,7 @@ Sans Catalogue Faluss, Faluss Link conserve son rendu **Faluss par défaut**, sa
 
 ## Résolution fiable des thèmes (FL-15.1)
 
-La carte publique, l’hydratation du Studio, son aperçu et l’enregistrement passent par le même résolveur : base **Faluss par défaut**, thème Faluss Link actif et valide, surcharges personnelles bornées pour le fond, la transition, l’alignement, la couleur du nom, les réseaux et les boutons, puis CSS Elementor explicitement renseigné. Le choix de **Faluss par défaut** est un vrai nouveau thème de base : les six surcharges visuelles précédentes sont réinitialisées, et toute modification ultérieure est de nouveau conservée. Si un thème est désactivé ou supprimé, seule sa référence est remplacée par le défaut ; sa réactivation ultérieure ne le réapplique jamais silencieusement.
+La carte publique, l’hydratation du Studio, son aperçu et l’enregistrement passent par le même résolveur : base **Faluss par défaut**, thème Faluss Link actif et valide, surcharges personnelles bornées pour le fond, la transition, l’alignement, la couleur du nom, les réseaux et les boutons, puis CSS Elementor explicitement renseigné. Le choix de **Faluss par défaut** est un vrai nouveau thème de base : les six surcharges visuelles précédentes sont réinitialisées, et toute modification ultérieure est de nouveau conservée. Si un thème est désactivé, supprimé ou momentanément inaccessible, le rendu utilise le défaut sans réécrire la référence ni aucune donnée membre.
 
 ## Thèmes verrouillables EC-02
 
@@ -116,7 +132,7 @@ Le bouton discret **Copier mon identifiant Faluss** est visible uniquement au pr
 
 Le thème effectivement rendu est distinct de la préférence membre conservée. Lorsqu’un droit de thème devient indisponible, Faluss Link affiche la base **Faluss par défaut** sans réécrire le choix, les surcharges visuelles ni les autres données de carte. Les préférences personnelles déjà enregistrées restent donc visibles dans ce repli ; dès que le droit est de nouveau confirmé par le Connector, le thème précédemment choisi redevient disponible. Une surcharge Elementor explicitement renseignée reste la dernière couche de rendu.
 
-Sur mobile, le Studio ouvre l’aperçu à la demande depuis le bouton aux yeux du dock V1. L’aperçu est fermé au chargement, son bouton affiche le nombre de modifications locales non enregistrées, et le dock respecte la zone sûre du navigateur. Les changements Design sont sauvegardés par le même formulaire canonique et se reflètent dans le véritable renderer partagé. Le statut de publication reste le contrôle accessible **Profil public**, avec les états **Visible** et **Masqué** ; il enregistre la même donnée Identity qu’auparavant.
+Sur mobile, le Studio ouvre l’aperçu à la demande depuis le bouton aux yeux du dock V1. L’aperçu est fermé au chargement, son bouton affiche le nombre de modifications locales non enregistrées, et le dock respecte la zone sûre du navigateur. Les changements Design sont enregistrés par leurs mutations ciblées et se reflètent dans le véritable renderer partagé. Le statut de publication reste le contrôle accessible **Profil public**, avec les états **Visible** et **Masqué** ; il enregistre la même donnée Identity qu’auparavant.
 
 ## Mes découvertes Faluss (FL-18)
 

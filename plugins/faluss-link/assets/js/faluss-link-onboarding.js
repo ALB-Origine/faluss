@@ -8,6 +8,25 @@
     var layouts = { name: 'name', avatar: 'upload', socials: 'list', links: 'list' };
 
     function config() { return window.falussLinkOnboarding || {}; }
+    function onboardingTheme(slug) { return (config().themes || []).filter(function (item) { return item && item.slug === slug; })[0] || null; }
+    function applyOnboardingTheme(root, slug) {
+        var theme = onboardingTheme(slug), selected = root.querySelector('[name="selected_theme"]'), overrides = root.querySelector('[name="theme_overrides"]');
+        if (!theme || theme.locked || !selected) { showError(root, theme && theme.locked ? 'Ce thème nécessite un droit actif.' : 'Ce thème est indisponible.'); return false; }
+        root.dataset.applyingTheme = '1'; selected.value = theme.slug;
+        if (overrides) { overrides.value = '[]'; }
+        var background = root.querySelector('[name="page_background"]'); if (background) { background.value = theme.page_background || '#FFFDF5'; }
+        root.querySelectorAll('[name="link_style"]').forEach(function (input) { input.checked = input.value === (theme.link_style === 'dark' ? 'solid' : theme.link_style); });
+        root.querySelectorAll('.faluss-link-theme-picker__theme').forEach(function (button) { button.setAttribute('aria-pressed', button.dataset.falussTheme === theme.slug ? 'true' : 'false'); });
+        syncBackgroundSwatches(root); syncChoiceSelections(root); preview(root); delete root.dataset.applyingTheme; scheduleSharedPreview(root); return true;
+    }
+    function markOnboardingOverride(root, name) {
+        if (root.dataset.applyingTheme || !/^(page_background|link_style)$/.test(name || '')) { return; }
+        var input = root.querySelector('[name="theme_overrides"]'), values = [];
+        if (!input) { return; }
+        try { values = JSON.parse(input.value || '[]'); } catch (error) { values = []; }
+        if (!Array.isArray(values)) { values = []; }
+        if (values.indexOf(name) === -1) { values.push(name); input.value = JSON.stringify(values); }
+    }
     function stepName(value) { return order.indexOf(value) !== -1 ? value : 'name'; }
     function panel(root, step) { return root.querySelector('[data-onboarding-panel="' + stepName(step) + '"]'); }
     function reduceMotion() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
@@ -312,6 +331,7 @@
             if (target.matches('.faluss-link-onboarding__remove-link')) { event.preventDefault(); target.closest('.faluss-link-onboarding__free-link').remove(); scheduleSharedPreview(root); }
             if (target.matches('[data-onboarding-avatar-select]')) { event.preventDefault(); var input = document.createElement('input'); input.type = 'file'; input.accept = 'image/jpeg,image/png,image/webp,image/gif'; input.addEventListener('change', function () { uploadAvatar(root, input.files && input.files[0]); }); input.click(); }
             if (target.matches('[data-onboarding-choice-tab]')) { event.preventDefault(); setChoicePanel(root, target.dataset.onboardingChoiceGroup || '', target.dataset.onboardingChoiceTarget || '', true); }
+            if (target.matches('.faluss-link-theme-picker__theme')) { event.preventDefault(); applyOnboardingTheme(root, target.dataset.falussTheme || ''); }
             if (target.matches('[data-onboarding-finish]')) {
                 event.preventDefault(); cancelSharedPreview(root); setPending(root, true); showError(root, ''); announce(root, 'Publication en cours.');
                 request(root, 'faluss_link_onboarding_finish', root.querySelector('form'), {}).then(function (result) {
@@ -338,10 +358,11 @@
                 var color = root.querySelector('[name="page_background"]'); if (color) { color.value = event.target.value; }
             }
             if (event.target.matches('[name="page_background"]')) { syncBackgroundSwatches(root); }
+            markOnboardingOverride(root, event.target.name || '');
             if (event.target.matches('.faluss-link-onboarding__choice input,.faluss-link-onboarding__button-choice input')) { syncChoiceSelections(root); }
             scheduleSharedPreview(root);
         });
-        root.addEventListener('input', function (event) { if (event.target && event.target.matches('[name="page_background"]')) { syncBackgroundSwatches(root); } scheduleSharedPreview(root); });
+        root.addEventListener('input', function (event) { if (event.target && event.target.matches('[name="page_background"]')) { syncBackgroundSwatches(root); } if (event.target) { markOnboardingOverride(root, event.target.name || ''); } scheduleSharedPreview(root); });
     }
     function boot(scope) { (scope || document).querySelectorAll('[data-faluss-link-onboarding]').forEach(init); }
     if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', function () { boot(document); }, { once: true }); } else { boot(document); }

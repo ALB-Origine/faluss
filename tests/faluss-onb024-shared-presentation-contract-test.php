@@ -21,7 +21,7 @@ foreach ( array( 'private static function card_presentation(', 'private static f
 foreach ( array( "'page_background'", "'avatar_border'", "'name_font'", "'name_treatment'", "'alignment'", "'link_style'", "'social_links'" ) as $needle ) {
     onb024_assert( false !== strpos( $link, $needle ), 'The shared presentation must carry resolved member preference: ' . $needle );
 }
-onb024_assert( false !== strpos( $link, 'private static function onboarding_theme_overrides(' ) && false !== strpos( $link, "\$preferences['theme_overrides'] = self::onboarding_theme_overrides" ), 'An arbitrary onboarding preference combination must resolve above a theme without a wizard-only card style.' );
+onb024_assert( false !== strpos( $link, 'private static function onboarding_theme_overrides(' ) && false !== strpos( $link, "array_key_exists( 'theme_overrides', \$post )" ) && false !== strpos( $link, 'self::theme_overrides( wp_unslash' ), 'Onboarding must preserve explicit overrides above a theme without inventing overrides from the complete form.' );
 onb024_assert( false !== strpos( $link, 'data-faluss-card-context="<?php echo esc_attr( $presentation[\'context\'] ); ?>"' ), 'The renderer must identify its shared presentation context.' );
 onb024_assert( false !== strpos( $link, 'data-faluss-card-density="<?php echo esc_attr( $presentation[\'density\'] ); ?>"' ), 'Onboarding must request density rather than a separate card.' );
 onb024_assert( false !== strpos( $link, "--fl-canvas:%s" ), 'The member page background must be applied on the shared card surface.' );

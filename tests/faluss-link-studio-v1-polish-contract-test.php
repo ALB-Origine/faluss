@@ -14,7 +14,7 @@ $card = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link.
 $studio = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-studio.css' );
 $editor = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
 
-studio_v1_polish_assert( false !== strpos( $bootstrap, 'Version: 0.3.14' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.14'" ), 'The Studio interaction patch must rotate every Faluss Link frontend asset URL.' );
+studio_v1_polish_assert( false !== strpos( $bootstrap, 'Version: 0.3.15' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.15'" ), 'The Studio interaction patch must rotate every Faluss Link frontend asset URL.' );
 
 foreach ( array(
     '.elementor-widget.elementor-element.elementor-widget-faluss_link_appearance > .elementor-widget-container',
@@ -36,7 +36,7 @@ studio_v1_polish_assert( false !== strpos( $studio, '.faluss-link-studio[data-fa
 studio_v1_polish_assert( false !== strpos( $studio, 'button:focus:not(:focus-visible)' ) && false !== strpos( $studio, 'button:focus-visible' ), 'Mouse focus contamination must be removed while retaining an accessible keyboard focus.' );
 
 studio_v1_polish_assert( false !== strpos( $editor, 'var statusLifetime = 1800;' ), 'Success feedback must have a bounded 1.8 second lifetime.' );
-foreach ( array( 'function clearStatus', "showStatus(studio, result.body.data.message || 'Studio enregistré.', false, true)", "notice.removeClass('is-visible')", "clearStatus(studio);" ) as $needle ) {
+foreach ( array( 'function clearStatus', "showStatus(studio, data.message || 'Studio enregistré.', false, true)", "notice.removeClass('is-visible')", "clearStatus(studio);" ) as $needle ) {
     studio_v1_polish_assert( false !== strpos( $editor, $needle ), 'Studio toast lifecycle is incomplete: ' . $needle );
 }
 studio_v1_polish_assert( false !== strpos( $editor, "showStatus(studio, 'Enregistrement…', false, false)" ) && false !== strpos( $editor, 'if (temporary !== false)' ), 'Only an active request may keep its in-progress toast visible.' );

@@ -6,7 +6,7 @@ $css=file_get_contents(dirname(__DIR__).'/plugins/faluss-link/assets/css/faluss-
 $js=file_get_contents(dirname(__DIR__).'/plugins/faluss-link/assets/js/faluss-link-editor.js');
 $identity=file_get_contents(dirname(__DIR__).'/plugins/faluss-identity/includes/class-faluss-identity-public-profile.php');
 $identity_css=file_get_contents(dirname(__DIR__).'/plugins/faluss-identity/assets/css/faluss-identity-public-profile.css');
-foreach(array('faluss_link_studio','render_studio','studio_profile','save_studio_profile','faluss_link_save_studio','save_studio','card_markup','faluss-link-card__handle','faluss-link-studio__preview','social_links') as $needle)fl02_assert(false!==strpos($source,$needle),'Missing unified Studio invariant: '.$needle);
+foreach(array('faluss_link_studio','render_studio','studio_profile','persist_studio_profile_in_transaction','faluss_link_save_studio','save_studio','card_markup','faluss-link-card__handle','faluss-link-studio__preview','social_links') as $needle)fl02_assert(false!==strpos($source.$identity,$needle),'Missing unified Studio invariant: '.$needle);
 foreach(array('role="tablist"','role="tabpanel"','aria-controls','aria-labelledby','aria-live') as $needle)fl02_assert(false!==strpos($source,$needle),'Missing accessible Studio semantics: '.$needle);
 foreach(array('data-fl-tab','ArrowLeft','ArrowRight','FileReader','social_layout','announcement_variant','avatar_visible','cover-no','cover-yes') as $needle)fl02_assert(false!==strpos($js,$needle),'Missing live Studio preview behavior: '.$needle);
 foreach(array('social_asset_markup','network_label', 'rel="noopener noreferrer nofollow"', 'faluss-link-card__links') as $needle)fl02_assert(false!==strpos($source,$needle),'Missing safe public social or link rendering: '.$needle);

@@ -716,3 +716,16 @@
         animation-iteration-count: 1;
     }
 }
+
+.faluss-link-studio__cover-control {
+    display: grid;
+    gap: .8rem;
+    padding: 1rem;
+    border: 1px solid var(--fl-studio-border);
+    border-radius: 1.2rem;
+    background: var(--fl-studio-panel);
+}
+.faluss-link-studio__cover-control > label { font-weight: 750; }
+.faluss-link-studio__cover-control .faluss-link-editor__cover-preview { min-height: 8rem; overflow: hidden; border-radius: 1rem; background: #f1eee7; }
+.faluss-link-studio__cover-control .faluss-link-editor__cover-preview:empty { display: none; }
+.faluss-link-studio__cover-control .faluss-link-editor__cover-preview img { display: block; width: 100%; height: 10rem; object-fit: cover; }
