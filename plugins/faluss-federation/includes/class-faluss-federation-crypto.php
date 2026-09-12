@@ -151,6 +151,33 @@ final class Faluss_Federation_Crypto {
         return is_string( $value ) && 86 === strlen( $value ) && ! is_wp_error( self::base64url_decode( $value, 64 ) );
     }
 
+    /** @return string|WP_Error */
+    public static function format_utc_timestamp( $timestamp ) {
+        if ( ! is_int( $timestamp ) || $timestamp < 0 ) {
+            return new WP_Error( 'faluss_federation_invalid_timestamp' );
+        }
+        $value = gmdate( 'Y-m-d\TH:i:s\Z', $timestamp );
+        $parsed = self::parse_utc_timestamp( $value );
+        return is_wp_error( $parsed ) || $timestamp !== $parsed ? new WP_Error( 'faluss_federation_invalid_timestamp' ) : $value;
+    }
+
+    /** @return int|WP_Error */
+    public static function parse_utc_timestamp( $value ) {
+        if ( ! is_string( $value ) || 20 !== strlen( $value ) || 1 !== preg_match( '/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/D', $value ) ) {
+            return new WP_Error( 'faluss_federation_invalid_timestamp' );
+        }
+        $date = DateTimeImmutable::createFromFormat( '!Y-m-d\TH:i:s\Z', $value, new DateTimeZone( 'UTC' ) );
+        $errors = DateTimeImmutable::getLastErrors();
+        if ( false === $date || ( is_array( $errors ) && ( 0 !== $errors['warning_count'] || 0 !== $errors['error_count'] ) ) || $value !== $date->format( 'Y-m-d\TH:i:s\Z' ) ) {
+            return new WP_Error( 'faluss_federation_invalid_timestamp' );
+        }
+        return $date->getTimestamp();
+    }
+
+    public static function is_utc_timestamp( $value ) {
+        return ! is_wp_error( self::parse_utc_timestamp( $value ) );
+    }
+
     public static function request_canonical( $request, $raw_body ) {
         return self::canonical_join( array( $request['protocol_version'] ?? '', 'POST', self::PATH, $request['sender']['node_id'] ?? '', $request['recipient']['node_id'] ?? '', $request['sender']['key_id'] ?? '', $request['issued_at'] ?? '', $request['expires_at'] ?? '', $request['nonce'] ?? '', hash( 'sha256', $raw_body ) ) );
     }
@@ -185,10 +212,10 @@ final class Faluss_Federation_Crypto {
     public static function is_semver( $value ) { return is_string( $value ) && 1 === preg_match( '/^[1-9][0-9]*\.[0-9]+\.[0-9]+$/D', $value ); }
 
     private static function valid_key_period( $from, $until ) {
-        $start = is_string( $from ) && preg_match( '/Z$/D', $from ) ? strtotime( $from ) : false;
-        $end = is_string( $until ) && preg_match( '/Z$/D', $until ) ? strtotime( $until ) : false;
+        $start = self::parse_utc_timestamp( $from );
+        $end = self::parse_utc_timestamp( $until );
         $now = time();
-        return false !== $start && false !== $end && $end > $start && $start <= $now && $end >= $now;
+        return ! is_wp_error( $start ) && ! is_wp_error( $end ) && $end > $start && $start <= $now && $end >= $now;
     }
 
     private static function origin_matches_wordpress( $origin ) {

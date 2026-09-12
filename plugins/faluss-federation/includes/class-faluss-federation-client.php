@@ -43,32 +43,52 @@ final class Faluss_Federation_Client {
         } catch ( Exception $exception ) {
             return new WP_Error( 'faluss_federation_fail_closed' );
         }
-        $now = time();
-        $request = array(
-            'protocol_version' => '1',
-            'message_type' => 'request',
-            'request_id' => wp_generate_uuid4(),
-            'operation' => $operation,
-            'sender' => array( 'node_id' => $identity['node_id'], 'app_key' => $identity['app_key'], 'key_id' => $identity['key_id'] ),
-            'recipient' => array( 'node_id' => $peer['peer_node_id'], 'app_key' => $peer['peer_app_key'] ),
-            'issued_at' => gmdate( 'c', $now ),
-            'expires_at' => gmdate( 'c', $now + 300 ),
-            'nonce' => $nonce,
-            'subject_context' => $subject_context,
-            'parameters' => $parameters,
-        );
+        $request = self::build_request( $identity, $peer, $operation, $parameters, $subject_context, $nonce, time() );
+        if ( is_wp_error( $request ) ) {
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
         $raw = wp_json_encode( $request, JSON_UNESCAPED_SLASHES );
         $canonical = is_string( $raw ) ? Faluss_Federation_Crypto::request_canonical( $request, $raw ) : new WP_Error( 'faluss_federation_fail_closed' );
         $signature = is_wp_error( $canonical ) ? $canonical : Faluss_Federation_Crypto::sign( $canonical );
         if ( ! is_string( $raw ) || is_wp_error( $signature ) || strlen( $raw ) > Faluss_Federation_Server::MAX_BODY ) {
             return new WP_Error( 'faluss_federation_fail_closed' );
         }
-        $response = wp_remote_post( $peer['canonical_origin'] . Faluss_Federation_Crypto::PATH, array(
+        $response = self::send_raw( $peer['canonical_origin'], $identity, $raw, $signature );
+        if ( is_wp_error( $response ) || 0 !== (int) wp_remote_retrieve_response_code( $response ) && 200 > (int) wp_remote_retrieve_response_code( $response ) ) {
+            return new WP_Error( 'faluss_federation_transport_failed' );
+        }
+        return self::validate_response( $response, $request, $raw, $peer );
+    }
+
+    /** @return array<string,mixed>|WP_Error */
+    private static function build_request( $identity, $peer, $operation, $parameters, $subject_context, $nonce, $now ) {
+        $issued_at = Faluss_Federation_Crypto::format_utc_timestamp( $now );
+        $expires_at = Faluss_Federation_Crypto::format_utc_timestamp( $now + 300 );
+        if ( is_wp_error( $issued_at ) || is_wp_error( $expires_at ) ) {
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        return array(
+            'protocol_version' => '1',
+            'message_type' => 'request',
+            'request_id' => wp_generate_uuid4(),
+            'operation' => $operation,
+            'sender' => array( 'node_id' => $identity['node_id'], 'app_key' => $identity['app_key'], 'key_id' => $identity['key_id'] ),
+            'recipient' => array( 'node_id' => $peer['peer_node_id'], 'app_key' => $peer['peer_app_key'] ),
+            'issued_at' => $issued_at,
+            'expires_at' => $expires_at,
+            'nonce' => $nonce,
+            'subject_context' => $subject_context,
+            'parameters' => $parameters,
+        );
+    }
+
+    private static function send_raw( $canonical_origin, $identity, $raw, $signature ) {
+        return wp_remote_post( $canonical_origin . Faluss_Federation_Crypto::PATH, array(
             'method' => 'POST',
-            'timeout' => 10,
-            'connect_timeout' => 3,
+            'timeout' => 3,
             'redirection' => 0,
             'sslverify' => true,
+            'limit_response_size' => self::MAX_RESPONSE,
             'headers' => array(
                 'Content-Type' => 'application/json',
                 'X-Faluss-Federation-Key-Id' => $identity['key_id'],
@@ -77,10 +97,6 @@ final class Faluss_Federation_Client {
             ),
             'body' => $raw,
         ) );
-        if ( is_wp_error( $response ) || 0 !== (int) wp_remote_retrieve_response_code( $response ) && 200 > (int) wp_remote_retrieve_response_code( $response ) ) {
-            return new WP_Error( 'faluss_federation_transport_failed' );
-        }
-        return self::validate_response( $response, $request, $raw, $peer );
     }
 
     /** Verify raw response bytes, binding, peer key, status and specialized payload before returning it. */
@@ -152,7 +168,7 @@ final class Faluss_Federation_Client {
 
     private static function valid_response_shape( $response ) {
         $keys = array( 'protocol_version', 'message_type', 'request_id', 'request_body_sha256', 'responder', 'recipient', 'generated_at', 'expires_at', 'status', 'payload_contract', 'payload', 'error' );
-        if ( ! is_array( $response ) || ! self::bounded_value( $response, 0 ) || array_diff( $keys, array_keys( $response ) ) || array_diff( array_keys( $response ), $keys ) || '1' !== ( $response['protocol_version'] ?? null ) || 'response' !== ( $response['message_type'] ?? null ) || ! Faluss_Federation_Crypto::is_uuid( $response['request_id'] ?? '' ) || ! Faluss_Federation_Crypto::is_sha256( $response['request_body_sha256'] ?? '' ) || ! self::identity_shape( $response['responder'] ?? null, true ) || ! self::identity_shape( $response['recipient'] ?? null, false ) || ! self::utc_date( $response['generated_at'] ?? null ) || ! self::utc_date( $response['expires_at'] ?? null ) || ! in_array( $response['status'] ?? '', array( 'success', 'empty', 'not_available', 'not_authorized', 'incompatible', 'temporarily_unavailable', 'invalid_request', 'replay_rejected' ), true ) ) {
+        if ( ! is_array( $response ) || ! self::bounded_value( $response, 0 ) || array_diff( $keys, array_keys( $response ) ) || array_diff( array_keys( $response ), $keys ) || '1' !== ( $response['protocol_version'] ?? null ) || 'response' !== ( $response['message_type'] ?? null ) || ! Faluss_Federation_Crypto::is_uuid( $response['request_id'] ?? '' ) || ! Faluss_Federation_Crypto::is_sha256( $response['request_body_sha256'] ?? '' ) || ! self::identity_shape( $response['responder'] ?? null, true ) || ! self::identity_shape( $response['recipient'] ?? null, false ) || ! Faluss_Federation_Crypto::is_utc_timestamp( $response['generated_at'] ?? null ) || ! Faluss_Federation_Crypto::is_utc_timestamp( $response['expires_at'] ?? null ) || ! in_array( $response['status'] ?? '', array( 'success', 'empty', 'not_available', 'not_authorized', 'incompatible', 'temporarily_unavailable', 'invalid_request', 'replay_rejected' ), true ) ) {
             return false;
         }
         if ( 'success' === $response['status'] ) {
@@ -170,14 +186,12 @@ final class Faluss_Federation_Client {
     }
 
     private static function response_is_fresh( $response, $request ) {
-        $generated = strtotime( $response['generated_at'] );
-        $expires = strtotime( $response['expires_at'] );
-        $issued = strtotime( $request['issued_at'] );
+        $generated = Faluss_Federation_Crypto::parse_utc_timestamp( $response['generated_at'] );
+        $expires = Faluss_Federation_Crypto::parse_utc_timestamp( $response['expires_at'] );
+        $issued = Faluss_Federation_Crypto::parse_utc_timestamp( $request['issued_at'] );
         $now = time();
-        return false !== $generated && false !== $expires && false !== $issued && $expires > $generated && $expires - $generated <= 300 && $generated <= $now + 60 && $expires >= $now - 60 && $generated >= $issued - 60;
+        return ! is_wp_error( $generated ) && ! is_wp_error( $expires ) && ! is_wp_error( $issued ) && $expires > $generated && $expires - $generated <= 300 && $generated <= $now + 60 && $expires >= $now - 60 && $generated >= $issued - 60;
     }
-
-    private static function utc_date( $value ) { return is_string( $value ) && strlen( $value ) <= 32 && 1 === preg_match( '/Z$/D', $value ) && false !== strtotime( $value ); }
     private static function error_shape( $error, $status ) { return is_array( $error ) && array( 'code', 'message' ) === array_keys( $error ) && $status === $error['code'] && is_string( $error['message'] ) && '' !== $error['message'] && strlen( $error['message'] ) <= 160 && false === strpos( $error['message'], "\r" ) && false === strpos( $error['message'], "\n" ) && 1 !== preg_match( '/faluss_id|secret|session|payment|@/i', $error['message'] ); }
 
     private static function status_http( $status ) {

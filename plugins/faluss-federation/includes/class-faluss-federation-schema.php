@@ -102,33 +102,94 @@ final class Faluss_Federation_Schema {
         if ( ! self::is_node( $sender ) || ! self::is_key_id( $key_id ) || ! self::is_uuid( $request_id ) || ! Faluss_Federation_Crypto::is_nonce( $nonce ) || ! in_array( $operation, Faluss_Federation_Policy::operations(), true ) ) {
             return new WP_Error( 'faluss_federation_invalid_request' );
         }
+        return self::consume_transaction( $request, $body_hash, $limit );
+    }
+
+    /** @return true|WP_Error */
+    private static function consume_transaction( $request, $body_hash, $limit ) {
+        global $wpdb;
+        $sender = $request['sender']['node_id'];
+        $key_id = $request['sender']['key_id'];
+        $request_id = $request['request_id'];
+        $nonce = $request['nonce'];
+        $operation = $request['operation'];
         $now = gmdate( 'Y-m-d H:i:s' );
         $expires = gmdate( 'Y-m-d H:i:s', time() + self::RETENTION_SECONDS );
         $nonce_hash = hash( 'sha256', $nonce );
-        $wpdb->query( 'START TRANSACTION' );
-        try {
-            $existing = $wpdb->get_var( $wpdb->prepare( 'SELECT request_body_sha256 FROM ' . self::quote_identifier( self::request_bindings_table() ) . ' WHERE sender_node_id = %s AND request_id = %s FOR UPDATE', $sender, $request_id ) );
-            if ( null !== $existing ) {
-                $wpdb->query( 'ROLLBACK' );
-                return new WP_Error( 'faluss_federation_replay_rejected' );
-            }
-            $nonce_exists = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . self::quote_identifier( self::nonces_table() ) . ' WHERE sender_node_id = %s AND sender_key_id = %s AND nonce_hash = %s FOR UPDATE', $sender, $key_id, $nonce_hash ) );
-            if ( null !== $nonce_exists ) {
-                $wpdb->query( 'ROLLBACK' );
-                return new WP_Error( 'faluss_federation_replay_rejected' );
-            }
-            $rate_count = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . self::quote_identifier( self::nonces_table() ) . ' WHERE sender_node_id = %s AND sender_key_id = %s AND operation_name = %s AND consumed_at >= %s', $sender, $key_id, $operation, gmdate( 'Y-m-d H:i:s', time() - 60 ) ) );
-            if ( false === $wpdb->insert( self::request_bindings_table(), array( 'sender_node_id' => $sender, 'request_id' => $request_id, 'request_body_sha256' => $body_hash, 'created_at' => $now, 'expires_at' => $expires ), array( '%s', '%s', '%s', '%s', '%s' ) ) || false === $wpdb->insert( self::nonces_table(), array( 'sender_node_id' => $sender, 'sender_key_id' => $key_id, 'nonce_hash' => $nonce_hash, 'operation_name' => $operation, 'consumed_at' => $now, 'expires_at' => $expires ), array( '%s', '%s', '%s', '%s', '%s', '%s' ) ) ) {
-                $wpdb->query( 'ROLLBACK' );
-                return new WP_Error( 'faluss_federation_fail_closed' );
-            }
-            $wpdb->query( 'COMMIT' );
-            self::purge_opportunistically();
-            return $rate_count >= $limit ? new WP_Error( 'faluss_federation_rate_limited' ) : true;
-        } catch ( Exception $exception ) {
-            $wpdb->query( 'ROLLBACK' );
+        $started = $wpdb->query( 'START TRANSACTION' );
+        if ( false === $started || self::database_has_error() ) {
+            self::rollback_safely();
             return new WP_Error( 'faluss_federation_fail_closed' );
         }
+        try {
+            $existing = $wpdb->get_var( $wpdb->prepare( 'SELECT request_body_sha256 FROM ' . self::quote_identifier( self::request_bindings_table() ) . ' WHERE sender_node_id = %s AND request_id = %s FOR UPDATE', $sender, $request_id ) );
+            if ( self::database_has_error() ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            if ( null !== $existing ) {
+                return self::rollback_safely() ? new WP_Error( 'faluss_federation_replay_rejected' ) : new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            $nonce_exists = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . self::quote_identifier( self::nonces_table() ) . ' WHERE sender_node_id = %s AND sender_key_id = %s AND nonce_hash = %s FOR UPDATE', $sender, $key_id, $nonce_hash ) );
+            if ( self::database_has_error() ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            if ( null !== $nonce_exists ) {
+                return self::rollback_safely() ? new WP_Error( 'faluss_federation_replay_rejected' ) : new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            $rate_count = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . self::quote_identifier( self::nonces_table() ) . ' WHERE sender_node_id = %s AND sender_key_id = %s AND operation_name = %s AND consumed_at >= %s', $sender, $key_id, $operation, gmdate( 'Y-m-d H:i:s', time() - 60 ) ) );
+            if ( self::database_has_error() || null === $rate_count || ! is_numeric( $rate_count ) ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            $rate_count = (int) $rate_count;
+            $binding_inserted = $wpdb->insert( self::request_bindings_table(), array( 'sender_node_id' => $sender, 'request_id' => $request_id, 'request_body_sha256' => $body_hash, 'created_at' => $now, 'expires_at' => $expires ), array( '%s', '%s', '%s', '%s', '%s' ) );
+            if ( false === $binding_inserted || self::database_has_error() ) {
+                if ( ! self::rollback_safely() ) {
+                    return new WP_Error( 'faluss_federation_fail_closed' );
+                }
+                return self::confirmed_replay( $sender, $key_id, $request_id, $nonce_hash ) ? new WP_Error( 'faluss_federation_replay_rejected' ) : new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            $nonce_inserted = $wpdb->insert( self::nonces_table(), array( 'sender_node_id' => $sender, 'sender_key_id' => $key_id, 'nonce_hash' => $nonce_hash, 'operation_name' => $operation, 'consumed_at' => $now, 'expires_at' => $expires ), array( '%s', '%s', '%s', '%s', '%s', '%s' ) );
+            if ( false === $nonce_inserted || self::database_has_error() ) {
+                if ( ! self::rollback_safely() ) {
+                    return new WP_Error( 'faluss_federation_fail_closed' );
+                }
+                return self::confirmed_replay( $sender, $key_id, $request_id, $nonce_hash ) ? new WP_Error( 'faluss_federation_replay_rejected' ) : new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            $committed = $wpdb->query( 'COMMIT' );
+            if ( false === $committed || self::database_has_error() ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            self::purge_opportunistically();
+            return $rate_count >= $limit ? new WP_Error( 'faluss_federation_rate_limited' ) : true;
+        } catch ( Throwable $exception ) {
+            self::rollback_safely();
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+    }
+
+    private static function confirmed_replay( $sender, $key_id, $request_id, $nonce_hash ) {
+        global $wpdb;
+        $existing = $wpdb->get_var( $wpdb->prepare( 'SELECT request_body_sha256 FROM ' . self::quote_identifier( self::request_bindings_table() ) . ' WHERE sender_node_id = %s AND request_id = %s', $sender, $request_id ) );
+        if ( self::database_has_error() ) {
+            return false;
+        }
+        $nonce_exists = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . self::quote_identifier( self::nonces_table() ) . ' WHERE sender_node_id = %s AND sender_key_id = %s AND nonce_hash = %s', $sender, $key_id, $nonce_hash ) );
+        return ! self::database_has_error() && ( null !== $existing || null !== $nonce_exists );
+    }
+
+    private static function rollback_safely() {
+        global $wpdb;
+        $rolled_back = $wpdb->query( 'ROLLBACK' );
+        return false !== $rolled_back && ! self::database_has_error();
+    }
+
+    private static function database_has_error() {
+        global $wpdb;
+        return ! isset( $wpdb->last_error ) || ! is_string( $wpdb->last_error ) || '' !== $wpdb->last_error;
     }
 
     /** Audit accepts only opaque technical values and never payload, key or subject material. */

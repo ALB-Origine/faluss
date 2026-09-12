@@ -60,7 +60,7 @@ $client = fed01b_source( $root, 'plugins/faluss-federation/includes/class-faluss
 $admin = fed01b_source( $root, 'plugins/faluss-federation/includes/class-faluss-federation-admin.php' );
 $guide = fed01b_source( $root, 'docs/FALUSS_FEDERATION.md' );
 
-fed01b_contains_all( $bootstrap, array( 'Version: 0.1.0', 'Requires at least: 6.4', 'Requires PHP: 7.4', "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ), 'bootstrap' );
+fed01b_contains_all( $bootstrap, array( 'Version: 0.1.1', "FALUSS_FEDERATION_VERSION', '0.1.1'", 'Requires at least: 6.4', 'Requires PHP: 7.4', "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ), 'bootstrap' );
 fed01b_contains_all( $schema, array( 'GET_LOCK', 'RENAME TABLE', 'ENGINE=InnoDB', 'faluss_federation_peers', 'faluss_federation_request_bindings', 'faluss_federation_nonces', 'faluss_federation_audit', 'START TRANSACTION', 'sender_request_unique', 'sender_key_nonce_unique' ), 'schema' );
 fed01b_contract_assert( false !== strpos( $schema, 'Never repairs') && false === strpos( $schema, 'dbDelta(' ), 'Migration must be fresh-only and avoid dbDelta.' );
 fed01b_contains_all( $crypto, array( 'sodium_crypto_sign_seed_keypair', 'sodium_crypto_sign_detached', 'sodium_crypto_sign_verify_detached', 'sodium_memzero', 'base64url_decode', 'canonical_join', "'POST'", 'FALUSS_FEDERATION_PRIVATE_SEED' ), 'crypto' );
@@ -71,7 +71,8 @@ fed01b_contains_all( $providers, array( 'diagnostic.read', 'manifest.read', 'rea
 fed01b_contract_assert( false === strpos( $providers, 'register_manifest_provider( \'faluss' ), 'FED-01B must not ship a manifest provider.' );
 fed01b_contains_all( $server, array( "'POST'", "'/exchange'", 'MAX_BODY = 65536', 'JSON_THROW_ON_ERROR', 'request_canonical', 'consume_replay_and_limit', 'serve_pre_serialized', 'X-Faluss-Federation-Signature', 'private, no-store' ), 'receiver' );
 fed01b_contract_assert( false === strpos( $server, 'register_rest_route( self::NAMESPACE, \'/' ), 'Receiver must expose no alternate REST route.' );
-fed01b_contains_all( $client, array( 'diagnostic_read', 'manifest_read', 'read_model_read', 'wp_remote_post', "'sslverify' => true", "'redirection' => 0", "'connect_timeout' => 3", "'timeout' => 10", 'validate_response' ), 'client' );
+fed01b_contains_all( $client, array( 'diagnostic_read', 'manifest_read', 'read_model_read', 'wp_remote_post', "'sslverify' => true", "'redirection' => 0", "'timeout' => 3", "'limit_response_size' => self::MAX_RESPONSE", 'validate_response' ), 'client' );
+fed01b_contract_assert( false === strpos( $client, 'connect_timeout' ), 'Client must use only supported WordPress HTTP arguments.' );
 fed01b_contract_assert( false === strpos( $client, '$_GET' ) && false === strpos( $client, '$_POST' ), 'Client facades must not receive a destination from browser input.' );
 fed01b_contains_all( $admin, array( "add_management_page", "'manage_options'", 'check_admin_referer', 'ENREGISTRER LE PAIR FEDERATION', 'REVOQUER LA CLE FEDERATION', 'Transport indisponible : Sodium absent ou invalide' ), 'admin' );
 fed01b_contract_assert( false === strpos( $admin, '<script' ) && false === strpos( $admin, '<style' ), 'Administration must not add custom CSS or JavaScript.' );

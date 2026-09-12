@@ -1,10 +1,10 @@
-# Faluss Federation 0.1.0 — exploitation privée
+# Faluss Federation 0.1.1 — exploitation privée
 
 ## Frontière
 
 `plugins/faluss-federation/` matérialise FED-01A.1 sur un nœud WordPress approuvé. Il ne transporte que `diagnostic.read`, `manifest.read` et `read_model.read`, par HTTPS serveur-à-serveur, Ed25519 et politique locale fermée. Il n'est ni un RPC générique, ni un transport de paiement, claim, entitlement, profil, média ou donnée métier. Il ne remplace pas FPR, Identity, Token Engine Connector, Stripe ou Faluss Subscriptions.
 
-En version 0.1.0, seul `diagnostic.read` possède un producteur. Les deux autres opérations renvoient une réponse signée `not_available` tant qu'un plugin propriétaire de confiance n'a pas enregistré son provider et son validateur spécialisés. Cette version ne livre donc ni CAP-01B, ni manifeste Hub/Me, ni read-model membre fédéré.
+En version 0.1.1, seul `diagnostic.read` possède un producteur. Les deux autres opérations renvoient une réponse signée `not_available` tant qu'un plugin propriétaire de confiance n'a pas enregistré son provider et son validateur spécialisés. Cette version ne livre donc ni CAP-01B, ni manifeste Hub/Me, ni read-model membre fédéré.
 
 ## Préconditions et configuration locale
 
@@ -64,9 +64,9 @@ La route unique, disponible seulement lorsque le transport est prêt, est :
 POST /wp-json/faluss-federation/v1/exchange
 ```
 
-Le receiver lit et hache les octets bruts une seule fois, vérifie les trois en-têtes cryptographiques uniques, la forme JSON bornée, la clé/politique, la signature et la fraîcheur avant de consommer nonce et binding dans la même transaction InnoDB. Les refus pré-authentification restent génériques. Les réponses post-authentification sont sérialisées une fois, signées sur les octets servis, privées (`Cache-Control: private, no-store`) et limitées à 65 536 octets. Les plafonds JSON sont profondeur 16, 128 champs ou éléments et 4 096 octets par chaîne. Les limites par clé/opération/minute sont 30, 60 et 600.
+Le receiver lit et hache les octets bruts une seule fois, vérifie les trois en-têtes cryptographiques uniques, la forme JSON bornée, la clé/politique, la signature et la fraîcheur avant de consommer nonce et binding dans la même transaction InnoDB. Toute date d'enveloppe est émise et acceptée uniquement au format UTC canonique `Y-m-d\TH:i:s\Z`, sans fraction ni décalage. Les refus pré-authentification restent génériques. Les réponses post-authentification sont sérialisées une fois, signées sur les octets servis, privées (`Cache-Control: private, no-store`) et limitées à 65 536 octets. Les plafonds JSON sont profondeur 16, 128 champs ou éléments et 4 096 octets par chaîne. Les limites par clé/opération/minute sont 30, 60 et 600 ; même une requête plafonnée n'est comptée qu'après commit confirmé.
 
-La façade interne sortante n'expose que `diagnostic_read`, `manifest_read` et `read_model_read`. Elle force HTTPS, `sslverify`, zéro redirection, connexion maximale de trois secondes et durée totale de dix secondes. Elle contrôle l'identité, la liaison requête/réponse, les en-têtes, hash, signature, fraîcheur, statut et validateur spécialisé avant de rendre une réponse. Aucun payload reçu n'est persisté dans une option, table, transient ou cache durable.
+La façade interne sortante n'expose que `diagnostic_read`, `manifest_read` et `read_model_read`. Elle force HTTPS, `sslverify`, zéro redirection, une durée totale effective de trois secondes et `limit_response_size` à 65 536 octets avec les seuls arguments supportés par l'API HTTP WordPress. Elle contrôle ensuite la taille reçue, l'identité, la liaison requête/réponse, les en-têtes, hash, signature, fraîcheur, statut et validateur spécialisé avant de rendre une réponse. Aucun payload reçu n'est persisté dans une option, table, transient ou cache durable.
 
 ## Recette WordPress à exécuter ultérieurement
 

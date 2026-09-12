@@ -71,65 +71,116 @@ final class Faluss_Federation_Policy {
 
     /** @return true|WP_Error */
     public static function create_peer( $input ) {
-        global $wpdb;
         $peer = self::validate_peer_input( $input );
         if ( is_wp_error( $peer ) || ! Faluss_Federation_Schema::is_ready() ) {
             return is_wp_error( $peer ) ? $peer : new WP_Error( 'faluss_federation_fail_closed' );
         }
-        $wpdb->query( 'START TRANSACTION' );
+        return self::create_peer_transaction( $peer );
+    }
+
+    /** @return true|WP_Error */
+    private static function create_peer_transaction( $peer ) {
+        global $wpdb;
+        $started = $wpdb->query( 'START TRANSACTION' );
+        if ( false === $started || self::database_has_error() ) {
+            self::rollback_safely();
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
         try {
             $rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id,key_state FROM ' . Faluss_Federation_Schema::quote_identifier( Faluss_Federation_Schema::peers_table() ) . ' WHERE peer_node_id = %s AND peer_app_key = %s FOR UPDATE', $peer['peer_node_id'], $peer['peer_app_key'] ), ARRAY_A );
+            if ( ! is_array( $rows ) || self::database_has_error() ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
             $states = array();
             $active_id = 0;
-            foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+            foreach ( $rows as $row ) {
                 $states[] = $row['key_state'];
                 if ( 'active' === $row['key_state'] ) {
                     $active_id = (int) $row['id'];
                 }
             }
             if ( 'active' !== $peer['key_state'] || in_array( 'rotating', $states, true ) || count( array_intersect( $states, array( 'active', 'rotating' ) ) ) >= 2 ) {
-                $wpdb->query( 'ROLLBACK' );
-                return new WP_Error( 'faluss_federation_rotation_refused' );
+                return self::rollback_safely() ? new WP_Error( 'faluss_federation_rotation_refused' ) : new WP_Error( 'faluss_federation_fail_closed' );
             }
-            if ( $active_id > 0 && 1 !== $wpdb->update( Faluss_Federation_Schema::peers_table(), array( 'key_state' => 'rotating', 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $active_id ), array( '%s', '%s' ), array( '%d' ) ) ) {
-                $wpdb->query( 'ROLLBACK' );
-                return new WP_Error( 'faluss_federation_rotation_refused' );
+            if ( $active_id > 0 ) {
+                $rotated = $wpdb->update( Faluss_Federation_Schema::peers_table(), array( 'key_state' => 'rotating', 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $active_id ), array( '%s', '%s' ), array( '%d' ) );
+                if ( 1 !== $rotated || self::database_has_error() ) {
+                    self::rollback_safely();
+                    return new WP_Error( 'faluss_federation_fail_closed' );
+                }
             }
             $now = gmdate( 'Y-m-d H:i:s' );
             $written = $wpdb->insert( Faluss_Federation_Schema::peers_table(), array( 'peer_node_id' => $peer['peer_node_id'], 'peer_app_key' => $peer['peer_app_key'], 'canonical_origin' => $peer['canonical_origin'], 'key_id' => $peer['key_id'], 'public_key' => $peer['public_key'], 'key_state' => $peer['key_state'], 'valid_from' => $peer['valid_from'], 'valid_until' => $peer['valid_until'], 'operations_json' => wp_json_encode( $peer['operations'] ), 'owner_apps_json' => wp_json_encode( $peer['owner_apps'] ), 'capabilities_json' => wp_json_encode( $peer['capabilities'] ), 'audiences_json' => wp_json_encode( $peer['audiences'] ), 'created_at' => $now, 'updated_at' => $now, 'revoked_at' => null ), array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ) );
-            if ( false === $written ) {
-                $wpdb->query( 'ROLLBACK' );
+            if ( false === $written || self::database_has_error() ) {
+                self::rollback_safely();
                 return new WP_Error( 'faluss_federation_fail_closed' );
             }
-            $wpdb->query( 'COMMIT' );
+            $committed = $wpdb->query( 'COMMIT' );
+            if ( false === $committed || self::database_has_error() ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
             Faluss_Federation_Schema::audit( array( 'result_code' => 'peer_registered', 'opaque_code' => 'admin' ) );
             return true;
-        } catch ( Exception $exception ) {
-            $wpdb->query( 'ROLLBACK' );
+        } catch ( Throwable $exception ) {
+            self::rollback_safely();
             return new WP_Error( 'faluss_federation_fail_closed' );
         }
     }
 
     /** @return true|WP_Error */
     public static function revoke_peer( $peer_id ) {
-        global $wpdb;
         if ( ! Faluss_Federation_Schema::is_ready() || ! is_int( $peer_id ) || $peer_id < 1 ) {
             return new WP_Error( 'faluss_federation_fail_closed' );
         }
-        $wpdb->query( 'START TRANSACTION' );
-        $state = $wpdb->get_var( $wpdb->prepare( 'SELECT key_state FROM ' . Faluss_Federation_Schema::quote_identifier( Faluss_Federation_Schema::peers_table() ) . ' WHERE id = %d FOR UPDATE', $peer_id ) );
-        if ( ! in_array( $state, array( 'active', 'rotating' ), true ) ) {
-            $wpdb->query( 'ROLLBACK' );
-            return new WP_Error( 'faluss_federation_revoke_refused' );
+        return self::revoke_peer_transaction( $peer_id );
+    }
+
+    /** @return true|WP_Error */
+    private static function revoke_peer_transaction( $peer_id ) {
+        global $wpdb;
+        $started = $wpdb->query( 'START TRANSACTION' );
+        if ( false === $started || self::database_has_error() ) {
+            self::rollback_safely();
+            return new WP_Error( 'faluss_federation_fail_closed' );
         }
-        $written = $wpdb->update( Faluss_Federation_Schema::peers_table(), array( 'key_state' => 'revoked', 'revoked_at' => gmdate( 'Y-m-d H:i:s' ), 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $peer_id ), array( '%s', '%s', '%s' ), array( '%d' ) );
-        if ( 1 !== $written ) {
-            $wpdb->query( 'ROLLBACK' );
-            return new WP_Error( 'faluss_federation_revoke_refused' );
+        try {
+            $state = $wpdb->get_var( $wpdb->prepare( 'SELECT key_state FROM ' . Faluss_Federation_Schema::quote_identifier( Faluss_Federation_Schema::peers_table() ) . ' WHERE id = %d FOR UPDATE', $peer_id ) );
+            if ( self::database_has_error() ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            if ( ! in_array( $state, array( 'active', 'rotating' ), true ) ) {
+                return self::rollback_safely() ? new WP_Error( 'faluss_federation_revoke_refused' ) : new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            $written = $wpdb->update( Faluss_Federation_Schema::peers_table(), array( 'key_state' => 'revoked', 'revoked_at' => gmdate( 'Y-m-d H:i:s' ), 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $peer_id ), array( '%s', '%s', '%s' ), array( '%d' ) );
+            if ( 1 !== $written || self::database_has_error() ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            $committed = $wpdb->query( 'COMMIT' );
+            if ( false === $committed || self::database_has_error() ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            Faluss_Federation_Schema::audit( array( 'result_code' => 'peer_revoked', 'opaque_code' => 'admin' ) );
+            return true;
+        } catch ( Throwable $exception ) {
+            self::rollback_safely();
+            return new WP_Error( 'faluss_federation_fail_closed' );
         }
-        $wpdb->query( 'COMMIT' );
-        Faluss_Federation_Schema::audit( array( 'result_code' => 'peer_revoked', 'opaque_code' => 'admin' ) );
-        return true;
+    }
+
+    private static function rollback_safely() {
+        global $wpdb;
+        $rolled_back = $wpdb->query( 'ROLLBACK' );
+        return false !== $rolled_back && ! self::database_has_error();
+    }
+
+    private static function database_has_error() {
+        global $wpdb;
+        return ! isset( $wpdb->last_error ) || ! is_string( $wpdb->last_error ) || '' !== $wpdb->last_error;
     }
 
     public static function state_counts() {
