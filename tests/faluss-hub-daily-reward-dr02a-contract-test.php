@@ -49,8 +49,8 @@ $token_bootstrap = file_get_contents( $root . '/plugins/token-engine/token-engin
 $token_schema = file_get_contents( $root . '/plugins/token-engine/includes/class-token-engine-schema.php' );
 $badge = $plugin . '/assets/images/pf/faluss-pf-badge.png';
 
-foreach ( array( "FALUSS_PORTAL_VERSION', '0.1.16'", "TOKEN_ENGINE_VERSION', '0.4.1'", "const VERSION = '5'" ) as $needle ) {
-    dr02a_assert( false !== strpos( $bootstrap . $token_bootstrap . $token_schema, $needle ), 'DR-02A must consume Portal 0.1.16 with Token Engine 0.4.1 schema 5: ' . $needle );
+foreach ( array( "FALUSS_PORTAL_VERSION', '0.1.17'", "TOKEN_ENGINE_VERSION', '0.4.1'", "const VERSION = '5'" ) as $needle ) {
+    dr02a_assert( false !== strpos( $bootstrap . $token_bootstrap . $token_schema, $needle ), 'DR-02A must consume Portal 0.1.17 with Token Engine 0.4.1 schema 5: ' . $needle );
 }
 dr02a_assert( false === strpos( $portal, 'token_engine_ledger' ) && false === strpos( $portal, 'token_engine_pf_ledger' ) && false === strpos( $portal, 'dbDelta' ) && false === strpos( $portal, 'CREATE TABLE' ), 'Portal must not alter, query or create either Token Engine ledger/table.' );
 foreach ( array( 'register_rest_route', 'wp_ajax_nopriv_', 'wp_schedule', 'wp_cron', 'token-engine-connector', 'Token_Engine_Connector' ) as $forbidden ) {
@@ -108,14 +108,15 @@ foreach ( array( 'ineligible', 'unavailable', 'not_supported' ) as $state ) {
 ob_start();
 $render->invoke( null, $document );
 $claimable_markup = ob_get_clean();
-dr02a_assert( false !== strpos( $claimable_markup, 'method="post"' ) && false !== strpos( $claimable_markup, 'faluss_portal_claim_hub_daily' ) && false !== strpos( $claimable_markup, 'Récupérer +20 PF' ), 'The Hub card must render its single explicit POST claim action.' );
+dr02a_assert( false !== strpos( $claimable_markup, 'method="post"' ) && false !== strpos( $claimable_markup, 'faluss_portal_claim_hub_daily' ) && false !== strpos( $claimable_markup, 'data-faluss-portal-hub-daily-amount' ) && false !== strpos( $claimable_markup, '>20</span>' ), 'The Hub card must render its single compact PF badge and amount POST action.' );
+dr02a_assert( false === strpos( $claimable_markup, 'Récupérer' ) && false === strpos( $claimable_markup, 'Claim' ) && false === strpos( $claimable_markup, '+20' ), 'The integrated Hub action must not render a competing textual CTA or plus sign.' );
 foreach ( array( $faluss_id, 'amount_pf', 'economic_class', 'logical_date', 'reward_key', 'idempotency', 'date=', 'owner=' ) as $forbidden ) {
     dr02a_assert( false === strpos( $claimable_markup, $forbidden ), 'The browser claim markup must carry no subject or economic parameter: ' . $forbidden );
 }
 ob_start();
 $render->invoke( null, $claimed );
 $claimed_markup = ob_get_clean();
-dr02a_assert( false === strpos( $claimed_markup, '<form' ) && false !== strpos( $claimed_markup, 'Récupéré aujourd’hui' ), 'The claimed Hub card must replace its action without offering a second claim.' );
+dr02a_assert( false === strpos( $claimed_markup, '<form' ) && false === strpos( $claimed_markup, '<button' ) && false !== strpos( $claimed_markup, '>20</span>' ), 'The claimed Hub card must preserve the same integrated visual without offering a second claim.' );
 
 foreach ( array( '$_GET', 'faluss_id', 'amount_pf', 'economic_class', 'logical_date', 'reward_key', 'idempotency' ) as $forbidden ) {
     dr02a_assert( false === strpos( $javascript, $forbidden ), 'The browser code must not send or hold a PF business parameter: ' . $forbidden );

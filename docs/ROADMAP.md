@@ -163,6 +163,18 @@ l'idempotence, la date et l'unique entrée append-only. Faluss Me, son claim de
 `75 PF`, les prérequis de carte/handle et toute liaison inter-sites restent non
 implémentés.
 
+## AP-02A — Mes Apps cohérent et action PF intégrée — livré techniquement
+
+Faluss Portal `0.1.17` consomme désormais la projection minimale de carte
+publiée émise par Faluss Identity `0.4.14` pendant le SSO et validée par Faluss
+Identity Client `0.5.2`. Une carte publiée active immédiatement Faluss Me dans
+Mes Apps et Explorer réutilise sa destination membre ; Faluss Link `0.3.14`
+envoie réciproquement la card Hub vers `faluss.com/mon-faluss`. Toutes les cards
+Mes Apps conservent la zone circulaire glass historique. Seul Hub y affiche le
+badge PF officiel et `20` avec son claim existant ; Faluss Me n'obtient ni
+`75 PF`, ni adaptateur, ni écriture. Aucun endpoint, table, migration ou
+changement Token Engine n'est ajouté.
+
 ## FPR-01 — Mise en production Faluss — livré techniquement
 
 Le plugin isolé **Faluss Production Reset** `0.1.0` coordonne un unique reset

@@ -358,6 +358,7 @@ final class Faluss_Portal {
      */
     private static function app_registry( $faluss_id ) {
         $assets = FALUSS_PORTAL_URL . 'assets/images/apps/';
+        $me = self::faluss_me_projection( $faluss_id );
         return array(
             array(
                 'slug'        => 'hub',
@@ -365,7 +366,7 @@ final class Faluss_Portal {
                 'logo'        => $assets . 'faluss-hub.png',
                 'accent'      => '#000000',
                 'title_color' => '#FFFFFF',
-                'url'         => 'https://faluss.com/',
+                'url'         => 'https://faluss.com/mon-faluss',
                 'available'   => true,
                 'owned'       => self::valid_faluss_id( $faluss_id ),
                 'active'      => true,
@@ -379,9 +380,9 @@ final class Faluss_Portal {
                 'logo'        => $assets . 'faluss-me.png',
                 'accent'      => '#EE4A4A',
                 'title_color' => '#EE4A4A',
-                'url'         => 'https://www.faluss.me/',
+                'url'         => null === $me ? 'https://www.faluss.me/' : $me['canonical_url'],
                 'available'   => true,
-                'owned'       => self::has_published_faluss_me_card( $faluss_id ),
+                'owned'       => null !== $me,
                 'active'      => false,
                 'short_title' => 'Link Identité',
                 'description' => 'La vitrine tout-en-un pensée pour votre bio. Partagez votre identité, vos liens et ce que vous proposez depuis un espace entièrement personnalisable et gratuit.',
@@ -428,21 +429,20 @@ final class Faluss_Portal {
         );
     }
 
-    /** A published Faluss.me card is accepted only from the local Identity API. */
-    private static function has_published_faluss_me_card( $faluss_id ) {
+    /** @return array{contract_version: string, publication_status: string, canonical_url: string}|null */
+    private static function faluss_me_projection( $faluss_id ) {
         if ( ! self::valid_faluss_id( $faluss_id )
-            || ! class_exists( 'Faluss_Identity_Public_Profile' )
-            || ! method_exists( 'Faluss_Identity_Public_Profile', 'studio_profile' ) ) {
-            return false;
+            || ! class_exists( 'Faluss_Identity_Client' )
+            || ! method_exists( 'Faluss_Identity_Client', 'member_app_projection' ) ) {
+            return null;
         }
-        $profile = Faluss_Identity_Public_Profile::studio_profile( $faluss_id );
-        return is_array( $profile )
-            && isset( $profile['faluss_id'] )
-            && is_string( $profile['faluss_id'] )
-            && hash_equals( strtolower( $faluss_id ), strtolower( $profile['faluss_id'] ) )
-            && 'published' === ( $profile['publication_status'] ?? '' )
-            && is_string( $profile['public_slug'] ?? null )
-            && '' !== trim( $profile['public_slug'] );
+        $projection = Faluss_Identity_Client::member_app_projection( $faluss_id, 'me' );
+        return is_array( $projection )
+            && '1' === ( $projection['contract_version'] ?? '' )
+            && 'published' === ( $projection['publication_status'] ?? '' )
+            && self::valid_faluss_me_url( $projection['canonical_url'] ?? '' )
+                ? $projection
+                : null;
     }
 
     /** @param array<string,mixed> $app */
@@ -455,11 +455,9 @@ final class Faluss_Portal {
         $classes = 'faluss-portal__app-card faluss-portal__app-card--' . ( $compact ? 'compact' : 'explore' );
         $style = '--faluss-app-accent:' . $app['accent'] . ';--faluss-app-title-accent:' . $app['title_color'] . ';';
         $card_label = 'Faluss ' . $app['name'];
-        if ( $hub_daily_card ) {
-            echo '<article class="' . esc_attr( $classes ) . ' faluss-portal__app-card--hub-daily" data-faluss-app-card data-faluss-app="' . esc_attr( $app['slug'] ) . '" data-faluss-app-state="' . esc_attr( $state ) . '" style="' . esc_attr( $style ) . '">';
+        if ( $compact_link ) {
+            echo '<article class="' . esc_attr( $classes . ( $hub_daily_card ? ' faluss-portal__app-card--hub-daily' : '' ) ) . '" data-faluss-app-card data-faluss-app="' . esc_attr( $app['slug'] ) . '" data-faluss-app-state="' . esc_attr( $state ) . '" style="' . esc_attr( $style ) . '">';
             echo '<a class="faluss-portal__app-card-access" href="' . esc_url( $url ) . '" target="_blank" rel="noopener noreferrer" aria-label="' . esc_attr( 'Ouvrir ' . $card_label ) . '"></a>';
-        } elseif ( $compact_link ) {
-            echo '<a class="' . esc_attr( $classes ) . '" data-faluss-app-card data-faluss-app="' . esc_attr( $app['slug'] ) . '" data-faluss-app-state="' . esc_attr( $state ) . '" style="' . esc_attr( $style ) . '" href="' . esc_url( $url ) . '" target="_blank" rel="noopener noreferrer" aria-label="' . esc_attr( 'Ouvrir ' . $card_label ) . '">';
         } else {
             echo '<article class="' . esc_attr( $classes ) . '" data-faluss-app-card data-faluss-app="' . esc_attr( $app['slug'] ) . '" data-faluss-app-state="' . esc_attr( $state ) . '" style="' . esc_attr( $style ) . '">';
         }
@@ -490,7 +488,7 @@ final class Faluss_Portal {
             echo '</div>';
         }
 
-        echo $compact_link && ! $hub_daily_card ? '</a>' : '</article>';
+        echo '</article>';
     }
 
     /**
@@ -506,11 +504,13 @@ final class Faluss_Portal {
             echo '<form class="faluss-portal__hub-daily-form" data-faluss-portal-hub-daily-reward method="post" action="' . esc_url( admin_url( 'admin-ajax.php' ) ) . '">';
             echo '<input type="hidden" name="action" value="' . esc_attr( self::HUB_DAILY_ACTION ) . '">';
             echo '<input type="hidden" name="faluss_portal_hub_daily_nonce" value="' . esc_attr( wp_create_nonce( self::HUB_DAILY_NONCE ) ) . '">';
-            echo '<button class="faluss-portal__hub-daily-button" type="submit" data-faluss-portal-hub-daily-submit>' . self::hub_pf_badge() . '<span data-faluss-portal-hub-daily-label>Récupérer +20 PF</span></button>';
+            echo '<button class="faluss-portal__app-open faluss-portal__hub-daily-button" type="submit" data-faluss-portal-hub-daily-submit aria-label="Gain quotidien : 20 Points Faluss">' . self::hub_pf_badge() . '<span class="faluss-portal__hub-daily-amount" data-faluss-portal-hub-daily-amount aria-hidden="true">20</span></button>';
             echo '<span class="faluss-portal__hub-daily-feedback" data-faluss-portal-hub-daily-feedback role="status" hidden></span>';
             echo '</form>';
         } elseif ( 'claimed' === $status ) {
-            echo '<span class="faluss-portal__hub-daily-claimed" role="status">' . self::hub_pf_badge() . '<span>Récupéré aujourd’hui</span></span>';
+            echo '<span class="faluss-portal__app-open faluss-portal__hub-daily-claimed" role="status" aria-label="Gain quotidien déjà reçu : 20 Points Faluss">' . self::hub_pf_badge() . '<span class="faluss-portal__hub-daily-amount" aria-hidden="true">20</span></span>';
+        } else {
+            echo '<span class="faluss-portal__app-open" aria-hidden="true">' . self::external_link_icon() . '</span>';
         }
         echo '</span>';
     }
@@ -676,9 +676,12 @@ final class Faluss_Portal {
             return '';
         }
         $allowed = array(
-            'hub' => 'https://faluss.com/',
+            'hub' => 'https://faluss.com/mon-faluss',
             'me'  => 'https://www.faluss.me/',
         );
+        if ( 'me' === $app['slug'] && ! empty( $app['owned'] ) && self::valid_faluss_me_url( $app['url'] ) ) {
+            return $app['url'];
+        }
         $expected = $allowed[ $app['slug'] ] ?? '';
         $parts = wp_parse_url( $app['url'] );
         if ( '' === $expected
@@ -689,6 +692,18 @@ final class Faluss_Portal {
             return '';
         }
         return $app['url'];
+    }
+
+    private static function valid_faluss_me_url( $url ) {
+        if ( ! is_string( $url ) || ! in_array( $url, array( 'https://faluss.me/mon-faluss', 'https://www.faluss.me/mon-faluss' ), true ) ) {
+            return false;
+        }
+        $parts = wp_parse_url( $url );
+        return is_array( $parts )
+            && 'https' === ( $parts['scheme'] ?? '' )
+            && in_array( strtolower( $parts['host'] ?? '' ), array( 'faluss.me', 'www.faluss.me' ), true )
+            && '/mon-faluss' === ( $parts['path'] ?? '' )
+            && ! isset( $parts['query'], $parts['fragment'], $parts['user'], $parts['pass'], $parts['port'] );
     }
 
     private static function external_link_icon() {

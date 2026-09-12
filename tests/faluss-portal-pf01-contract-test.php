@@ -38,6 +38,10 @@ final class Faluss_Identity_Client {
         self::$last_button_attributes = $attributes;
         return false === $inline ? '<button>Continuer avec Faluss</button>' : '';
     }
+    public static function member_app_projection( $faluss_id, $app_key ) {
+        unset( $faluss_id, $app_key );
+        return null;
+    }
 }
 
 final class Faluss_Subscriptions_Resolver {
@@ -88,7 +92,7 @@ $documentation = file_get_contents( $root . '/docs/FALUSS_PORTAL.md' );
 $architecture = file_get_contents( $root . '/docs/ARCHITECTURE.md' );
 $data_model = file_get_contents( $root . '/docs/DATA_MODEL.md' );
 
-foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.16'", 'class-faluss-portal.php' ) as $needle ) {
+foreach ( array( 'Plugin Name: Faluss Portal', "FALUSS_PORTAL_VERSION', '0.1.17'", 'class-faluss-portal.php' ) as $needle ) {
     pf01_assert( false !== strpos( $bootstrap, $needle ), 'PF-01 requires an isolated versioned Faluss Portal plugin: ' . $needle );
 }
 foreach ( array( "add_shortcode( self::SHORTCODE", "[faluss_portal]", 'Faluss_Identity_Client_Schema::tables()', 'WHERE wp_user_id = %d', "array( 'subscriber' )", 'Faluss_Identity_Client::button' ) as $needle ) {

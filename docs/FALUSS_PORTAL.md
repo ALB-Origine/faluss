@@ -90,18 +90,23 @@ lit ni n'écrit droit, essai, abonnement, audit ou état Stripe.
 - **Accueil / Activité** et **Découvrir** restent explicites tant que les
   applications n'ont pas publié de contrat d'événements et d'activation.
 - **Apps Faluss / Mes apps** rend Faluss Hub pour tout membre lié au portail.
-  Faluss Me n'y est ajouté que si l'API Identity canonique est chargée sur la
-  même instance et fournit une preuve locale d'une carte `published` appartenant
-  au même Faluss ID. En l'absence de cette preuve locale, aucune possession
-  Faluss Me n'est supposée. Date, Fans et Pro ne sont pas disponibles et ne
-  peuvent donc pas apparaître dans `Mes apps`.
+  AP-02A ajoute Faluss Me seulement lorsque la fin de l'onboarding SSO fournit
+  une projection SSO serveur versionnée attestant une carte `published` et sa
+  route canonique `https://faluss.me/mon-faluss`. Identity reste propriétaire
+  de cette décision ; Identity Client valide l'autorité exacte et conserve le
+  read-model minimal pour le compte WordPress lié. En l'absence de projection,
+  aucune possession Faluss Me n'est supposée. Date, Fans et Pro ne sont pas
+  disponibles et ne peuvent donc pas apparaître dans `Mes apps`.
 - **Apps Faluss / Explorer** présente les cinq entrées du registre partagé.
   Faluss Hub est l'application active et affiche `Vous êtes ici` sans
-  navigation ; Faluss Me est la seule application disponible non active et son
-  lien est limité à `https://www.faluss.me/`. Date, Fans et Pro affichent
+  navigation ; Faluss Me est la seule application disponible non active. Si sa
+  projection membre est connue, `Visiter` reprend exactement
+  `https://faluss.me/mon-faluss`, sinon l'entrée non possédée conserve la
+  destination publique existante. Date, Fans et Pro affichent
   `Bientôt disponible` sans lien ni URL de production inventée. Aucun appel
-  inter-domaine, côté navigateur ou côté serveur, n'est effectué pour déduire
-  la possession.
+  inter-domaine supplémentaire n'est effectué par Portal pour déduire la
+  possession : la preuve locale est issue exclusivement de l'échange SSO
+  serveur-à-serveur déjà authentifié.
 - **Apps Faluss / Mes apps — Hub** porte depuis DR-02A la seule action PF
   effectivement active. Pour une session `subscriber` liée à une identité
   Faluss active, Portal demande un état filtré au Core PF, puis peut déléguer
@@ -111,17 +116,27 @@ lit ni n'écrit droit, essai, abonnement, audit ou état Stripe.
   `daily_accrual`, propriétaire `faluss-hub`, clé `hub.daily_accrual`.
   Portal ne lit ni n'écrit aucun ledger, ne conserve aucun cache métier et ne
   reçoit jamais du navigateur le sujet, le montant, la classe, la date, la clé
-  de reward ou une clé d'idempotence. `claimable` affiche **Récupérer +20 PF**;
-  seul ce statut délègue `owner_claim`. Après la réponse réellement `claimed`
-  du Core, la zone devient **Récupéré aujourd’hui** sans rechargement. Les états
-  `ineligible`, `unavailable` et `not_supported` n'affichent aucune promesse ni
-  bouton. Le clic action reste isolé de l'accès normal de la card Hub.
+  de reward ou une clé d'idempotence. `claimable` affiche uniquement le badge PF
+  officiel et `20` dans la zone glass circulaire historique ; seul ce statut
+  délègue `owner_claim`. Après la réponse réellement `claimed` du Core, la même
+  zone conserve le badge PF et `20`, sans bouton ni second claim. Les états
+  `ineligible`, `unavailable` et `not_supported` redeviennent une action de
+  navigation sans promesse de gain. Le clic de claim reste isolé de l'accès
+  normal de la card Hub.
 - Le badge PF officiel embarqué dans
   `assets/images/pf/faluss-pf-badge.png` est utilisé exclusivement dans cette
   zone d'action Hub ; il ne représente ni un solde ni une nouvelle surface PF.
-  Portal ne montre aucun total, historique ou ventilation PF. Faluss Me, son
-  reward de `75 PF`, la carte publiée, le handle et toute liaison inter-sites
-  restent hors de DR-02A.
+  Portal ne montre aucun total, historique ou ventilation PF. Faluss Me ne
+  possède encore aucun adaptateur de claim : sa card et toute autre card sans
+  reward conservent uniquement la zone glass de navigation, sans `0 PF`, sans
+  `75 PF` et sans action économique fictive.
+
+Toutes les cards de `Mes apps` partagent le même composant d'action circulaire
+glass, bordé d'un filet translucide. La card entière reste navigable vers sa
+destination membre ; seule une action métier explicitement autorisée, aujourd'hui
+`hub.daily_accrual`, intercepte son propre clic. Faluss Hub vise toujours
+`https://faluss.com/mon-faluss` depuis Faluss Me et depuis son registre ; aucune
+card possédée ne retombe sur une home marketing générique.
 - **Analytics** rend des composants réutilisables de KPI, graphe, tableau et
   filtre à l'état vide. Le futur contrat par application devra fournir une
   date, une source, une métrique, une portée et l'autorisation de lecture ; il
@@ -275,8 +290,11 @@ référence de compte ou autre donnée technique n'est rendu.
 
 ## Installation et recette technique
 
-1. Installer uniquement le ZIP `faluss-portal` puis l'activer sur faluss.com.
-2. Ajouter `[faluss_portal]` à la page Elementor Canvas `/mon-faluss/`.
+1. Sauvegarder les deux installations, puis mettre à jour Faluss Identity
+   `0.4.14` et Faluss Link `0.3.14` sur faluss.me ; mettre à jour Faluss Identity
+   Client `0.5.2` et Faluss Portal `0.1.17` sur faluss.com. Aucun autre plugin
+   n'est concerné.
+2. Conserver `[faluss_portal]` sur la page Elementor Canvas `/mon-faluss/`.
 3. Conserver le client officiel Faluss.com activé côté Identity. Le plugin
    ajoute lui-même `/mon-faluss/` aux retours locaux autorisés en mémoire ;
    aucune configuration manuelle de widget n'est requise.
@@ -290,12 +308,18 @@ référence de compte ou autre donnée technique n'est rendu.
    focus, `prefers-reduced-motion`, mobile et desktop. Le bloc PF doit afficher
    « Points Faluss bientôt disponibles » sans montant, même si un ledger ALB
    historique existe dans Token Engine.
-8. Ouvrir `Apps Faluss · Mes apps` : Faluss Hub doit être présent ; Faluss Me
-   ne doit apparaître que si une carte publiée est effectivement vérifiable sur
-   cette instance. Ouvrir `Explorer`, vérifier les cinq cartes, le lien officiel
-   Faluss Me, les trois états `Bientôt disponible` non cliquables et le message
-   temporaire de Faluss Hub. Vérifier enfin que seul le panneau gris défile.
+8. Depuis faluss.com, lancer un nouveau parcours SSO, publier effectivement la
+   carte pendant l'onboarding Faluss Me puis laisser le flux revenir sur
+   `/mon-faluss/`. Ouvrir `Apps Faluss · Mes apps` : Hub et Me doivent apparaître
+   immédiatement ; Me doit viser `https://faluss.me/mon-faluss`, Explorer doit
+   reprendre la même route, et la card Hub dans Faluss Me doit viser
+   `https://faluss.com/mon-faluss`.
+9. Vérifier sur toutes les cards `Mes apps` la zone circulaire glass historique.
+   Hub `claimable` n'y affiche que le badge PF non modifié et `20`; son clic ne
+   navigue pas et un état `claimed` ne permet aucun second claim. Me n'affiche
+   aucun montant PF. Vérifier enfin les trois états `Bientôt disponible` et que
+   seul le panneau gris défile.
 
-Une recette WordPress réelle et une recette Stripe ne font pas partie de la
-preuve statique PF-01 ; elles doivent être exécutées sur une installation de
-test avant production.
+Cette recette WordPress réelle n'est pas couverte par la preuve automatisée et
+doit être exécutée sur les deux installations avant production. Aucune recette
+Stripe n'est requise par AP-02A.

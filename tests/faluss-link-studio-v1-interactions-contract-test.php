@@ -14,7 +14,7 @@ $editor = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link
 $studio = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-studio.css' );
 $card = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link.css' );
 
-studio_v1_interactions_assert( false !== strpos( $bootstrap, 'Version: 0.3.13' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.13'" ), 'The interaction assets must use the 0.3.13 cache key.' );
+studio_v1_interactions_assert( false !== strpos( $bootstrap, 'Version: 0.3.14' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.14'" ), 'The interaction assets must use the 0.3.14 cache key.' );
 
 foreach ( array( 'grid-template-columns: repeat(4, minmax(0, 1fr));', 'align-items: stretch;', 'justify-items: stretch;', '.faluss-link-studio__dock-tabs > button', 'width: 100%;', 'place-items: center;', 'padding: .45rem 0;', '.faluss-link-studio__dock-indicator', 'left: 0;' ) as $needle ) {
     studio_v1_interactions_assert( false !== strpos( $studio, $needle ), 'Root tabs must use equal, centered grid cells: ' . $needle );
@@ -42,7 +42,7 @@ studio_v1_interactions_assert( false !== strpos( $card, '.faluss-link-card--link
 studio_v1_interactions_assert( false !== strpos( $card, '.faluss-link-card--links-light .faluss-link-card__link{border:1px solid #fff;border-radius:100px' ), 'Minutieux must be exactly a 100px pill.' );
 studio_v1_interactions_assert( false !== strpos( $card, '.faluss-link-card--links-outline .faluss-link-card__link{border-color:transparent;border-radius:1px' ), 'Formel must remain rectangular.' );
 
-foreach ( array( 'data-fl-studio-ecosystem', 'data-fl-studio-screen="ecosystem"', 'Faluss, c’est juste un écosystème complet.', 'Visitez nos autres produits !', 'https://www.faluss.me/', 'https://date.faluss.com/', 'https://www.faluss.fans/', 'https://www.pro.faluss.com/', 'https://www.faluss.com/', 'Vous êtes déjà ici', "home_url( '/mon-faluss/' )", "home_url( '/list/' )", 'Faluss_Identity_Navigation::actions()', 'function openEcosystem' ) as $needle ) {
+foreach ( array( 'data-fl-studio-ecosystem', 'data-fl-studio-screen="ecosystem"', 'Faluss, c’est juste un écosystème complet.', 'Visitez nos autres produits !', 'https://www.faluss.me/', 'https://date.faluss.com/', 'https://www.faluss.fans/', 'https://www.pro.faluss.com/', 'https://faluss.com/mon-faluss', 'Vous êtes déjà ici', "home_url( '/mon-faluss/' )", "home_url( '/list/' )", 'Faluss_Identity_Navigation::actions()', 'function openEcosystem' ) as $needle ) {
     studio_v1_interactions_assert( false !== strpos( $link . $editor, $needle ), 'The Ecosystem secondary screen is incomplete: ' . $needle );
 }
 studio_v1_interactions_assert( false === strpos( $link, 'Plus d’options, bientôt disponible' ), 'More must not remain a disabled placeholder.' );

@@ -30,6 +30,14 @@ ni identité, ni abonnement, ni solde, ni facture, ni profil universel. Son
 contrat détaillé et la matrice de sources de vérité sont
 dans [`FALUSS_PORTAL.md`](FALUSS_PORTAL.md).
 
+AP-02A fait transiter pendant l'échange SSO serveur-à-serveur un read-model
+minimal et versionné de Faluss Me : état `published` et route membre canonique,
+sans contenu de carte ni donnée fournie par le navigateur. Identity émet la
+projection, Identity Client en valide l'autorité et la conserve pour le compte
+local lié, puis Portal la lit sans appel inter-domaine supplémentaire. Une
+projection absente ou invalide n'active jamais Faluss Me. Les destinations
+membre sont `faluss.com/mon-faluss` pour Hub et `faluss.me/mon-faluss` pour Me.
+
 ## Master Profile fédéré MP-01A
 
 Le futur Master Profile est une projection fédérée, jamais une source métier.
@@ -181,6 +189,12 @@ date, une référence de ledger, un e-mail ou une donnée de paiement. Les répo
 sont privées `no-store`, filtrées au document DR-01 lorsque le Core peut le
 fournir, et ramenées à un état minimal contrôlé lors d'une indisponibilité.
 Faluss Me et son gain `75 PF` restent sans adaptateur ni interface.
+
+AP-02A conserve cette frontière économique : l'unique action active reste
+`hub.daily_accrual`, affichée comme badge PF officiel avec le montant `20` dans
+le composant glass commun des cards. Portal ne transmet toujours aucun montant,
+classe, sujet, date ou clé d'idempotence du navigateur au Core. Les autres apps,
+dont Faluss Me, n'affichent aucun gain supposé.
 
 ## Bibliothèque privée de découvertes
 

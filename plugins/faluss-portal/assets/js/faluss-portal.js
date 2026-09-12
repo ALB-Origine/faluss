@@ -219,14 +219,12 @@
       event.stopPropagation();
 
       const button = form.querySelector('[data-faluss-portal-hub-daily-submit]');
-      const label = form.querySelector('[data-faluss-portal-hub-daily-label]');
       const feedback = form.querySelector('[data-faluss-portal-hub-daily-feedback]');
       const action = form.closest('[data-faluss-portal-hub-daily-action]');
       if (!button || !action || button.disabled) return;
 
       button.disabled = true;
       button.setAttribute('aria-busy', 'true');
-      if (label) label.textContent = 'Récupération…';
       if (feedback) feedback.hidden = true;
 
       window.fetch(form.action, {
@@ -243,20 +241,19 @@
             throw new Error('hub_daily_not_claimed');
           }
           const claimed = document.createElement('span');
-          claimed.className = 'faluss-portal__hub-daily-claimed';
+          claimed.className = 'faluss-portal__app-open faluss-portal__hub-daily-claimed';
           claimed.setAttribute('role', 'status');
+          claimed.setAttribute('aria-label', 'Gain quotidien déjà reçu : 20 Points Faluss');
           const badge = button.querySelector('[data-faluss-portal-pf-badge]');
           if (badge) claimed.append(badge.cloneNode(true));
-          const copy = document.createElement('span');
-          copy.textContent = 'Récupéré aujourd’hui';
-          claimed.append(copy);
+          const amount = button.querySelector('[data-faluss-portal-hub-daily-amount]');
+          if (amount) claimed.append(amount.cloneNode(true));
           action.replaceChildren(claimed);
           action.dataset.falussPortalHubDailyState = 'claimed';
         })
         .catch(() => {
           button.disabled = false;
           button.removeAttribute('aria-busy');
-          if (label) label.textContent = 'Récupérer +20 PF';
           if (feedback) {
             feedback.textContent = 'Le gain quotidien est temporairement indisponible.';
             feedback.hidden = false;

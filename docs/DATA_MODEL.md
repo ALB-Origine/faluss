@@ -165,6 +165,16 @@ paiements, Stripe et critères d'éligibilité détaillés n'entrent ni dans le 
 ni dans la réponse AJAX. Une absence ou une indisponibilité reste un état sans
 donnée inventée, jamais un solde `0` ou un gain simulé.
 
+AP-02A n'ajoute ni table, ni colonne, ni migration. Identity produit à la fin
+de l'échange SSO une projection d'app minimale `me` (`contract_version`, état
+`published`, URL membre canonique). Identity Client la valide contre son
+autorité configurée et la conserve dans la meta privée
+`_faluss_identity_client_member_apps_v1` du compte WordPress lié. Cette meta est
+un read-model révocable, jamais une source de publication ; elle est supprimée
+au prochain échange lorsque la projection n'est plus fournie. Portal ne la lit
+que par la façade Identity Client et ne reçoit ni slug public, ni contenu de
+carte, ni donnée économique.
+
 ## Master Profile MP-01A
 
 MP-01A n'ajoute aucune table, colonne, option, migration, donnée membre ou copie

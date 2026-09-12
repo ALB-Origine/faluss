@@ -308,6 +308,26 @@ final class Faluss_Identity_Public_Profile {
     }
 
     /**
+     * Minimal server-owned projection used by the first-party SSO client.
+     * Profile content and the public slug remain private to Identity here.
+     *
+     * @return array{contract_version: string, publication_status: string, canonical_url: string}|null
+     */
+    public static function member_app_projection( $faluss_id ) {
+        $profile = self::find_by_faluss_id( $faluss_id );
+        if ( ! is_array( $profile )
+            || 'published' !== ( $profile['publication_status'] ?? '' )
+            || '' === self::normalize_slug( $profile['public_slug'] ?? '' ) ) {
+            return null;
+        }
+        return array(
+            'contract_version'   => '1',
+            'publication_status' => 'published',
+            'canonical_url'      => home_url( '/mon-faluss' ),
+        );
+    }
+
+    /**
      * Answers only whether the existing FI-03 registry contains a profile for
      * this identity. It never exposes the technical identifier in markup.
      */

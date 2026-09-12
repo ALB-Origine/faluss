@@ -13,7 +13,7 @@ $link      = file_get_contents( $root . '/plugins/faluss-link/includes/class-fal
 $editor    = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
 $studio    = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-studio.css' );
 
-studio_v1_regression_assert( false !== strpos( $bootstrap, 'Version: 0.3.13' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.13'" ), 'The Studio regression patch must rotate Faluss Link assets to 0.3.13.' );
+studio_v1_regression_assert( false !== strpos( $bootstrap, 'Version: 0.3.14' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.14'" ), 'The Studio regression patch must rotate Faluss Link assets to 0.3.14.' );
 
 foreach ( array( '@media (max-width: 767px)', '.faluss-link-studio input,', '.faluss-link-studio select,', '.faluss-link-studio textarea { font-size: 16px; }' ) as $needle ) {
     studio_v1_regression_assert( false !== strpos( $studio, $needle ), 'Studio editing controls must use a 16px mobile font without disabling browser zoom: ' . $needle );
@@ -36,7 +36,7 @@ foreach ( array( '.faluss-link-theme-picker__rail { display: flex', 'overflow-x:
     studio_v1_regression_assert( false !== strpos( $studio, $needle ), 'Only the themes rail may scroll horizontally while preserving readable cards: ' . $needle );
 }
 
-foreach ( array( 'Faluss, c’est juste un écosystème complet.', 'Visitez nos autres produits !', 'Faluss Me', 'Vous êtes déjà ici', 'Mon Faluss', 'Ma Liste', 'https://www.faluss.com/', 'https://www.pro.faluss.com/', 'https://www.faluss.fans/', 'https://date.faluss.com/', 'M’y rendre', "home_url( '/mon-faluss/' )", "home_url( '/list/' )", 'Faluss_Identity_Navigation::actions()', 'assets/images/faluss-onboarding-header-logo.png', 'faluss-link-studio__ecosystem-lead', 'faluss-link-studio__ecosystem-products' ) as $needle ) {
+foreach ( array( 'Faluss, c’est juste un écosystème complet.', 'Visitez nos autres produits !', 'Faluss Me', 'Vous êtes déjà ici', 'Mon Faluss', 'Ma Liste', 'https://faluss.com/mon-faluss', 'https://www.pro.faluss.com/', 'https://www.faluss.fans/', 'https://date.faluss.com/', 'M’y rendre', "home_url( '/mon-faluss/' )", "home_url( '/list/' )", 'Faluss_Identity_Navigation::actions()', 'assets/images/faluss-onboarding-header-logo.png', 'faluss-link-studio__ecosystem-lead', 'faluss-link-studio__ecosystem-products' ) as $needle ) {
     studio_v1_regression_assert( false !== strpos( $link, $needle ), 'The More ecosystem screen must retain its exact product and identity contract: ' . $needle );
 }
 foreach ( array( '[data-fl-studio-ecosystem]:hover', '[data-fl-studio-ecosystem]:focus-visible', '[data-fl-studio-ecosystem]:active', 'color: #171717' ) as $needle ) {
@@ -62,7 +62,7 @@ foreach ( array(
     'assets/images/studio-ecosystem/faluss-studio-hub.png',
     'assets/images/studio-ecosystem/faluss-studio-pro.png',
     'assets/images/studio-ecosystem/faluss-studio-date.png',
-    'https://www.faluss.com/',
+    'https://faluss.com/mon-faluss',
     'https://www.pro.faluss.com/',
     'https://date.faluss.com/',
 ) as $needle ) {
@@ -77,7 +77,7 @@ $create_views_end   = false === $create_views_start ? false : strpos( $link, 'pr
 $create_views       = false === $create_views_start || false === $create_views_end ? '' : substr( $link, $create_views_start, $create_views_end - $create_views_start );
 studio_v1_regression_assert( 1 === substr_count( $create_views, 'faluss-onboarding-header-logo.png' ), 'The Faluss Me asset must remain exclusive to the active Faluss Me Ecosystem card.' );
 $derivative_mappings = array(
-    'https://www.faluss.com/'     => '$hub_symbol_url',
+    'https://faluss.com/mon-faluss' => '$hub_symbol_url',
     'https://www.pro.faluss.com/' => '$pro_symbol_url',
     'https://date.faluss.com/'    => '$date_symbol_url',
 );

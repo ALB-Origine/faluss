@@ -310,7 +310,7 @@ final class Faluss_Identity_Authorization {
         wp_send_json( $claims, 200 );
     }
 
-    /** @return array<string, string>|null */
+    /** @return array<string, mixed>|null */
     private static function claims( $faluss_id, $scopes ) {
         if ( ! Faluss_Identity_Registry::is_valid_faluss_id( $faluss_id ) || ! is_array( $scopes ) ) { return null; }
         $claims = array( 'faluss_id' => $faluss_id, 'scope' => implode( ' ', $scopes ) );
@@ -322,6 +322,13 @@ final class Faluss_Identity_Authorization {
             $user = $wp_user_id ? get_user_by( 'id', (int) $wp_user_id ) : false;
             if ( ! $user instanceof WP_User || ! is_email( $user->user_email ) ) { return null; }
             $claims['email'] = $user->user_email;
+        }
+        if ( class_exists( 'Faluss_Identity_Public_Profile' )
+            && method_exists( 'Faluss_Identity_Public_Profile', 'member_app_projection' ) ) {
+            $me = Faluss_Identity_Public_Profile::member_app_projection( $faluss_id );
+            if ( is_array( $me ) ) {
+                $claims['apps'] = array( 'me' => $me );
+            }
         }
         return $claims;
     }
@@ -471,8 +478,9 @@ final class Faluss_Identity_Authorization {
                 <ul>
                     <li><?php esc_html_e( 'Votre Faluss ID', 'faluss-identity' ); ?></li>
                     <?php if ( in_array( self::SCOPE_EMAIL, $request['scopes'], true ) ) : ?><li><?php esc_html_e( 'Votre adresse e-mail vérifiée', 'faluss-identity' ); ?></li><?php endif; ?>
+                    <li><?php esc_html_e( 'L’état publié et la route membre de Faluss Me, si votre carte existe', 'faluss-identity' ); ?></li>
                 </ul>
-                <p class="faluss-identity-authorization__hint"><?php esc_html_e( 'Aucun accès à vos données Pro, Date, profil public ou Token Engine ne sera accordé.', 'faluss-identity' ); ?></p>
+                <p class="faluss-identity-authorization__hint"><?php esc_html_e( 'Aucun contenu de profil public, ni donnée Pro, Date ou Token Engine ne sera accordé.', 'faluss-identity' ); ?></p>
                 <form method="post" action="<?php echo esc_url( home_url( '/oauth/authorize' ) ); ?>">
                     <?php wp_nonce_field( 'faluss_identity_authorization_' . $request['request_hash'], 'faluss_identity_authorization_nonce' ); ?>
                     <button type="submit" name="decision" value="approve"><?php esc_html_e( 'Autoriser', 'faluss-identity' ); ?></button>

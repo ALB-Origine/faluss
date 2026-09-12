@@ -15,11 +15,11 @@ function esc_html( $value ) { return htmlspecialchars( (string) $value, ENT_QUOT
 function esc_url( $value ) { return filter_var( (string) $value, FILTER_VALIDATE_URL ) ? (string) $value : ''; }
 function wp_parse_url( $value ) { return parse_url( (string) $value ); }
 
-final class Faluss_Identity_Public_Profile {
-    public static $profile = array();
-    public static function studio_profile( $faluss_id ) {
+final class Faluss_Identity_Client {
+    public static $projection = null;
+    public static function member_app_projection( $faluss_id, $app_key ) {
         unset( $faluss_id );
-        return self::$profile;
+        return 'me' === $app_key ? self::$projection : null;
     }
 }
 
@@ -38,11 +38,7 @@ $registry_method->setAccessible( true );
 $panel_method = new ReflectionMethod( 'Faluss_Portal', 'apps_panel' );
 $panel_method->setAccessible( true );
 
-Faluss_Identity_Public_Profile::$profile = array(
-    'faluss_id' => $faluss_id,
-    'public_slug' => 'membre-test',
-    'publication_status' => 'draft',
-);
+Faluss_Identity_Client::$projection = null;
 $registry = $registry_method->invoke( null, $faluss_id );
 ap01_assert( array( 'hub', 'me', 'date', 'fans', 'pro' ) === array_column( $registry, 'slug' ), 'AP-01 must keep one ordered five-application registry.' );
 $by_slug = array_column( $registry, null, 'slug' );
@@ -60,7 +56,11 @@ $draft_owned_html = ob_get_clean();
 ap01_assert( 1 === substr_count( $draft_owned_html, 'data-faluss-app-card' ), 'Mes apps must render only the actually owned Hub when no published Faluss.me proof exists.' );
 ap01_assert( false !== strpos( $draft_owned_html, 'data-faluss-app="hub"' ) && false === strpos( $draft_owned_html, 'data-faluss-app="me"' ), 'Mes apps must not infer Faluss.me ownership from the SSO link alone.' );
 
-Faluss_Identity_Public_Profile::$profile['publication_status'] = 'published';
+Faluss_Identity_Client::$projection = array(
+    'contract_version' => '1',
+    'publication_status' => 'published',
+    'canonical_url' => 'https://faluss.me/mon-faluss',
+);
 $registry = $registry_method->invoke( null, $faluss_id );
 $by_slug = array_column( $registry, null, 'slug' );
 ap01_assert( true === $by_slug['me']['owned'], 'A matching locally verified published card may add Faluss Me to Mes apps.' );
@@ -68,7 +68,7 @@ ob_start();
 $panel_method->invoke( null, 'my-apps', $faluss_id );
 $published_owned_html = ob_get_clean();
 ap01_assert( 2 === substr_count( $published_owned_html, 'data-faluss-app-card' ), 'Mes apps must add exactly Faluss Me once a canonical published-card proof exists.' );
-ap01_assert( false !== strpos( $published_owned_html, 'https://faluss.com/' ) && false !== strpos( $published_owned_html, 'https://www.faluss.me/' ), 'Owned available apps must use only their validated official destinations.' );
+ap01_assert( false !== strpos( $published_owned_html, 'https://faluss.com/mon-faluss' ) && false !== strpos( $published_owned_html, 'https://faluss.me/mon-faluss' ), 'Owned available apps must use only their validated canonical member destinations.' );
 ap01_assert( 2 === substr_count( $published_owned_html, 'rel="noopener noreferrer"' ), 'Every compact application destination must be isolated from its opener.' );
 
 ob_start();
@@ -76,7 +76,7 @@ $panel_method->invoke( null, 'explore', $faluss_id );
 $explore_html = ob_get_clean();
 ap01_assert( 5 === substr_count( $explore_html, 'data-faluss-app-card' ), 'Explorer must render all five registry entries through the shared card.' );
 ap01_assert( 3 === substr_count( $explore_html, '>Bientôt disponible</span>' ), 'Exactly the three unavailable applications must expose a non-interactive coming-soon state.' );
-ap01_assert( 1 === substr_count( $explore_html, '>Visiter</a>' ) && 1 === substr_count( $explore_html, 'href="https://www.faluss.me/"' ), 'Only the available non-active Faluss Me card may render the official Explorer visit link.' );
+ap01_assert( 1 === substr_count( $explore_html, '>Visiter</a>' ) && 1 === substr_count( $explore_html, 'href="https://faluss.me/mon-faluss"' ), 'Explorer must reuse the owned Faluss Me canonical member destination.' );
 ap01_assert( false !== strpos( $explore_html, 'data-faluss-app-current' ) && false !== strpos( $explore_html, 'Impossible d’ouvrir, vous y êtes déjà' ), 'The active Hub card must expose its local temporary already-here interaction.' );
 preg_match( '/<article[^>]*data-faluss-app="hub".*?<\/article>/s', $explore_html, $hub_card );
 ap01_assert( ! empty( $hub_card[0] ) && false === strpos( $hub_card[0], 'href=' ), 'The active Explorer application must never navigate.' );

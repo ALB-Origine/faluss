@@ -17,6 +17,7 @@ final class Faluss_Identity_Client {
     const STYLE = 'faluss-identity-client-button';
     const START_ACTION = 'faluss_identity_client_start';
     const CONTINUE_ACTION = 'faluss_identity_client_continue';
+    const MEMBER_APPS_META = '_faluss_identity_client_member_apps_v1';
 
     public static function register() {
         add_shortcode( 'faluss_identity_client_button', array( __CLASS__, 'shortcode' ) );
@@ -173,6 +174,9 @@ final class Faluss_Identity_Client {
         if ( ! $user instanceof WP_User ) {
             self::local_notice( 'link_required', $row['redirect_url'] );
         }
+        if ( ! self::synchronize_member_app_projections( $user->ID, $claims ) ) {
+            self::local_notice( 'invalid', $row['redirect_url'] );
+        }
         wp_set_current_user( $user->ID );
         wp_set_auth_cookie( $user->ID, false, is_ssl() );
         do_action( 'wp_login', $user->user_login, $user );
@@ -263,6 +267,64 @@ final class Faluss_Identity_Client {
             return null;
         }
         return $claims;
+    }
+
+    /**
+     * Returns only a locally persisted projection received during the signed
+     * server-to-server code exchange. The browser cannot submit this value.
+     *
+     * @return array{contract_version: string, publication_status: string, canonical_url: string}|null
+     */
+    public static function member_app_projection( $faluss_id, $app_key ) {
+        if ( ! self::is_uuid( $faluss_id ) || 'me' !== $app_key ) {
+            return null;
+        }
+        global $wpdb;
+        $tables = Faluss_Identity_Client_Schema::tables();
+        if ( empty( $tables['links'] ) ) {
+            return null;
+        }
+        $user_id = $wpdb->get_var( $wpdb->prepare( 'SELECT wp_user_id FROM ' . self::quote_identifier( $tables['links'] ) . ' WHERE faluss_id = %s LIMIT 1', strtolower( $faluss_id ) ) );
+        if ( ! $user_id ) {
+            return null;
+        }
+        $apps = get_user_meta( (int) $user_id, self::MEMBER_APPS_META, true );
+        return self::validated_me_projection( is_array( $apps ) ? ( $apps['me'] ?? null ) : null );
+    }
+
+    /** @param array<string,mixed> $claims */
+    private static function synchronize_member_app_projections( $user_id, $claims ) {
+        $projection = self::validated_me_projection( is_array( $claims['apps'] ?? null ) ? ( $claims['apps']['me'] ?? null ) : null );
+        if ( null === $projection ) {
+            $current = get_user_meta( (int) $user_id, self::MEMBER_APPS_META, true );
+            return empty( $current ) || delete_user_meta( (int) $user_id, self::MEMBER_APPS_META );
+        }
+        $apps = array( 'me' => $projection );
+        $current = get_user_meta( (int) $user_id, self::MEMBER_APPS_META, true );
+        return $apps === $current || false !== update_user_meta( (int) $user_id, self::MEMBER_APPS_META, $apps );
+    }
+
+    /**
+     * Accepts only the versioned Faluss Me member destination issued by the
+     * configured Identity authority.
+     *
+     * @return array{contract_version: string, publication_status: string, canonical_url: string}|null
+     */
+    private static function validated_me_projection( $projection ) {
+        if ( ! is_array( $projection )
+            || '1' !== ( $projection['contract_version'] ?? '' )
+            || 'published' !== ( $projection['publication_status'] ?? '' )
+            || ! is_string( $projection['canonical_url'] ?? null ) ) {
+            return null;
+        }
+        $expected = rtrim( self::config()['authority'], '/' ) . '/mon-faluss';
+        return hash_equals( $expected, $projection['canonical_url'] )
+            ? array(
+                'contract_version'   => '1',
+                'publication_status' => 'published',
+                'canonical_url'      => $expected,
+            )
+            : null;
     }
 
     private static function resolve_user( $claims, $state ) {
