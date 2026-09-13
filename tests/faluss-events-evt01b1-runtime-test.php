@@ -221,6 +221,10 @@ evt01b1_assert( ! Faluss_Events::validate_event( $invalid, $hub_catalog ), 'Sens
 
 evt01b1_assert( true === Faluss_Events::register_federation_integration() && true === Faluss_Events::register_federation_integration(), 'Repeated integration must be idempotent without duplicate validator conflict.' );
 $request = evt01b1_catalog_request( 'faluss-hub', 'hub-node' );
+$catalog_context = array( 'operation' => $request['operation'], 'parameters' => $request['parameters'], 'subject_context' => $request['subject_context'], 'sender' => $request['sender'], 'recipient' => $request['recipient'] );
+evt01b1_assert( Faluss_Events_Catalog_Validator::validate_federation_payload( $hub_catalog, $catalog_contract, $catalog_context ), 'Catalog matching the recipient node and app must pass Federation payload validation.' );
+$wrong_node_catalog = $hub_catalog; $wrong_node_catalog['node_id'] = 'other-node';
+evt01b1_assert( ! Faluss_Events_Catalog_Validator::validate_federation_payload( $wrong_node_catalog, $catalog_contract, $catalog_context ), 'Catalog node must match the exact Federation recipient node.' );
 evt01b1_assert( evt01b1_private( 'Faluss_Federation_Server', 'valid_request', array( $request ) ), 'Production server must accept exactly the three event catalog parameters.' );
 $invalid = $request; $invalid['subject_context'] = array( 'subject_faluss_id' => '11111111-1111-4111-8111-111111111111' );
 evt01b1_assert( ! evt01b1_private( 'Faluss_Federation_Server', 'valid_request', array( $invalid ) ), 'event_catalog.read subject must be null.' );
@@ -267,14 +271,20 @@ evt01b1_assert( 200 === $signed->get_status() && 86 === strlen( $signed->get_hea
 $audit = Faluss_Federation_Schema::$audits[0] ?? array();
 evt01b1_assert( array( 'request_id', 'sender_node_id', 'recipient_node_id', 'operation_name', 'capability_key', 'result_code', 'opaque_code', 'duration_ms' ) === array_keys( $audit ) && 'event_catalog.read' === ( $audit['operation_name'] ?? null ) && 1 !== preg_match( '/manifest|destination|signature|faluss_id|https?:\/\//i', wp_json_encode( array_values( $audit ) ) ), 'Audit must remain minimal and contain no document, destination, key material, Faluss ID, payload or URL.' );
 
-$invalid_entry = $descriptor; $invalid_entry['catalog_version'] = '1.0.1'; $invalid_catalog = $hub_catalog; $invalid_catalog['catalog_version'] = '1.0.1'; $invalid_catalog['extra'] = true;
+$wrong_node_entry = $descriptor; $wrong_node_entry['catalog_version'] = '1.0.1'; $local_wrong_node_catalog = $wrong_node_catalog; $local_wrong_node_catalog['catalog_version'] = '1.0.1';
+$wrong_node_entry['catalog_provider'] = function () use ( $catalog_contract, $local_wrong_node_catalog ) { return evt01b1_provider_result( $catalog_contract, $local_wrong_node_catalog ); };
+evt01b1_assert( true === Faluss_Events::register_catalog_provider( $wrong_node_entry ), 'Wrong-node provider descriptor itself may register as trusted code.' );
+$wrong_node_request = $request; $wrong_node_request['parameters']['catalog_version'] = '1.0.1';
+evt01b1_assert( 'incompatible' === Faluss_Federation_Providers::dispatch( $wrong_node_request, $identity )['status'], 'Local provider catalog bound to another node must map to incompatible.' );
+
+$invalid_entry = $descriptor; $invalid_entry['catalog_version'] = '1.0.2'; $invalid_catalog = $hub_catalog; $invalid_catalog['catalog_version'] = '1.0.2'; $invalid_catalog['extra'] = true;
 $invalid_entry['catalog_provider'] = function () use ( $catalog_contract, $invalid_catalog ) { return evt01b1_provider_result( $catalog_contract, $invalid_catalog ); };
 evt01b1_assert( true === Faluss_Events::register_catalog_provider( $invalid_entry ), 'Separate invalid-result provider may register as trusted code.' );
-$invalid_request = $request; $invalid_request['parameters']['catalog_version'] = '1.0.1';
+$invalid_request = $request; $invalid_request['parameters']['catalog_version'] = '1.0.2';
 evt01b1_assert( 'incompatible' === Faluss_Federation_Providers::dispatch( $invalid_request, $identity )['status'], 'Invalid catalog must map to incompatible.' );
-$throwing_entry = $descriptor; $throwing_entry['catalog_version'] = '1.0.2'; $throwing_entry['catalog_provider'] = function () { throw new RuntimeException( 'temporary owner failure' ); };
+$throwing_entry = $descriptor; $throwing_entry['catalog_version'] = '1.0.3'; $throwing_entry['catalog_provider'] = function () { throw new RuntimeException( 'temporary owner failure' ); };
 evt01b1_assert( true === Faluss_Events::register_catalog_provider( $throwing_entry ), 'Throwing provider descriptor itself may register.' );
-$throwing_request = $request; $throwing_request['parameters']['catalog_version'] = '1.0.2';
+$throwing_request = $request; $throwing_request['parameters']['catalog_version'] = '1.0.3';
 evt01b1_assert( 'temporarily_unavailable' === Faluss_Federation_Providers::dispatch( $throwing_request, $identity )['status'], 'Provider exception must map to temporarily_unavailable.' );
 
 Faluss_Federation_Client::$manifest_response = evt01b1_remote_response( 'hub-node', 'faluss-hub', $cap_contract, $hub_manifest );
@@ -282,6 +292,12 @@ Faluss_Federation_Client::$catalog_response = evt01b1_remote_response( 'hub-node
 Faluss_Federation_Client::$calls = array();
 $remote = Faluss_Events::read_remote_catalog( 'hub-node', 'faluss-hub', 'faluss-hub', 'faluss-hub.events', '1.0.0' );
 evt01b1_assert( $hub_catalog === $remote && array( 'manifest.read', 'event_catalog.read' ) === array_column( Faluss_Federation_Client::$calls, 0 ), 'Remote facade must read and validate the signed manifest before the signed catalog, with no fallback.' );
+$remote_wrong_node_catalog = $hub_catalog; $remote_wrong_node_catalog['node_id'] = 'other-node';
+Faluss_Federation_Client::$catalog_response = evt01b1_remote_response( 'hub-node', 'faluss-hub', $catalog_contract, $remote_wrong_node_catalog );
+Faluss_Federation_Client::$calls = array();
+$remote_wrong_node = Faluss_Events::read_remote_catalog( 'hub-node', 'faluss-hub', 'faluss-hub', 'faluss-hub.events', '1.0.0' );
+evt01b1_assert( is_wp_error( $remote_wrong_node ) && 'faluss_events_unavailable' === $remote_wrong_node->get_error_code(), 'Signed-simulated response with the expected responder but a foreign catalog node must fail generically.' );
+evt01b1_assert( array( 'manifest.read', 'event_catalog.read' ) === array_column( Faluss_Federation_Client::$calls, 0 ) && 2 === count( Faluss_Federation_Client::$calls ), 'Wrong-node remote catalog must use no fallback, cache or second catalog read.' );
 $wrong_contract = Faluss_Federation_Client::$catalog_response; $wrong_contract['payload_contract']['document_type'] = 'faluss.other'; Faluss_Federation_Client::$catalog_response = $wrong_contract;
 evt01b1_assert( is_wp_error( Faluss_Events::read_remote_catalog( 'hub-node', 'faluss-hub', 'faluss-hub', 'faluss-hub.events', '1.0.0' ) ), 'Wrong catalog response contract must fail.' );
 Faluss_Federation_Client::$catalog_response = evt01b1_remote_response( 'other-node', 'faluss-hub', $catalog_contract, $hub_catalog );
@@ -305,7 +321,7 @@ $branch = $schema['allOf'][3]['then']['properties'];
 evt01b1_assert( null === $branch['subject_context']['const'] && array( 'owner_app_key', 'capability_key', 'catalog_version' ) === $branch['parameters']['required'] && false === $branch['parameters']['additionalProperties'], 'Schema branch requires null subject and exactly three parameters.' );
 $bootstrap = file_get_contents( $root . '/plugins/faluss-federation/faluss-federation.php' );
 $events_bootstrap = file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' );
-evt01b1_assert( false !== strpos( $bootstrap, 'Version: 0.2.0' ) && false !== strpos( $bootstrap, "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ) && false !== strpos( $events_bootstrap, 'Version: 0.1.0' ), 'Versions must be Events 0.1.0 and Federation 0.2.0, schema 1.' );
+evt01b1_assert( false !== strpos( $bootstrap, 'Version: 0.2.0' ) && false !== strpos( $bootstrap, "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ) && false !== strpos( $events_bootstrap, 'Version: 0.1.1' ), 'Versions must be Events 0.1.1 and Federation 0.2.0, schema 1.' );
 Faluss_Events::boot();
 evt01b1_assert( isset( $GLOBALS['evt01b1_hooks']['faluss_federation_ready'][20] ) && isset( $GLOBALS['evt01b1_hooks']['plugins_loaded'][40] ), 'Both early and late activation orders retain one deterministic integration callback.' );
 
@@ -315,5 +331,13 @@ evt01b1_assert( is_wp_error( $duplicate ) && 'temporarily_unavailable' === Falus
 $base_output = array(); $base_status = 0;
 exec( 'git -C ' . escapeshellarg( $root ) . ' cat-file -e 427299df526d11ab5b24ac83ddfd46839027669c:plugins/faluss-events/faluss-events.php 2>&1', $base_output, $base_status );
 evt01b1_assert( 0 !== $base_status, 'Base 427299df must fail this regression because the Faluss Events runtime is absent.' );
+$base_source_lines = array(); $base_source_status = 0;
+exec( 'git -C ' . escapeshellarg( $root ) . ' show 638c62f3089a3f089bc3dc88c4f72f83afb15dc0:plugins/faluss-events/includes/class-faluss-events-catalog-validator.php 2>&1', $base_source_lines, $base_source_status );
+$base_source = implode( "\n", $base_source_lines );
+$base_source = preg_replace( '/^<\?php\s*/', '', $base_source, 1 );
+$base_source = str_replace( 'final class Faluss_Events_Catalog_Validator', 'final class EVT01B11_Base_Catalog_Validator', $base_source );
+evt01b1_assert( 0 === $base_source_status && is_string( $base_source ) && false !== strpos( $base_source, 'EVT01B11_Base_Catalog_Validator' ), 'Required EVT-01B.1 base validator must be loadable for behavioral regression proof.' );
+eval( $base_source );
+evt01b1_assert( EVT01B11_Base_Catalog_Validator::validate_federation_payload( $wrong_node_catalog, $catalog_contract, $catalog_context ), 'Base 638c62f must fail this regression precisely by accepting a catalog whose node differs from the recipient node.' );
 
-echo 'EVT-01B.1 events runtime: OK (' . $evt01b1_assertions . ' assertions; production validators/providers/policy/server)' . PHP_EOL;
+echo 'EVT-01B.1/EVT-01B.1.1 events runtime: OK (' . $evt01b1_assertions . ' assertions; production validators/providers/policy/server)' . PHP_EOL;

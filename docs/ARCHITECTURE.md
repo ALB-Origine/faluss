@@ -102,7 +102,7 @@ moteur Faluss Events idempotent et chaque consommateur Analytics, Quêtes ou
 Progression. L'événement sera append-only, livré au moins une fois et chaque
 conséquence sera exactement une fois par idempotence propre au consommateur.
 CAP `event_source`, catalogue EVT, binding actif et politique consommateur sont
-tous obligatoires. Faluss Events 0.1.0 valide désormais catalogues et enveloppes
+tous obligatoires. Faluss Events 0.1.1 valide désormais catalogues et enveloppes
 et croise le catalogue avec le manifeste CAP accepté. Federation 0.2.0 ajoute
 seulement `event_catalog.read`; aucun transport d'enveloppe événementielle
 n'existe.

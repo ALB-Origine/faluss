@@ -59,6 +59,7 @@ final class Faluss_Events_Catalog_Validator {
             && $catalog['capability_key'] === $request_context['parameters']['capability_key']
             && $catalog['catalog_version'] === $request_context['parameters']['catalog_version']
             && is_array( $request_context['recipient'] )
+            && $catalog['node_id'] === ( $request_context['recipient']['node_id'] ?? null )
             && $catalog['app_key'] === ( $request_context['recipient']['app_key'] ?? null );
     }
 

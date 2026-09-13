@@ -331,10 +331,13 @@ exact `owner_app_key`, `capability_key`, `catalog_version`; elle ne transporte
 jamais une enveloppe `faluss.event`. `event.publish` demeure interdit et aucune
 opération existante ne peut être détournée pour publier un événement.
 
-Faluss Events 0.1.0 réutilise le validateur CAP de Faluss Apps Registry,
+Faluss Events 0.1.1 réutilise le validateur CAP de Faluss Apps Registry,
 valide séparément manifeste et catalogue, puis exige application/propriétaire,
 capacité `event_source`, bindings de chaque destination et compatibilité non
 dépréciée/non expirée. Cette vérification n'active aucun binding runtime.
+Le catalogue doit en plus déclarer exactement le `node_id` et l'`app_key` du
+destinataire Federation authentifié ; une divergence échoue fermée avant toute
+validation d'enveloppe.
 L'échange conserve signature Ed25519, fraîcheur, anti-rejeu, débit et politique
 locale de Federation, sans réutiliser de secret FPR, Identity, Token Connector,
 Stripe ou de session WordPress.

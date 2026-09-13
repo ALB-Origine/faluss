@@ -133,13 +133,14 @@ L'ordre de livraison conservé est :
 3. FED-01B — runtime plugin du transport privé fédéré ;
 4. CAP-01B — registre runtime et projection réelle apps.registry ;
 5. EVT-01A — contrat commun des événements, sans runtime ;
-6. EVT-01B.1 — validateurs et lecture signée de catalogues, sans provider réel ;
-7. AN-01 — providers, politiques et premiers événements réels Hub/Me ;
-8. MP-01B — assembleur réel du Master Profile ;
-9. COS-01 — catalogue, inventaire et équipement cosmétique ;
-10. SHOP-01 — boutique Premium sur faluss.com ;
-11. intégrations contextuelles Faluss.me ;
-12. Quêtes et Progression après stabilisation des événements.
+6. EVT-01B.1 — validateurs et lecture signée des catalogues, sans provider réel ;
+7. EVT-01B.2 — moteur réel des événements : stockage append-only, identité/hash canonique, outbox, inbox, `event.publish`, livraisons au moins une fois et idempotence indépendante des consommateurs ;
+8. AN-01 — catalogues et providers Hub/Me, politiques explicites, premiers événements réels et premier consommateur Analytics ;
+9. MP-01B ;
+10. COS-01 ;
+11. SHOP-01 ;
+12. intégrations contextuelles Faluss.me ;
+13. Quêtes et Progression.
 
 SUB-01C et SUB-01D, le Daily Reward Faluss Me 75 PF, Fans, Date, Shop et Hall
 of Fame comme moteurs propriétaires futurs, ainsi que le staging opérationnel,
@@ -159,21 +160,32 @@ Les types Hub `portal.viewed`, `app.opened`, `daily-reward.claimed` et Me
 EVT-01A ne crée aucun plugin, runtime, transport Federation, bus, table,
 migration, endpoint, outbox, inbox, queue, cookie, tracking, événement réel,
 Analytics, Quête, Progression ou comportement WordPress. EVT-01B.1 apporte les
-validateurs génériques et l'échange de catalogues ; AN-01 devra encore apporter
-les catalogues propriétaires, validateurs de payload, bindings actifs et
-politiques avant toute émission.
+validateurs génériques et l'échange de catalogues. EVT-01B.2 devra construire le
+moteur réel avant qu'AN-01 apporte catalogues propriétaires, providers Hub/Me,
+validateurs de payload, politiques et premiers événements.
 
 ## EVT-01B.1 — Runtime des catalogues d'événements — livré techniquement
 
-Faluss Events `0.1.0` fournit les validateurs PHP de production du catalogue et
+Faluss Events `0.1.1` fournit les validateurs PHP de production du catalogue et
 de l'enveloppe EVT-01A, un registre fermé de providers futurs et la validation
 croisée avec le manifeste CAP accepté. Faluss Federation `0.2.0`, schéma `1`,
 ajoute la seule lecture `event_catalog.read` avec politique explicite, signature,
 fraîcheur, anti-rejeu, débit et audit minimal inchangés.
 
+Le catalogue est lié cryptographiquement au destinataire authentifié : ses
+`node_id` et `app_key` doivent correspondre exactement au nœud et à
+l'application de la requête Federation.
+
 Aucun catalogue/provider Hub ou Me, événement, tracking, Analytics, table,
 migration, outbox, inbox, worker, cookie ou politique réelle n'est livré.
 `event.publish` reste absent. AN-01 reste nécessaire avant toute activation.
+
+## EVT-01B.2 — Moteur réel des événements — à réaliser
+
+EVT-01B.2 devra livrer le stockage append-only, l'identité et le hash canonique,
+l'outbox, l'inbox, `event.publish`, les livraisons au moins une fois et
+l'idempotence indépendante des consommateurs. EVT-01B.1.1 ne matérialise aucun
+de ces éléments et AN-01 reste postérieur à ce moteur.
 
 ## FED-01A — Contrat du transport privé fédéré — livré contractuellement
 

@@ -226,7 +226,7 @@ acceptation idempotente, une livraison par destination et l'état de traitement
 propre à chaque consommateur. L'identité idempotente associera nœud,
 application, type, version et référence propriétaire ; le hash canonique
 RFC 8785/JCS permettra de retrouver un retry identique et de refuser un conflit.
-Ces structures ne sont pas matérialisées. Faluss Events 0.1.0 ne possède aucune
+Ces structures ne sont pas matérialisées. Faluss Events 0.1.1 ne possède aucune
 table, colonne, option, transient ou donnée membre ; son registre de providers
 et ses validateurs résident uniquement en mémoire pendant la requête PHP.
 Federation 0.2.0 réutilise ses quatre tables techniques existantes sans migration

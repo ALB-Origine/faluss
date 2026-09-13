@@ -1,4 +1,4 @@
-# Faluss Events 0.1.0 — runtime de contrats
+# Faluss Events 0.1.1 — runtime de contrats
 
 ## Frontière
 
@@ -8,7 +8,7 @@ ni table, migration, option, route, écran, shortcode, cron, worker, file,
 cookie, asset ou donnée membre. Il ne publie, ne stocke et ne livre aucun
 événement.
 
-La version 0.1.0 n'enregistre aucun catalogue ni provider Hub ou Me. Elle
+La version 0.1.1 n'enregistre aucun catalogue ni provider Hub ou Me. Elle
 prépare seulement une API PHP fermée pour un futur propriétaire et la lecture
 signée d'un catalogue par Faluss Federation 0.2.0. Sans Federation ou Faluss
 Apps Registry, le plugin se charge sans erreur mais refuse l'intégration.
@@ -64,6 +64,11 @@ CAP/EVT est ensuite obligatoire. Il n'existe ni cache, transient, document
 stale, catalogue vide inventé, lecture de table distante ou transport de
 secours.
 
+Le catalogue reçu ou servi est lié au destinataire Federation exact : son
+`node_id` et son `app_key` doivent correspondre respectivement à
+`recipient.node_id` et `recipient.app_key`. Une incohérence reste générique et
+fermée, sans exposer les nœuds attendus ou reçus.
+
 La requête `event_catalog.read` porte `subject_context: null` et exactement
 `owner_app_key`, `capability_key`, `catalog_version`. Elle ne porte ni audience,
 Faluss ID, événement, payload, destination, URL ou matériau cryptographique.
@@ -74,7 +79,7 @@ capacité ; aucune politique existante n'est modifiée automatiquement.
 
 1. Sauvegarder les deux installations.
 2. Mettre Faluss Federation à jour vers 0.2.0 sur les deux sites.
-3. Installer Faluss Events 0.1.0 sur les deux sites.
+3. Installer Faluss Events 0.1.1 sur les deux sites.
 4. Ne modifier aucune politique Federation.
 5. Vérifier Federation `ready` et le schéma 1.
 6. Vérifier Faluss Events chargé, sans provider de catalogue.
