@@ -29,7 +29,7 @@ final class Faluss_Events_Envelope_Validator {
         if ( false === $occurred || false === $produced || $produced < $occurred || $produced - $occurred > $definition['max_delivery_delay_seconds'] || ! self::valid_subject( $event['subject_context'], $definition['subject_policy'] ) || ! self::valid_actor( $event['actor_context'], $definition['allowed_actor_types'] ) || ! self::valid_object( $event['object_context'], $definition['object_policy'] ) ) {
             return false;
         }
-        if ( ! self::is_list( $event['destinations'] ) || empty( $event['destinations'] ) || count( $event['destinations'] ) > 3 || count( $event['destinations'] ) !== count( array_unique( $event['destinations'], SORT_STRING ) ) || array_diff( $event['destinations'], $definition['allowed_destinations'] ) || ! self::exact_keys( $event['payload_contract'], array( 'document_type', 'contract_version' ) ) || $event['payload_contract'] !== $definition['payload_contract'] || ! self::valid_payload( $event['payload'] ) ) {
+        if ( ! self::is_list( $event['destinations'] ) || empty( $event['destinations'] ) || count( $event['destinations'] ) > 3 || count( $event['destinations'] ) !== count( array_unique( $event['destinations'], SORT_STRING ) ) || array_diff( $event['destinations'], $definition['allowed_destinations'] ) || ! self::same_payload_contract( $event['payload_contract'], $definition['payload_contract'] ) || ! self::valid_payload( $event['payload'] ) ) {
             return false;
         }
         try {
@@ -88,6 +88,14 @@ final class Faluss_Events_Envelope_Validator {
         }
         $fields = 0;
         return self::payload_walk( $payload, 0, $fields, true );
+    }
+
+    private static function same_payload_contract( $actual, $expected ) {
+        $keys = array( 'document_type', 'contract_version' );
+        return self::exact_keys( $actual, $keys )
+            && self::exact_keys( $expected, $keys )
+            && $actual['document_type'] === $expected['document_type']
+            && $actual['contract_version'] === $expected['contract_version'];
     }
 
     private static function payload_walk( $value, $depth, &$fields, $object_context = false ) {

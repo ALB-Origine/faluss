@@ -331,7 +331,7 @@ exact `owner_app_key`, `capability_key`, `catalog_version`; elle ne transporte
 jamais une enveloppe `faluss.event`. `event.publish` demeure interdit et aucune
 opération existante ne peut être détournée pour publier un événement.
 
-Faluss Events 0.1.1 réutilise le validateur CAP de Faluss Apps Registry,
+Faluss Events 0.2.0 réutilise le validateur CAP de Faluss Apps Registry,
 valide séparément manifeste et catalogue, puis exige application/propriétaire,
 capacité `event_source`, bindings de chaque destination et compatibilité non
 dépréciée/non expirée. Cette vérification n'active aucun binding runtime.
@@ -341,6 +341,41 @@ validation d'enveloppe.
 L'échange conserve signature Ed25519, fraîcheur, anti-rejeu, débit et politique
 locale de Federation, sans réutiliser de secret FPR, Identity, Token Connector,
 Stripe ou de session WordPress.
+
+### Cœur persistant EVT-01B.2A
+
+EVT-01B.2A matérialise le schéma Faluss Events 1 sans modifier les deux schémas
+JSON EVT-01A. Les catalogues acceptés et les enveloppes sont conservés en
+octets canoniques privés avec leur SHA-256. L'identité métier couvre exactement
+le nœud, l'application, l'owner, la capacité, la version de catalogue, le type,
+la version d'événement et la référence propriétaire. Deux verrous nommés et les
+contraintes uniques sur cette identité et sur `event_id` ferment les courses
+concurrentes.
+
+Le moteur résout toutes les routes avant la transaction locale, puis écrit
+l'événement et toutes ses outbox ensemble. Pour une entrée future, il lie
+d'abord la source au sender authentifié, résout le catalogue et tous les
+consommateurs exacts, puis écrit événement, inbox et deliveries ensemble. Toute
+erreur annule la transaction. Les retries identiques retrouvent l'occurrence et
+vérifient ses lignes opérationnelles ; toute divergence retourne
+`faluss_events_conflict`.
+
+Les cinq tables sont des structures privées. Elles n'ajoutent aucun endpoint et
+ne rendent visible ni enveloppe, identifiant, référence, payload ou hash. La
+présence d'une delivery consommateur ne garantit pas à elle seule un effet
+externe exactement une fois : le futur consommateur reste propriétaire de son
+idempotence.
+
+La canonicalisation est JCS seulement pour le sous-ensemble fermé EVT-01A :
+clés ASCII d'objets triées récursivement, ordre des listes conservé, chaînes
+UTF-8 non modifiées, booléens, `null` et entiers sûrs. Floats, objets PHP,
+ressources, UTF-8 invalide et formes hors sous-ensemble sont refusés avant
+écriture. Ce périmètre ne constitue pas une implémentation RFC 8785 générale.
+
+`event.publish`, transport d'enveloppe, leases, workers, cron et retry actif
+restent absents jusqu'à EVT-01B.2B. Aucun provider, catalogue ou événement
+Hub/Me et aucun consommateur Analytics, Quêtes ou Progression n'est enregistré.
+AN-01 demeure postérieur à la validation de 2B.
 
 ## Frontières des consommateurs futurs
 
@@ -371,4 +406,5 @@ EVT-01B.1 ne modifie pas ces deux schémas normatifs. Son test exécutable appel
 les validateurs PHP de production, le registre fermé, la politique et le chemin
 de réponse signé Federation. Aucun catalogue Hub/Me réel, provider propriétaire,
 événement, table, migration, outbox, inbox, worker, tracking ou Analytics n'est
-livré.
+livré par ce sous-lot. EVT-01B.2A ajoute ensuite uniquement le cœur persistant
+décrit ci-dessus, sans altérer les schémas ni activer ces comportements.

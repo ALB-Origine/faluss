@@ -89,7 +89,7 @@ Stripe restent séparés. FED-01B ajoute exclusivement sa route privée, ses cl�
 publiques et politiques locales, son anti-rejeu et son audit technique ; aucun
 provider métier, manifeste réel ou projection membre n'est embarqué.
 
-## Contrat et runtime des événements EVT-01A / EVT-01B.1
+## Contrat et cœur persistant des événements EVT-01A / EVT-01B.2A
 
 EVT-01A définit une enveloppe `faluss.event` et un catalogue propriétaire
 `faluss.event-source-catalog`, tous deux en version 1.0.0. Un événement est un
@@ -97,19 +97,29 @@ fait métier déjà commis, jamais une commande, une autorisation, une source de
 PF, un entitlement ou une donnée choisie par le navigateur. L'enveloppe locale
 et une future enveloppe distante utilisent le même format fermé.
 
-La topologie future sépare le propriétaire métier, son adaptateur serveur, le
-moteur Faluss Events idempotent et chaque consommateur Analytics, Quêtes ou
-Progression. L'événement sera append-only, livré au moins une fois et chaque
-conséquence sera exactement une fois par idempotence propre au consommateur.
+La topologie sépare le propriétaire métier, son adaptateur serveur, le moteur
+Faluss Events idempotent et chaque futur consommateur Analytics, Quêtes ou
+Progression. L'événement accepté est append-only. Une future livraison sera au
+moins une fois et chaque consommateur devra rendre son propre effet idempotent ;
+la ligne de delivery ne garantit pas seule un effet externe exactement une fois.
 CAP `event_source`, catalogue EVT, binding actif et politique consommateur sont
-tous obligatoires. Faluss Events 0.1.1 valide désormais catalogues et enveloppes
-et croise le catalogue avec le manifeste CAP accepté. Federation 0.2.0 ajoute
-seulement `event_catalog.read`; aucun transport d'enveloppe événementielle
-n'existe.
+tous obligatoires. Faluss Events 0.2.0 valide catalogues et enveloppes, croise le
+catalogue avec le manifeste CAP accepté et fournit le schéma persistant 1.
+Federation 0.2.0 ajoute seulement `event_catalog.read`; aucun transport
+d'enveloppe événementielle n'existe encore.
 
-EVT-01B.1 ajoute le plugin sans table, migration, endpoint, outbox, inbox,
-queue, cookie, tracking, événement réel ou consommateur. Aucun provider Hub ou
-Me n'est enregistré. Le contrat complet est dans
+EVT-01B.2A crée exactement les journaux de catalogues et d'événements, l'outbox,
+l'inbox et les deliveries consommateurs. Une acceptation locale écrit
+événement et outbox dans une transaction ; une acceptation inbound exige un
+sender authentifié et écrit événement, inbox et deliveries dans une transaction.
+La canonicalisation et les SHA-256 rendent les retries vérifiables ; des verrous
+distincts sur l'identité métier et `event_id`, complétés par deux index uniques,
+ferment les versions concurrentes d'un même fait.
+
+Ces primitives restent internes : aucune route, `event.publish`, lease, queue
+active, worker, cron ou callback n'est lancé. Aucun provider, catalogue ou
+événement Hub/Me et aucun consommateur métier n'est enregistré. EVT-01B.2B doit
+ajouter le transport et les workers avant AN-01. Le contrat complet est dans
 [`FALUSS_EVENTS_CONTRACT.md`](FALUSS_EVENTS_CONTRACT.md).
 
 ## Production Reset FPR-01

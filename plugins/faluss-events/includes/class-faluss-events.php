@@ -170,6 +170,22 @@ final class Faluss_Events {
         return $catalog_response['payload'];
     }
 
+    /** Resolve only a catalog returned by an explicitly registered trusted local provider. */
+    public static function resolve_local_catalog( $node_id, $app_key, $capability_key, $catalog_version = '1.0.0' ) {
+        if ( ! self::is_app_key( $node_id ) || ! self::is_app_key( $app_key ) || ! self::is_capability_key( $capability_key, $app_key ) || ! self::is_semver( $catalog_version ) ) {
+            return self::failure();
+        }
+        $context = array(
+            'operation' => 'event_catalog.read',
+            'parameters' => array( 'owner_app_key' => $app_key, 'capability_key' => $capability_key, 'catalog_version' => $catalog_version ),
+            'subject_context' => null,
+            'sender' => array( 'node_id' => $node_id, 'app_key' => $app_key ),
+            'recipient' => array( 'node_id' => $node_id, 'app_key' => $app_key ),
+        );
+        $result = self::provide_catalog_for_federation( $context );
+        return is_wp_error( $result ) || ! is_array( $result['payload'] ?? null ) ? self::failure() : $result['payload'];
+    }
+
     private static function valid_remote_response( $response, $peer_node_id, $peer_app_key, $document_type, $contract_version ) {
         if ( is_wp_error( $response ) || ! is_array( $response ) || 'success' !== ( $response['status'] ?? null ) || ! array_key_exists( 'error', $response ) || null !== $response['error'] || ! self::exact_contract( $response['payload_contract'] ?? null, $document_type, $contract_version ) || ! is_array( $response['payload'] ?? null ) || ( $response['responder']['node_id'] ?? null ) !== $peer_node_id || ( $response['responder']['app_key'] ?? null ) !== $peer_app_key ) {
             return false;

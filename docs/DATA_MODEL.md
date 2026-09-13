@@ -212,27 +212,90 @@ Faluss ID, e-mail, session ni donnée métier. Les deux tables anti-rejeu ont un
 rétention technique d'au moins 15 minutes ; l'audit minimal est purgé au plus
 après 30 jours. Aucune projection CAP-01B ou Master Profile n'est persistée.
 
-## Événements EVT-01A et runtime EVT-01B.1
+## Événements EVT-01A et cœur persistant EVT-01B.2A
 
-EVT-01A n'ajoute aucune table, colonne, index, migration, option, transient,
-outbox, inbox, queue, audit, cache ou donnée membre. Les schémas
+Les schémas normatifs
 [`faluss-event-envelope.schema.json`](../contracts/faluss-event-envelope.schema.json)
 et
 [`faluss-event-source-catalog.schema.json`](../contracts/faluss-event-source-catalog.schema.json)
-décrivent seulement des documents futurs et ne provoquent aucune écriture.
+restent byte-for-byte inchangés. Faluss Events 0.2.0 ajoute l'option technique
+`faluss_events_schema_version`, égale à `1`, et exactement cinq tables privées
+InnoDB utilisant le préfixe, le charset et la collation WordPress.
 
-Le futur modèle distinguera conceptuellement l'événement métier immuable, son
-acceptation idempotente, une livraison par destination et l'état de traitement
-propre à chaque consommateur. L'identité idempotente associera nœud,
-application, type, version et référence propriétaire ; le hash canonique
-RFC 8785/JCS permettra de retrouver un retry identique et de refuser un conflit.
-Ces structures ne sont pas matérialisées. Faluss Events 0.1.1 ne possède aucune
-table, colonne, option, transient ou donnée membre ; son registre de providers
-et ses validateurs résident uniquement en mémoire pendant la requête PHP.
-Federation 0.2.0 réutilise ses quatre tables techniques existantes sans migration
-ni nouvelle colonne. Son audit de `event_catalog.read` conserve seulement les
-nœuds, l'opération, la capacité et le résultat générique, jamais le manifeste,
-le catalogue, les types, destinations, payloads, URL, Faluss ID ou clés.
+### `*_faluss_events_catalogs`
+
+Journal append-only des catalogues validés : `id`, `catalog_uuid`,
+`source_node_id`, `source_app_key`, `capability_key`, `catalog_version`,
+`catalog_sha256`, `catalog_json`, `accepted_at` UTC.
+
+- `PRIMARY (id)` ;
+- `UNIQUE catalog_uuid_unique (catalog_uuid)` ;
+- `UNIQUE catalog_tuple_unique (source_node_id, source_app_key, capability_key,
+  catalog_version)`.
+
+### `*_faluss_events_events`
+
+Journal append-only des enveloppes acceptées : `id`, `event_id`,
+`source_identity_sha256`, `event_sha256`, `source_node_id`, `source_app_key`,
+`source_owner`, `source_capability_key`, `catalog_version`, `event_type`,
+`event_version`, `source_event_reference`, `direction`, `occurred_at`,
+`produced_at`, `accepted_at`, `retention_until`, `envelope_json`. Toutes les
+dates sont UTC et l'enveloppe canonique reste privée.
+
+- `PRIMARY (id)` ;
+- `UNIQUE event_id_unique (event_id)` ;
+- `UNIQUE source_identity_unique (source_identity_sha256)` ;
+- `INDEX event_retention (retention_until)`.
+
+L'identité est le SHA-256 canonique du tuple exact `source.node_id`,
+`source.app_key`, `source.owner`, `source.capability_key`,
+`source.catalog_version`, `event_type`, `event_version` et
+`source_event_reference`.
+
+### `*_faluss_events_outbox`
+
+Préparation inactive des livraisons futures : `id`, `delivery_uuid`, `event_id`,
+`destination`, `target_node_id`, `target_app_key`, `status`, `attempt_count`,
+`next_attempt_at`, `lease_token`, `lease_expires_at`, `last_result_code`,
+`created_at`, `delivered_at`. Les champs de lease et de résultat sont nullables ;
+aucun claim ou changement de statut n'est actif.
+
+- `PRIMARY (id)` ;
+- `UNIQUE outbox_delivery_unique (delivery_uuid)` ;
+- `UNIQUE outbox_route_unique (event_id, destination, target_node_id,
+  target_app_key)` ;
+- `INDEX outbox_due (status, next_attempt_at)`.
+
+### `*_faluss_events_inbox`
+
+Réception idempotente future : `id`, `receipt_uuid`, `sender_node_id`,
+`sender_app_key`, `event_id`, `event_sha256`, `received_at` UTC.
+
+- `PRIMARY (id)` ;
+- `UNIQUE inbox_receipt_unique (receipt_uuid)` ;
+- `UNIQUE inbox_sender_event_unique (sender_node_id, sender_app_key, event_id)` ;
+- `INDEX inbox_received (received_at)`.
+
+### `*_faluss_events_consumer_deliveries`
+
+État indépendant futur par consommateur : `id`, `delivery_uuid`, `event_id`,
+`destination`, `consumer_key`, `status`, `attempt_count`, `lease_token`,
+`lease_expires_at`, `last_result_code`, `created_at`, `processed_at`. Les champs
+de lease, résultat et traitement sont nullables ; aucun callback n'est exécuté.
+
+- `PRIMARY (id)` ;
+- `UNIQUE consumer_delivery_unique (delivery_uuid)` ;
+- `UNIQUE consumer_event_unique (event_id, destination, consumer_key)` ;
+- `INDEX consumer_pending (status, created_at)`.
+
+La migration ne crée aucune ligne. L'événement et toutes ses lignes
+opérationnelles sont atomiques ; un rollback les retire ensemble. Les cinq
+tables ne constituent ni une UI, ni une sortie publique, ni une garantie
+automatique d'effet externe exactement une fois.
+
+Federation 0.2.0 réutilise ses quatre tables techniques existantes sans
+migration ni nouvelle colonne. Aucun modèle Identity, Portal, Link, Token
+Engine, Subscription ou autre plugin n'est modifié.
 
 Un `faluss_id` éventuel reste limité aux contextes sujet ou acteur réservés de
 l'enveloppe serveur. Il n'entre jamais dans le payload, une référence, une URL,

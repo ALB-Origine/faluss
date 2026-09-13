@@ -133,14 +133,15 @@ L'ordre de livraison conservé est :
 3. FED-01B — runtime plugin du transport privé fédéré ;
 4. CAP-01B — registre runtime et projection réelle apps.registry ;
 5. EVT-01A — contrat commun des événements, sans runtime ;
-6. EVT-01B.1 — validateurs et lecture signée des catalogues, sans provider réel ;
-7. EVT-01B.2 — moteur réel des événements : stockage append-only, identité/hash canonique, outbox, inbox, `event.publish`, livraisons au moins une fois et idempotence indépendante des consommateurs ;
-8. AN-01 — catalogues et providers Hub/Me, politiques explicites, premiers événements réels et premier consommateur Analytics ;
-9. MP-01B ;
-10. COS-01 ;
-11. SHOP-01 ;
-12. intégrations contextuelles Faluss.me ;
-13. Quêtes et Progression.
+6. EVT-01B.1/1.1 — validateurs, lecture signée et liaison du catalogue au nœud, sans provider réel ;
+7. EVT-01B.2A — cœur persistant : catalogues et événements append-only, canonicalisation, outbox, inbox et deliveries inactives ;
+8. EVT-01B.2B — `event.publish`, leases, transport Federation et workers ;
+9. AN-01 — catalogues et providers Hub/Me, politiques explicites, premiers événements réels et premier consommateur Analytics ;
+10. MP-01B ;
+11. COS-01 ;
+12. SHOP-01 ;
+13. intégrations contextuelles Faluss.me ;
+14. Quêtes et Progression.
 
 SUB-01C et SUB-01D, le Daily Reward Faluss Me 75 PF, Fans, Date, Shop et Hall
 of Fame comme moteurs propriétaires futurs, ainsi que le staging opérationnel,
@@ -160,9 +161,10 @@ Les types Hub `portal.viewed`, `app.opened`, `daily-reward.claimed` et Me
 EVT-01A ne crée aucun plugin, runtime, transport Federation, bus, table,
 migration, endpoint, outbox, inbox, queue, cookie, tracking, événement réel,
 Analytics, Quête, Progression ou comportement WordPress. EVT-01B.1 apporte les
-validateurs génériques et l'échange de catalogues. EVT-01B.2 devra construire le
-moteur réel avant qu'AN-01 apporte catalogues propriétaires, providers Hub/Me,
-validateurs de payload, politiques et premiers événements.
+validateurs génériques et l'échange de catalogues. EVT-01B.2A apporte le cœur
+persistant ; EVT-01B.2B doit encore livrer transport et workers avant qu'AN-01
+apporte catalogues propriétaires, providers Hub/Me, validateurs de payload,
+politiques et premiers événements.
 
 ## EVT-01B.1 — Runtime des catalogues d'événements — livré techniquement
 
@@ -177,15 +179,29 @@ Le catalogue est lié cryptographiquement au destinataire authentifié : ses
 l'application de la requête Federation.
 
 Aucun catalogue/provider Hub ou Me, événement, tracking, Analytics, table,
-migration, outbox, inbox, worker, cookie ou politique réelle n'est livré.
-`event.publish` reste absent. AN-01 reste nécessaire avant toute activation.
+migration, outbox, inbox, worker, cookie ou politique réelle n'est livré par
+EVT-01B.1. `event.publish` reste absent. AN-01 reste nécessaire avant toute
+activation métier.
 
-## EVT-01B.2 — Moteur réel des événements — à réaliser
+## EVT-01B.2A — Cœur persistant du moteur — livré techniquement
 
-EVT-01B.2 devra livrer le stockage append-only, l'identité et le hash canonique,
-l'outbox, l'inbox, `event.publish`, les livraisons au moins une fois et
-l'idempotence indépendante des consommateurs. EVT-01B.1.1 ne matérialise aucun
-de ces éléments et AN-01 reste postérieur à ce moteur.
+Faluss Events `0.2.0`, schéma `1`, matérialise exactement cinq tables InnoDB :
+catalogues acceptés, événements, outbox, inbox et deliveries consommateurs. Le
+moteur canonicalise et hache les documents, sérialise les identités et
+`event_id` concurrents, refuse les divergences et écrit chaque événement avec
+toutes ses lignes opérationnelles dans une transaction unique.
+
+Les routes et consommateurs sont des registres PHP fermés sans wildcard. Aucun
+descriptor réel n'est enregistré, aucun callback n'est exécuté et les cinq
+tables restent vides après installation. Aucun endpoint, événement réel,
+tracking ou donnée métier n'est ajouté.
+
+## EVT-01B.2B — Transport et workers — à réaliser
+
+EVT-01B.2B devra ajouter `event.publish`, les leases, le transport Federation,
+les workers, les retries bornés et la livraison au moins une fois. AN-01 reste
+bloqué jusqu'à sa validation, puis l'ordre demeure MP-01B, COS-01, SHOP-01,
+intégrations contextuelles Faluss.me, Quêtes et Progression.
 
 ## FED-01A — Contrat du transport privé fédéré — livré contractuellement
 

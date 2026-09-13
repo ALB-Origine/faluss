@@ -310,8 +310,8 @@ evt01b1_assert( false !== strpos( $client_source, 'public static function event_
 evt01b1_assert( false !== strpos( $client_source, "\$response['responder']['node_id'] !== \$peer['peer_node_id']" ) && false !== strpos( $client_source, "find_peer( \$peer['peer_node_id'], \$peer['peer_app_key'], \$response['responder']['key_id'] )" ), 'Production client still binds response to exact peer and registered key.' );
 evt01b1_assert( false !== strpos( $server_source, 'consume_replay_and_limit' ) && false !== strpos( $server_source, 'rate_limit( $message[\'operation\'] )' ), 'Existing transactional anti-replay and rate limiting remain on the dispatch path.' );
 evt01b1_assert( 1 !== preg_match( '/wp_remote_|curl_|file_get_contents\s*\(\s*[\'\"]https?:/i', file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' ) . $events_source ), 'Plugin loading performs no network request.' );
-foreach ( array( 'CREATE TABLE', 'dbDelta', 'register_rest_route', 'add_shortcode', 'wp_schedule', 'setcookie', 'event.publish', 'outbox', 'inbox' ) as $forbidden ) {
-    evt01b1_assert( false === stripos( file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' ) . $events_source . file_get_contents( $paths['catalog_validator'] ) . file_get_contents( $paths['envelope_validator'] ), $forbidden ), 'Faluss Events runtime must not add forbidden behavior: ' . $forbidden );
+foreach ( array( 'dbDelta', 'register_rest_route', 'add_shortcode', 'wp_schedule', 'setcookie', 'event.publish' ) as $forbidden ) {
+    evt01b1_assert( false === stripos( file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' ) . $events_source . file_get_contents( $paths['catalog_validator'] ) . file_get_contents( $paths['envelope_validator'] ), $forbidden ), 'Faluss Events must not add forbidden transport or browser behavior: ' . $forbidden );
 }
 evt01b1_assert( false === strpos( $events_source, 'faluss-hub' ) && false === strpos( $events_source, 'faluss-me' ), 'Plugin must ship no real Hub or Me provider/catalog.' );
 
@@ -321,7 +321,7 @@ $branch = $schema['allOf'][3]['then']['properties'];
 evt01b1_assert( null === $branch['subject_context']['const'] && array( 'owner_app_key', 'capability_key', 'catalog_version' ) === $branch['parameters']['required'] && false === $branch['parameters']['additionalProperties'], 'Schema branch requires null subject and exactly three parameters.' );
 $bootstrap = file_get_contents( $root . '/plugins/faluss-federation/faluss-federation.php' );
 $events_bootstrap = file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' );
-evt01b1_assert( false !== strpos( $bootstrap, 'Version: 0.2.0' ) && false !== strpos( $bootstrap, "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ) && false !== strpos( $events_bootstrap, 'Version: 0.1.1' ), 'Versions must be Events 0.1.1 and Federation 0.2.0, schema 1.' );
+evt01b1_assert( false !== strpos( $bootstrap, 'Version: 0.2.0' ) && false !== strpos( $bootstrap, "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ) && false !== strpos( $events_bootstrap, 'Version: 0.2.0' ) && false !== strpos( $events_bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ), 'Versions must be Events 0.2.0/schema 1 and Federation 0.2.0/schema 1.' );
 Faluss_Events::boot();
 evt01b1_assert( isset( $GLOBALS['evt01b1_hooks']['faluss_federation_ready'][20] ) && isset( $GLOBALS['evt01b1_hooks']['plugins_loaded'][40] ), 'Both early and late activation orders retain one deterministic integration callback.' );
 

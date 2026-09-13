@@ -766,8 +766,8 @@ evt01a_assert( false !== strpos( $cap_contract, '### Coordination EVT-01A' ) && 
 evt01a_assert( false !== strpos( $fed_contract, '`event.publish` reste interdit' ) && false !== strpos( $fed_contract, '`event_catalog.read`' ), 'Federation must keep event.publish forbidden while reserving only catalog reading.' );
 evt01a_assert( array( 'diagnostic.read', 'manifest.read', 'read_model.read', 'event_catalog.read' ) === $federation_request['properties']['operation']['enum'], 'Federation schema must remain closed to its four read operations.' );
 evt01a_assert( false !== strpos( $portal_contract, '## Frontière événements EVT-01A' ) && false !== strpos( $portal_contract, 'ne produit et ne consomme encore aucun événement' ), 'Portal must remain free of event production and tracking.' );
-evt01a_assert( false !== strpos( $architecture, '## Contrat et runtime des événements EVT-01A / EVT-01B.1' ), 'Architecture must record the four-responsibility topology and its validator runtime.' );
-evt01a_assert( false !== strpos( $data_model, '## Événements EVT-01A et runtime EVT-01B.1' ) && false !== strpos( $data_model, "n'ajoute aucune table" ), 'Data model must record zero event persistence.' );
+evt01a_assert( false !== strpos( $architecture, '## Contrat et cœur persistant des événements EVT-01A / EVT-01B.2A' ), 'Architecture must preserve the four-responsibility topology through the persistent runtime.' );
+evt01a_assert( false !== strpos( $data_model, '## Événements EVT-01A et cœur persistant EVT-01B.2A' ) && false !== strpos( $data_model, 'Les schémas normatifs' ) && false !== strpos( $data_model, 'restent byte-for-byte inchangés' ), 'Data model must preserve the immutable EVT-01A schemas while documenting later persistence.' );
 evt01a_assert( false !== strpos( $roadmap, '## EVT-01A — Contrat commun des événements — livré contractuellement' ), 'Roadmap must register EVT-01A as contract-only.' );
 
 fwrite( STDOUT, 'EVT-01A common event contract: OK (' . $evt01a_assertions . ' assertions; test-only semantic helpers, not a full Draft 2020-12 engine).' . PHP_EOL );
