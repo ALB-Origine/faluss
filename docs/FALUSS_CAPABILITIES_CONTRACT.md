@@ -273,7 +273,52 @@ CAP-01B.1 livre uniquement l'échange signé des manifestes publics `faluss-hub`
 
 Faluss Portal 0.1.21 possède le manifeste Hub et Faluss Link 0.3.19 possède le manifeste Me. Leur chargement intervient après l'enregistrement du validateur, sans dépendre de l'ordre d'activation. Les deux manifestes ont `official_asset: null`; aucun asset, rendu, CSS, JavaScript, donnée membre, table, option, cache durable ou politique Federation n'est créé ou modifié. Sans composant exact, le transport reste fermé avec `not_available` ou `incompatible`.
 
-Le resolver, la projection membre `apps.registry` et sa consommation par Portal restent réservés à CAP-01B.2. La fonction PHP codée en dur de Portal demeure donc inchangée dans CAP-01B.1.
+Le resolver, la projection membre `apps.registry` et sa consommation par Portal restaient réservés à CAP-01B.2. La fonction PHP codée en dur de Portal demeurait donc inchangée dans CAP-01B.1.
+
+## Runtime CAP-01B.2
+
+Faluss Apps Registry 0.2.0 livre le resolver membre propriétaire de
+`apps.registry`. La façade interne
+`Faluss_Apps_Registry::read_for_member($faluss_id, 'portal', '1.0.0')` est
+active exclusivement pour l'identité Federation exacte
+`hub-node` / `faluss-hub` / `https://faluss.com`. Sur Faluss Me, le plugin
+reste uniquement le validateur partagé des manifestes. La façade ne crée ni
+route, ni shortcode, ni formulaire et ne restitue jamais le sujet Faluss.
+
+Les sources sont enregistrées par des adaptateurs PHP de confiance avec un
+descripteur fermé. Hub est un `local_owner`; Me est un `federated_peer`
+désigné seulement par `me-node`, `faluss-me` et la version `1.0.0`. Une
+collision, un type inconnu, un callback invalide ou une clé supplémentaire
+ferme le registre globalement : aucun premier ou dernier inscrit ne gagne.
+L'origine et la clé du pair restent exclusivement dans la politique
+Federation locale.
+
+Le manifeste Me signé peut être conservé au plus 300 secondes dans un
+transient public versionné, jamais au-delà de l'expiration de la réponse. Sa
+clé et sa valeur ne contiennent aucune donnée membre. Chaque lecture contrôle
+de nouveau le contrat CAP complet, la fraîcheur, le pair et son `key_id`; un
+cache altéré, expiré ou lié à une autre clé est supprimé et n'est jamais servi
+comme valeur stale lorsque le rafraîchissement échoue. Le manifeste Hub local
+n'utilise aucun cache persistant.
+
+Le moteur résout séparément disponibilité produit, relation membre,
+compatibilité, capacité, read-model spécialisé, binding et action autorisée,
+puis valide son propre document avec le validateur PHP spécialisé
+`Faluss_Apps_Registry_Read_Model_Validator`. Portal 0.1.22 lit exactement un
+snapshot par rendu et le réutilise pour `Mes apps` et `Explorer`. Le catalogue
+de présentation conserve Hub, Me, Date, Fans et Pro dans le même ordre ; seuls
+Hub et Me reçoivent des décisions runtime. Date, Fans et Pro restent des
+entrées visuelles prévues et absentes de `apps.registry`.
+
+L'adaptateur Portal réutilise le read-model DR-02A existant une seule fois par
+requête. `claimable` produit le binding
+`delegated_action` / `portal.apps.card_action` et l'action symbolique
+`faluss-hub.daily-reward.claim`; `claimed` conserve le binding sans action ;
+`unavailable` et `not_supported` retirent toutes les sorties actives.
+L'adaptateur Identity Client 0.5.3 réutilise la projection AP-02A locale : une
+projection publiée exacte rend la relation Me active, son absence confirmée
+rend `not_linked`, et une autorité indisponible omet Me seulement. Me ne déclare
+aucune capacité dans ce lot.
 
 SUB-01C et SUB-01D, le Daily Reward Faluss Me 75 PF, Fans, Date, Shop et Hall
 of Fame comme moteurs propriétaires futurs, ainsi que le staging comme chantier

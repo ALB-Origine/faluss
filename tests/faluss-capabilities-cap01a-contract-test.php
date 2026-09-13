@@ -1009,7 +1009,7 @@ foreach ( array(
     cap01a_assert( false !== strpos( $contract, $needle ), 'The CAP-01A contract is missing a required boundary: ' . $needle );
 }
 cap01a_assert( false !== strpos( $master_profile, 'CAP-01A' ) && false !== strpos( $master_profile, 'binding actif' ), 'MP-01A must consume apps.registry without becoming its owner.' );
-cap01a_assert( false !== strpos( $portal, 'mécanisme transitoire de présentation' ) && false !== strpos( $portal, 'CAP-01B' ), 'Portal must document its hard-coded registry as transitional only.' );
+cap01a_assert( false !== strpos( $portal, 'Depuis CAP-01B.2' ) && false !== strpos( $portal, 'catalogue AP-01 reste uniquement propriétaire' ) && false !== strpos( $portal, '`apps.registry`' ), 'Portal must document the runtime/presentation ownership split without weakening CAP-01A.' );
 cap01a_assert( false !== strpos( $architecture, 'CAP-01A' ) && false !== strpos( $architecture, 'faluss-apps-registry' ), 'Architecture must register the future registry authority.' );
 cap01a_assert( false !== strpos( $data_model, 'CAP-01A' ) && false !== strpos( $data_model, 'n\'ajoute aucune table' ), 'Data model must state that CAP-01A adds no table or member data.' );
 cap01a_assert( false !== strpos( $roadmap, '## CAP-01A' ) && false !== strpos( $roadmap, 'FED-01' ) && false !== strpos( $roadmap, 'MP-01B' ), 'Roadmap must preserve the ordered CAP-01 future path.' );

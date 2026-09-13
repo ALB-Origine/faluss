@@ -22,6 +22,22 @@ final class Faluss_Identity_Client {
         return 'me' === $app_key ? self::$projection : null;
     }
 }
+final class Faluss_Identity_Client_Apps_Registry_Adapter {
+    public static function canonical_destination( $faluss_id ) {
+        unset( $faluss_id );
+        $projection = Faluss_Identity_Client::$projection;
+        return is_array( $projection ) && '1' === ( $projection['contract_version'] ?? null ) && 'published' === ( $projection['publication_status'] ?? null ) && in_array( $projection['canonical_url'] ?? null, array( 'https://faluss.me/mon-faluss', 'https://www.faluss.me/mon-faluss' ), true ) ? $projection['canonical_url'] : null;
+    }
+}
+
+function ap01_registry_document( $faluss_id ) {
+    $linked = is_string( $faluss_id ) && 1 === preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D', $faluss_id );
+    $me = null !== Faluss_Identity_Client_Apps_Registry_Adapter::canonical_destination( $faluss_id );
+    return array( 'applications' => array(
+        array( 'app_key' => 'faluss-hub', 'availability' => 'available', 'member_relationship' => $linked ? 'active' : 'not_linked', 'capabilities' => array() ),
+        array( 'app_key' => 'faluss-me', 'availability' => 'available', 'member_relationship' => $me ? 'active' : 'not_linked', 'capabilities' => array() ),
+    ) );
+}
 
 $root = dirname( __DIR__ );
 $plugin = $root . '/plugins/faluss-portal';
@@ -39,11 +55,11 @@ $panel_method = new ReflectionMethod( 'Faluss_Portal', 'apps_panel' );
 $panel_method->setAccessible( true );
 
 Faluss_Identity_Client::$projection = null;
-$registry = $registry_method->invoke( null, $faluss_id );
+$registry = $registry_method->invoke( null, $faluss_id, ap01_registry_document( $faluss_id ) );
 ap01_assert( array( 'hub', 'me', 'date', 'fans', 'pro' ) === array_column( $registry, 'slug' ), 'AP-01 must keep one ordered five-application registry.' );
 $by_slug = array_column( $registry, null, 'slug' );
 ap01_assert( true === $by_slug['hub']['available'] && true === $by_slug['hub']['owned'] && true === $by_slug['hub']['active'], 'A linked portal member must own the active Faluss Hub application.' );
-$invalid_registry = array_column( $registry_method->invoke( null, 'not-a-faluss-id' ), null, 'slug' );
+$invalid_registry = array_column( $registry_method->invoke( null, 'not-a-faluss-id', ap01_registry_document( 'not-a-faluss-id' ) ), null, 'slug' );
 ap01_assert( false === $invalid_registry['hub']['owned'], 'Hub ownership must retain the validated linked-member precondition.' );
 ap01_assert( false === $by_slug['me']['owned'], 'A draft Faluss.me card must never count as an owned application.' );
 foreach ( array( 'date', 'fans', 'pro' ) as $slug ) {
@@ -51,7 +67,7 @@ foreach ( array( 'date', 'fans', 'pro' ) as $slug ) {
 }
 
 ob_start();
-$panel_method->invoke( null, 'my-apps', $faluss_id );
+$panel_method->invoke( null, 'my-apps', $faluss_id, ap01_registry_document( $faluss_id ) );
 $draft_owned_html = ob_get_clean();
 ap01_assert( 1 === substr_count( $draft_owned_html, 'data-faluss-app-card' ), 'Mes apps must render only the actually owned Hub when no published Faluss.me proof exists.' );
 ap01_assert( false !== strpos( $draft_owned_html, 'data-faluss-app="hub"' ) && false === strpos( $draft_owned_html, 'data-faluss-app="me"' ), 'Mes apps must not infer Faluss.me ownership from the SSO link alone.' );
@@ -61,18 +77,18 @@ Faluss_Identity_Client::$projection = array(
     'publication_status' => 'published',
     'canonical_url' => 'https://faluss.me/mon-faluss',
 );
-$registry = $registry_method->invoke( null, $faluss_id );
+$registry = $registry_method->invoke( null, $faluss_id, ap01_registry_document( $faluss_id ) );
 $by_slug = array_column( $registry, null, 'slug' );
 ap01_assert( true === $by_slug['me']['owned'], 'A matching locally verified published card may add Faluss Me to Mes apps.' );
 ob_start();
-$panel_method->invoke( null, 'my-apps', $faluss_id );
+$panel_method->invoke( null, 'my-apps', $faluss_id, ap01_registry_document( $faluss_id ) );
 $published_owned_html = ob_get_clean();
 ap01_assert( 2 === substr_count( $published_owned_html, 'data-faluss-app-card' ), 'Mes apps must add exactly Faluss Me once a canonical published-card proof exists.' );
 ap01_assert( false !== strpos( $published_owned_html, 'https://faluss.com/mon-faluss' ) && false !== strpos( $published_owned_html, 'https://faluss.me/mon-faluss' ), 'Owned available apps must use only their validated canonical member destinations.' );
 ap01_assert( 2 === substr_count( $published_owned_html, 'rel="noopener noreferrer"' ), 'Every compact application destination must be isolated from its opener.' );
 
 ob_start();
-$panel_method->invoke( null, 'explore', $faluss_id );
+$panel_method->invoke( null, 'explore', $faluss_id, ap01_registry_document( $faluss_id ) );
 $explore_html = ob_get_clean();
 ap01_assert( 5 === substr_count( $explore_html, 'data-faluss-app-card' ), 'Explorer must render all five registry entries through the shared card.' );
 ap01_assert( 3 === substr_count( $explore_html, '>Bientôt disponible</span>' ), 'Exactly the three unavailable applications must expose a non-interactive coming-soon state.' );

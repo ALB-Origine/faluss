@@ -18,6 +18,21 @@ Après avoir enregistré ce client, cochez dans l’administration Identity de `
 
 Le client Faluss.com demande `identity.basic` dans tous les cas. Il demande aussi `identity.email` seulement dans le flux de connexion anonyme, car ce flux peut créer un premier utilisateur WordPress local lorsqu’aucune liaison Faluss ID n’existe. Le flux de liaison d’un utilisateur local déjà connecté demande uniquement `identity.basic`; l’e-mail n’est jamais un mécanisme de rapprochement automatique d’un compte local existant.
 
+## Adaptateur Apps Registry (CAP-01B.2)
+
+Identity Client 0.5.3 enregistre sur faluss.com la source fédérée fermée
+`faluss-me` auprès de Faluss Apps Registry 0.2.0. Le manifeste public est lu
+par Federation avec le pair `me-node`, l'application `faluss-me` et la version
+`1.0.0`; aucune URL ni clé ne provient du navigateur ou du descripteur.
+
+La relation membre réutilise exclusivement
+`member_app_projection($faluss_id, 'me')`. Une projection AP-02A exacte,
+publiée et dirigée vers `/mon-faluss` produit `active`; une absence confirmée
+produit `not_linked`; une erreur de l'autorité locale omet Me sans inventer un
+état. La projection validée reste en mémoire pour la requête PHP courante afin
+que Portal réutilise sa destination canonique sans seconde lecture. Aucune
+nouvelle table, migration, option, route ou donnée membre n'est ajoutée.
+
 ## Frontière produit ultérieure
 
 Faluss Identity ne gère aucun abonnement, portefeuille ALB ou cosmétique. Faluss.me consommera plus tard des droits d’abonnement et un inventaire cosmétique propres à sa carte publique. Les objets obtenus avec ALB ou progression restent possédés ; les avantages inclus dans un abonnement restent temporaires.

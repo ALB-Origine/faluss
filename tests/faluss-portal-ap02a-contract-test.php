@@ -36,6 +36,29 @@ final class Faluss_Identity_Client {
         return 'me' === $app_key ? self::$projection : null;
     }
 }
+final class Faluss_Identity_Client_Apps_Registry_Adapter {
+    public static function canonical_destination( $faluss_id ) {
+        unset( $faluss_id );
+        $projection = Faluss_Identity_Client::$projection;
+        return is_array( $projection ) && '1' === ( $projection['contract_version'] ?? null ) && 'published' === ( $projection['publication_status'] ?? null ) && in_array( $projection['canonical_url'] ?? null, array( 'https://faluss.me/mon-faluss', 'https://www.faluss.me/mon-faluss' ), true ) ? $projection['canonical_url'] : null;
+    }
+}
+
+function ap02a_registry_document( $faluss_id ) {
+    $me = null !== Faluss_Identity_Client_Apps_Registry_Adapter::canonical_destination( $faluss_id );
+    return array( 'applications' => array(
+        array(
+            'app_key' => 'faluss-hub', 'availability' => 'available', 'member_relationship' => 'active',
+            'capabilities' => array( array(
+                'capability_key' => 'faluss-hub.daily-reward', 'state' => 'enabled',
+                'specialized_read_model' => array( 'status' => 'available' ),
+                'active_bindings' => array( array( 'slot' => 'portal.apps.card_action', 'interface' => 'delegated_action', 'binding_state' => 'active' ) ),
+                'allowed_actions' => array( array( 'action_key' => 'faluss-hub.daily-reward.claim', 'owner' => 'faluss-hub', 'delegation' => array( 'type' => 'owner_delegated_action', 'target' => 'faluss-hub.daily-reward.claim' ) ) ),
+            ) ),
+        ),
+        array( 'app_key' => 'faluss-me', 'availability' => 'available', 'member_relationship' => $me ? 'active' : 'not_linked', 'capabilities' => array() ),
+    ) );
+}
 
 $root = dirname( __DIR__ );
 $portal_dir = $root . '/plugins/faluss-portal';
@@ -63,7 +86,7 @@ $render_daily = new ReflectionMethod( 'Faluss_Portal', 'render_hub_daily_action'
 $render_daily->setAccessible( true );
 
 Faluss_Identity_Client::$projection = null;
-$without_projection = array_column( $registry_method->invoke( null, $faluss_id ), null, 'slug' );
+$without_projection = array_column( $registry_method->invoke( null, $faluss_id, ap02a_registry_document( $faluss_id ) ), null, 'slug' );
 ap02a_assert( false === $without_projection['me']['owned'], 'An absent Identity projection must not fabricate Faluss Me ownership.' );
 
 Faluss_Identity_Client::$projection = array(
@@ -71,12 +94,13 @@ Faluss_Identity_Client::$projection = array(
     'publication_status' => 'published',
     'canonical_url' => 'https://faluss.me/mon-faluss',
 );
-$registry = array_column( $registry_method->invoke( null, $faluss_id ), null, 'slug' );
+$runtime_document = ap02a_registry_document( $faluss_id );
+$registry = array_column( $registry_method->invoke( null, $faluss_id, $runtime_document ), null, 'slug' );
 ap02a_assert( 'https://faluss.com/mon-faluss' === $registry['hub']['url'], 'Faluss Hub must use its canonical member destination.' );
 ap02a_assert( true === $registry['me']['owned'] && 'https://faluss.me/mon-faluss' === $registry['me']['url'], 'A published Identity projection must activate Faluss Me at its canonical member destination.' );
 
 ob_start();
-$panel_method->invoke( null, 'my-apps', $faluss_id );
+$panel_method->invoke( null, 'my-apps', $faluss_id, $runtime_document );
 $owned = ob_get_clean();
 ap02a_assert( 2 === substr_count( $owned, 'data-faluss-app-card' ), 'Hub and published Faluss Me must appear immediately in Mes Apps.' );
 ap02a_assert( 2 === substr_count( $owned, 'faluss-portal__app-card-access' ) && 2 === preg_match_all( '/class="[^"]*faluss-portal__app-open(?:\s|")/', $owned ), 'Every Mes Apps card must use the same card access and integrated glass action zone.' );
@@ -91,12 +115,12 @@ foreach ( array( 'Récupérer', 'Claim', '+20', '>0 PF<', '>75 PF<' ) as $forbid
 ap02a_assert( ! empty( $me_card[0] ) && false === strpos( $me_card[0], 'PF' ) && false === strpos( $me_card[0], 'hub-daily' ) && false === strpos( $me_card[0], '<form' ), 'Faluss Me must retain only its glass navigation action without a fictitious reward.' );
 
 ob_start();
-$panel_method->invoke( null, 'explore', $faluss_id );
+$panel_method->invoke( null, 'explore', $faluss_id, $runtime_document );
 $explore = ob_get_clean();
 ap02a_assert( false !== strpos( $explore, 'href="https://faluss.me/mon-faluss"' ) && false === strpos( $explore, 'href="https://www.faluss.me/"' ), 'Explorer must reuse the known Faluss Me member destination.' );
 
 Faluss_Identity_Client::$projection['canonical_url'] = 'https://attacker.invalid/mon-faluss';
-$invalid = array_column( $registry_method->invoke( null, $faluss_id ), null, 'slug' );
+$invalid = array_column( $registry_method->invoke( null, $faluss_id, ap02a_registry_document( $faluss_id ) ), null, 'slug' );
 ap02a_assert( false === $invalid['me']['owned'], 'A projection outside the exact Faluss Me authority must fail closed.' );
 
 ob_start();
@@ -104,7 +128,7 @@ $render_daily->invoke( null, array( 'status' => 'claimed' ) );
 $claimed = ob_get_clean();
 ap02a_assert( false === strpos( $claimed, '<button' ) && false === strpos( $claimed, '<form' ) && false !== strpos( $claimed, 'faluss-portal__app-open--reward' ) && false !== strpos( $claimed, '>20</span>' ), 'Claimed Hub must keep the same reward pill with no second action.' );
 
-foreach ( array( '0.1.21', '0.4.15', '0.5.2', '0.3.19' ) as $version ) {
+foreach ( array( '0.1.22', '0.4.15', '0.5.3', '0.3.19' ) as $version ) {
     ap02a_assert( false !== strpos( $portal_bootstrap . $identity_bootstrap . $client_bootstrap . $link_bootstrap, $version ), 'Every modified plugin must expose its AP-02A patch version: ' . $version );
 }
 foreach ( array( 'member_app_projection', "'publication_status' => 'published'", "home_url( '/mon-faluss' )" ) as $needle ) {

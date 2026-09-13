@@ -262,6 +262,9 @@ final class Faluss_Portal {
     private static function shell( $member ) {
         $route = self::route();
         $snapshot = self::subscription_snapshot( $member['faluss_id'] );
+        $apps_registry = class_exists( 'Faluss_Apps_Registry' ) && method_exists( 'Faluss_Apps_Registry', 'read_for_member' )
+            ? Faluss_Apps_Registry::read_for_member( $member['faluss_id'], 'portal', '1.0.0' )
+            : null;
         $notice = self::consume_notice( $member['user']->ID );
         ob_start();
         ?>
@@ -295,7 +298,7 @@ final class Faluss_Portal {
                 <?php endforeach; ?>
                 <?php if ( is_string( $notice ) && '' !== $notice ) : ?><div class="faluss-portal__notice" role="status"><?php echo esc_html( $notice ); ?></div><?php endif; ?>
                 <div class="faluss-portal__content" data-faluss-portal-content>
-                    <?php self::render_panels( $route, $snapshot, $member ); ?>
+                    <?php self::render_panels( $route, $snapshot, $member, $apps_registry ); ?>
                 </div>
             </main>
             <?php self::master_profile( $member ); ?>
@@ -304,7 +307,7 @@ final class Faluss_Portal {
         return (string) ob_get_clean();
     }
 
-    private static function render_panels( $route, $snapshot, $member ) {
+    private static function render_panels( $route, $snapshot, $member, $apps_registry ) {
         foreach ( self::TABS as $section => $tabs ) {
             foreach ( $tabs as $tab ) {
                 $active = $section === $route['section'] && $tab === $route['tab'];
@@ -312,7 +315,7 @@ final class Faluss_Portal {
                 if ( 'home' === $section ) {
                     self::home_panel( $tab, $snapshot );
                 } elseif ( 'apps' === $section ) {
-                    self::apps_panel( $tab, $member['faluss_id'] );
+                    self::apps_panel( $tab, $member['faluss_id'], $apps_registry );
                 } elseif ( 'analytics' === $section ) {
                     self::analytics_panel( $tab );
                 } elseif ( 'subscription' === $section ) {
@@ -329,8 +332,8 @@ final class Faluss_Portal {
         }
     }
 
-    private static function apps_panel( $tab, $faluss_id ) {
-        $apps = self::app_registry( $faluss_id );
+    private static function apps_panel( $tab, $faluss_id, $apps_registry = null ) {
+        $apps = self::app_registry( $faluss_id, $apps_registry );
         if ( 'explore' === $tab ) {
             echo '<div class="faluss-portal__apps faluss-portal__apps--explore" data-faluss-apps-view="explore">';
             foreach ( $apps as $app ) {
@@ -350,16 +353,24 @@ final class Faluss_Portal {
         echo '</div>';
     }
 
-    /**
-     * Single AP-01 application registry. Availability, ownership and the
-     * currently open application deliberately remain separate facts.
-     *
-     * @return array<int,array<string,mixed>>
-     */
-    private static function app_registry( $faluss_id ) {
+    /** Portal owns presentation; apps.registry owns Hub and Me decisions. */
+    private static function app_registry( $faluss_id, $apps_registry = null ) {
         $assets = FALUSS_PORTAL_URL . 'assets/images/apps/';
-        $me = self::faluss_me_projection( $faluss_id );
-        return array(
+        $runtime = array();
+        if ( is_array( $apps_registry ) && is_array( $apps_registry['applications'] ?? null ) ) {
+            $runtime = array_column( $apps_registry['applications'], null, 'app_key' );
+        }
+        $hub = is_array( $runtime['faluss-hub'] ?? null ) ? $runtime['faluss-hub'] : null;
+        $me = is_array( $runtime['faluss-me'] ?? null ) ? $runtime['faluss-me'] : null;
+        $hub_available = is_array( $hub ) && 'available' === ( $hub['availability'] ?? null );
+        $hub_owned = $hub_available && 'active' === ( $hub['member_relationship'] ?? null );
+        $me_available = is_array( $me ) && 'available' === ( $me['availability'] ?? null );
+        $me_owned = $me_available && 'active' === ( $me['member_relationship'] ?? null );
+        $me_destination = $me_owned && class_exists( 'Faluss_Identity_Client_Apps_Registry_Adapter' ) && method_exists( 'Faluss_Identity_Client_Apps_Registry_Adapter', 'canonical_destination' )
+            ? Faluss_Identity_Client_Apps_Registry_Adapter::canonical_destination( $faluss_id )
+            : null;
+        $me_owned = $me_owned && self::valid_faluss_me_url( $me_destination );
+        $catalog = array(
             array(
                 'slug'        => 'hub',
                 'name'        => 'Hub',
@@ -367,12 +378,12 @@ final class Faluss_Portal {
                 'accent'      => '#000000',
                 'title_color' => '#FFFFFF',
                 'url'         => 'https://faluss.com/mon-faluss',
-                'available'   => true,
-                'owned'       => self::valid_faluss_id( $faluss_id ),
-                'active'      => true,
+                'available'   => $hub_available,
+                'owned'       => $hub_owned,
+                'active'      => $hub_owned,
                 'short_title' => 'Portail Central',
                 'description' => 'Gérez vos applications et comptes Faluss depuis un espace unique. Retrouvez votre activité, vos préférences et les données que chaque service vous autorise à consulter.',
-                'daily_reward' => self::hub_daily_read_model( $faluss_id ),
+                'daily_reward' => self::hub_daily_presentation( $hub ),
             ),
             array(
                 'slug'        => 'me',
@@ -380,9 +391,9 @@ final class Faluss_Portal {
                 'logo'        => $assets . 'faluss-me.png',
                 'accent'      => '#EE4A4A',
                 'title_color' => '#EE4A4A',
-                'url'         => null === $me ? 'https://www.faluss.me/' : $me['canonical_url'],
-                'available'   => true,
-                'owned'       => null !== $me,
+                'url'         => $me_owned ? $me_destination : 'https://www.faluss.me/',
+                'available'   => $me_available,
+                'owned'       => $me_owned,
                 'active'      => false,
                 'short_title' => 'Link Identité',
                 'description' => 'La vitrine tout-en-un pensée pour votre bio. Partagez votre identité, vos liens et ce que vous proposez depuis un espace entièrement personnalisable et gratuit.',
@@ -427,22 +438,30 @@ final class Faluss_Portal {
                 'description' => 'Un espace conçu pour apprendre, évoluer, créer et transformer cette ambition en une valeur réelle pour les autres.',
             ),
         );
+        return $catalog;
     }
 
-    /** @return array{contract_version: string, publication_status: string, canonical_url: string}|null */
-    private static function faluss_me_projection( $faluss_id ) {
-        if ( ! self::valid_faluss_id( $faluss_id )
-            || ! class_exists( 'Faluss_Identity_Client' )
-            || ! method_exists( 'Faluss_Identity_Client', 'member_app_projection' ) ) {
-            return null;
+    /** Convert only the exact active Daily Reward binding into renderer input. */
+    private static function hub_daily_presentation( $hub ) {
+        $capabilities = is_array( $hub ) && is_array( $hub['capabilities'] ?? null ) ? array_column( $hub['capabilities'], null, 'capability_key' ) : array();
+        $capability = $capabilities['faluss-hub.daily-reward'] ?? null;
+        if ( ! is_array( $capability ) || 'enabled' !== ( $capability['state'] ?? null ) || 'available' !== ( $capability['specialized_read_model']['status'] ?? null ) ) {
+            return array( 'status' => 'unavailable' );
         }
-        $projection = Faluss_Identity_Client::member_app_projection( $faluss_id, 'me' );
-        return is_array( $projection )
-            && '1' === ( $projection['contract_version'] ?? '' )
-            && 'published' === ( $projection['publication_status'] ?? '' )
-            && self::valid_faluss_me_url( $projection['canonical_url'] ?? '' )
-                ? $projection
-                : null;
+        $binding_found = false;
+        foreach ( is_array( $capability['active_bindings'] ?? null ) ? $capability['active_bindings'] : array() as $binding ) {
+            if ( array( 'slot' => 'portal.apps.card_action', 'interface' => 'delegated_action', 'binding_state' => 'active' ) === $binding ) {
+                $binding_found = true;
+            }
+        }
+        if ( ! $binding_found ) {
+            return array( 'status' => 'unavailable' );
+        }
+        if ( array() === ( $capability['allowed_actions'] ?? null ) ) {
+            return array( 'status' => 'claimed' );
+        }
+        $expected = array( 'action_key' => 'faluss-hub.daily-reward.claim', 'owner' => 'faluss-hub', 'delegation' => array( 'type' => 'owner_delegated_action', 'target' => 'faluss-hub.daily-reward.claim' ) );
+        return array( $expected ) === $capability['allowed_actions'] ? array( 'status' => 'claimable' ) : array( 'status' => 'unavailable' );
     }
 
     /** @param array<string,mixed> $app */
@@ -540,6 +559,11 @@ final class Faluss_Portal {
         }
 
         self::send_hub_daily_json( self::hub_daily_claim( $member['faluss_id'] ) );
+    }
+
+    /** Internal owner facade used only by the Apps Registry adapter. */
+    public static function apps_registry_daily_status( $faluss_id ) {
+        return self::hub_daily_read_model( $faluss_id );
     }
 
     /** @return array<string,mixed> */

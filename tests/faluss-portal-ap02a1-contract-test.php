@@ -37,6 +37,27 @@ final class Faluss_Identity_Client {
             : null;
     }
 }
+final class Faluss_Identity_Client_Apps_Registry_Adapter {
+    public static function canonical_destination( $faluss_id ) {
+        unset( $faluss_id );
+        return 'https://faluss.me/mon-faluss';
+    }
+}
+
+function ap02a1_registry_document() {
+    return array( 'applications' => array(
+        array(
+            'app_key' => 'faluss-hub', 'availability' => 'available', 'member_relationship' => 'active',
+            'capabilities' => array( array(
+                'capability_key' => 'faluss-hub.daily-reward', 'state' => 'enabled',
+                'specialized_read_model' => array( 'status' => 'available' ),
+                'active_bindings' => array( array( 'slot' => 'portal.apps.card_action', 'interface' => 'delegated_action', 'binding_state' => 'active' ) ),
+                'allowed_actions' => array( array( 'action_key' => 'faluss-hub.daily-reward.claim', 'owner' => 'faluss-hub', 'delegation' => array( 'type' => 'owner_delegated_action', 'target' => 'faluss-hub.daily-reward.claim' ) ) ),
+            ) ),
+        ),
+        array( 'app_key' => 'faluss-me', 'availability' => 'available', 'member_relationship' => 'active', 'capabilities' => array() ),
+    ) );
+}
 
 $root = dirname( __DIR__ );
 $plugin = $root . '/plugins/faluss-portal';
@@ -54,10 +75,10 @@ $render_daily = new ReflectionMethod( 'Faluss_Portal', 'render_hub_daily_action'
 $render_daily->setAccessible( true );
 
 ob_start();
-$panel_method->invoke( null, 'my-apps', $faluss_id );
+$panel_method->invoke( null, 'my-apps', $faluss_id, ap02a1_registry_document() );
 $owned = ob_get_clean();
 ob_start();
-$panel_method->invoke( null, 'explore', $faluss_id );
+$panel_method->invoke( null, 'explore', $faluss_id, ap02a1_registry_document() );
 $explore = ob_get_clean();
 
 ap02a1_assert( 1 === substr_count( $portal, 'private static function render_app_card' ) && false !== strpos( $portal, "self::render_app_card( \$app, 'compact' )" ) && false !== strpos( $portal, "self::render_app_card( \$app, 'explore' )" ), 'Mes Apps and Explorer must retain one shared card renderer.' );
@@ -116,6 +137,6 @@ foreach ( array( 'method="post"', 'faluss_portal_hub_daily_nonce', 'data-faluss-
 foreach ( array( 'amount_pf', 'economic_class', 'logical_date', 'reward_key', 'idempotency' ) as $field ) {
     ap02a1_assert( false === strpos( $hub_card[0], $field ), 'No economic decision field may be supplied by the Hub browser form: ' . $field );
 }
-ap02a1_assert( false !== strpos( $bootstrap, "FALUSS_PORTAL_VERSION', '0.1.21'" ) && false === strpos( $portal, 'token_engine_pf_ledger' ) && false === strpos( $portal, 'dbDelta' ) && false === strpos( $portal, 'CREATE TABLE' ), 'DR-02A.1 must remain present without adding a ledger, migration or table.' );
+ap02a1_assert( false !== strpos( $bootstrap, "FALUSS_PORTAL_VERSION', '0.1.22'" ) && false === strpos( $portal, 'token_engine_pf_ledger' ) && false === strpos( $portal, 'dbDelta' ) && false === strpos( $portal, 'CREATE TABLE' ), 'DR-02A.1 must remain present without adding a ledger, migration or table.' );
 
 echo "AP-02A.2 Mes Apps visual primitive contract: OK\n";

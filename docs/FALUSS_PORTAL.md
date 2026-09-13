@@ -264,13 +264,24 @@ mêmes variables CSS `--faluss-app-accent` et
 `--faluss-app-title-accent`. Explorer ajoute uniquement la description et son
 action d'état ; aucune seconde variante de données n'existe.
 
-Ce registre AP-01 codé en dur reste un mécanisme transitoire de présentation :
-CAP-01A ne modifie ni cette fonction PHP, ni ses cartes, ni ses assets, et ne
-la déclare pas comme autorité future. Le moteur réservé faluss-apps-registry et
-son read-model apps.registry sont seulement contractuels dans CAP-01A. CAP-01B
-devra fournir le registre runtime réel avant de remplacer des décisions codées
-en dur ; la projection AP-02A de Faluss Me reste, jusque-là, un read-model
-étroit et propriétaire.
+Depuis CAP-01B.2, le catalogue AP-01 reste uniquement propriétaire des labels,
+des descriptions, des couleurs, des logos, des destinations autorisées et de
+l'ordre visuel Hub, Me, Date, Fans, Pro. Les décisions Hub et Me proviennent du
+snapshot serveur `apps.registry` 1.0.0 produit par Faluss Apps Registry 0.2.0.
+Portal demande ce snapshot exactement une fois par rendu et le réutilise pour
+`Mes apps` et `Explorer`. Date, Fans et Pro restent des entrées de présentation
+indisponibles : aucun faux manifeste ni faux document runtime n'est créé.
+
+Hub apparaît dans `Mes apps` seulement comme application disponible avec une
+relation active. Me exige en plus la destination canonique AP-02A déjà validée
+et mise en mémoire par l'adaptateur Identity Client. L'absence ou la panne de
+Me ne retire pas Hub. Le composant Daily Reward n'est préparé que pour le
+binding exact `faluss-hub.daily-reward`, interface `delegated_action`, slot
+`portal.apps.card_action`. `claimable` exige aussi l'action autorisée exacte ;
+`claimed` conserve le binding sans action ; sans binding, le renderer reçoit
+seulement l'action normale d'ouverture. Le moteur ne fournit aucune donnée
+économique au navigateur et les renderers, le HTML, le CSS, le JavaScript et
+les assets AP-01/AP-02A/DR-02A restent inchangés.
 
 AP-01E conserve ce renderer et ce registre sans variation : son header unique
 aligne verticalement le logo, l'identité et, dans `Mes apps`, l'action de droite.
@@ -317,10 +328,10 @@ naviguer ni ouvrir une nouvelle page.
 
 ## Installation et recette technique
 
-1. Sauvegarder les deux installations, puis mettre à jour Faluss Identity
-   `0.4.14` et Faluss Link `0.3.14` sur faluss.me ; mettre à jour Faluss Identity
-   Client `0.5.2` et Faluss Portal `0.1.20` sur faluss.com. Aucun autre plugin
-   n'est concerné.
+1. Sauvegarder les deux installations et les plugins actuels. Mettre Faluss
+   Apps Registry `0.2.0` à jour sur faluss.com et faluss.me, puis mettre à jour
+   uniquement Identity Client `0.5.3` et Portal `0.1.22` sur faluss.com. Ne
+   modifier aucun autre plugin ni aucune politique Federation.
 2. Conserver `[faluss_portal]` sur la page Elementor Canvas `/mon-faluss/`.
 3. Conserver le client officiel Faluss.com activé côté Identity. Le plugin
    ajoute lui-même `/mon-faluss/` aux retours locaux autorisés en mémoire ;
@@ -346,6 +357,10 @@ naviguer ni ouvrir une nouvelle page.
    navigue pas et un état `claimed` ne permet aucun second claim. Me n'affiche
    aucun montant PF. Vérifier enfin les trois états `Bientôt disponible` et que
    seul le panneau gris défile.
+10. Vérifier encore les deux manifestes, `Mes apps` avec Hub puis Me pour un
+    membre publié, Hub seul pour un membre sans projection Me, et `Explorer`
+    avec exactement cinq cards inchangées. Simuler une indisponibilité Me doit
+    seulement retirer Me du résultat membre, jamais Hub.
 
 Cette recette WordPress réelle n'est pas couverte par la preuve automatisée et
 doit être exécutée sur les deux installations avant production. Aucune recette
