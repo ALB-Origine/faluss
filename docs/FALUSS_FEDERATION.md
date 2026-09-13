@@ -1,10 +1,10 @@
-# Faluss Federation 0.1.4 — exploitation privée
+# Faluss Federation 0.1.5 — exploitation privée
 
 ## Frontière
 
 `plugins/faluss-federation/` matérialise FED-01A.1 sur un nœud WordPress approuvé. Il ne transporte que `diagnostic.read`, `manifest.read` et `read_model.read`, par HTTPS serveur-à-serveur, Ed25519 et politique locale fermée. Il n'est ni un RPC générique, ni un transport de paiement, claim, entitlement, profil, média ou donnée métier. Il ne remplace pas FPR, Identity, Token Engine Connector, Stripe ou Faluss Subscriptions.
 
-En version 0.1.4, seul `diagnostic.read` possède un producteur. Les deux autres opérations renvoient une réponse signée `not_available` tant qu'un plugin propriétaire de confiance n'a pas enregistré son provider et son validateur spécialisés. Cette version ne livre donc ni CAP-01B, ni manifeste Hub/Me, ni read-model membre fédéré.
+En version 0.1.5, seul `diagnostic.read` possède un producteur. Les deux autres opérations renvoient une réponse signée `not_available` tant qu'un plugin propriétaire de confiance n'a pas enregistré son provider et son validateur spécialisés. Cette version ne livre donc ni CAP-01B, ni manifeste Hub/Me, ni read-model membre fédéré.
 
 ## Préconditions et configuration locale
 
@@ -72,12 +72,21 @@ Les limites par clé/opération/minute restent 30, 60 et 600. Avant la transacti
 
 La façade interne sortante n'expose que `diagnostic_read`, `manifest_read` et `read_model_read`. Elle force HTTPS, `sslverify`, zéro redirection, une durée totale effective de trois secondes et `limit_response_size` à 65 536 octets avec les seuls arguments supportés par l'API HTTP WordPress. Elle contrôle ensuite la taille reçue, l'identité, la liaison requête/réponse, les en-têtes, hash, signature, fraîcheur, statut et validateur spécialisé avant de rendre une réponse. Aucun payload reçu n'est persisté dans une option, table, transient ou cache durable.
 
+## Trace locale temporaire
+
+La trace opérateur est désactivée par défaut et ne s'active que si `FALUSS_FEDERATION_DIAGNOSTIC_TRACE` vaut strictement `true` dans la configuration locale protégée. Elle écrit exclusivement avec `error_log()` des lignes de forme `[Faluss Federation trace] side=server stage=server_headers` ou `[Faluss Federation trace] side=client stage=client_http_4xx`. Le côté et le stage appartiennent à des listes fermées ; aucune URL, domaine, enveloppe, payload, en-tête, signature, hash, nonce, `request_id`, seed, clé, identité, IP, erreur réseau détaillée ou donnée WordPress n'est ajouté.
+
+Cette trace n'altère aucune validation, canonicalisation, politique, réponse HTTP ni décision d'acceptation. Elle n'écrit dans aucune réponse, administration, table, option ou transient et ne crée aucun audit pré-authentification. Retirer la constante immédiatement après le diagnostic restaure le silence complet.
+
 ## Recette WordPress à exécuter ultérieurement
 
 Cette recette n'est pas exécutée par FED-01B :
 
-1. Mettre à jour `faluss.com` et `faluss.me` avec le même ZIP Faluss Federation 0.1.4, sans modifier ni régénérer seed, `key_id`, clé publique, pair ou politique existante.
-2. Confirmer sur les deux sites le schéma `1`, Sodium natif, l'auto-test Ed25519, l'état `ready` et la présence du receiver existant.
-3. Lancer `diagnostic.read` de `faluss.com` vers `faluss.me`, puis de `faluss.me` vers `faluss.com`, et vérifier dans chaque sens la réponse signée ainsi que l'audit technique du receiver.
+1. Mettre à jour Faluss Federation sur `faluss.com` et `faluss.me` avec le même ZIP 0.1.5.
+2. Ne modifier aucune identité, seed, `key_id`, clé publique, période, pair ou politique.
+3. Ajouter temporairement `define( 'FALUSS_FEDERATION_DIAGNOSTIC_TRACE', true );` dans les deux `wp-config.php`.
+4. Lancer exactement un `diagnostic.read` dans chaque direction.
+5. Relever uniquement les lignes `[Faluss Federation trace]` dans les deux `debug.log`.
+6. Retirer immédiatement la constante de trace des deux configurations.
 
 Ne pas configurer de secret de production durant le développement et ne pas enregistrer de provider CAP-01B avant son contrat et son lot dédié.

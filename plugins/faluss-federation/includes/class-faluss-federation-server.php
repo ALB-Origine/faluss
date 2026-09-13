@@ -9,6 +9,7 @@ final class Faluss_Federation_Server {
     const NAMESPACE = 'faluss-federation/v1';
     const ROUTE = '/exchange';
     const MAX_BODY = 65536;
+    private const TRACE_STAGES = array( 'server_request_type', 'server_method', 'server_ssl', 'server_query', 'server_content_type', 'server_content_encoding', 'server_body', 'server_headers', 'server_body_hash', 'server_json', 'server_shape', 'server_identity', 'server_key_binding', 'server_peer', 'server_canonical', 'server_signature', 'server_freshness' );
 
     public static function boot() {
         add_action( 'rest_api_init', array( __CLASS__, 'register_route' ) );
@@ -28,37 +29,64 @@ final class Faluss_Federation_Server {
 
     public static function handle( $request ) {
         $started = microtime( true );
-        if ( ! $request instanceof WP_REST_Request || 'POST' !== $request->get_method() || ! is_ssl() || ! empty( $request->get_query_params() ) || ! self::content_type_is_json( $request ) || ! self::content_encoding_is_identity( $request ) ) {
-            return self::pre_auth_reject();
+        if ( ! $request instanceof WP_REST_Request ) {
+            return self::pre_auth_reject( 'server_request_type' );
+        }
+        if ( 'POST' !== $request->get_method() ) {
+            return self::pre_auth_reject( 'server_method' );
+        }
+        if ( ! is_ssl() ) {
+            return self::pre_auth_reject( 'server_ssl' );
+        }
+        if ( ! empty( $request->get_query_params() ) ) {
+            return self::pre_auth_reject( 'server_query' );
+        }
+        if ( ! self::content_type_is_json( $request ) ) {
+            return self::pre_auth_reject( 'server_content_type' );
+        }
+        if ( ! self::content_encoding_is_identity( $request ) ) {
+            return self::pre_auth_reject( 'server_content_encoding' );
         }
         $raw_body = $request->get_body();
         if ( ! is_string( $raw_body ) || '' === $raw_body || strlen( $raw_body ) > self::MAX_BODY ) {
-            return self::pre_auth_reject();
+            return self::pre_auth_reject( 'server_body' );
         }
         $headers = self::request_headers( $request );
         if ( is_wp_error( $headers ) ) {
-            return self::pre_auth_reject();
+            return self::pre_auth_reject( 'server_headers' );
         }
         $body_hash = hash( 'sha256', $raw_body );
         if ( ! hash_equals( $headers['X-Faluss-Federation-Content-SHA256'], $body_hash ) ) {
-            return self::pre_auth_reject();
+            return self::pre_auth_reject( 'server_body_hash' );
         }
         try {
             $message = json_decode( $raw_body, true, 16, JSON_THROW_ON_ERROR );
         } catch ( Exception $exception ) {
-            return self::pre_auth_reject();
+            return self::pre_auth_reject( 'server_json' );
         }
         if ( ! self::valid_request( $message ) ) {
-            return self::pre_auth_reject();
+            return self::pre_auth_reject( 'server_shape' );
         }
         $identity = Faluss_Federation_Crypto::local_identity();
-        if ( is_wp_error( $identity ) || $headers['X-Faluss-Federation-Key-Id'] !== $message['sender']['key_id'] ) {
-            return self::pre_auth_reject();
+        if ( is_wp_error( $identity ) ) {
+            return self::pre_auth_reject( 'server_identity' );
+        }
+        if ( $headers['X-Faluss-Federation-Key-Id'] !== $message['sender']['key_id'] ) {
+            return self::pre_auth_reject( 'server_key_binding' );
         }
         $peer = Faluss_Federation_Policy::find_peer( $message['sender']['node_id'], $message['sender']['app_key'], $message['sender']['key_id'] );
         $canonical = Faluss_Federation_Crypto::request_canonical( $message, $raw_body );
-        if ( is_wp_error( $peer ) || is_wp_error( $canonical ) || ! Faluss_Federation_Crypto::verify( $canonical, $headers['X-Faluss-Federation-Signature'], $peer['public_key'] ) || ! self::request_is_fresh( $message ) ) {
-            return self::pre_auth_reject();
+        if ( is_wp_error( $peer ) ) {
+            return self::pre_auth_reject( 'server_peer' );
+        }
+        if ( is_wp_error( $canonical ) ) {
+            return self::pre_auth_reject( 'server_canonical' );
+        }
+        if ( ! Faluss_Federation_Crypto::verify( $canonical, $headers['X-Faluss-Federation-Signature'], $peer['public_key'] ) ) {
+            return self::pre_auth_reject( 'server_signature' );
+        }
+        if ( ! self::request_is_fresh( $message ) ) {
+            return self::pre_auth_reject( 'server_freshness' );
         }
         $allowed = Faluss_Federation_Policy::allow_incoming( $message, $peer, $identity );
         if ( is_wp_error( $allowed ) ) {
@@ -158,8 +186,22 @@ final class Faluss_Federation_Server {
         );
     }
 
-    private static function pre_auth_reject() {
+    private static function pre_auth_reject( $stage = null ) {
+        if ( is_string( $stage ) ) {
+            self::trace( $stage );
+        }
         return new WP_REST_Response( array( 'code' => 'invalid_request', 'message' => 'Request rejected.' ), 400 );
+    }
+
+    private static function trace( $stage ) {
+        if ( ! defined( 'FALUSS_FEDERATION_DIAGNOSTIC_TRACE' ) || true !== FALUSS_FEDERATION_DIAGNOSTIC_TRACE || ! in_array( $stage, self::TRACE_STAGES, true ) || ! function_exists( 'error_log' ) ) {
+            return;
+        }
+        try {
+            error_log( '[Faluss Federation trace] side=server stage=' . $stage );
+        } catch ( Throwable $throwable ) {
+            return;
+        }
     }
 
     private static function request_headers( $request ) {

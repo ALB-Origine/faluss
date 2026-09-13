@@ -7,6 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /** Closed server-side sender. Destinations and operations are never browser input. */
 final class Faluss_Federation_Client {
     const MAX_RESPONSE = 65536;
+    private const TRACE_STAGES = array( 'client_transport_unavailable', 'client_operation', 'client_identity', 'client_peer', 'client_peer_operation', 'client_origin', 'client_nonce', 'client_envelope', 'client_serialization', 'client_canonical', 'client_signature', 'client_http_error', 'client_http_0', 'client_http_2xx', 'client_http_3xx', 'client_http_4xx', 'client_http_5xx', 'client_http_other', 'client_response_http_status', 'client_response_body', 'client_response_headers', 'client_response_hash', 'client_response_json', 'client_response_shape', 'client_response_binding', 'client_response_freshness', 'client_response_status', 'client_response_key', 'client_response_canonical', 'client_response_signature', 'client_response_payload' );
 
     public static function diagnostic_read( $peer_node_id, $peer_app_key ) {
         return self::call( $peer_node_id, $peer_app_key, 'diagnostic.read', array(), null );
@@ -30,31 +31,70 @@ final class Faluss_Federation_Client {
 
     /** The only network path; every value comes from closed facade parameters and stored policy. */
     private static function call( $peer_node_id, $peer_app_key, $operation, $parameters, $subject_context ) {
-        if ( ! Faluss_Federation_Crypto::transport_ready() || ! in_array( $operation, Faluss_Federation_Policy::operations(), true ) ) {
+        if ( ! Faluss_Federation_Crypto::transport_ready() ) {
+            self::trace( 'client_transport_unavailable' );
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        if ( ! in_array( $operation, Faluss_Federation_Policy::operations(), true ) ) {
+            self::trace( 'client_operation' );
             return new WP_Error( 'faluss_federation_fail_closed' );
         }
         $identity = Faluss_Federation_Crypto::local_identity();
         $peer = Faluss_Federation_Policy::find_outbound_peer( $peer_node_id, $peer_app_key );
-        if ( is_wp_error( $identity ) || is_wp_error( $peer ) || ! in_array( $operation, $peer['operations'], true ) || ! Faluss_Federation_Crypto::is_canonical_origin( $peer['canonical_origin'] ) ) {
+        if ( is_wp_error( $identity ) ) {
+            self::trace( 'client_identity' );
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        if ( is_wp_error( $peer ) ) {
+            self::trace( 'client_peer' );
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        if ( ! in_array( $operation, $peer['operations'], true ) ) {
+            self::trace( 'client_peer_operation' );
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        if ( ! Faluss_Federation_Crypto::is_canonical_origin( $peer['canonical_origin'] ) ) {
+            self::trace( 'client_origin' );
             return new WP_Error( 'faluss_federation_fail_closed' );
         }
         try {
             $nonce = Faluss_Federation_Crypto::base64url_encode( random_bytes( 32 ) );
         } catch ( Exception $exception ) {
+            self::trace( 'client_nonce' );
             return new WP_Error( 'faluss_federation_fail_closed' );
         }
         $request = self::build_request( $identity, $peer, $operation, $parameters, $subject_context, $nonce, time() );
         if ( is_wp_error( $request ) ) {
+            self::trace( 'client_envelope' );
             return new WP_Error( 'faluss_federation_fail_closed' );
         }
         $raw = wp_json_encode( $request, JSON_UNESCAPED_SLASHES );
-        $canonical = is_string( $raw ) ? Faluss_Federation_Crypto::request_canonical( $request, $raw ) : new WP_Error( 'faluss_federation_fail_closed' );
-        $signature = is_wp_error( $canonical ) ? $canonical : Faluss_Federation_Crypto::sign( $canonical );
-        if ( ! is_string( $raw ) || is_wp_error( $signature ) || strlen( $raw ) > Faluss_Federation_Server::MAX_BODY ) {
+        if ( ! is_string( $raw ) ) {
+            self::trace( 'client_serialization' );
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        $canonical = Faluss_Federation_Crypto::request_canonical( $request, $raw );
+        if ( is_wp_error( $canonical ) ) {
+            self::trace( 'client_canonical' );
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        $signature = Faluss_Federation_Crypto::sign( $canonical );
+        if ( is_wp_error( $signature ) ) {
+            self::trace( 'client_signature' );
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        if ( strlen( $raw ) > Faluss_Federation_Server::MAX_BODY ) {
+            self::trace( 'client_serialization' );
             return new WP_Error( 'faluss_federation_fail_closed' );
         }
         $response = self::send_raw( $peer['canonical_origin'], $identity, $raw, $signature );
-        if ( is_wp_error( $response ) || 0 !== (int) wp_remote_retrieve_response_code( $response ) && 200 > (int) wp_remote_retrieve_response_code( $response ) ) {
+        if ( is_wp_error( $response ) ) {
+            self::trace( 'client_http_error' );
+            return new WP_Error( 'faluss_federation_transport_failed' );
+        }
+        $http_status = (int) wp_remote_retrieve_response_code( $response );
+        self::trace_http_status( $http_status );
+        if ( 0 !== $http_status && 200 > $http_status ) {
             return new WP_Error( 'faluss_federation_transport_failed' );
         }
         return self::validate_response( $response, $request, $raw, $peer );
@@ -103,30 +143,91 @@ final class Faluss_Federation_Client {
     private static function validate_response( $http_response, $request, $request_raw, $peer ) {
         $http_status = (int) wp_remote_retrieve_response_code( $http_response );
         $raw = wp_remote_retrieve_body( $http_response );
-        if ( ! in_array( $http_status, array( 200, 400, 403, 404, 409, 503 ), true ) || ! is_string( $raw ) || '' === $raw || strlen( $raw ) > self::MAX_RESPONSE ) {
+        if ( ! in_array( $http_status, array( 200, 400, 403, 404, 409, 503 ), true ) ) {
+            self::trace( 'client_response_http_status' );
+            return new WP_Error( 'faluss_federation_invalid_response' );
+        }
+        if ( ! is_string( $raw ) || '' === $raw || strlen( $raw ) > self::MAX_RESPONSE ) {
+            self::trace( 'client_response_body' );
             return new WP_Error( 'faluss_federation_invalid_response' );
         }
         $headers = self::response_headers( $http_response );
-        if ( is_wp_error( $headers ) || ! hash_equals( $headers['X-Faluss-Federation-Content-SHA256'], hash( 'sha256', $raw ) ) ) {
+        if ( is_wp_error( $headers ) ) {
+            self::trace( 'client_response_headers' );
+            return new WP_Error( 'faluss_federation_invalid_response' );
+        }
+        if ( ! hash_equals( $headers['X-Faluss-Federation-Content-SHA256'], hash( 'sha256', $raw ) ) ) {
+            self::trace( 'client_response_hash' );
             return new WP_Error( 'faluss_federation_invalid_response' );
         }
         try {
             $response = json_decode( $raw, true, 16, JSON_THROW_ON_ERROR );
         } catch ( Exception $exception ) {
+            self::trace( 'client_response_json' );
             return new WP_Error( 'faluss_federation_invalid_response' );
         }
-        if ( ! self::valid_response_shape( $response ) || $headers['X-Faluss-Federation-Key-Id'] !== $response['responder']['key_id'] || $response['request_id'] !== $request['request_id'] || ! hash_equals( $response['request_body_sha256'], hash( 'sha256', $request_raw ) ) || $response['responder']['node_id'] !== $peer['peer_node_id'] || $response['responder']['app_key'] !== $peer['peer_app_key'] || $response['recipient']['node_id'] !== $request['sender']['node_id'] || $response['recipient']['app_key'] !== $request['sender']['app_key'] || ! self::response_is_fresh( $response, $request ) || self::status_http( $response['status'] ) !== $http_status ) {
+        if ( ! self::valid_response_shape( $response ) ) {
+            self::trace( 'client_response_shape' );
+            return new WP_Error( 'faluss_federation_invalid_response' );
+        }
+        if ( $headers['X-Faluss-Federation-Key-Id'] !== $response['responder']['key_id'] || $response['request_id'] !== $request['request_id'] || ! hash_equals( $response['request_body_sha256'], hash( 'sha256', $request_raw ) ) || $response['responder']['node_id'] !== $peer['peer_node_id'] || $response['responder']['app_key'] !== $peer['peer_app_key'] || $response['recipient']['node_id'] !== $request['sender']['node_id'] || $response['recipient']['app_key'] !== $request['sender']['app_key'] ) {
+            self::trace( 'client_response_binding' );
+            return new WP_Error( 'faluss_federation_invalid_response' );
+        }
+        if ( ! self::response_is_fresh( $response, $request ) ) {
+            self::trace( 'client_response_freshness' );
+            return new WP_Error( 'faluss_federation_invalid_response' );
+        }
+        if ( self::status_http( $response['status'] ) !== $http_status ) {
+            self::trace( 'client_response_status' );
             return new WP_Error( 'faluss_federation_invalid_response' );
         }
         $reply_key = Faluss_Federation_Policy::find_peer( $peer['peer_node_id'], $peer['peer_app_key'], $response['responder']['key_id'] );
         $canonical = Faluss_Federation_Crypto::response_canonical( $response, $http_status, $raw );
-        if ( is_wp_error( $reply_key ) || is_wp_error( $canonical ) || ! Faluss_Federation_Crypto::verify( $canonical, $headers['X-Faluss-Federation-Signature'], $reply_key['public_key'] ) ) {
+        if ( is_wp_error( $reply_key ) ) {
+            self::trace( 'client_response_key' );
+            return new WP_Error( 'faluss_federation_invalid_response' );
+        }
+        if ( is_wp_error( $canonical ) ) {
+            self::trace( 'client_response_canonical' );
+            return new WP_Error( 'faluss_federation_invalid_response' );
+        }
+        if ( ! Faluss_Federation_Crypto::verify( $canonical, $headers['X-Faluss-Federation-Signature'], $reply_key['public_key'] ) ) {
+            self::trace( 'client_response_signature' );
             return new WP_Error( 'faluss_federation_invalid_response' );
         }
         if ( 'success' === $response['status'] && ! Faluss_Federation_Providers::validate_received_payload( $response, $request ) ) {
+            self::trace( 'client_response_payload' );
             return new WP_Error( 'faluss_federation_incompatible_response' );
         }
         return $response;
+    }
+
+    private static function trace_http_status( $status ) {
+        if ( 0 === $status ) {
+            self::trace( 'client_http_0' );
+        } elseif ( $status >= 200 && $status < 300 ) {
+            self::trace( 'client_http_2xx' );
+        } elseif ( $status >= 300 && $status < 400 ) {
+            self::trace( 'client_http_3xx' );
+        } elseif ( $status >= 400 && $status < 500 ) {
+            self::trace( 'client_http_4xx' );
+        } elseif ( $status >= 500 && $status < 600 ) {
+            self::trace( 'client_http_5xx' );
+        } else {
+            self::trace( 'client_http_other' );
+        }
+    }
+
+    private static function trace( $stage ) {
+        if ( ! defined( 'FALUSS_FEDERATION_DIAGNOSTIC_TRACE' ) || true !== FALUSS_FEDERATION_DIAGNOSTIC_TRACE || ! in_array( $stage, self::TRACE_STAGES, true ) || ! function_exists( 'error_log' ) ) {
+            return;
+        }
+        try {
+            error_log( '[Faluss Federation trace] side=client stage=' . $stage );
+        } catch ( Throwable $throwable ) {
+            return;
+        }
     }
 
     private static function response_headers( $response ) {
