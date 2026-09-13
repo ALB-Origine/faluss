@@ -128,7 +128,8 @@ final class Faluss_Federation_Server {
         if ( is_string( $result ) ) {
             $result = self::failure( $result );
         }
-        if ( ! is_array( $result ) || ! isset( $result['status'], $result['payload_contract'], $result['payload'], $result['error'] ) || ! self::valid_provider_result( $result, $request ) ) {
+        $keys = array( 'status', 'payload_contract', 'payload', 'error' );
+        if ( ! is_array( $result ) || ! self::has_keys( $result, $keys ) || ! self::only_keys( $result, $keys ) || ! self::valid_provider_result( $result, $request ) ) {
             $result = self::failure( 'incompatible' );
         }
         $status = $result['status'];

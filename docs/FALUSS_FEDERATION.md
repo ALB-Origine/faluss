@@ -1,10 +1,10 @@
-# Faluss Federation 0.1.6 — exploitation privée
+# Faluss Federation 0.1.7 — exploitation privée
 
 ## Frontière
 
 `plugins/faluss-federation/` matérialise FED-01A.1 sur un nœud WordPress approuvé. Il ne transporte que `diagnostic.read`, `manifest.read` et `read_model.read`, par HTTPS serveur-à-serveur, Ed25519 et politique locale fermée. Il n'est ni un RPC générique, ni un transport de paiement, claim, entitlement, profil, média ou donnée métier. Il ne remplace pas FPR, Identity, Token Engine Connector, Stripe ou Faluss Subscriptions.
 
-En version 0.1.6, seul `diagnostic.read` possède un producteur. Les deux autres opérations renvoient une réponse signée `not_available` tant qu'un plugin propriétaire de confiance n'a pas enregistré son provider et son validateur spécialisés. Cette version ne livre donc ni CAP-01B, ni manifeste Hub/Me, ni read-model membre fédéré.
+En version 0.1.7, seul `diagnostic.read` possède un producteur. Les deux autres opérations renvoient une réponse signée `not_available` tant qu'un plugin propriétaire de confiance n'a pas enregistré son provider et son validateur spécialisés. Cette version ne livre donc ni CAP-01B, ni manifeste Hub/Me, ni read-model membre fédéré.
 
 ## Préconditions et configuration locale
 
@@ -66,7 +66,7 @@ La route unique, disponible seulement lorsque le transport est prêt, est :
 POST /wp-json/faluss-federation/v1/exchange
 ```
 
-Le receiver lit et hache les octets bruts une seule fois. Il récupère chacun des trois en-têtes cryptographiques uniques par `WP_REST_Request::get_header_as_array()` avec son nom HTTP public ; WordPress canonicalise ainsi la casse et traite tirets et underscores de manière identique. Une absence, plusieurs valeurs, une valeur ambiguë ou fusionnée par virgule reste refusée génériquement. Le receiver vérifie ensuite la forme JSON bornée, la clé/politique, la signature et la fraîcheur avant de consommer nonce et binding dans la même transaction InnoDB. Toute date d'enveloppe est émise et acceptée uniquement au format UTC canonique `Y-m-d\TH:i:s\Z`, sans fraction ni décalage. Les refus pré-authentification restent génériques. Les réponses post-authentification sont sérialisées une fois, signées sur les octets servis, privées (`Cache-Control: private, no-store`) et limitées à 65 536 octets. Les plafonds JSON sont profondeur 16, 128 champs ou éléments et 4 096 octets par chaîne.
+Le receiver lit et hache les octets bruts une seule fois. Il récupère chacun des trois en-têtes cryptographiques uniques par `WP_REST_Request::get_header_as_array()` avec son nom HTTP public ; WordPress canonicalise ainsi la casse et traite tirets et underscores de manière identique. Une absence, plusieurs valeurs, une valeur ambiguë ou fusionnée par virgule reste refusée génériquement. Le receiver vérifie ensuite la forme JSON bornée, la clé/politique, la signature et la fraîcheur avant de consommer nonce et binding dans la même transaction InnoDB. Toute date d'enveloppe est émise et acceptée uniquement au format UTC canonique `Y-m-d\TH:i:s\Z`, sans fraction ni décalage. Un résultat provider doit contenir exactement `status`, `payload_contract`, `payload` et `error`; la présence est contrôlée indépendamment de la valeur afin de conserver les `null` contractuels, puis chaque branche reste validée selon son statut. Les refus pré-authentification restent génériques. Les réponses post-authentification sont sérialisées une fois, signées sur les octets servis, privées (`Cache-Control: private, no-store`) et limitées à 65 536 octets. Les plafonds JSON sont profondeur 16, 128 champs ou éléments et 4 096 octets par chaîne.
 
 Les limites par clé/opération/minute restent 30, 60 et 600. Avant la transaction, le receiver acquiert pendant au plus une seconde un verrou consultatif MariaDB propre au tuple émetteur, clé et opération. Son nom de 64 caractères dérive du préfixe WordPress et du tuple par SHA-256 tronqué, sans identifiant brut. Le verrou reste détenu jusqu'après commit ou rollback, puis sa libération doit être confirmée avant tout dispatch. Une requête plafonnée consomme toujours nonce et binding après commit confirmé ; une libération absente ou ambiguë échoue fermée. La purge opportuniste ne commence qu'après la sortie confirmée de la section verrouillée. Deux buckets distincts utilisent des verrous distincts.
 
@@ -82,13 +82,14 @@ Cette trace n'altère aucune validation, canonicalisation, politique, réponse H
 
 Cette recette n'est pas exécutée par FED-01B :
 
-1. Vérifier que `FALUSS_FEDERATION_DIAGNOSTIC_TRACE` a été retirée des deux `wp-config.php`.
-2. Mettre à jour Faluss Federation sur `faluss.com` et `faluss.me` avec le même ZIP 0.1.6.
-3. Ne modifier aucun pair, seed, `key_id`, domaine ou période.
-4. Vérifier la version 0.1.6, le schéma 1 et l'état `ready`.
-5. Lancer une fois le diagnostic `faluss.com` vers `faluss.me`.
-6. Lancer une fois le diagnostic `faluss.me` vers `faluss.com`.
-7. Vérifier le résultat `Diagnostic distant vérifié.` dans les deux sens.
-8. Après un succès par direction, vérifier `peer_registered: 1` et `success: 1` sur chaque receiver.
+1. Mettre à jour Faluss Federation sur `faluss.com` et `faluss.me` avec le même ZIP 0.1.7.
+2. Ne modifier aucune clé, aucun pair et aucune constante.
+3. Vérifier la version 0.1.7, le schéma 1 et l'état `ready`.
+4. Lancer une fois le diagnostic `faluss.com` vers `faluss.me`.
+5. Lancer une fois le diagnostic `faluss.me` vers `faluss.com`.
+6. Vérifier le résultat `Diagnostic distant vérifié.` dans les deux sens.
+7. Vérifier ensuite `{"incompatible":1,"peer_registered":1,"success":1}` sur chaque site.
+
+Ne pas supprimer l'ancien audit `incompatible` : il constitue l'historique normal du diagnostic précédent.
 
 Ne pas configurer de secret de production durant le développement et ne pas enregistrer de provider CAP-01B avant son contrat et son lot dédié.
