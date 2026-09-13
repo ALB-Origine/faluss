@@ -157,6 +157,9 @@ class FED01B1_WPDB {
 
     public function get_var( $query ) {
         $this->okay();
+        if ( false !== strpos( $query, 'GET_LOCK' ) || false !== strpos( $query, 'RELEASE_LOCK' ) ) {
+            return '1';
+        }
         if ( false !== strpos( $query, 'request_bindings' ) ) {
             $this->binding_reads++;
             if ( 'binding_read_fail' === $this->scenario && 1 === $this->binding_reads ) { return $this->fail( 'binding read failed' ); }

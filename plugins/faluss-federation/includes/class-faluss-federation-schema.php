@@ -110,18 +110,65 @@ final class Faluss_Federation_Schema {
         global $wpdb;
         $sender = $request['sender']['node_id'];
         $key_id = $request['sender']['key_id'];
+        $operation = $request['operation'];
+        $lock_name = self::rate_lock_name( $wpdb->prefix, $sender, $key_id, $operation );
+        if ( is_wp_error( $lock_name ) ) {
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        $acquired = false;
+        $committed = false;
+        $released = false;
+        $result = new WP_Error( 'faluss_federation_fail_closed' );
+        try {
+            $lock_result = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s,%d)', $lock_name, 1 ) );
+            if ( self::lock_result_is_one( $lock_result ) && ! self::database_has_error() ) {
+                $acquired = true;
+                $result = self::consume_locked_transaction( $request, $body_hash, $limit, $committed );
+            }
+        } catch ( Throwable $exception ) {
+            if ( $acquired ) {
+                try {
+                    self::rollback_safely();
+                } catch ( Throwable $rollback_exception ) {
+                    // The result remains fail-closed and the acquired lock is still released below.
+                }
+            }
+            $result = new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        if ( $acquired ) {
+            try {
+                $release_result = $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+                $released = self::lock_result_is_one( $release_result ) && ! self::database_has_error();
+            } catch ( Throwable $exception ) {
+                $released = false;
+            }
+            if ( ! $released ) {
+                $result = new WP_Error( 'faluss_federation_fail_closed' );
+            }
+        }
+        if ( $committed && $released ) {
+            self::purge_opportunistically();
+        }
+        return $result;
+    }
+
+    /** The bucket lock remains held for this entire transaction. @return true|WP_Error */
+    private static function consume_locked_transaction( $request, $body_hash, $limit, &$committed ) {
+        global $wpdb;
+        $sender = $request['sender']['node_id'];
+        $key_id = $request['sender']['key_id'];
         $request_id = $request['request_id'];
         $nonce = $request['nonce'];
         $operation = $request['operation'];
         $now = gmdate( 'Y-m-d H:i:s' );
         $expires = gmdate( 'Y-m-d H:i:s', time() + self::RETENTION_SECONDS );
         $nonce_hash = hash( 'sha256', $nonce );
-        $started = $wpdb->query( 'START TRANSACTION' );
-        if ( false === $started || self::database_has_error() ) {
-            self::rollback_safely();
-            return new WP_Error( 'faluss_federation_fail_closed' );
-        }
         try {
+            $started = $wpdb->query( 'START TRANSACTION' );
+            if ( false === $started || self::database_has_error() ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
             $existing = $wpdb->get_var( $wpdb->prepare( 'SELECT request_body_sha256 FROM ' . self::quote_identifier( self::request_bindings_table() ) . ' WHERE sender_node_id = %s AND request_id = %s FOR UPDATE', $sender, $request_id ) );
             if ( self::database_has_error() ) {
                 self::rollback_safely();
@@ -163,12 +210,33 @@ final class Faluss_Federation_Schema {
                 self::rollback_safely();
                 return new WP_Error( 'faluss_federation_fail_closed' );
             }
-            self::purge_opportunistically();
+            $committed = true;
             return $rate_count >= $limit ? new WP_Error( 'faluss_federation_rate_limited' ) : true;
         } catch ( Throwable $exception ) {
             self::rollback_safely();
             return new WP_Error( 'faluss_federation_fail_closed' );
         }
+    }
+
+    /** @return string|WP_Error */
+    private static function rate_lock_name( $prefix, $sender, $key_id, $operation ) {
+        foreach ( array( $prefix, $sender, $key_id, $operation ) as $component ) {
+            if ( ! is_string( $component ) || '' === $component ) {
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
+        }
+        if ( 1 !== preg_match( '/^[A-Za-z0-9_]+$/D', $prefix ) ) {
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        $material = '';
+        foreach ( array( $prefix, $sender, $key_id, $operation ) as $component ) {
+            $material .= strlen( $component ) . ':' . $component . ';';
+        }
+        return 'faluss_fed_rate_' . substr( hash( 'sha256', $material ), 0, 48 );
+    }
+
+    private static function lock_result_is_one( $value ) {
+        return 1 === $value || '1' === $value;
     }
 
     private static function confirmed_replay( $sender, $key_id, $request_id, $nonce_hash ) {
