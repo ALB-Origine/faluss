@@ -39,8 +39,11 @@ final class Faluss_Federation_Policy {
         if ( ! Faluss_Federation_Schema::is_ready() || ! Faluss_Federation_Crypto::is_node( $node_id ) || ! Faluss_Federation_Crypto::is_node( $app_key ) ) {
             return new WP_Error( 'faluss_federation_unknown_peer' );
         }
-        $rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Faluss_Federation_Schema::quote_identifier( Faluss_Federation_Schema::peers_table() ) . ' WHERE peer_node_id = %s AND peer_app_key = %s ORDER BY CASE key_state WHEN \"active\" THEN 0 WHEN \"rotating\" THEN 1 ELSE 2 END, id DESC', $node_id, $app_key ), ARRAY_A );
-        foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+        $rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Faluss_Federation_Schema::quote_identifier( Faluss_Federation_Schema::peers_table() ) . ' WHERE peer_node_id = %s AND peer_app_key = %s ORDER BY CASE key_state WHEN %s THEN 0 WHEN %s THEN 1 ELSE 2 END, id DESC', $node_id, $app_key, 'active', 'rotating' ), ARRAY_A );
+        if ( ! is_array( $rows ) || self::database_has_error() ) {
+            return new WP_Error( 'faluss_federation_unknown_peer' );
+        }
+        foreach ( $rows as $row ) {
             $peer = self::normalize_peer( $row );
             if ( ! is_wp_error( $peer ) ) {
                 return $peer;
