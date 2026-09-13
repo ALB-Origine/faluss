@@ -24,18 +24,26 @@ final class Faluss_Federation_Admin {
         if ( ! current_user_can( 'manage_options' ) || 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) {
             wp_die( esc_html__( 'Action refused.', 'faluss-federation' ), 403 );
         }
-        check_admin_referer( 'faluss_federation_manage' );
-        $action = isset( $_POST['faluss_federation_action'] ) ? sanitize_key( wp_unslash( $_POST['faluss_federation_action'] ) ) : '';
+        $raw_action = $_POST['faluss_federation_action'] ?? '';
+        $action = is_string( $raw_action ) ? sanitize_key( wp_unslash( $raw_action ) ) : '';
+        if ( 'update_peer_policy' === $action ) {
+            check_admin_referer( 'faluss_federation_update_policy' );
+        } else {
+            check_admin_referer( 'faluss_federation_manage' );
+        }
         $result = new WP_Error( 'faluss_federation_action_refused' );
         if ( 'register_peer' === $action && isset( $_POST['confirmation'] ) && hash_equals( 'ENREGISTRER LE PAIR FEDERATION', (string) wp_unslash( $_POST['confirmation'] ) ) ) {
             $result = Faluss_Federation_Policy::create_peer( self::peer_input_from_post() );
         } elseif ( 'revoke_peer' === $action && isset( $_POST['confirmation'] ) && hash_equals( 'REVOQUER LA CLE FEDERATION', (string) wp_unslash( $_POST['confirmation'] ) ) ) {
             $result = Faluss_Federation_Policy::revoke_peer( absint( $_POST['peer_id'] ?? 0 ) );
+        } elseif ( 'update_peer_policy' === $action && self::update_policy_post_is_exact() && isset( $_POST['confirmation'] ) && is_string( $_POST['confirmation'] ) && hash_equals( 'METTRE A JOUR LA POLITIQUE FEDERATION', wp_unslash( $_POST['confirmation'] ) ) ) {
+            $revision = isset( $_POST['policy_revision'] ) && is_string( $_POST['policy_revision'] ) ? sanitize_text_field( wp_unslash( $_POST['policy_revision'] ) ) : '';
+            $result = Faluss_Federation_Policy::update_peer_policy( absint( $_POST['peer_id'] ?? 0 ), $revision, self::policy_input_from_post() );
         } elseif ( 'diagnostic' === $action ) {
             $result = Faluss_Federation_Client::diagnostic_read( sanitize_key( wp_unslash( $_POST['peer_node_id'] ?? '' ) ), sanitize_key( wp_unslash( $_POST['peer_app_key'] ?? '' ) ) );
         }
         $state = is_wp_error( $result ) ? 'error' : 'ok';
-        $message = is_wp_error( $result ) ? 'Action refusée ou indisponible.' : ( 'diagnostic' === $action ? 'Diagnostic distant vérifié.' : 'Politique enregistrée.' );
+        $message = is_wp_error( $result ) ? 'Action refusée ou indisponible.' : ( 'diagnostic' === $action ? 'Diagnostic distant vérifié.' : ( 'update_peer_policy' === $action ? ( 'unchanged' === $result ? 'Politique déjà à jour.' : 'Politique mise à jour.' ) : 'Politique enregistrée.' ) );
         wp_safe_redirect( add_query_arg( array( 'page' => self::PAGE_SLUG, 'faluss_federation_notice' => $state, 'faluss_federation_message' => rawurlencode( $message ) ), admin_url( 'tools.php' ) ) );
         exit;
     }
@@ -109,10 +117,39 @@ final class Faluss_Federation_Admin {
             echo '<tr><td>' . esc_html( (string) $peer['id'] ) . '</td><td>' . esc_html( $peer['peer_node_id'] ) . '</td><td>' . esc_html( $peer['peer_app_key'] ) . '</td><td>' . esc_html( $peer['canonical_origin'] ) . '</td><td>' . esc_html( $peer['key_id'] ) . '</td><td>' . esc_html( $peer['key_state'] ) . '</td><td>';
             if ( in_array( $peer['key_state'], array( 'active', 'rotating' ), true ) ) {
                 echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">'; wp_nonce_field( 'faluss_federation_manage' ); echo '<input type="hidden" name="action" value="faluss_federation_manage"><input type="hidden" name="faluss_federation_action" value="revoke_peer"><input type="hidden" name="peer_id" value="' . esc_attr( $peer['id'] ) . '"><input type="text" name="confirmation" aria-label="Confirmation de révocation"><button type="submit" class="button">Révoquer</button></form>';
+                self::render_policy_form( $peer );
             }
             echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">'; wp_nonce_field( 'faluss_federation_manage' ); echo '<input type="hidden" name="action" value="faluss_federation_manage"><input type="hidden" name="faluss_federation_action" value="diagnostic"><input type="hidden" name="peer_node_id" value="' . esc_attr( $peer['peer_node_id'] ) . '"><input type="hidden" name="peer_app_key" value="' . esc_attr( $peer['peer_app_key'] ) . '"><button type="submit" class="button">Diagnostic</button></form></td></tr>';
         }
         echo '</tbody></table>';
+    }
+
+    private static function render_policy_form( $peer ) {
+        if ( ! is_array( $peer['operations'] ?? null ) || ! is_array( $peer['owner_apps'] ?? null ) || ! is_array( $peer['capabilities'] ?? null ) || ! is_array( $peer['audiences'] ?? null ) || ! is_string( $peer['policy_revision'] ?? null ) || 1 !== preg_match( '/^[a-f0-9]{64}$/D', $peer['policy_revision'] ) ) {
+            return;
+        }
+        $peer_id = absint( $peer['id'] );
+        echo '<details><summary>Modifier la politique</summary><form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+        wp_nonce_field( 'faluss_federation_update_policy' );
+        echo '<input type="hidden" name="action" value="faluss_federation_manage"><input type="hidden" name="faluss_federation_action" value="update_peer_policy"><input type="hidden" name="peer_id" value="' . esc_attr( $peer_id ) . '"><input type="hidden" name="policy_revision" value="' . esc_attr( $peer['policy_revision'] ) . '"><fieldset><legend>Opérations</legend>';
+        foreach ( Faluss_Federation_Policy::operations() as $operation ) {
+            echo '<label><input type="checkbox" name="operations[]" value="' . esc_attr( $operation ) . '"' . ( in_array( $operation, $peer['operations'], true ) ? ' checked' : '' ) . '> ' . esc_html( $operation ) . '</label><br>';
+        }
+        echo '</fieldset>';
+        self::policy_field( $peer_id, 'owner_apps', 'Applications propriétaires', implode( ',', $peer['owner_apps'] ) );
+        self::policy_field( $peer_id, 'capabilities', 'Capacités', implode( ',', $peer['capabilities'] ) );
+        echo '<fieldset><legend>Audiences</legend>';
+        foreach ( Faluss_Federation_Policy::audiences() as $audience ) {
+            echo '<label><input type="checkbox" name="audiences[]" value="' . esc_attr( $audience ) . '"' . ( in_array( $audience, $peer['audiences'], true ) ? ' checked' : '' ) . '> ' . esc_html( $audience ) . '</label><br>';
+        }
+        echo '</fieldset><p>Saisir exactement <code>METTRE A JOUR LA POLITIQUE FEDERATION</code>.</p>';
+        self::policy_field( $peer_id, 'confirmation', 'Confirmation exacte', '' );
+        echo '<p><button type="submit" class="button button-primary">Mettre à jour la politique</button></p></form></details>';
+    }
+
+    private static function policy_field( $peer_id, $name, $label, $value ) {
+        $id = 'faluss_federation_' . $name . '_' . $peer_id;
+        echo '<p><label for="' . esc_attr( $id ) . '">' . esc_html( $label ) . '</label><br><input class="regular-text" type="text" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" value="' . esc_attr( $value ) . '"></p>';
     }
 
     private static function field( $name, $label, $value = '', $type = 'text' ) {
@@ -134,6 +171,55 @@ final class Faluss_Federation_Admin {
             'capabilities' => self::csv_values_from_post( 'capabilities' ),
             'audiences' => self::closed_values_from_post( 'audiences', Faluss_Federation_Policy::audiences() ),
         );
+    }
+
+    private static function update_policy_post_is_exact() {
+        $allowed = array( 'action', '_wpnonce', '_wp_http_referer', 'faluss_federation_action', 'peer_id', 'policy_revision', 'operations', 'owner_apps', 'capabilities', 'audiences', 'confirmation' );
+        $required = array( 'action', '_wpnonce', 'faluss_federation_action', 'peer_id', 'policy_revision', 'operations', 'owner_apps', 'capabilities', 'confirmation' );
+        $keys = array_keys( $_POST );
+        if ( array_diff( $keys, $allowed ) || array_diff( $required, $keys ) ) {
+            return false;
+        }
+        foreach ( array( 'action', '_wpnonce', 'faluss_federation_action', 'peer_id', 'policy_revision', 'owner_apps', 'capabilities', 'confirmation' ) as $name ) {
+            if ( ! is_string( $_POST[ $name ] ) ) {
+                return false;
+            }
+        }
+        if ( isset( $_POST['_wp_http_referer'] ) && ! is_string( $_POST['_wp_http_referer'] ) ) {
+            return false;
+        }
+        return 'faluss_federation_manage' === wp_unslash( $_POST['action'] )
+            && 'update_peer_policy' === wp_unslash( $_POST['faluss_federation_action'] )
+            && 1 === preg_match( '/^[1-9][0-9]*$/D', wp_unslash( $_POST['peer_id'] ) )
+            && 1 === preg_match( '/^[a-f0-9]{64}$/D', wp_unslash( $_POST['policy_revision'] ) )
+            && is_array( $_POST['operations'] )
+            && ( ! isset( $_POST['audiences'] ) || is_array( $_POST['audiences'] ) );
+    }
+
+    private static function policy_input_from_post() {
+        return array(
+            'operations' => self::policy_values_from_post( 'operations', false ),
+            'owner_apps' => self::policy_values_from_post( 'owner_apps', true ),
+            'capabilities' => self::policy_values_from_post( 'capabilities', true ),
+            'audiences' => self::policy_values_from_post( 'audiences', false ),
+        );
+    }
+
+    private static function policy_values_from_post( $name, $csv ) {
+        if ( ! array_key_exists( $name, $_POST ) ) {
+            return array();
+        }
+        $raw = wp_unslash( $_POST[ $name ] );
+        if ( $csv ) {
+            if ( ! is_string( $raw ) ) {
+                return array( $raw );
+            }
+            return '' === trim( $raw ) ? array() : array_map( 'trim', explode( ',', $raw ) );
+        }
+        if ( ! is_array( $raw ) ) {
+            return $raw;
+        }
+        return array_map( static function ( $value ) { return is_string( $value ) ? trim( $value ) : $value; }, $raw );
     }
 
     private static function closed_values_from_post( $name, $allowed ) {

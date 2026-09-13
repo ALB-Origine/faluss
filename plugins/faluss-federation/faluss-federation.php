@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Faluss Federation
  * Description: Private, signed server-to-server Federation transport.
- * Version: 0.1.7
+ * Version: 0.1.8
  * Requires at least: 6.4
  * Requires PHP: 7.4
  * Author: Faluss
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'FALUSS_FEDERATION_VERSION', '0.1.7' );
+define( 'FALUSS_FEDERATION_VERSION', '0.1.8' );
 define( 'FALUSS_FEDERATION_SCHEMA_VERSION', '1' );
 define( 'FALUSS_FEDERATION_DIR', plugin_dir_path( __FILE__ ) );
 

@@ -81,6 +81,85 @@ final class Faluss_Federation_Policy {
         return self::create_peer_transaction( $peer );
     }
 
+    /** @return string|WP_Error */
+    public static function update_peer_policy( $peer_id, $expected_revision, $input ) {
+        if ( ! is_int( $peer_id ) || $peer_id < 1 || ! is_string( $expected_revision ) || 1 !== preg_match( '/^[a-f0-9]{64}$/D', $expected_revision ) ) {
+            return new WP_Error( 'faluss_federation_invalid_peer_policy' );
+        }
+        $policy = self::validate_policy_input( $input );
+        if ( is_wp_error( $policy ) ) {
+            return $policy;
+        }
+        if ( ! Faluss_Federation_Schema::is_ready() ) {
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        return self::update_peer_policy_transaction( $peer_id, $expected_revision, $policy );
+    }
+
+    /** @return string|WP_Error */
+    private static function update_peer_policy_transaction( $peer_id, $expected_revision, $policy ) {
+        global $wpdb;
+        $started = $wpdb->query( 'START TRANSACTION' );
+        if ( false === $started || self::database_has_error() ) {
+            self::rollback_safely();
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        try {
+            $rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Faluss_Federation_Schema::quote_identifier( Faluss_Federation_Schema::peers_table() ) . ' WHERE id = %d FOR UPDATE', $peer_id ), ARRAY_A );
+            if ( ! is_array( $rows ) || count( $rows ) > 1 || self::database_has_error() ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            if ( 1 !== count( $rows ) || is_wp_error( self::normalize_peer( $rows[0] ) ) ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_peer_policy_refused' );
+            }
+            $current_policy = self::policy_from_row( $rows[0] );
+            $current_revision = is_wp_error( $current_policy ) ? false : self::policy_revision( $current_policy );
+            if ( ! is_string( $current_revision ) ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            if ( ! hash_equals( $current_revision, $expected_revision ) ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_stale_peer_policy' );
+            }
+            if ( $current_policy === $policy ) {
+                $committed = $wpdb->query( 'COMMIT' );
+                if ( false === $committed || self::database_has_error() ) {
+                    self::rollback_safely();
+                    return new WP_Error( 'faluss_federation_fail_closed' );
+                }
+                return 'unchanged';
+            }
+            $columns = array();
+            foreach ( array( 'operations' => 'operations_json', 'owner_apps' => 'owner_apps_json', 'capabilities' => 'capabilities_json', 'audiences' => 'audiences_json' ) as $name => $column ) {
+                $encoded = wp_json_encode( $policy[ $name ], JSON_UNESCAPED_SLASHES );
+                if ( ! is_string( $encoded ) ) {
+                    self::rollback_safely();
+                    return new WP_Error( 'faluss_federation_fail_closed' );
+                }
+                $columns[ $column ] = $encoded;
+            }
+            $columns['updated_at'] = gmdate( 'Y-m-d H:i:s' );
+            $written = $wpdb->update( Faluss_Federation_Schema::peers_table(), $columns, array( 'id' => $peer_id ), array( '%s', '%s', '%s', '%s', '%s' ), array( '%d' ) );
+            if ( 1 !== $written || self::database_has_error() ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            $committed = $wpdb->query( 'COMMIT' );
+            if ( false === $committed || self::database_has_error() ) {
+                self::rollback_safely();
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
+            Faluss_Federation_Schema::audit( array( 'result_code' => 'peer_policy_updated', 'opaque_code' => 'admin' ) );
+            return 'updated';
+        } catch ( Throwable $exception ) {
+            self::rollback_safely();
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+    }
+
     /** @return true|WP_Error */
     private static function create_peer_transaction( $peer ) {
         global $wpdb;
@@ -206,14 +285,33 @@ final class Faluss_Federation_Policy {
         return $counts;
     }
 
-    /** Public metadata only, used by the private administrator to choose a revocation target. */
+    /** Public metadata and non-secret policy, used only by the private administrator. */
     public static function peer_summaries() {
         global $wpdb;
         if ( ! Faluss_Federation_Schema::is_ready() ) {
             return array();
         }
-        $rows = $wpdb->get_results( 'SELECT id,peer_node_id,peer_app_key,canonical_origin,key_id,key_state,valid_from,valid_until FROM ' . Faluss_Federation_Schema::quote_identifier( Faluss_Federation_Schema::peers_table() ) . ' ORDER BY id DESC', ARRAY_A );
-        return is_array( $rows ) ? $rows : array();
+        $rows = $wpdb->get_results( 'SELECT id,peer_node_id,peer_app_key,canonical_origin,key_id,key_state,valid_from,valid_until,operations_json,owner_apps_json,capabilities_json,audiences_json FROM ' . Faluss_Federation_Schema::quote_identifier( Faluss_Federation_Schema::peers_table() ) . ' ORDER BY id DESC', ARRAY_A );
+        if ( ! is_array( $rows ) || self::database_has_error() ) {
+            return array();
+        }
+        foreach ( $rows as &$row ) {
+            $policy = self::policy_from_row( $row );
+            foreach ( array( 'operations_json', 'owner_apps_json', 'capabilities_json', 'audiences_json' ) as $column ) {
+                unset( $row[ $column ] );
+            }
+            if ( is_wp_error( $policy ) ) {
+                $row['operations'] = array();
+                $row['owner_apps'] = array();
+                $row['capabilities'] = array();
+                $row['audiences'] = array();
+                $row['policy_revision'] = '';
+                continue;
+            }
+            $row = array_merge( $row, $policy, array( 'policy_revision' => self::policy_revision( $policy ) ) );
+        }
+        unset( $row );
+        return $rows;
     }
 
     private static function normalize_peer( $row ) {
@@ -248,6 +346,65 @@ final class Faluss_Federation_Policy {
             return new WP_Error( 'faluss_federation_invalid_peer' );
         }
         return $peer;
+    }
+
+    /** @return array<string,array<int,string>>|WP_Error */
+    private static function validate_policy_input( $input, $existing = false ) {
+        $keys = array( 'operations', 'owner_apps', 'capabilities', 'audiences' );
+        if ( ! is_array( $input ) || array_diff( $keys, array_keys( $input ) ) || array_diff( array_keys( $input ), $keys ) ) {
+            return new WP_Error( 'faluss_federation_invalid_peer_policy' );
+        }
+        $policy = array(
+            'operations' => self::normalize_policy_list( $input['operations'], 'operation', 3, false ),
+            'owner_apps' => self::normalize_policy_list( $input['owner_apps'], 'node', 32, $existing ),
+            'capabilities' => self::normalize_policy_list( $input['capabilities'], 'capability', 128, true ),
+            'audiences' => self::normalize_policy_list( $input['audiences'], 'audience', 3, true ),
+        );
+        return in_array( false, $policy, true ) ? new WP_Error( 'faluss_federation_invalid_peer_policy' ) : $policy;
+    }
+
+    /** @return array<string,array<int,string>>|WP_Error */
+    private static function policy_from_row( $row ) {
+        if ( ! is_array( $row ) ) {
+            return new WP_Error( 'faluss_federation_invalid_peer_policy' );
+        }
+        $policy = array();
+        foreach ( array( 'operations' => 'operations_json', 'owner_apps' => 'owner_apps_json', 'capabilities' => 'capabilities_json', 'audiences' => 'audiences_json' ) as $name => $column ) {
+            $value = json_decode( $row[ $column ] ?? '', true );
+            if ( JSON_ERROR_NONE !== json_last_error() ) {
+                return new WP_Error( 'faluss_federation_invalid_peer_policy' );
+            }
+            $policy[ $name ] = $value;
+        }
+        return self::validate_policy_input( $policy, true );
+    }
+
+    private static function policy_revision( $policy ) {
+        $canonical = wp_json_encode( $policy, JSON_UNESCAPED_SLASHES );
+        return is_string( $canonical ) ? hash( 'sha256', $canonical ) : false;
+    }
+
+    private static function normalize_policy_list( $values, $kind, $maximum, $allow_empty ) {
+        if ( ! is_array( $values ) || count( $values ) > $maximum || ( ! $allow_empty && empty( $values ) ) ) {
+            return false;
+        }
+        $normalized = array();
+        foreach ( $values as $value ) {
+            if ( ! is_string( $value ) ) {
+                return false;
+            }
+            $value = trim( $value );
+            $valid = '' !== $value && '*' !== $value && ( 'operation' === $kind ? in_array( $value, self::operations(), true ) : ( 'audience' === $kind ? in_array( $value, self::audiences(), true ) : ( 'node' === $kind ? Faluss_Federation_Crypto::is_node( $value ) : 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9_.-]{1,127})+$/D', $value ) ) ) );
+            if ( ! $valid ) {
+                return false;
+            }
+            $normalized[] = $value;
+        }
+        if ( count( $normalized ) !== count( array_unique( $normalized, SORT_STRING ) ) ) {
+            return false;
+        }
+        sort( $normalized, SORT_STRING );
+        return array_values( $normalized );
     }
 
     private static function decode_list( $json, $kind, $maximum ) {

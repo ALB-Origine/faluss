@@ -1,10 +1,10 @@
-# Faluss Federation 0.1.7 — exploitation privée
+# Faluss Federation 0.1.8 — exploitation privée
 
 ## Frontière
 
 `plugins/faluss-federation/` matérialise FED-01A.1 sur un nœud WordPress approuvé. Il ne transporte que `diagnostic.read`, `manifest.read` et `read_model.read`, par HTTPS serveur-à-serveur, Ed25519 et politique locale fermée. Il n'est ni un RPC générique, ni un transport de paiement, claim, entitlement, profil, média ou donnée métier. Il ne remplace pas FPR, Identity, Token Engine Connector, Stripe ou Faluss Subscriptions.
 
-En version 0.1.7, seul `diagnostic.read` possède un producteur. Les deux autres opérations renvoient une réponse signée `not_available` tant qu'un plugin propriétaire de confiance n'a pas enregistré son provider et son validateur spécialisés. Cette version ne livre donc ni CAP-01B, ni manifeste Hub/Me, ni read-model membre fédéré.
+En version 0.1.8, seul `diagnostic.read` possède un producteur. Les deux autres opérations renvoient une réponse signée `not_available` tant qu'un plugin propriétaire de confiance n'a pas enregistré son provider et son validateur spécialisés. Cette version ne livre donc ni CAP-01B, ni manifeste Hub/Me, ni read-model membre fédéré.
 
 ## Préconditions et configuration locale
 
@@ -56,6 +56,8 @@ Le seul écran est **Outils → Faluss Federation**, réservé à `manage_option
 
 Échanger les bundles publics par un canal approuvé puis saisir le pair exact : nœud, application, origine HTTPS, `key_id`, clé publique, période, opérations, applications propriétaires, capacités et audiences. Les opérations et audiences sont des listes fermées et n'acceptent aucun wildcard. Créer une nouvelle clé active pour le même couple fait passer l'ancienne active à `rotating`; une seule clé de chaque état peut coexister. L'enregistrement exige la phrase exacte `ENREGISTRER LE PAIR FEDERATION`; la révocation exige `REVOQUER LA CLE FEDERATION`.
 
+Un pair `active` ou `rotating` expose séparément sa politique actuelle et une action POST protégée par un nonce dédié. Cette action accepte exclusivement les listes `operations`, `owner_apps`, `capabilities` et `audiences`, exige `METTRE A JOUR LA POLITIQUE FEDERATION`, refuse toute clé supplémentaire et n'accepte aucun JSON libre. Les valeurs sont validées, dédupliquées par refus des doublons et triées avant stockage. Une révision SHA-256 opaque de la politique canonique protège contre les formulaires obsolètes. Sous transaction, la même ligne est verrouillée par son identifiant interne avec `SELECT … FOR UPDATE`; seules les quatre colonnes de politique et `updated_at` peuvent changer. Une politique identique retourne `unchanged` sans UPDATE ni audit. Une modification confirmée crée seulement l'audit `peer_policy_updated`. Identité, origine, clé publique, `key_id`, période et état du pair restent inchangés.
+
 Le diagnostic distant est volontaire et utilise exclusivement l'origine du pair déjà enregistrée côté serveur. Il ne prend aucune URL du navigateur.
 
 ## Transport
@@ -80,16 +82,16 @@ Cette trace n'altère aucune validation, canonicalisation, politique, réponse H
 
 ## Recette WordPress à exécuter ultérieurement
 
-Cette recette n'est pas exécutée par FED-01B :
+Cette recette n'est pas exécutée par FED-01C :
 
-1. Mettre à jour Faluss Federation sur `faluss.com` et `faluss.me` avec le même ZIP 0.1.7.
-2. Ne modifier aucune clé, aucun pair et aucune constante.
-3. Vérifier la version 0.1.7, le schéma 1 et l'état `ready`.
-4. Lancer une fois le diagnostic `faluss.com` vers `faluss.me`.
-5. Lancer une fois le diagnostic `faluss.me` vers `faluss.com`.
-6. Vérifier le résultat `Diagnostic distant vérifié.` dans les deux sens.
-7. Vérifier ensuite `{"incompatible":1,"peer_registered":1,"success":1}` sur chaque site.
-
-Ne pas supprimer l'ancien audit `incompatible` : il constitue l'historique normal du diagnostic précédent.
+1. Sauvegarder les deux installations.
+2. Installer le même ZIP 0.1.8 sur `faluss.com` et `faluss.me`.
+3. Vérifier l'état `ready` et le schéma 1.
+4. Sur `faluss.me`, modifier uniquement la politique du pair `hub-node` : opérations `diagnostic.read` et `manifest.read`, application propriétaire `faluss-me`, capacités vides et audiences vides.
+5. Sur `faluss.com`, modifier uniquement la politique du pair `me-node` : opérations `diagnostic.read` et `manifest.read`, application propriétaire `faluss-hub`, capacités vides et audiences vides.
+6. Vérifier visuellement que les origines, `key_id`, clés publiques, périodes et états n'ont pas changé.
+7. Relancer `diagnostic.read` dans les deux directions.
+8. Vérifier un nouvel audit `success` et un audit `peer_policy_updated` sur chaque installation, sans supprimer l'ancien audit `incompatible`.
+9. Ne pas tenter encore un manifeste réel avant CAP-01B.
 
 Ne pas configurer de secret de production durant le développement et ne pas enregistrer de provider CAP-01B avant son contrat et son lot dédié.

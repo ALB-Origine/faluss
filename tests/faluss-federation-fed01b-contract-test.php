@@ -60,12 +60,12 @@ $client = fed01b_source( $root, 'plugins/faluss-federation/includes/class-faluss
 $admin = fed01b_source( $root, 'plugins/faluss-federation/includes/class-faluss-federation-admin.php' );
 $guide = fed01b_source( $root, 'docs/FALUSS_FEDERATION.md' );
 
-fed01b_contains_all( $bootstrap, array( 'Version: 0.1.7', "FALUSS_FEDERATION_VERSION', '0.1.7'", 'Requires at least: 6.4', 'Requires PHP: 7.4', "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ), 'bootstrap' );
+fed01b_contains_all( $bootstrap, array( 'Version: 0.1.8', "FALUSS_FEDERATION_VERSION', '0.1.8'", 'Requires at least: 6.4', 'Requires PHP: 7.4', "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ), 'bootstrap' );
 fed01b_contains_all( $schema, array( 'GET_LOCK', 'RELEASE_LOCK', 'rate_lock_name', 'RENAME TABLE', 'ENGINE=InnoDB', 'faluss_federation_peers', 'faluss_federation_request_bindings', 'faluss_federation_nonces', 'faluss_federation_audit', 'START TRANSACTION', 'sender_request_unique', 'sender_key_nonce_unique' ), 'schema' );
 fed01b_contract_assert( false !== strpos( $schema, 'Never repairs') && false === strpos( $schema, 'dbDelta(' ), 'Migration must be fresh-only and avoid dbDelta.' );
 fed01b_contains_all( $crypto, array( "extension_loaded( 'sodium' )", 'SODIUM_CRYPTO_SIGN_SEEDBYTES', 'SODIUM_CRYPTO_SIGN_KEYPAIRBYTES', 'SODIUM_CRYPTO_SIGN_SECRETKEYBYTES', 'SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES', 'SODIUM_CRYPTO_SIGN_BYTES', 'sodium_crypto_sign_seed_keypair', 'sodium_crypto_sign_detached', 'sodium_crypto_sign_verify_detached', 'sodium_memzero', 'catch ( Throwable $throwable )', 'return $cleaned && $result;', 'base64url_decode', 'canonical_join', "'POST'", 'FALUSS_FEDERATION_PRIVATE_SEED' ), 'crypto' );
 foreach ( array( 'hash_hmac', 'openssl_', 'rsa' ) as $forbidden ) { fed01b_contract_assert( false === stripos( $crypto, $forbidden ), 'Crypto facade must not provide a forbidden fallback: ' . $forbidden ); }
-fed01b_contains_all( $policy, array( 'rotation_refused', 'revoke_peer', 'peer_summaries' ), 'policy' );
+fed01b_contains_all( $policy, array( 'rotation_refused', 'revoke_peer', 'peer_summaries', 'update_peer_policy', 'peer_policy_updated', 'FOR UPDATE' ), 'policy' );
 fed01b_contract_assert( false === strpos( $policy, "array( 'active', 'rotating' ) ), array( '%d', '%s' )" ), 'Peer revocation must not pass an array to wpdb update conditions.' );
 fed01b_contract_assert( false !== strpos( $policy, 'WHEN %s THEN 0 WHEN %s THEN 1' ) && false === strpos( $policy, '\\"active\\"' ) && false === strpos( $policy, '\\"rotating\\"' ), 'Outbound peer state ordering must use prepared values without escaped SQL literals.' );
 fed01b_contains_all( $providers, array( 'diagnostic.read', 'manifest.read', 'read_model.read', "failure( 'not_available' )", 'register_manifest_provider', 'register_read_model_provider' ), 'providers' );
@@ -76,7 +76,7 @@ fed01b_contract_assert( false !== strpos( $server, 'self::has_keys( $result, $ke
 fed01b_contains_all( $client, array( 'diagnostic_read', 'manifest_read', 'read_model_read', 'wp_remote_post', "'sslverify' => true", "'redirection' => 0", "'timeout' => 3", "'limit_response_size' => self::MAX_RESPONSE", 'FALUSS_FEDERATION_DIAGNOSTIC_TRACE', '[Faluss Federation trace] side=client stage=', 'validate_response' ), 'client' );
 fed01b_contract_assert( false === strpos( $client, 'connect_timeout' ), 'Client must use only supported WordPress HTTP arguments.' );
 fed01b_contract_assert( false === strpos( $client, '$_GET' ) && false === strpos( $client, '$_POST' ), 'Client facades must not receive a destination from browser input.' );
-fed01b_contains_all( $admin, array( "add_management_page", "'manage_options'", 'check_admin_referer', 'ENREGISTRER LE PAIR FEDERATION', 'REVOQUER LA CLE FEDERATION', 'Transport indisponible : Sodium absent ou invalide' ), 'admin' );
+fed01b_contains_all( $admin, array( "add_management_page", "'manage_options'", 'check_admin_referer', 'ENREGISTRER LE PAIR FEDERATION', 'REVOQUER LA CLE FEDERATION', 'METTRE A JOUR LA POLITIQUE FEDERATION', 'faluss_federation_update_policy', 'Transport indisponible : Sodium absent ou invalide' ), 'admin' );
 fed01b_contract_assert( false === strpos( $admin, '<script' ) && false === strpos( $admin, '<style' ), 'Administration must not add custom CSS or JavaScript.' );
 fed01b_contains_all( $guide, array( 'hub-node', 'me-node', 'FALUSS_FEDERATION_PRIVATE_SEED', '15 minutes', '30 jours', 'Recette WordPress' ), 'operations guide' );
 
