@@ -162,6 +162,22 @@ sans filtre, mode de fusion, agrandissement CSS ni fond de conteneur.
 - **Paramètres**, **Aide**, **Quêtes** et **Boutique** restent honnêtes tant que
   leurs sources de données ne sont pas activées.
 
+## Frontière événements EVT-01A
+
+Portal ne produit et ne consomme encore aucun événement. EVT-01A réserve
+contractuellement `faluss-hub.portal.viewed`, `faluss-hub.app.opened` et
+`faluss-hub.daily-reward.claimed`, mais n'ajoute aucun hook, JavaScript,
+requête, cookie, fingerprint, tracking, cache, endpoint ou mutation au rendu
+actuel. Les clics, ouvertures de card et affichages existants ne sont donc pas
+convertis silencieusement en événements.
+
+Un futur événement Daily Reward ne pourra être construit côté serveur qu'après
+le commit PF réussi du propriétaire ; il ne transportera ni montant, solde ou
+clé d'idempotence économique et ne demandera jamais un crédit. Le navigateur ne
+fournira ni `event_id`, type, source, date, sujet, destination ou référence. Un
+futur affichage Analytics utilisera seulement des read-models filtrés de son
+propre moteur, jamais les enveloppes brutes ni une identité de visiteur.
+
 ## Master Profile préparatoire
 
 Le Master Profile est une surface immersive locale, ouverte depuis la bulle

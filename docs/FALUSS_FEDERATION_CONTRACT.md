@@ -188,6 +188,27 @@ Toute demande invalide, non autorisée, expirée, incompatible ou non conforme
 échoue fermée. Elle n'entraîne ni accès direct, ni cache ancien, ni valeur
 inventée, ni deuxième transport de secours.
 
+## Coordination avec EVT-01A
+
+`event.publish` reste interdit dans FED-01B et FED-01C. Les opérations actuelles
+`diagnostic.read`, `manifest.read` et `read_model.read` sont des lectures
+fermées et ne peuvent jamais être renommées, enveloppées ou détournées pour
+publier un événement. Un payload `faluss.event`, même conforme, est donc refusé
+par le protocole actuel.
+
+EVT-01A ajoute uniquement les contrats documentaires
+[`faluss.event`](../contracts/faluss-event-envelope.schema.json) et
+[`faluss.event-source-catalog`](../contracts/faluss-event-source-catalog.schema.json).
+Il ne change ni les deux schémas Federation, ni la route, ni le client, ni le
+serveur, ni les opérations, ni la politique ou le schéma de stockage
+Federation.
+
+Un futur transport d'événements exigera EVT-01B : extension explicitement
+versionnée et autorisée, signature Ed25519, liaison exacte de la requête,
+fraîcheur, anti-rejeu et politique par producteur, type, version et destination.
+Il ne pourra réutiliser aucun secret FPR, Faluss Identity, Token Engine
+Connector, Stripe ou aucune session WordPress.
+
 ## Enveloppe, signature et fraîcheur de réponse
 
 Le schéma autonome Draft 2020-12

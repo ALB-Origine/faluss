@@ -212,6 +212,27 @@ Faluss ID, e-mail, session ni donnée métier. Les deux tables anti-rejeu ont un
 rétention technique d'au moins 15 minutes ; l'audit minimal est purgé au plus
 après 30 jours. Aucune projection CAP-01B ou Master Profile n'est persistée.
 
+## Événements EVT-01A
+
+EVT-01A n'ajoute aucune table, colonne, index, migration, option, transient,
+outbox, inbox, queue, audit, cache ou donnée membre. Les schémas
+[`faluss-event-envelope.schema.json`](../contracts/faluss-event-envelope.schema.json)
+et
+[`faluss-event-source-catalog.schema.json`](../contracts/faluss-event-source-catalog.schema.json)
+décrivent seulement des documents futurs et ne provoquent aucune écriture.
+
+Le futur modèle distinguera conceptuellement l'événement métier immuable, son
+acceptation idempotente, une livraison par destination et l'état de traitement
+propre à chaque consommateur. L'identité idempotente associera nœud,
+application, type, version et référence propriétaire ; le hash canonique
+RFC 8785/JCS permettra de retrouver un retry identique et de refuser un conflit.
+Ces structures ne sont pas matérialisées par EVT-01A.
+
+Un `faluss_id` éventuel reste limité aux contextes sujet ou acteur réservés de
+l'enveloppe serveur. Il n'entre jamais dans le payload, une référence, une URL,
+un cache public, un log technique ou une sortie membre. Aucun solde PF,
+identifiant économique, paiement ou contenu propriétaire n'est copié.
+
 ## Master Profile MP-01A
 
 MP-01A n'ajoute aucune table, colonne, option, migration, donnée membre ou copie

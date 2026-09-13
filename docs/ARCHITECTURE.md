@@ -89,6 +89,27 @@ Stripe restent séparés. FED-01B ajoute exclusivement sa route privée, ses cl�
 publiques et politiques locales, son anti-rejeu et son audit technique ; aucun
 provider métier, manifeste réel ou projection membre n'est embarqué.
 
+## Contrat commun des événements EVT-01A
+
+EVT-01A définit une enveloppe `faluss.event` et un catalogue propriétaire
+`faluss.event-source-catalog`, tous deux en version 1.0.0. Un événement est un
+fait métier déjà commis, jamais une commande, une autorisation, une source de
+PF, un entitlement ou une donnée choisie par le navigateur. L'enveloppe locale
+et une future enveloppe distante utilisent le même format fermé.
+
+La topologie future sépare le propriétaire métier, son adaptateur serveur, le
+moteur Faluss Events idempotent et chaque consommateur Analytics, Quêtes ou
+Progression. L'événement sera append-only, livré au moins une fois et chaque
+conséquence sera exactement une fois par idempotence propre au consommateur.
+CAP `event_source`, catalogue EVT, binding actif et politique consommateur sont
+tous obligatoires. Federation reste fermé aux trois lectures existantes ; un
+transport signé d'événements est réservé à EVT-01B.
+
+EVT-01A n'ajoute aucun plugin, runtime, table, migration, endpoint, outbox,
+inbox, queue, appel réseau, cookie, tracking, événement réel ou changement
+WordPress. Le contrat complet est dans
+[`FALUSS_EVENTS_CONTRACT.md`](FALUSS_EVENTS_CONTRACT.md).
+
 ## Production Reset FPR-01
 
 `Faluss Production Reset` est un plugin isolé, installé identiquement sur

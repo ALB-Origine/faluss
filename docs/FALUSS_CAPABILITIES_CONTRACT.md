@@ -191,6 +191,23 @@ contrat ; aucun wildcard n'est admis. Une application peut demander un
 emplacement compatible, mais ne décide jamais de la position, de l'ordre, des
 dimensions, du CSS, du composant, de l'activation finale ou de la visibilité.
 
+### Coordination EVT-01A
+
+L'interface `event_source` reste exclusivement une déclaration CAP. Elle ne
+produit, ne transporte, ne stocke et n'autorise aucun événement. Une source
+future devra aussi présenter un catalogue
+`faluss.event-source-catalog` 1.0.0 accepté selon
+[`FALUSS_EVENTS_CONTRACT.md`](FALUSS_EVENTS_CONTRACT.md), puis satisfaire
+cumulativement le manifeste CAP accepté, la capacité active, la compatibilité,
+la fraîcheur, un binding actif pour la destination exacte et la politique
+locale du consommateur.
+
+Le catalogue ne peut ni créer une capacité absente du manifeste ni activer un
+binding. Inversement, une capacité `event_source` et un binding CAP ne suffisent
+pas sans catalogue EVT et validateur de payload spécialisés exacts. Toute
+absence ou contradiction échoue fermée. CAP-01B.2 ne produit ni n'active aucun
+événement et les manifestes Hub et Me restent inchangés par EVT-01A.
+
 ## Sécurité, fraîcheur et transport futur
 
 Les décisions d'application liée, capacité active, slot, propriétaire, contrat
@@ -259,8 +276,8 @@ Les étapes futures, sans implémentation ici, sont :
 2. FED-01A — contrat du transport privé fédéré ;
 3. FED-01B — runtime plugin du transport privé fédéré, livré sans CAP-01B ;
 4. CAP-01B — registre runtime et projection réelle apps.registry ;
-5. EVT-01 — enveloppe commune d'événements ;
-6. AN-01 — moteur Analytics et premiers événements réels Hub/Me ;
+5. EVT-01A — contrat commun des événements, sans runtime ;
+6. EVT-01B/AN-01 — runtime autorisé et premiers événements réels Hub/Me ;
 7. MP-01B — assembleur réel du Master Profile ;
 8. COS-01 — catalogue, inventaire et équipement cosmétique ;
 9. SHOP-01 — boutique Premium sur faluss.com ;

@@ -132,8 +132,8 @@ L'ordre de livraison conservé est :
 2. FED-01A — contrat du transport privé fédéré ;
 3. FED-01B — runtime plugin du transport privé fédéré ;
 4. CAP-01B — registre runtime et projection réelle apps.registry ;
-5. EVT-01 — enveloppe commune d'événements ;
-6. AN-01 — moteur Analytics et premiers événements réels Hub/Me ;
+5. EVT-01A — contrat commun des événements, sans runtime ;
+6. EVT-01B/AN-01 — runtime autorisé et premiers événements réels Hub/Me ;
 7. MP-01B — assembleur réel du Master Profile ;
 8. COS-01 — catalogue, inventaire et équipement cosmétique ;
 9. SHOP-01 — boutique Premium sur faluss.com ;
@@ -143,6 +143,23 @@ L'ordre de livraison conservé est :
 SUB-01C et SUB-01D, le Daily Reward Faluss Me 75 PF, Fans, Date, Shop et Hall
 of Fame comme moteurs propriétaires futurs, ainsi que le staging opérationnel,
 restent à réaliser et ne sont pas déclarés livrés par CAP-01A.
+
+## EVT-01A — Contrat commun des événements — livré contractuellement
+
+EVT-01A livre les schémas Draft 2020-12 fermés de l'enveloppe `faluss.event`
+1.0.0 et du catalogue `faluss.event-source-catalog` 1.0.0. Il fixe le fait
+métier post-commit, les sources namespacées, les contextes sujet/acteur/objet,
+les trois destinations fermées, les payloads spécialisés, les données
+interdites, l'append-only, le retry par hash canonique et la séparation entre
+réception et effets consommateurs.
+
+Les types Hub `portal.viewed`, `app.opened`, `daily-reward.claimed` et Me
+`card.viewed`, `link.clicked`, `collection.opened` sont seulement réservés.
+EVT-01A ne crée aucun plugin, runtime, transport Federation, bus, table,
+migration, endpoint, outbox, inbox, queue, cookie, tracking, événement réel,
+Analytics, Quête, Progression ou comportement WordPress. EVT-01B/AN-01 devra
+apporter les validateurs spécialisés, catalogues propriétaires, bindings et
+politiques avant toute émission.
 
 ## FED-01A — Contrat du transport privé fédéré — livré contractuellement
 
