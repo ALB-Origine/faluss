@@ -1,14 +1,16 @@
-# Faluss Federation 0.1.2 — exploitation privée
+# Faluss Federation 0.1.3 — exploitation privée
 
 ## Frontière
 
 `plugins/faluss-federation/` matérialise FED-01A.1 sur un nœud WordPress approuvé. Il ne transporte que `diagnostic.read`, `manifest.read` et `read_model.read`, par HTTPS serveur-à-serveur, Ed25519 et politique locale fermée. Il n'est ni un RPC générique, ni un transport de paiement, claim, entitlement, profil, média ou donnée métier. Il ne remplace pas FPR, Identity, Token Engine Connector, Stripe ou Faluss Subscriptions.
 
-En version 0.1.2, seul `diagnostic.read` possède un producteur. Les deux autres opérations renvoient une réponse signée `not_available` tant qu'un plugin propriétaire de confiance n'a pas enregistré son provider et son validateur spécialisés. Cette version ne livre donc ni CAP-01B, ni manifeste Hub/Me, ni read-model membre fédéré.
+En version 0.1.3, seul `diagnostic.read` possède un producteur. Les deux autres opérations renvoient une réponse signée `not_available` tant qu'un plugin propriétaire de confiance n'a pas enregistré son provider et son validateur spécialisés. Cette version ne livre donc ni CAP-01B, ni manifeste Hub/Me, ni read-model membre fédéré.
 
 ## Préconditions et configuration locale
 
-Le plugin demande WordPress 6.4 et PHP 7.4. Sodium est nécessaire pour rendre le transport opérationnel, pas pour activer le plugin : sans Sodium valide, l'administration indique `Transport indisponible : Sodium absent ou invalide`, aucune route n'est enregistrée et toutes les façades échouent fermées.
+Le plugin demande WordPress 6.4 et PHP 7.4. L'extension PHP Sodium **native**, ses constantes Ed25519 et toutes les primitives requises, dont `sodium_memzero`, sont nécessaires pour rendre le transport opérationnel. Les fonctions homonymes fournies uniquement par `sodium_compat` ne satisfont jamais cette précondition. Sodium n'est cependant pas nécessaire pour activer le plugin : sans extension native valide, l'écran d'administration reste entièrement affichable, indique `Transport indisponible : Sodium absent ou invalide`, aucune route n'est enregistrée et toutes les façades échouent fermées.
+
+Tout échec de nettoyage mémoire, qu'il prenne la forme d'une `SodiumException` ou d'une autre `Throwable`, est contenu. Les variables sensibles sont rendues inaccessibles après la tentative et l'auto-test, l'identité locale ou la signature concernée échoue fermée ; un nettoyage impossible ne peut donc pas être converti en succès.
 
 Avant d'activer réellement le transport, définir exclusivement dans la configuration protégée du serveur, jamais dans Git ni dans la base :
 
@@ -35,7 +37,7 @@ Tout nœud futur définit ses propres constantes explicites.
 
 ## État et schéma
 
-Le transport est `ready` seulement avec schéma 1 exact, Sodium et auto-test Ed25519 valides, constantes valides, origine locale exacte, période de clé active, seed dérivable et au moins un pair exploitable. L'activation ne génère ni clé ni pair et n'appelle aucun domaine.
+Le transport est `ready` seulement avec schéma 1 exact, extension Sodium native chargée, constantes et primitives Ed25519 requises présentes, auto-test valide, origine locale exacte, période de clé active, seed dérivable et au moins un pair exploitable. L'activation ne génère ni clé ni pair et n'appelle aucun domaine.
 
 L'installation fraîche, sous verrou MariaDB borné, crée exclusivement quatre tables InnoDB préfixées WordPress :
 

@@ -9,21 +9,35 @@ final class Faluss_Federation_Crypto {
     const PATH = '/wp-json/faluss-federation/v1/exchange';
 
     public static function sodium_available() {
-        foreach ( array( 'sodium_crypto_sign_seed_keypair', 'sodium_crypto_sign_secretkey', 'sodium_crypto_sign_publickey', 'sodium_crypto_sign_detached', 'sodium_crypto_sign_verify_detached', 'sodium_memzero' ) as $function ) {
-            if ( ! function_exists( $function ) ) {
-                return false;
-            }
+        $required_constants = array( 'SODIUM_CRYPTO_SIGN_SEEDBYTES', 'SODIUM_CRYPTO_SIGN_KEYPAIRBYTES', 'SODIUM_CRYPTO_SIGN_SECRETKEYBYTES', 'SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES', 'SODIUM_CRYPTO_SIGN_BYTES' );
+        $required_functions = array( 'sodium_crypto_sign_seed_keypair', 'sodium_crypto_sign_secretkey', 'sodium_crypto_sign_publickey', 'sodium_crypto_sign_detached', 'sodium_crypto_sign_verify_detached', 'sodium_memzero' );
+        $constant_states = array();
+        $function_states = array();
+
+        foreach ( $required_constants as $constant ) {
+            $constant_states[] = defined( $constant );
         }
-        return true;
+        foreach ( $required_functions as $function ) {
+            $function_states[] = function_exists( $function );
+        }
+
+        return self::sodium_requirements_met( extension_loaded( 'sodium' ), $constant_states, $function_states );
     }
 
     public static function auto_test() {
         if ( ! self::sodium_available() ) {
             return false;
         }
+        return self::run_auto_test();
+    }
+
+    /** Run the primitive self-test after sodium_available() has closed the gate. */
+    private static function run_auto_test() {
         $seed = null;
         $pair = null;
         $secret = null;
+        $result = false;
+        $cleaned = false;
         try {
             $seed = random_bytes( SODIUM_CRYPTO_SIGN_SEEDBYTES );
             $pair = sodium_crypto_sign_seed_keypair( $seed );
@@ -31,14 +45,16 @@ final class Faluss_Federation_Crypto {
             $public = sodium_crypto_sign_publickey( $pair );
             $message = 'faluss-federation-ed25519-self-test-v1';
             $signature = sodium_crypto_sign_detached( $message, $secret );
-            return sodium_crypto_sign_verify_detached( $signature, $message, $public ) && ! sodium_crypto_sign_verify_detached( $signature, $message . 'x', $public );
-        } catch ( Exception $exception ) {
-            return false;
+            $result = sodium_crypto_sign_verify_detached( $signature, $message, $public ) && ! sodium_crypto_sign_verify_detached( $signature, $message . 'x', $public );
+        } catch ( Throwable $throwable ) {
+            $result = false;
         } finally {
-            self::wipe( $secret );
-            self::wipe( $pair );
-            self::wipe( $seed );
+            $secret_cleaned = self::wipe( $secret );
+            $pair_cleaned = self::wipe( $pair );
+            $seed_cleaned = self::wipe( $seed );
+            $cleaned = $secret_cleaned && $pair_cleaned && $seed_cleaned;
         }
+        return $cleaned && $result;
     }
 
     /** @return array<string,string>|WP_Error */
@@ -66,16 +82,20 @@ final class Faluss_Federation_Crypto {
             return new WP_Error( 'faluss_federation_invalid_local_config' );
         }
         $pair = null;
+        $result = new WP_Error( 'faluss_federation_fail_closed' );
+        $cleaned = false;
         try {
             $pair = sodium_crypto_sign_seed_keypair( $seed );
             $public = sodium_crypto_sign_publickey( $pair );
-            return array( 'node_id' => $node, 'app_key' => $app, 'origin' => $origin, 'key_id' => $key_id, 'valid_from' => $from, 'valid_until' => $until, 'public_key' => self::base64url_encode( $public ) );
-        } catch ( Exception $exception ) {
-            return new WP_Error( 'faluss_federation_invalid_local_config' );
+            $result = array( 'node_id' => $node, 'app_key' => $app, 'origin' => $origin, 'key_id' => $key_id, 'valid_from' => $from, 'valid_until' => $until, 'public_key' => self::base64url_encode( $public ) );
+        } catch ( Throwable $throwable ) {
+            $result = new WP_Error( 'faluss_federation_invalid_local_config' );
         } finally {
-            self::wipe( $pair );
-            self::wipe( $seed );
+            $pair_cleaned = self::wipe( $pair );
+            $seed_cleaned = self::wipe( $seed );
+            $cleaned = $pair_cleaned && $seed_cleaned;
         }
+        return $cleaned ? $result : new WP_Error( 'faluss_federation_fail_closed' );
     }
 
     public static function transport_ready() {
@@ -97,17 +117,21 @@ final class Faluss_Federation_Crypto {
         }
         $pair = null;
         $secret = null;
+        $result = new WP_Error( 'faluss_federation_fail_closed' );
+        $cleaned = false;
         try {
             $pair = sodium_crypto_sign_seed_keypair( $seed );
             $secret = sodium_crypto_sign_secretkey( $pair );
-            return self::base64url_encode( sodium_crypto_sign_detached( $message, $secret ) );
-        } catch ( Exception $exception ) {
-            return new WP_Error( 'faluss_federation_fail_closed' );
+            $result = self::base64url_encode( sodium_crypto_sign_detached( $message, $secret ) );
+        } catch ( Throwable $throwable ) {
+            $result = new WP_Error( 'faluss_federation_fail_closed' );
         } finally {
-            self::wipe( $secret );
-            self::wipe( $pair );
-            self::wipe( $seed );
+            $secret_cleaned = self::wipe( $secret );
+            $pair_cleaned = self::wipe( $pair );
+            $seed_cleaned = self::wipe( $seed );
+            $cleaned = $secret_cleaned && $pair_cleaned && $seed_cleaned;
         }
+        return $cleaned ? $result : new WP_Error( 'faluss_federation_fail_closed' );
     }
 
     public static function verify( $message, $signature, $public_key ) {
@@ -121,7 +145,7 @@ final class Faluss_Federation_Crypto {
         }
         try {
             return sodium_crypto_sign_verify_detached( $decoded_signature, $message, $decoded_public );
-        } catch ( Exception $exception ) {
+        } catch ( Throwable $throwable ) {
             return false;
         }
     }
@@ -227,10 +251,29 @@ final class Faluss_Federation_Crypto {
         return is_string( $value ) && '' !== $value && false === strpos( $value, "\r" ) && 0 !== strpos( $value, "\xEF\xBB\xBF" ) && "\n" !== substr( $value, -1 );
     }
 
+    /**
+     * Keep the native extension decision independently testable without adding
+     * a runtime override capable of accepting sodium_compat.
+     */
+    private static function sodium_requirements_met( $native_loaded, array $constant_states, array $function_states ) {
+        return true === $native_loaded && ! in_array( false, $constant_states, true ) && ! in_array( false, $function_states, true );
+    }
+
+    /** @return bool Whether the required cleanup completed. */
     private static function wipe( &$value ) {
-        if ( is_string( $value ) && '' !== $value && function_exists( 'sodium_memzero' ) ) {
-            sodium_memzero( $value );
+        $cleaned = true;
+        try {
+            if ( is_string( $value ) && '' !== $value ) {
+                if ( ! function_exists( 'sodium_memzero' ) ) {
+                    $cleaned = false;
+                } else {
+                    sodium_memzero( $value );
+                }
+            }
+        } catch ( Throwable $throwable ) {
+            $cleaned = false;
         }
         $value = null;
+        return $cleaned;
     }
 }
