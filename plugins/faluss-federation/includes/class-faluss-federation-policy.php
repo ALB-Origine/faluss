@@ -52,6 +52,19 @@ final class Faluss_Federation_Policy {
         return new WP_Error( 'faluss_federation_unknown_peer' );
     }
 
+    /** Resolve an administrative read-only target without accepting identity or origin input. */
+    public static function find_outbound_peer_by_id( $peer_id ) {
+        global $wpdb;
+        if ( ! Faluss_Federation_Schema::is_ready() || ! is_int( $peer_id ) || $peer_id < 1 ) {
+            return new WP_Error( 'faluss_federation_unknown_peer' );
+        }
+        $rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Faluss_Federation_Schema::quote_identifier( Faluss_Federation_Schema::peers_table() ) . ' WHERE id = %d LIMIT 2', $peer_id ), ARRAY_A );
+        if ( ! is_array( $rows ) || 1 !== count( $rows ) || self::database_has_error() ) {
+            return new WP_Error( 'faluss_federation_unknown_peer' );
+        }
+        return self::normalize_peer( $rows[0] );
+    }
+
     /** @return true|WP_Error */
     public static function allow_incoming( $request, $peer, $identity ) {
         if ( ! is_array( $request ) || ! is_array( $peer ) || ! is_array( $identity ) || ! self::peer_is_usable( $peer ) || ( $request['recipient']['node_id'] ?? null ) !== $identity['node_id'] || ( $request['recipient']['app_key'] ?? null ) !== $identity['app_key'] || ! in_array( $request['operation'] ?? '', $peer['operations'], true ) ) {

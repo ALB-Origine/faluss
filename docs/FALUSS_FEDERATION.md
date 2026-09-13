@@ -1,10 +1,10 @@
-# Faluss Federation 0.1.8 — exploitation privée
+# Faluss Federation 0.1.9 — exploitation privée
 
 ## Frontière
 
 `plugins/faluss-federation/` matérialise FED-01A.1 sur un nœud WordPress approuvé. Il ne transporte que `diagnostic.read`, `manifest.read` et `read_model.read`, par HTTPS serveur-à-serveur, Ed25519 et politique locale fermée. Il n'est ni un RPC générique, ni un transport de paiement, claim, entitlement, profil, média ou donnée métier. Il ne remplace pas FPR, Identity, Token Engine Connector, Stripe ou Faluss Subscriptions.
 
-En version 0.1.8, seul `diagnostic.read` possède un producteur. Les deux autres opérations renvoient une réponse signée `not_available` tant qu'un plugin propriétaire de confiance n'a pas enregistré son provider et son validateur spécialisés. Cette version ne livre donc ni CAP-01B, ni manifeste Hub/Me, ni read-model membre fédéré.
+En version 0.1.9, `diagnostic.read` reste intégré et `manifest.read` peut recevoir un producteur propriétaire externe. Le plugin Faluss Apps Registry 0.1.0 enregistre séparément le validateur PHP spécialisé du contrat `faluss.app-capability-manifest` 1.0.0 ; cette présence ne crée jamais un producteur. Faluss Portal 0.1.21 produit exclusivement `faluss-hub` sur `hub-node`, et Faluss Link 0.3.19 produit exclusivement `faluss-me` sur `me-node`. Sans validateur ou sans producteur exact, la réponse reste signée et fermée `not_available` ou `incompatible`. `read_model.read` reste sans producteur et aucune projection `apps.registry` n'est livrée avant CAP-01B.2.
 
 ## Préconditions et configuration locale
 
@@ -60,6 +60,8 @@ Un pair `active` ou `rotating` expose séparément sa politique actuelle et une 
 
 Le diagnostic distant est volontaire et utilise exclusivement l'origine du pair déjà enregistrée côté serveur. Il ne prend aucune URL du navigateur.
 
+Pour un pair actif ou en rotation dont la politique autorise `manifest.read`, l'action d'administration **Tester le manifeste** est une lecture distante sans stockage. Le navigateur ne transmet que l'identifiant interne du pair. Le serveur relit son nœud, son application et son origine, puis fixe la version demandée à `1.0.0`. Après transport, signature et validation CAP complets, l'écran ne restitue que `app_key`, `manifest_version`, `product_state` et le nombre de capacités. Un échec reste générique.
+
 ## Transport
 
 La route unique, disponible seulement lorsque le transport est prêt, est :
@@ -82,16 +84,6 @@ Cette trace n'altère aucune validation, canonicalisation, politique, réponse H
 
 ## Recette WordPress à exécuter ultérieurement
 
-Cette recette n'est pas exécutée par FED-01C :
+Cette recette CAP-01B.1 n'est pas exécutée par les tests du dépôt : mettre Federation 0.1.9 puis Apps Registry 0.1.0 sur les deux sites, Link 0.3.19 uniquement sur `faluss.me` et Portal 0.1.21 uniquement sur `faluss.com`. Vérifier l'état `ready` et le schéma 1 sans modifier les politiques. Depuis `faluss.com`, tester le pair `me-node` et attendre `faluss-me`, version `1.0.0`, état `active`, zéro capacité. Depuis `faluss.me`, tester `hub-node` et attendre `faluss-hub`, version `1.0.0`, état `active`, une capacité. Relancer ensuite les diagnostics dans les deux sens et vérifier que les audits `success` augmentent sans nouvel `incompatible`.
 
-1. Sauvegarder les deux installations.
-2. Installer le même ZIP 0.1.8 sur `faluss.com` et `faluss.me`.
-3. Vérifier l'état `ready` et le schéma 1.
-4. Sur `faluss.me`, modifier uniquement la politique du pair `hub-node` : opérations `diagnostic.read` et `manifest.read`, application propriétaire `faluss-me`, capacités vides et audiences vides.
-5. Sur `faluss.com`, modifier uniquement la politique du pair `me-node` : opérations `diagnostic.read` et `manifest.read`, application propriétaire `faluss-hub`, capacités vides et audiences vides.
-6. Vérifier visuellement que les origines, `key_id`, clés publiques, périodes et états n'ont pas changé.
-7. Relancer `diagnostic.read` dans les deux directions.
-8. Vérifier un nouvel audit `success` et un audit `peer_policy_updated` sur chaque installation, sans supprimer l'ancien audit `incompatible`.
-9. Ne pas tenter encore un manifeste réel avant CAP-01B.
-
-Ne pas configurer de secret de production durant le développement et ne pas enregistrer de provider CAP-01B avant son contrat et son lot dédié.
+Ne pas configurer de secret de production durant le développement. CAP-01B.1 ne persiste aucun manifeste et ne livre aucun resolver ou read-model `apps.registry`.

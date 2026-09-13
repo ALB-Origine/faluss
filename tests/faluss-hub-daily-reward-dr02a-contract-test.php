@@ -49,8 +49,8 @@ $token_bootstrap = file_get_contents( $root . '/plugins/token-engine/token-engin
 $token_schema = file_get_contents( $root . '/plugins/token-engine/includes/class-token-engine-schema.php' );
 $badge = $plugin . '/assets/images/pf/faluss-pf-badge.png';
 
-foreach ( array( "FALUSS_PORTAL_VERSION', '0.1.20'", "TOKEN_ENGINE_VERSION', '0.4.1'", "const VERSION = '5'" ) as $needle ) {
-    dr02a_assert( false !== strpos( $bootstrap . $token_bootstrap . $token_schema, $needle ), 'DR-02A.1 must consume Portal 0.1.20 with Token Engine 0.4.1 schema 5: ' . $needle );
+foreach ( array( "FALUSS_PORTAL_VERSION', '0.1.21'", "TOKEN_ENGINE_VERSION', '0.4.1'", "const VERSION = '5'" ) as $needle ) {
+    dr02a_assert( false !== strpos( $bootstrap . $token_bootstrap . $token_schema, $needle ), 'DR-02A.1 must remain present under Portal 0.1.21 with Token Engine 0.4.1 schema 5: ' . $needle );
 }
 dr02a_assert( false === strpos( $portal, 'token_engine_ledger' ) && false === strpos( $portal, 'token_engine_pf_ledger' ) && false === strpos( $portal, 'dbDelta' ) && false === strpos( $portal, 'CREATE TABLE' ), 'Portal must not alter, query or create either Token Engine ledger/table.' );
 foreach ( array( 'register_rest_route', 'wp_ajax_nopriv_', 'wp_schedule', 'wp_cron', 'token-engine-connector', 'Token_Engine_Connector' ) as $forbidden ) {

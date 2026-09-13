@@ -14,7 +14,7 @@ $editor = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link
 $studio = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link-studio.css' );
 $card = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-link.css' );
 
-studio_v1_interactions_assert( false !== strpos( $bootstrap, 'Version: 0.3.18' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.18'" ), 'The interaction assets must use the 0.3.18 cache key.' );
+studio_v1_interactions_assert( false !== strpos( $bootstrap, 'Version: 0.3.19' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.19'" ), 'The interaction assets must use the current 0.3.19 cache key.' );
 
 foreach ( array( 'grid-template-columns: repeat(4, minmax(0, 1fr));', 'align-items: stretch;', 'justify-items: stretch;', '.faluss-link-studio__dock-tabs > button', 'width: 100%;', 'place-items: center;', 'padding: .45rem 0;', '.faluss-link-studio__dock-indicator', 'left: 0;' ) as $needle ) {
     studio_v1_interactions_assert( false !== strpos( $studio, $needle ), 'Root tabs must use equal, centered grid cells: ' . $needle );

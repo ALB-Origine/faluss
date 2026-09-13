@@ -28,10 +28,13 @@ final class Faluss_Federation_Admin {
         $action = is_string( $raw_action ) ? sanitize_key( wp_unslash( $raw_action ) ) : '';
         if ( 'update_peer_policy' === $action ) {
             check_admin_referer( 'faluss_federation_update_policy' );
+        } elseif ( 'test_manifest' === $action ) {
+            check_admin_referer( 'faluss_federation_test_manifest' );
         } else {
             check_admin_referer( 'faluss_federation_manage' );
         }
         $result = new WP_Error( 'faluss_federation_action_refused' );
+        $manifest_message = null;
         if ( 'register_peer' === $action && isset( $_POST['confirmation'] ) && hash_equals( 'ENREGISTRER LE PAIR FEDERATION', (string) wp_unslash( $_POST['confirmation'] ) ) ) {
             $result = Faluss_Federation_Policy::create_peer( self::peer_input_from_post() );
         } elseif ( 'revoke_peer' === $action && isset( $_POST['confirmation'] ) && hash_equals( 'REVOQUER LA CLE FEDERATION', (string) wp_unslash( $_POST['confirmation'] ) ) ) {
@@ -39,11 +42,22 @@ final class Faluss_Federation_Admin {
         } elseif ( 'update_peer_policy' === $action && self::update_policy_post_is_exact() && isset( $_POST['confirmation'] ) && is_string( $_POST['confirmation'] ) && hash_equals( 'METTRE A JOUR LA POLITIQUE FEDERATION', wp_unslash( $_POST['confirmation'] ) ) ) {
             $revision = isset( $_POST['policy_revision'] ) && is_string( $_POST['policy_revision'] ) ? sanitize_text_field( wp_unslash( $_POST['policy_revision'] ) ) : '';
             $result = Faluss_Federation_Policy::update_peer_policy( absint( $_POST['peer_id'] ?? 0 ), $revision, self::policy_input_from_post() );
+        } elseif ( 'test_manifest' === $action && self::manifest_test_post_is_exact() ) {
+            $peer = Faluss_Federation_Policy::find_outbound_peer_by_id( absint( $_POST['peer_id'] ) );
+            if ( ! is_wp_error( $peer ) && in_array( 'manifest.read', $peer['operations'], true ) ) {
+                $result = Faluss_Federation_Client::manifest_read( $peer['peer_node_id'], $peer['peer_app_key'], '1.0.0' );
+                if ( ! is_wp_error( $result ) ) {
+                    $manifest_message = self::manifest_test_message( $result, $peer );
+                    if ( is_wp_error( $manifest_message ) ) {
+                        $result = $manifest_message;
+                    }
+                }
+            }
         } elseif ( 'diagnostic' === $action ) {
             $result = Faluss_Federation_Client::diagnostic_read( sanitize_key( wp_unslash( $_POST['peer_node_id'] ?? '' ) ), sanitize_key( wp_unslash( $_POST['peer_app_key'] ?? '' ) ) );
         }
         $state = is_wp_error( $result ) ? 'error' : 'ok';
-        $message = is_wp_error( $result ) ? 'Action refusée ou indisponible.' : ( 'diagnostic' === $action ? 'Diagnostic distant vérifié.' : ( 'update_peer_policy' === $action ? ( 'unchanged' === $result ? 'Politique déjà à jour.' : 'Politique mise à jour.' ) : 'Politique enregistrée.' ) );
+        $message = is_wp_error( $result ) ? 'Action refusée ou indisponible.' : ( is_string( $manifest_message ) ? $manifest_message : ( 'diagnostic' === $action ? 'Diagnostic distant vérifié.' : ( 'update_peer_policy' === $action ? ( 'unchanged' === $result ? 'Politique déjà à jour.' : 'Politique mise à jour.' ) : 'Politique enregistrée.' ) ) );
         wp_safe_redirect( add_query_arg( array( 'page' => self::PAGE_SLUG, 'faluss_federation_notice' => $state, 'faluss_federation_message' => rawurlencode( $message ) ), admin_url( 'tools.php' ) ) );
         exit;
     }
@@ -118,6 +132,9 @@ final class Faluss_Federation_Admin {
             if ( in_array( $peer['key_state'], array( 'active', 'rotating' ), true ) ) {
                 echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">'; wp_nonce_field( 'faluss_federation_manage' ); echo '<input type="hidden" name="action" value="faluss_federation_manage"><input type="hidden" name="faluss_federation_action" value="revoke_peer"><input type="hidden" name="peer_id" value="' . esc_attr( $peer['id'] ) . '"><input type="text" name="confirmation" aria-label="Confirmation de révocation"><button type="submit" class="button">Révoquer</button></form>';
                 self::render_policy_form( $peer );
+                if ( in_array( 'manifest.read', $peer['operations'], true ) ) {
+                    self::render_manifest_test_form( $peer );
+                }
             }
             echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">'; wp_nonce_field( 'faluss_federation_manage' ); echo '<input type="hidden" name="action" value="faluss_federation_manage"><input type="hidden" name="faluss_federation_action" value="diagnostic"><input type="hidden" name="peer_node_id" value="' . esc_attr( $peer['peer_node_id'] ) . '"><input type="hidden" name="peer_app_key" value="' . esc_attr( $peer['peer_app_key'] ) . '"><button type="submit" class="button">Diagnostic</button></form></td></tr>';
         }
@@ -150,6 +167,16 @@ final class Faluss_Federation_Admin {
     private static function policy_field( $peer_id, $name, $label, $value ) {
         $id = 'faluss_federation_' . $name . '_' . $peer_id;
         echo '<p><label for="' . esc_attr( $id ) . '">' . esc_html( $label ) . '</label><br><input class="regular-text" type="text" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" value="' . esc_attr( $value ) . '"></p>';
+    }
+
+    private static function render_manifest_test_form( $peer ) {
+        $peer_id = absint( $peer['id'] ?? 0 );
+        if ( $peer_id < 1 ) {
+            return;
+        }
+        echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+        wp_nonce_field( 'faluss_federation_test_manifest' );
+        echo '<input type="hidden" name="action" value="faluss_federation_manage"><input type="hidden" name="faluss_federation_action" value="test_manifest"><input type="hidden" name="peer_id" value="' . esc_attr( $peer_id ) . '"><button type="submit" class="button">Tester le manifeste</button></form>';
     }
 
     private static function field( $name, $label, $value = '', $type = 'text' ) {
@@ -194,6 +221,34 @@ final class Faluss_Federation_Admin {
             && 1 === preg_match( '/^[a-f0-9]{64}$/D', wp_unslash( $_POST['policy_revision'] ) )
             && is_array( $_POST['operations'] )
             && ( ! isset( $_POST['audiences'] ) || is_array( $_POST['audiences'] ) );
+    }
+
+    private static function manifest_test_post_is_exact() {
+        $allowed = array( 'action', '_wpnonce', '_wp_http_referer', 'faluss_federation_action', 'peer_id' );
+        $required = array( 'action', '_wpnonce', 'faluss_federation_action', 'peer_id' );
+        $keys = array_keys( $_POST );
+        if ( array_diff( $keys, $allowed ) || array_diff( $required, $keys ) ) {
+            return false;
+        }
+        foreach ( $required as $name ) {
+            if ( ! is_string( $_POST[ $name ] ) ) {
+                return false;
+            }
+        }
+        return ( ! isset( $_POST['_wp_http_referer'] ) || is_string( $_POST['_wp_http_referer'] ) )
+            && 'faluss_federation_manage' === wp_unslash( $_POST['action'] )
+            && 'test_manifest' === wp_unslash( $_POST['faluss_federation_action'] )
+            && 1 === preg_match( '/^[1-9][0-9]*$/D', wp_unslash( $_POST['peer_id'] ) );
+    }
+
+    private static function manifest_test_message( $result, $peer ) {
+        $contract = $result['payload_contract'] ?? null;
+        $manifest = $result['payload'] ?? null;
+        $contract_keys = array( 'document_type', 'contract_version' );
+        if ( ! is_array( $result ) || 'success' !== ( $result['status'] ?? null ) || ! is_array( $contract ) || array_diff( $contract_keys, array_keys( $contract ) ) || array_diff( array_keys( $contract ), $contract_keys ) || 'faluss.app-capability-manifest' !== $contract['document_type'] || '1.0.0' !== $contract['contract_version'] || ! is_array( $manifest ) || ( $peer['peer_app_key'] ?? null ) !== ( $manifest['app_key'] ?? null ) || '1.0.0' !== ( $manifest['manifest_version'] ?? null ) || ! in_array( $manifest['product_state'] ?? null, array( 'planned', 'active', 'maintenance', 'retired' ), true ) || ! is_array( $manifest['capabilities'] ?? null ) || count( $manifest['capabilities'] ) > 64 ) {
+            return new WP_Error( 'faluss_federation_manifest_test_refused' );
+        }
+        return sprintf( 'Manifeste distant vérifié. app_key : %s ; manifest_version : %s ; product_state : %s ; capacités : %d.', $manifest['app_key'], $manifest['manifest_version'], $manifest['product_state'], count( $manifest['capabilities'] ) );
     }
 
     private static function policy_input_from_post() {

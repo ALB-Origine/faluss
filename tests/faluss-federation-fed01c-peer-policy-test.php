@@ -348,7 +348,7 @@ fed01c_assert( 86 === strlen( $response->get_headers()['X-Faluss-Federation-Sign
 $policy_source = fed01c_method_source( 'Faluss_Federation_Policy', 'update_peer_policy_transaction', $policy_path );
 fed01c_assert( false === strpos( $policy_source, '$wpdb->insert' ) && false === strpos( $policy_source, 'create_peer(' ) && false === strpos( $policy_source, 'revoke_peer(' ), 'Policy update primitive must never create, replace or revoke a peer.' );
 $bootstrap = file_get_contents( $bootstrap_path );
-fed01c_assert( false !== strpos( $bootstrap, 'Version: 0.1.8' ) && false !== strpos( $bootstrap, "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ), 'Federation must be 0.1.8 with schema 1.' );
+fed01c_assert( false !== strpos( $bootstrap, 'Version: 0.1.9' ) && false !== strpos( $bootstrap, "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ), 'Federation must be 0.1.9 with schema 1.' );
 fed01c_assert( false === strpos( $bootstrap, 'update_peer_policy' ) && false !== strpos( $bootstrap, "register_activation_hook( __FILE__, array( 'Faluss_Federation_Schema', 'activate' ) )" ), 'Activation and update bootstrap must never mutate peer policy.' );
 
 $wpdb = new FED01C_WPDB( array( $updated_identity + array(

@@ -7,6 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /** Closed provider registry. FED-01B ships only the diagnostic producer. */
 final class Faluss_Federation_Providers {
     private static $manifest_providers = array();
+    private static $manifest_contract_validators = array();
     private static $read_model_providers = array();
 
     public static function boot() {}
@@ -20,13 +21,33 @@ final class Faluss_Federation_Providers {
         );
     }
 
-    /** Trusted server PHP may register one exact manifest producer and validator. */
-    public static function register_manifest_provider( $app_key, $provider, $validator ) {
-        if ( ! Faluss_Federation_Crypto::is_node( $app_key ) || ! is_callable( $provider ) || ! is_callable( $validator ) || isset( self::$manifest_providers[ $app_key ] ) ) {
+    /** Trusted server PHP may register one exact owner producer. */
+    public static function register_manifest_provider( $app_key, $provider ) {
+        if ( ! Faluss_Federation_Crypto::is_node( $app_key ) || ! is_callable( $provider ) || isset( self::$manifest_providers[ $app_key ] ) ) {
             return new WP_Error( 'faluss_federation_provider_refused' );
         }
-        self::$manifest_providers[ $app_key ] = array( 'provider' => $provider, 'validator' => $validator );
+        self::$manifest_providers[ $app_key ] = array( 'provider' => $provider );
         return true;
+    }
+
+    /** Contract validators are independent from owner producers and exact-versioned. */
+    public static function register_manifest_contract_validator( $document_type, $contract_version, $validator ) {
+        if ( ! self::valid_document_type( $document_type ) || ! Faluss_Federation_Crypto::is_semver( $contract_version ) || ! is_callable( $validator ) ) {
+            return new WP_Error( 'faluss_federation_validator_refused' );
+        }
+        $key = self::manifest_contract_key( $document_type, $contract_version );
+        if ( isset( self::$manifest_contract_validators[ $key ] ) ) {
+            return new WP_Error( 'faluss_federation_validator_refused' );
+        }
+        self::$manifest_contract_validators[ $key ] = $validator;
+        return true;
+    }
+
+    public static function has_manifest_contract_validator( $document_type, $contract_version ) {
+        if ( ! self::valid_document_type( $document_type ) || ! Faluss_Federation_Crypto::is_semver( $contract_version ) ) {
+            return false;
+        }
+        return isset( self::$manifest_contract_validators[ self::manifest_contract_key( $document_type, $contract_version ) ] );
     }
 
     /** Descriptor is an exact tuple, never a wildcard or arbitrary RPC method. */
@@ -101,8 +122,7 @@ final class Faluss_Federation_Providers {
             return self::valid_diagnostic( $response['payload_contract'], $response['payload'] );
         }
         if ( 'manifest.read' === ( $request['operation'] ?? null ) ) {
-            $entry = self::$manifest_providers[ $request['parameters']['app_key'] ?? '' ] ?? null;
-            return is_array( $entry ) && call_user_func( $entry['validator'], $response['payload'], $response['payload_contract'] );
+            return self::validate_manifest_payload( $response['payload'], $response['payload_contract'], $request );
         }
         $key = self::descriptor_key_from_parameters( $request['parameters'] ?? array() );
         $entry = null !== $key ? ( self::$read_model_providers[ $key ] ?? null ) : null;
@@ -112,17 +132,40 @@ final class Faluss_Federation_Providers {
     private static function dispatch_manifest( $entry, $request ) {
         try {
             $result = call_user_func( $entry['provider'], self::safe_context( $request ) );
-        } catch ( Exception $exception ) {
+        } catch ( Throwable $throwable ) {
             return self::failure( 'temporarily_unavailable' );
         }
-        if ( ! is_array( $result ) || ! isset( $result['payload'], $result['payload_contract'] ) || ! is_array( $result['payload'] ) || ! is_array( $result['payload_contract'] ) || ! call_user_func( $entry['validator'], $result['payload'], $result['payload_contract'] ) ) {
+        $result_keys = array( 'payload_contract', 'payload' );
+        if ( ! is_array( $result ) || array_diff( $result_keys, array_keys( $result ) ) || array_diff( array_keys( $result ), $result_keys ) || ! is_array( $result['payload'] ) || ! is_array( $result['payload_contract'] ) ) {
             return self::failure( 'incompatible' );
         }
         $requested = $request['parameters']['requested_manifest_version'] ?? null;
         if ( null !== $requested && $requested !== ( $result['payload_contract']['contract_version'] ?? null ) ) {
             return self::failure( 'incompatible' );
         }
+        if ( ! self::validate_manifest_payload( $result['payload'], $result['payload_contract'], $request ) ) {
+            return self::failure( 'incompatible' );
+        }
         return array( 'status' => 'success', 'payload_contract' => $result['payload_contract'], 'payload' => $result['payload'], 'error' => null );
+    }
+
+    private static function validate_manifest_payload( $payload, $contract, $request ) {
+        if ( ! self::valid_manifest_contract( $contract ) || ! is_array( $payload ) || ! is_array( $request ) || 'manifest.read' !== ( $request['operation'] ?? null ) || ! is_array( $request['parameters'] ?? null ) || ( $payload['app_key'] ?? null ) !== ( $request['parameters']['app_key'] ?? null ) ) {
+            return false;
+        }
+        $requested = $request['parameters']['requested_manifest_version'] ?? null;
+        if ( null !== $requested && $requested !== $contract['contract_version'] ) {
+            return false;
+        }
+        $validator = self::$manifest_contract_validators[ self::manifest_contract_key( $contract['document_type'], $contract['contract_version'] ) ] ?? null;
+        if ( ! is_callable( $validator ) ) {
+            return false;
+        }
+        try {
+            return true === call_user_func( $validator, $payload, $contract, self::safe_context( $request ) );
+        } catch ( Throwable $throwable ) {
+            return false;
+        }
     }
 
     private static function dispatch_read_model( $entry, $request ) {
@@ -148,6 +191,19 @@ final class Faluss_Federation_Providers {
 
     private static function failure( $status ) {
         return array( 'status' => $status, 'payload_contract' => null, 'payload' => array(), 'error' => array( 'code' => $status, 'message' => 'Request could not be completed.' ) );
+    }
+
+    private static function valid_manifest_contract( $contract ) {
+        $keys = array( 'document_type', 'contract_version' );
+        return is_array( $contract ) && ! array_diff( $keys, array_keys( $contract ) ) && ! array_diff( array_keys( $contract ), $keys ) && self::valid_document_type( $contract['document_type'] ) && Faluss_Federation_Crypto::is_semver( $contract['contract_version'] );
+    }
+
+    private static function valid_document_type( $value ) {
+        return is_string( $value ) && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63})+$/D', $value );
+    }
+
+    private static function manifest_contract_key( $document_type, $contract_version ) {
+        return $document_type . "\x1F" . $contract_version;
     }
 
     private static function valid_descriptor( $descriptor ) {

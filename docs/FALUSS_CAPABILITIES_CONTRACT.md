@@ -267,6 +267,14 @@ Les étapes futures, sans implémentation ici, sont :
 10. intégrations contextuelles Faluss.me ;
 11. Quêtes et Progression après stabilisation des événements.
 
+## Runtime CAP-01B.1
+
+CAP-01B.1 livre uniquement l'échange signé des manifestes publics `faluss-hub` et `faluss-me`. Faluss Apps Registry 0.1.0 fournit le validateur PHP spécialisé du contrat `faluss.app-capability-manifest` 1.0.0, sans se présenter comme un moteur JSON Schema Draft 2020-12 complet. Le validateur de contrat est enregistré séparément des producteurs Federation : sa présence permet de vérifier une réponse distante sans autoriser la production locale d'une autre application.
+
+Faluss Portal 0.1.21 possède le manifeste Hub et Faluss Link 0.3.19 possède le manifeste Me. Leur chargement intervient après l'enregistrement du validateur, sans dépendre de l'ordre d'activation. Les deux manifestes ont `official_asset: null`; aucun asset, rendu, CSS, JavaScript, donnée membre, table, option, cache durable ou politique Federation n'est créé ou modifié. Sans composant exact, le transport reste fermé avec `not_available` ou `incompatible`.
+
+Le resolver, la projection membre `apps.registry` et sa consommation par Portal restent réservés à CAP-01B.2. La fonction PHP codée en dur de Portal demeure donc inchangée dans CAP-01B.1.
+
 SUB-01C et SUB-01D, le Daily Reward Faluss Me 75 PF, Fans, Date, Shop et Hall
 of Fame comme moteurs propriétaires futurs, ainsi que le staging comme chantier
 opérationnel différé, restent préservés. Le défaut mobile réel DR-02A.2 est
