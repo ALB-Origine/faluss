@@ -163,12 +163,11 @@ final class Faluss_Federation_Server {
     }
 
     private static function request_headers( $request ) {
-        $raw_headers = $request->get_headers();
-        $wanted = array( 'x-faluss-federation-key-id' => 'X-Faluss-Federation-Key-Id', 'x-faluss-federation-content-sha256' => 'X-Faluss-Federation-Content-SHA256', 'x-faluss-federation-signature' => 'X-Faluss-Federation-Signature' );
+        $wanted = array( 'X-Faluss-Federation-Key-Id', 'X-Faluss-Federation-Content-SHA256', 'X-Faluss-Federation-Signature' );
         $out = array();
-        foreach ( $wanted as $lower => $canonical ) {
-            $values = $raw_headers[ $lower ] ?? null;
-            if ( ! is_array( $values ) || 1 !== count( $values ) || ! is_string( $values[0] ) || '' === $values[0] ) {
+        foreach ( $wanted as $canonical ) {
+            $values = $request->get_header_as_array( $canonical );
+            if ( ! is_array( $values ) || 1 !== count( $values ) || ! is_string( $values[0] ) || '' === $values[0] || false !== strpos( $values[0], ',' ) ) {
                 return new WP_Error( 'faluss_federation_invalid_headers' );
             }
             $out[ $canonical ] = $values[0];
