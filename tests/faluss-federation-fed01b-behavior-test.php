@@ -58,7 +58,7 @@ fed01b_behavior_assert( false !== strpos( $server, "'request_body_sha256' => " .
 fed01b_behavior_assert( false !== strpos( $server, 'JSON_THROW_ON_ERROR' ) && false !== strpos( $server, 'MAX_BODY = 65536' ), 'Receiver must decode only after the raw-size limit.' );
 fed01b_behavior_assert( false !== strpos( $server, 'pre_auth_reject' ) && false !== strpos( $server, "'Request rejected.'" ), 'Pre-authentication failures must remain generic.' );
 fed01b_behavior_assert( false !== strpos( $client, "'timeout' => 3" ) && false !== strpos( $client, "'redirection' => 0" ) && false !== strpos( $client, "'sslverify' => true" ) && false !== strpos( $client, "'limit_response_size' => self::MAX_RESPONSE" ) && false === strpos( $client, 'connect_timeout' ), 'Outbound call must use the supported bounded WordPress HTTP arguments.' );
-fed01b_behavior_assert( false === strpos( $client, 'public static function call' ) && false !== strpos( $client, 'private static function call' ), 'Network primitive must remain private behind three closed facades.' );
+fed01b_behavior_assert( false === strpos( $client, 'public static function call' ) && false !== strpos( $client, 'private static function call' ), 'Network primitive must remain private behind closed read facades.' );
 fed01b_behavior_assert( false !== strpos( $providers, "failure( 'not_available' )" ) && false !== strpos( $providers, 'valid_diagnostic' ), 'Only diagnostic is available without a specialized registered provider.' );
 fed01b_behavior_assert( false !== strpos( $server, "'not_available' => 404" ) && false !== strpos( $server, "'replay_rejected' => 409" ), 'Authenticated status-to-HTTP mapping must remain closed.' );
 

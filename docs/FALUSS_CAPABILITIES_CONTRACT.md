@@ -208,6 +208,13 @@ pas sans catalogue EVT et validateur de payload spécialisés exacts. Toute
 absence ou contradiction échoue fermée. CAP-01B.2 ne produit ni n'active aucun
 événement et les manifestes Hub et Me restent inchangés par EVT-01A.
 
+EVT-01B.1 matérialise cette comparaison dans Faluss Events 0.1.0 : le
+validateur CAP existant est appelé sans duplication ni modification, la
+capacité exacte doit déclarer `event_source`, et chaque destination du catalogue
+doit posséder son `requested_binding` exact. Cette vérification accepte un
+document cohérent mais n'active toujours aucun binding runtime et ne modifie
+aucun manifeste Hub ou Me.
+
 ## Sécurité, fraîcheur et transport futur
 
 Les décisions d'application liée, capacité active, slot, propriétaire, contrat
@@ -277,12 +284,13 @@ Les étapes futures, sans implémentation ici, sont :
 3. FED-01B — runtime plugin du transport privé fédéré, livré sans CAP-01B ;
 4. CAP-01B — registre runtime et projection réelle apps.registry ;
 5. EVT-01A — contrat commun des événements, sans runtime ;
-6. EVT-01B/AN-01 — runtime autorisé et premiers événements réels Hub/Me ;
-7. MP-01B — assembleur réel du Master Profile ;
-8. COS-01 — catalogue, inventaire et équipement cosmétique ;
-9. SHOP-01 — boutique Premium sur faluss.com ;
-10. intégrations contextuelles Faluss.me ;
-11. Quêtes et Progression après stabilisation des événements.
+6. EVT-01B.1 — validation et lecture des catalogues, sans provider réel ;
+7. AN-01 — providers, politiques et premiers événements réels Hub/Me ;
+8. MP-01B — assembleur réel du Master Profile ;
+9. COS-01 — catalogue, inventaire et équipement cosmétique ;
+10. SHOP-01 — boutique Premium sur faluss.com ;
+11. intégrations contextuelles Faluss.me ;
+12. Quêtes et Progression après stabilisation des événements.
 
 ## Runtime CAP-01B.1
 

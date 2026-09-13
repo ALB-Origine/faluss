@@ -9,6 +9,9 @@ final class Faluss_Federation_Providers {
     private static $manifest_providers = array();
     private static $manifest_contract_validators = array();
     private static $read_model_providers = array();
+    private static $event_catalog_providers = array();
+    private static $event_catalog_contract_validators = array();
+    private static $event_catalog_conflict = false;
 
     public static function boot() {}
 
@@ -18,6 +21,7 @@ final class Faluss_Federation_Providers {
             'diagnostic.read' => 'integrated',
             'manifest.read' => empty( self::$manifest_providers ) ? 'not_available' : 'registered',
             'read_model.read' => empty( self::$read_model_providers ) ? 'not_available' : 'registered',
+            'event_catalog.read' => self::$event_catalog_conflict || empty( self::$event_catalog_providers ) ? 'not_available' : 'registered',
         );
     }
 
@@ -32,7 +36,7 @@ final class Faluss_Federation_Providers {
 
     /** Contract validators are independent from owner producers and exact-versioned. */
     public static function register_manifest_contract_validator( $document_type, $contract_version, $validator ) {
-        if ( ! self::valid_document_type( $document_type ) || ! Faluss_Federation_Crypto::is_semver( $contract_version ) || ! is_callable( $validator ) ) {
+        if ( 'faluss.event-source-catalog' === $document_type || ! self::valid_document_type( $document_type ) || ! Faluss_Federation_Crypto::is_semver( $contract_version ) || ! is_callable( $validator ) ) {
             return new WP_Error( 'faluss_federation_validator_refused' );
         }
         $key = self::manifest_contract_key( $document_type, $contract_version );
@@ -48,6 +52,32 @@ final class Faluss_Federation_Providers {
             return false;
         }
         return isset( self::$manifest_contract_validators[ self::manifest_contract_key( $document_type, $contract_version ) ] );
+    }
+
+    /** EVT catalog validators and providers are isolated from CAP manifests and read-models. */
+    public static function register_event_catalog_contract_validator( $document_type, $contract_version, $validator ) {
+        if ( 'faluss.event-source-catalog' !== $document_type || '1.0.0' !== $contract_version || ! is_callable( $validator ) ) {
+            return new WP_Error( 'faluss_federation_validator_refused' );
+        }
+        $key = self::manifest_contract_key( $document_type, $contract_version );
+        if ( isset( self::$event_catalog_contract_validators[ $key ] ) ) {
+            return new WP_Error( 'faluss_federation_validator_refused' );
+        }
+        self::$event_catalog_contract_validators[ $key ] = $validator;
+        return true;
+    }
+
+    public static function register_event_catalog_provider( $descriptor, $provider ) {
+        if ( ! self::valid_event_catalog_descriptor( $descriptor ) || ! is_callable( $provider ) ) {
+            return new WP_Error( 'faluss_federation_provider_refused' );
+        }
+        $key = self::event_catalog_descriptor_key( $descriptor );
+        if ( isset( self::$event_catalog_providers[ $key ] ) ) {
+            self::$event_catalog_conflict = true;
+            return new WP_Error( 'faluss_federation_provider_refused' );
+        }
+        self::$event_catalog_providers[ $key ] = array( 'descriptor' => $descriptor, 'provider' => $provider );
+        return true;
     }
 
     /** Descriptor is an exact tuple, never a wildcard or arbitrary RPC method. */
@@ -111,6 +141,16 @@ final class Faluss_Federation_Providers {
             }
             return self::dispatch_read_model( self::$read_model_providers[ $key ], $request );
         }
+        if ( 'event_catalog.read' === $request['operation'] ) {
+            if ( self::$event_catalog_conflict ) {
+                return self::failure( 'temporarily_unavailable' );
+            }
+            $key = self::event_catalog_key_from_parameters( $request['parameters'] ?? array() );
+            if ( null === $key || empty( self::$event_catalog_providers[ $key ] ) ) {
+                return self::failure( 'not_available' );
+            }
+            return self::dispatch_event_catalog( self::$event_catalog_providers[ $key ], $request );
+        }
         return self::failure( 'invalid_request' );
     }
 
@@ -123,6 +163,9 @@ final class Faluss_Federation_Providers {
         }
         if ( 'manifest.read' === ( $request['operation'] ?? null ) ) {
             return self::validate_manifest_payload( $response['payload'], $response['payload_contract'], $request );
+        }
+        if ( 'event_catalog.read' === ( $request['operation'] ?? null ) ) {
+            return self::validate_event_catalog_payload( $response['payload'], $response['payload_contract'], $request );
         }
         $key = self::descriptor_key_from_parameters( $request['parameters'] ?? array() );
         $entry = null !== $key ? ( self::$read_model_providers[ $key ] ?? null ) : null;
@@ -181,6 +224,39 @@ final class Faluss_Federation_Providers {
         return array( 'status' => 'success', 'payload_contract' => $result['payload_contract'], 'payload' => $result['payload'], 'error' => null );
     }
 
+    private static function dispatch_event_catalog( $entry, $request ) {
+        try {
+            $result = call_user_func( $entry['provider'], self::safe_context( $request ) );
+        } catch ( Throwable $throwable ) {
+            return self::failure( 'temporarily_unavailable' );
+        }
+        if ( is_wp_error( $result ) ) {
+            $code = $result->get_error_code();
+            return self::failure( 'faluss_events_not_available' === $code ? 'not_available' : ( 'faluss_events_temporarily_unavailable' === $code ? 'temporarily_unavailable' : 'incompatible' ) );
+        }
+        $keys = array( 'payload_contract', 'payload' );
+        if ( ! is_array( $result ) || array_diff( $keys, array_keys( $result ) ) || array_diff( array_keys( $result ), $keys ) || ! is_array( $result['payload_contract'] ) || ! is_array( $result['payload'] ) || ! self::validate_event_catalog_payload( $result['payload'], $result['payload_contract'], $request ) ) {
+            return self::failure( 'incompatible' );
+        }
+        return array( 'status' => 'success', 'payload_contract' => $result['payload_contract'], 'payload' => $result['payload'], 'error' => null );
+    }
+
+    private static function validate_event_catalog_payload( $payload, $contract, $request ) {
+        $keys = array( 'document_type', 'contract_version' );
+        if ( ! is_array( $contract ) || array_diff( $keys, array_keys( $contract ) ) || array_diff( array_keys( $contract ), $keys ) || 'faluss.event-source-catalog' !== $contract['document_type'] || '1.0.0' !== $contract['contract_version'] || ! is_array( $payload ) || ! is_array( $request ) || 'event_catalog.read' !== ( $request['operation'] ?? null ) ) {
+            return false;
+        }
+        $validator = self::$event_catalog_contract_validators[ self::manifest_contract_key( $contract['document_type'], $contract['contract_version'] ) ] ?? null;
+        if ( ! is_callable( $validator ) ) {
+            return false;
+        }
+        try {
+            return true === call_user_func( $validator, $payload, $contract, self::safe_context( $request ) );
+        } catch ( Throwable $throwable ) {
+            return false;
+        }
+    }
+
     private static function safe_context( $request ) {
         return array( 'operation' => $request['operation'], 'parameters' => $request['parameters'], 'subject_context' => $request['subject_context'], 'sender' => $request['sender'], 'recipient' => $request['recipient'] );
     }
@@ -208,7 +284,7 @@ final class Faluss_Federation_Providers {
 
     private static function valid_descriptor( $descriptor ) {
         $required = array( 'owner_app_key', 'capability_key', 'document_type', 'contract_version', 'audiences' );
-        if ( array_diff( $required, array_keys( $descriptor ) ) || array_diff( array_keys( $descriptor ), $required ) || ! Faluss_Federation_Crypto::is_node( $descriptor['owner_app_key'] ) || ! is_string( $descriptor['capability_key'] ) || ! is_string( $descriptor['document_type'] ) || ! Faluss_Federation_Crypto::is_semver( $descriptor['contract_version'] ) || ! is_array( $descriptor['audiences'] ) || empty( $descriptor['audiences'] ) ) {
+        if ( array_diff( $required, array_keys( $descriptor ) ) || array_diff( array_keys( $descriptor ), $required ) || ! Faluss_Federation_Crypto::is_node( $descriptor['owner_app_key'] ) || ! is_string( $descriptor['capability_key'] ) || ! is_string( $descriptor['document_type'] ) || 'faluss.event-source-catalog' === $descriptor['document_type'] || ! Faluss_Federation_Crypto::is_semver( $descriptor['contract_version'] ) || ! is_array( $descriptor['audiences'] ) || empty( $descriptor['audiences'] ) ) {
             return false;
         }
         foreach ( $descriptor['audiences'] as $audience ) {
@@ -228,5 +304,21 @@ final class Faluss_Federation_Providers {
             return null;
         }
         return implode( "\x1F", array( $parameters['owner_app_key'], $parameters['capability_key'], $parameters['document_type'], $parameters['contract_version'] ) );
+    }
+
+    private static function valid_event_catalog_descriptor( $descriptor ) {
+        $keys = array( 'owner_app_key', 'capability_key', 'catalog_version' );
+        return is_array( $descriptor ) && ! array_diff( $keys, array_keys( $descriptor ) ) && ! array_diff( array_keys( $descriptor ), $keys ) && Faluss_Federation_Crypto::is_node( $descriptor['owner_app_key'] ) && '*' !== $descriptor['owner_app_key'] && is_string( $descriptor['capability_key'] ) && '*' !== $descriptor['capability_key'] && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $descriptor['capability_key'] ) && 0 === strpos( $descriptor['capability_key'], $descriptor['owner_app_key'] . '.' ) && Faluss_Federation_Crypto::is_semver( $descriptor['catalog_version'] );
+    }
+
+    private static function event_catalog_descriptor_key( $descriptor ) {
+        return implode( "\x1F", array( $descriptor['owner_app_key'], $descriptor['capability_key'], $descriptor['catalog_version'] ) );
+    }
+
+    private static function event_catalog_key_from_parameters( $parameters ) {
+        if ( ! is_array( $parameters ) || ! isset( $parameters['owner_app_key'], $parameters['capability_key'], $parameters['catalog_version'] ) ) {
+            return null;
+        }
+        return implode( "\x1F", array( $parameters['owner_app_key'], $parameters['capability_key'], $parameters['catalog_version'] ) );
     }
 }

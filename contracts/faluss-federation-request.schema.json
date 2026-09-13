@@ -9,7 +9,7 @@
     "protocol_version": { "const": "1" },
     "message_type": { "const": "request" },
     "request_id": { "$ref": "#/$defs/uuidV4" },
-    "operation": { "enum": ["diagnostic.read", "manifest.read", "read_model.read"] },
+    "operation": { "enum": ["diagnostic.read", "manifest.read", "read_model.read", "event_catalog.read"] },
     "sender": { "$ref": "#/$defs/sender" },
     "recipient": { "$ref": "#/$defs/recipient" },
     "issued_at": { "$ref": "#/$defs/rfc3339Utc" },
@@ -54,6 +54,24 @@
               "document_type": { "$ref": "#/$defs/documentType" },
               "contract_version": { "$ref": "#/$defs/semanticVersion" },
               "audience": { "$ref": "#/$defs/audience" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "event_catalog.read" } }, "required": ["operation"] },
+      "then": {
+        "properties": {
+          "subject_context": { "const": null },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["owner_app_key", "capability_key", "catalog_version"],
+            "properties": {
+              "owner_app_key": { "$ref": "#/$defs/appKey" },
+              "capability_key": { "$ref": "#/$defs/capabilityKey" },
+              "catalog_version": { "$ref": "#/$defs/semanticVersion" }
             }
           }
         }
@@ -120,7 +138,7 @@
     "canonical_request_components": ["protocol_version", "HTTP_method", "exact_path", "sender.node_id", "recipient.node_id", "sender.key_id", "issued_at", "expires_at", "nonce", "raw_body_sha256_hex"],
     "canonicalization": { "encoding": "UTF-8", "bom": "forbidden", "separator_byte": "0x0A", "carriage_return": "forbidden", "final_lf": "forbidden", "component_cr_or_lf": "forbidden", "method": "POST", "path": "/wp-json/faluss-federation/v1/exchange", "body_hash": "exact_transmitted_raw_bytes_without_json_decode_normalization_or_reencode", "verifier": "rebuild_from_received_data_and_local_expectations" },
     "local_policy": { "exact_sender_node_app_key": true, "exact_recipient_node_app": true, "canonical_https_peer_origin": "local_configuration_only", "operations": "explicit", "owner_apps": "exact_no_wildcard", "capabilities": "exact_no_wildcard", "audiences": "exact_no_wildcard", "manifest": "signed_accepted_compatible_revalidated" },
-    "operation_authorization": { "diagnostic.read": "exact sender key recipient; null subject and empty parameters", "manifest.read": "parameters.app_key is in owner_apps and equals recipient.app_key", "read_model.read": "owner_app_key is in owner_apps and equals recipient.app_key; capability, document, version, audience and interface are declared by the accepted compatible owner manifest" },
+    "operation_authorization": { "diagnostic.read": "exact sender key recipient; null subject and empty parameters", "manifest.read": "parameters.app_key is in owner_apps and equals recipient.app_key", "read_model.read": "owner_app_key is in owner_apps and equals recipient.app_key; capability, document, version, audience and interface are declared by the accepted compatible owner manifest", "event_catalog.read": "null subject; owner_app_key equals recipient.app_key and is explicitly allowed; capability_key is explicitly allowed; catalog_version is exact; no audience" },
     "limits": { "raw_body_bytes": 65536, "json_depth": 16, "object_fields": 128, "array_items": 128, "string_bytes": 4096, "connect_timeout_seconds": 3, "total_timeout_seconds": 10 },
     "prohibited": ["browser_transport", "wordpress_session_sharing", "direct_table_access", "generic_rpc", "event.publish", "profile_write", "registry_write", "claim", "debit", "credit", "purchase", "payment", "entitlement", "media_proxy", "fpr_reuse", "identity_reuse", "token_connector_reuse", "hmac", "rsa", "custom_crypto", "unsigned_fallback"]
   },

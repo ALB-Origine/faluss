@@ -1,10 +1,10 @@
-# Faluss Federation 0.1.9 — exploitation privée
+# Faluss Federation 0.2.0 — exploitation privée
 
 ## Frontière
 
-`plugins/faluss-federation/` matérialise FED-01A.1 sur un nœud WordPress approuvé. Il ne transporte que `diagnostic.read`, `manifest.read` et `read_model.read`, par HTTPS serveur-à-serveur, Ed25519 et politique locale fermée. Il n'est ni un RPC générique, ni un transport de paiement, claim, entitlement, profil, média ou donnée métier. Il ne remplace pas FPR, Identity, Token Engine Connector, Stripe ou Faluss Subscriptions.
+`plugins/faluss-federation/` matérialise FED-01A.1 sur un nœud WordPress approuvé. Il ne transporte que `diagnostic.read`, `manifest.read`, `read_model.read` et `event_catalog.read`, par HTTPS serveur-à-serveur, Ed25519 et politique locale fermée. Il n'est ni un RPC générique, ni un transport d'événement, paiement, claim, entitlement, profil, média ou donnée métier. Il ne remplace pas FPR, Identity, Token Engine Connector, Stripe ou Faluss Subscriptions.
 
-En version 0.1.9, `diagnostic.read` reste intégré et `manifest.read` peut recevoir un producteur propriétaire externe. Le plugin Faluss Apps Registry 0.1.0 enregistre séparément le validateur PHP spécialisé du contrat `faluss.app-capability-manifest` 1.0.0 ; cette présence ne crée jamais un producteur. Faluss Portal 0.1.21 produit exclusivement `faluss-hub` sur `hub-node`, et Faluss Link 0.3.19 produit exclusivement `faluss-me` sur `me-node`. Sans validateur ou sans producteur exact, la réponse reste signée et fermée `not_available` ou `incompatible`. `read_model.read` reste sans producteur et aucune projection `apps.registry` n'est livrée avant CAP-01B.2.
+En version 0.2.0, `diagnostic.read` reste intégré et `manifest.read` conserve ses producteurs CAP. Faluss Events 0.1.0 enregistre séparément le validateur `faluss.event-source-catalog` 1.0.0 et son adaptateur, sans enregistrer de catalogue Hub ou Me. `event_catalog.read` possède son propre registre de providers et ne peut être tunnelé par `manifest.read` ou `read_model.read`. Sans provider exact, sa réponse authentifiée reste `not_available`; sans politique explicite, elle reste refusée.
 
 ## Préconditions et configuration locale
 
@@ -84,6 +84,4 @@ Cette trace n'altère aucune validation, canonicalisation, politique, réponse H
 
 ## Recette WordPress à exécuter ultérieurement
 
-Cette recette CAP-01B.1 n'est pas exécutée par les tests du dépôt : mettre Federation 0.1.9 puis Apps Registry 0.1.0 sur les deux sites, Link 0.3.19 uniquement sur `faluss.me` et Portal 0.1.21 uniquement sur `faluss.com`. Vérifier l'état `ready` et le schéma 1 sans modifier les politiques. Depuis `faluss.com`, tester le pair `me-node` et attendre `faluss-me`, version `1.0.0`, état `active`, zéro capacité. Depuis `faluss.me`, tester `hub-node` et attendre `faluss-hub`, version `1.0.0`, état `active`, une capacité. Relancer ensuite les diagnostics dans les deux sens et vérifier que les audits `success` augmentent sans nouvel `incompatible`.
-
-Ne pas configurer de secret de production durant le développement. CAP-01B.1 ne persiste aucun manifeste et ne livre aucun resolver ou read-model `apps.registry`.
+La recette EVT-01B.1 est celle de [`FALUSS_EVENTS.md`](FALUSS_EVENTS.md) : sauvegarde, Federation 0.2.0 et Events 0.1.0 sur les deux sites, aucune modification de politique, contrôle `ready`/schéma 1, diagnostics bidirectionnels, manifestes Hub/Me inchangés et absence de table ou tracking Events. `event_catalog.read` doit rester refusé ou `not_available` jusqu'à AN-01.

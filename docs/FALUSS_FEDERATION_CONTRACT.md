@@ -98,8 +98,8 @@ impose une enveloppe fermée :
 
 - `protocol_version` vaut `1` et `message_type` vaut `request` ;
 - `request_id` est un UUID v4 ;
-- `operation` appartient exclusivement à `diagnostic.read`, `manifest.read`
-  ou `read_model.read` ;
+- `operation` appartient exclusivement à `diagnostic.read`, `manifest.read`,
+  `read_model.read` ou `event_catalog.read` ;
 - `sender` contient le `node_id`, l'`app_key` et le `key_id` exacts ;
   `recipient` contient le nœud et l'application exacts ;
 - `issued_at` et `expires_at` sont RFC3339 UTC ; la durée maximale est cinq
@@ -110,10 +110,12 @@ impose une enveloppe fermée :
   UUID v4 ;
 - `parameters` est fermé par opération.
 
-`parameters.audience` est l'unique audience demandée et l'unique valeur de
-politique, manifeste/interface, filtrage producteur et contrat spécialisé.
+Pour `read_model.read`, `parameters.audience` est l'unique audience demandée et
+l'unique valeur de politique, manifeste/interface, filtrage producteur et
+contrat spécialisé. `event_catalog.read` ne possède aucune audience.
 `requested_audience` et toute deuxième audience sont invalides.
-`subject_context` est nul pour `diagnostic.read` et `manifest.read`. Pour
+`subject_context` est nul pour `diagnostic.read`, `manifest.read` et
+`event_catalog.read`. Pour
 `read_model.read`, le contrat spécialisé décide si le contexte sujet est
 présent : il l'est uniquement lorsqu'il lie le document à un membre. Le Faluss
 ID ne vient jamais d'un navigateur, n'apparaît jamais dans une URL, le DOM, un
@@ -125,6 +127,7 @@ producteur le résout et le réautorise côté serveur.
 | `diagnostic.read` | objet vide | sujet, secret, chemin serveur, version PHP, table, option ou configuration |
 | `manifest.read` | `app_key`, `requested_manifest_version` nullable | Faluss ID, audience, membre ou octets d'asset |
 | `read_model.read` | application propriétaire, capacité exacte, type de document, version de contrat, audience exacte | wildcard, action déléguée ou mutation |
+| `event_catalog.read` | `owner_app_key`, `capability_key`, `catalog_version` exacts | audience, Faluss ID, événement, payload, destination, URL ou clé |
 
 `diagnostic.read` ne rend que protocole, nœud, clé, permissions et horloge.
 `manifest.read` ne rend qu'un manifeste non-membre et ses métadonnées ; un
@@ -175,7 +178,7 @@ réémission automatique ne contourne pas ces contrôles.
 
 La liste précédente est exhaustive. Sont notamment interdits :
 
-- `event.publish` et tout transport EVT avant son contrat spécialisé ;
+- `event.publish` et tout transport d'enveloppe événementielle ;
 - RPC arbitraire, action déléguée générique, écriture de profil ou de registre ;
 - claim, PF, débit, crédit, achat, paiement, entitlement, cosmétique, Fans,
   Shop, progression ou quête ;
@@ -190,24 +193,24 @@ inventée, ni deuxième transport de secours.
 
 ## Coordination avec EVT-01A
 
-`event.publish` reste interdit dans FED-01B et FED-01C. Les opérations actuelles
-`diagnostic.read`, `manifest.read` et `read_model.read` sont des lectures
-fermées et ne peuvent jamais être renommées, enveloppées ou détournées pour
-publier un événement. Un payload `faluss.event`, même conforme, est donc refusé
-par le protocole actuel.
+`event.publish` reste interdit. Les quatre opérations actuelles
+`diagnostic.read`, `manifest.read`, `read_model.read` et `event_catalog.read`
+sont des lectures fermées et ne peuvent jamais être renommées, enveloppées ou
+détournées pour publier un événement. Un payload `faluss.event`, même conforme,
+est donc refusé par le protocole actuel.
 
-EVT-01A ajoute uniquement les contrats documentaires
+EVT-01A ajoute les contrats documentaires
 [`faluss.event`](../contracts/faluss-event-envelope.schema.json) et
 [`faluss.event-source-catalog`](../contracts/faluss-event-source-catalog.schema.json).
-Il ne change ni les deux schémas Federation, ni la route, ni le client, ni le
-serveur, ni les opérations, ni la politique ou le schéma de stockage
-Federation.
+EVT-01B.1 ajoute seulement la branche de requête `event_catalog.read`, sans
+changer le schéma de réponse, la route, la canonicalisation, les en-têtes, les
+nonces, le stockage ou l'algorithme. Son provider séparé exige le validateur EVT
+et la validation croisée du manifeste CAP accepté. Une politique existante ne
+contenant pas l'opération continue de refuser.
 
-Un futur transport d'événements exigera EVT-01B : extension explicitement
-versionnée et autorisée, signature Ed25519, liaison exacte de la requête,
-fraîcheur, anti-rejeu et politique par producteur, type, version et destination.
-Il ne pourra réutiliser aucun secret FPR, Faluss Identity, Token Engine
-Connector, Stripe ou aucune session WordPress.
+Le transport futur des événements eux-mêmes exigera une autre extension
+explicitement versionnée et autorisée. Il ne pourra réutiliser aucun secret FPR,
+Faluss Identity, Token Engine Connector, Stripe ou aucune session WordPress.
 
 ## Enveloppe, signature et fraîcheur de réponse
 
@@ -282,9 +285,10 @@ aucune recette WordPress, puisqu'aucun runtime n'est installé.
 
 ## Implémentation FED-01B
 
-FED-01B matérialise désormais ce contrat dans le plugin autonome
+FED-01B et EVT-01B.1 matérialisent ce contrat dans le plugin autonome
 [`FALUSS_FEDERATION.md`](FALUSS_FEDERATION.md). Le runtime reste limité aux
-trois opérations fermées, au transport Ed25519, aux politiques locales et aux
-quatre tables techniques dédiées. Il ne livre ni provider de manifeste ou de
-read-model métier, ni CAP-01B, ni clé de production. Les exigences normatives
+quatre opérations de lecture fermées, au transport Ed25519, aux politiques
+locales et aux quatre tables techniques dédiées. Le registre de catalogues EVT
+est séparé des manifestes CAP et read-models ; aucun provider Hub/Me réel, clé
+de production ou publication d'événement n'est livré. Les exigences normatives
 du présent contrat prévalent sur toute future extension de provider.

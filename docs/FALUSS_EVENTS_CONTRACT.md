@@ -281,8 +281,8 @@ EVT-01A.
 | Faluss Me | `faluss-me.link.clicked` | référence opaque du lien uniquement |
 | Faluss Me | `faluss-me.collection.opened` | référence opaque de collection uniquement |
 
-EVT-01B/AN-01 matérialisera éventuellement ces réservations avec leurs contrats
-de payload spécialisés et les manifestes CAP versionnés nécessaires.
+AN-01 matérialisera éventuellement ces réservations avec leurs contrats de
+payload spécialisés et les manifestes CAP versionnés nécessaires.
 
 ## Données interdites
 
@@ -325,14 +325,19 @@ en plus un catalogue EVT accepté, une capacité et un binding actifs, une
 compatibilité valide et la politique locale de chaque consommateur. CAP-01B.2
 n'active aucun événement.
 
-Federation reste fermé à `diagnostic.read`, `manifest.read` et
-`read_model.read`. `event.publish` demeure interdit par FED-01B/FED-01C et
-aucune opération existante ne peut être détournée pour transporter un
-événement. EVT-01A ne change aucun schéma ni runtime Federation.
+EVT-01B.1 ajoute uniquement la lecture signée `event_catalog.read`, distincte
+de `manifest.read` et `read_model.read`. Elle porte un sujet nul et le tuple
+exact `owner_app_key`, `capability_key`, `catalog_version`; elle ne transporte
+jamais une enveloppe `faluss.event`. `event.publish` demeure interdit et aucune
+opération existante ne peut être détournée pour publier un événement.
 
-Un transport futur nécessitera EVT-01B et une extension versionnée, signée,
-anti-rejeu et explicitement autorisée. Il ne réutilisera jamais un secret FPR,
-Identity, Token Connector, Stripe ou une session WordPress.
+Faluss Events 0.1.0 réutilise le validateur CAP de Faluss Apps Registry,
+valide séparément manifeste et catalogue, puis exige application/propriétaire,
+capacité `event_source`, bindings de chaque destination et compatibilité non
+dépréciée/non expirée. Cette vérification n'active aucun binding runtime.
+L'échange conserve signature Ed25519, fraîcheur, anti-rejeu, débit et politique
+locale de Federation, sans réutiliser de secret FPR, Identity, Token Connector,
+Stripe ou de session WordPress.
 
 ## Frontières des consommateurs futurs
 
@@ -358,3 +363,9 @@ leurs branches fermées et les invariants sémantiques avec un helper PHP de tes
 Ce helper n'est ni un runtime Faluss Events ni la preuve d'une validation JSON
 Schema standard complète. Une validation standard ne peut être revendiquée que
 si un moteur Draft 2020-12 indépendant est réellement disponible et exécuté.
+
+EVT-01B.1 ne modifie pas ces deux schémas normatifs. Son test exécutable appelle
+les validateurs PHP de production, le registre fermé, la politique et le chemin
+de réponse signé Federation. Aucun catalogue Hub/Me réel, provider propriétaire,
+événement, table, migration, outbox, inbox, worker, tracking ou Analytics n'est
+livré.

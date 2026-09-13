@@ -210,7 +210,7 @@ function fed01a_request_is_valid( $request, $headers, $raw_body, $now, &$error )
         $error = 'invalid_request_shape';
         return false;
     }
-    if ( '1' !== $request['protocol_version'] || 'request' !== $request['message_type'] || ! fed01a_is_uuid_v4( $request['request_id'] ) || ! in_array( $request['operation'], array( 'diagnostic.read', 'manifest.read', 'read_model.read' ), true ) || ! fed01a_is_date( $request['issued_at'] ) || ! fed01a_is_date( $request['expires_at'] ) || ! fed01a_is_nonce( $request['nonce'] ) ) {
+    if ( '1' !== $request['protocol_version'] || 'request' !== $request['message_type'] || ! fed01a_is_uuid_v4( $request['request_id'] ) || ! in_array( $request['operation'], array( 'diagnostic.read', 'manifest.read', 'read_model.read', 'event_catalog.read' ), true ) || ! fed01a_is_date( $request['issued_at'] ) || ! fed01a_is_date( $request['expires_at'] ) || ! fed01a_is_nonce( $request['nonce'] ) ) {
         $error = 'invalid_request_identity';
         return false;
     }
@@ -228,6 +228,9 @@ function fed01a_request_is_valid( $request, $headers, $raw_body, $now, &$error )
         $valid = null === $request['subject_context'] && array() === $request['parameters'];
     } elseif ( 'manifest.read' === $request['operation'] ) {
         $valid = null === $request['subject_context'] && fed01a_only_keys( $request['parameters'], array( 'app_key', 'requested_manifest_version' ) ) && fed01a_has_keys( $request['parameters'], array( 'app_key' ) ) && fed01a_is_key( $request['parameters']['app_key'] ) && ( ! array_key_exists( 'requested_manifest_version', $request['parameters'] ) || null === $request['parameters']['requested_manifest_version'] || fed01a_is_semver( $request['parameters']['requested_manifest_version'] ) );
+    } elseif ( 'event_catalog.read' === $request['operation'] ) {
+        $parameters = $request['parameters'];
+        $valid = null === $request['subject_context'] && fed01a_only_keys( $parameters, array( 'owner_app_key', 'capability_key', 'catalog_version' ) ) && fed01a_has_keys( $parameters, array( 'owner_app_key', 'capability_key', 'catalog_version' ) ) && fed01a_is_key( $parameters['owner_app_key'] ) && is_string( $parameters['capability_key'] ) && 1 === preg_match( '/^[a-z][a-z0-9-]+(?:\.[a-z][a-z0-9-]+)+$/D', $parameters['capability_key'] ) && 0 === strpos( $parameters['capability_key'], $parameters['owner_app_key'] . '.' ) && fed01a_is_semver( $parameters['catalog_version'] );
     } else {
         $parameters = $request['parameters'];
         $valid = fed01a_only_keys( $parameters, array( 'owner_app_key', 'capability_key', 'document_type', 'contract_version', 'audience' ) ) && fed01a_has_keys( $parameters, array( 'owner_app_key', 'capability_key', 'document_type', 'contract_version', 'audience' ) ) && fed01a_is_key( $parameters['owner_app_key'] ) && is_string( $parameters['capability_key'] ) && 1 === preg_match( '/^[a-z][a-z0-9-]+(?:\.[a-z][a-z0-9_.-]+)+$/D', $parameters['capability_key'] ) && is_string( $parameters['document_type'] ) && 1 === preg_match( '/^[a-z][a-z0-9-]+(?:\.[a-z][a-z0-9-]+)+$/D', $parameters['document_type'] ) && fed01a_is_semver( $parameters['contract_version'] ) && in_array( $parameters['audience'], array( 'private', 'members', 'public' ), true ) && ( null === $request['subject_context'] || ( fed01a_only_keys( $request['subject_context'], array( 'subject_faluss_id' ) ) && fed01a_has_keys( $request['subject_context'], array( 'subject_faluss_id' ) ) && fed01a_is_uuid_v4( $request['subject_context']['subject_faluss_id'] ) ) );
@@ -273,6 +276,9 @@ function fed01a_policy_allows( $policy, $request, $manifest, $now ) {
     }
     if ( 'manifest.read' === $request['operation'] ) {
         return null === $request['subject_context'] && $request['parameters']['app_key'] === $request['recipient']['app_key'] && in_array( $request['parameters']['app_key'], $policy['owner_apps'], true );
+    }
+    if ( 'event_catalog.read' === $request['operation'] ) {
+        return null === $request['subject_context'] && $request['parameters']['owner_app_key'] === $request['recipient']['app_key'] && in_array( $request['parameters']['owner_app_key'], $policy['owner_apps'], true ) && in_array( $request['parameters']['capability_key'], $policy['capabilities'], true );
     }
     return $request['parameters']['owner_app_key'] === $request['recipient']['app_key'] && in_array( $request['parameters']['owner_app_key'], $policy['owner_apps'], true ) && in_array( $request['parameters']['capability_key'], $policy['capabilities'], true ) && in_array( $request['parameters']['audience'], $policy['audiences'], true ) && fed01a_manifest_allows( $manifest, $request );
 }
@@ -375,7 +381,7 @@ $contract = file_get_contents( $root . '/docs/FALUSS_FEDERATION_CONTRACT.md' );
 fed01a_assert( is_array( $request_schema ) && is_array( $response_schema ), 'both Federation schemas parse as JSON' );
 fed01a_assert( ! fed01a_has_remote_ref( $request_schema ) && ! fed01a_has_remote_ref( $response_schema ), 'schemas use only local references' );
 fed01a_assert( false === $request_schema['additionalProperties'] && false === $response_schema['additionalProperties'], 'envelopes are closed' );
-fed01a_assert( 3 === count( $request_schema['allOf'] ) && 8 === count( $response_schema['allOf'] ), 'operation and each status branch are explicit' );
+fed01a_assert( 4 === count( $request_schema['allOf'] ) && 8 === count( $response_schema['allOf'] ), 'operation and each status branch are explicit' );
 fed01a_assert( array( 'subject_faluss_id' ) === $request_schema['$defs']['subjectContext']['oneOf'][1]['required'], 'subject context has no second audience authority' );
 fed01a_assert( '^[A-Za-z0-9_-]{43}$' === $request_schema['$defs']['nonce']['pattern'], 'schema fixes nonce representation to 43 characters' );
 fed01a_assert( 'base64url-no-padding-canonical-64-bytes' === $response_schema['x-fed01a-transport']['signature_encoding'], 'response schema fixes canonical Ed25519 encoding' );

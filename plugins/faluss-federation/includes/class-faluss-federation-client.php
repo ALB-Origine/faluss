@@ -29,6 +29,10 @@ final class Faluss_Federation_Client {
         return self::call( $peer_node_id, $peer_app_key, 'read_model.read', array( 'owner_app_key' => $owner_app_key, 'capability_key' => $capability_key, 'document_type' => $document_type, 'contract_version' => $contract_version, 'audience' => $audience ), $subject );
     }
 
+    public static function event_catalog_read( $peer_node_id, $peer_app_key, $owner_app_key, $capability_key, $catalog_version ) {
+        return self::call( $peer_node_id, $peer_app_key, 'event_catalog.read', array( 'owner_app_key' => $owner_app_key, 'capability_key' => $capability_key, 'catalog_version' => $catalog_version ), null );
+    }
+
     /** The only network path; every value comes from closed facade parameters and stored policy. */
     private static function call( $peer_node_id, $peer_app_key, $operation, $parameters, $subject_context ) {
         if ( ! Faluss_Federation_Crypto::transport_ready() ) {
@@ -50,6 +54,10 @@ final class Faluss_Federation_Client {
             return new WP_Error( 'faluss_federation_fail_closed' );
         }
         if ( ! in_array( $operation, $peer['operations'], true ) ) {
+            self::trace( 'client_peer_operation' );
+            return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        if ( 'event_catalog.read' === $operation && ( null !== $subject_context || ! Faluss_Federation_Crypto::is_node( $parameters['owner_app_key'] ?? '' ) || ( $parameters['owner_app_key'] ?? null ) !== $peer['peer_app_key'] || ! is_string( $parameters['capability_key'] ?? null ) || 1 !== preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $parameters['capability_key'] ) || 0 !== strpos( $parameters['capability_key'], $parameters['owner_app_key'] . '.' ) || ! Faluss_Federation_Crypto::is_semver( $parameters['catalog_version'] ?? '' ) || ! in_array( $parameters['owner_app_key'], $peer['owner_apps'], true ) || ! in_array( $parameters['capability_key'], $peer['capabilities'], true ) ) ) {
             self::trace( 'client_peer_operation' );
             return new WP_Error( 'faluss_federation_fail_closed' );
         }

@@ -212,7 +212,7 @@ Faluss ID, e-mail, session ni donnée métier. Les deux tables anti-rejeu ont un
 rétention technique d'au moins 15 minutes ; l'audit minimal est purgé au plus
 après 30 jours. Aucune projection CAP-01B ou Master Profile n'est persistée.
 
-## Événements EVT-01A
+## Événements EVT-01A et runtime EVT-01B.1
 
 EVT-01A n'ajoute aucune table, colonne, index, migration, option, transient,
 outbox, inbox, queue, audit, cache ou donnée membre. Les schémas
@@ -226,7 +226,13 @@ acceptation idempotente, une livraison par destination et l'état de traitement
 propre à chaque consommateur. L'identité idempotente associera nœud,
 application, type, version et référence propriétaire ; le hash canonique
 RFC 8785/JCS permettra de retrouver un retry identique et de refuser un conflit.
-Ces structures ne sont pas matérialisées par EVT-01A.
+Ces structures ne sont pas matérialisées. Faluss Events 0.1.0 ne possède aucune
+table, colonne, option, transient ou donnée membre ; son registre de providers
+et ses validateurs résident uniquement en mémoire pendant la requête PHP.
+Federation 0.2.0 réutilise ses quatre tables techniques existantes sans migration
+ni nouvelle colonne. Son audit de `event_catalog.read` conserve seulement les
+nœuds, l'opération, la capacité et le résultat générique, jamais le manifeste,
+le catalogue, les types, destinations, payloads, URL, Faluss ID ou clés.
 
 Un `faluss_id` éventuel reste limité aux contextes sujet ou acteur réservés de
 l'enveloppe serveur. Il n'entre jamais dans le payload, une référence, une URL,

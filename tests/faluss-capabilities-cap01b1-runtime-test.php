@@ -369,7 +369,7 @@ $missing_signed = cap01b1_private( 'Faluss_Federation_Server', 'authenticated_re
 cap01b1_assert( 404 === $missing_signed->get_status() && 86 === strlen( $missing_signed->get_headers()['X-Faluss-Federation-Signature'] ?? '' ), 'Provider absence must remain a signed not_available response.' );
 
 $bootstrap_sources = array_map( 'file_get_contents', array( $paths['federation_bootstrap'], $paths['registry'], $paths['portal_bootstrap'], $paths['link_bootstrap'] ) );
-cap01b1_assert( false !== strpos( $bootstrap_sources[0], 'Version: 0.1.9' ) && false !== strpos( $bootstrap_sources[0], "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ), 'Federation must be 0.1.9 with schema 1.' );
+cap01b1_assert( false !== strpos( $bootstrap_sources[0], 'Version: 0.2.0' ) && false !== strpos( $bootstrap_sources[0], "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ), 'Federation must be 0.2.0 with schema 1.' );
 cap01b1_assert( false !== strpos( $bootstrap_sources[1], 'Version: 0.2.0' ), 'Apps Registry must retain CAP-01B.1 under version 0.2.0.' );
 cap01b1_assert( false !== strpos( $bootstrap_sources[2], 'Version: 0.1.22' ) && false !== strpos( $bootstrap_sources[3], 'Version: 0.3.19' ), 'Portal and Link versions must be 0.1.22 and 0.3.19.' );
 $registry_runtime = $bootstrap_sources[1] . file_get_contents( $paths['registry_class'] ) . file_get_contents( $paths['validator'] );

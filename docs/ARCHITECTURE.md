@@ -82,14 +82,14 @@ runtime ; aucun registre CAP-01B n'est livré ici.
 
 FED-01A réserve un échange HTTPS serveur-à-serveur entre nœuds approuvés, signé
 uniquement Ed25519, à clés locales rotationnées et politique exacte par nœud,
-application, opération, capacité et audience. Il ferme l'échange à trois
-lectures bornées, impose canonicalisation, durée courte et anti-rejeu atomique,
+application, opération, capacité et audience lorsque l'opération en possède une.
+Il ferme l'échange à quatre lectures bornées, impose canonicalisation, durée courte et anti-rejeu atomique,
 et ne partage ni session WordPress ni table. FPR, Identity, Token Connector et
 Stripe restent séparés. FED-01B ajoute exclusivement sa route privée, ses clés
 publiques et politiques locales, son anti-rejeu et son audit technique ; aucun
 provider métier, manifeste réel ou projection membre n'est embarqué.
 
-## Contrat commun des événements EVT-01A
+## Contrat et runtime des événements EVT-01A / EVT-01B.1
 
 EVT-01A définit une enveloppe `faluss.event` et un catalogue propriétaire
 `faluss.event-source-catalog`, tous deux en version 1.0.0. Un événement est un
@@ -102,12 +102,14 @@ moteur Faluss Events idempotent et chaque consommateur Analytics, Quêtes ou
 Progression. L'événement sera append-only, livré au moins une fois et chaque
 conséquence sera exactement une fois par idempotence propre au consommateur.
 CAP `event_source`, catalogue EVT, binding actif et politique consommateur sont
-tous obligatoires. Federation reste fermé aux trois lectures existantes ; un
-transport signé d'événements est réservé à EVT-01B.
+tous obligatoires. Faluss Events 0.1.0 valide désormais catalogues et enveloppes
+et croise le catalogue avec le manifeste CAP accepté. Federation 0.2.0 ajoute
+seulement `event_catalog.read`; aucun transport d'enveloppe événementielle
+n'existe.
 
-EVT-01A n'ajoute aucun plugin, runtime, table, migration, endpoint, outbox,
-inbox, queue, appel réseau, cookie, tracking, événement réel ou changement
-WordPress. Le contrat complet est dans
+EVT-01B.1 ajoute le plugin sans table, migration, endpoint, outbox, inbox,
+queue, cookie, tracking, événement réel ou consommateur. Aucun provider Hub ou
+Me n'est enregistré. Le contrat complet est dans
 [`FALUSS_EVENTS_CONTRACT.md`](FALUSS_EVENTS_CONTRACT.md).
 
 ## Production Reset FPR-01
