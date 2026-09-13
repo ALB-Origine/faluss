@@ -128,7 +128,7 @@ $GLOBALS['wpdb'] = new Fed01b3_Wpdb();
 require dirname( __DIR__ ) . '/plugins/faluss-federation/faluss-federation.php';
 Faluss_Federation::load();
 
-fed01b3_assert( '0.2.0' === FALUSS_FEDERATION_VERSION, 'Federation version must be 0.2.0.' );
+fed01b3_assert( '0.3.0' === FALUSS_FEDERATION_VERSION, 'Federation version must be 0.3.0.' );
 fed01b3_assert( '1' === FALUSS_FEDERATION_SCHEMA_VERSION, 'Schema version must stay at 1.' );
 fed01b3_assert( 1 === $GLOBALS['fed01b3_activation_hooks'], 'Plugin activation must remain registerable without native Sodium.' );
 

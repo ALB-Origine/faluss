@@ -126,6 +126,8 @@ $route = array(
 $consumer = array(
     'consumer_key' => $consumer_128,
     'destination' => 'analytics.events',
+    'target_node_id' => 'target-node',
+    'target_app_key' => 'target-app',
     'sources' => array( array( 'node_id' => 'source-node', 'app_key' => $owner_512, 'capability_key' => $namespaced_512, 'catalog_version' => $semver_32 ) ),
     'callback' => function () { return true; },
 );
@@ -146,18 +148,19 @@ evt01b2a1_assert( true === evt01b2a1_private( 'EVT01B2A1_Base_Engine', 'is_consu
 $base_blob = trim( evt01b2a1_git( $root, array( 'rev-parse', 'c6becf07d812b488be5735354230a6b8bde23897:plugins/faluss-events/includes/class-faluss-events-schema.php' ), $base_blob_status ) );
 $working_blob = trim( evt01b2a1_git( $root, array( 'hash-object', $root . '/plugins/faluss-events/includes/class-faluss-events-schema.php' ), $working_blob_status ) );
 evt01b2a1_assert( 0 === $base_blob_status && 0 === $working_blob_status && $base_blob === $working_blob, 'MariaDB schema source and DDL must remain byte-for-byte unchanged from c6becf0.' );
-$federation_status = 0;
-evt01b2a1_git( $root, array( 'diff', '--quiet', 'c6becf07d812b488be5735354230a6b8bde23897', '--', 'plugins/faluss-federation' ), $federation_status );
-$federation_tree_status = 0;
-$federation_tree = evt01b2a1_git( $root, array( 'status', '--porcelain', '--', 'plugins/faluss-federation' ), $federation_tree_status );
-evt01b2a1_assert( 0 === $federation_status && 0 === $federation_tree_status && '' === trim( $federation_tree ), 'Faluss Federation must remain unchanged.' );
+$federation_schema_base = evt01b2a1_git( $root, array( 'show', 'f10ccb9fe5e76e01faecca73cc1f872e1d35c713:plugins/faluss-federation/includes/class-faluss-federation-schema.php' ), $federation_schema_base_status );
+$federation_schema_current = file_get_contents( $root . '/plugins/faluss-federation/includes/class-faluss-federation-schema.php' );
+$schema_pattern = '/    private static function tables\(\).*?(?=    private static function collation_matches)/s';
+preg_match( $schema_pattern, str_replace( array( "\r\n", "\r" ), "\n", $federation_schema_base ), $federation_schema_base_match );
+preg_match( $schema_pattern, str_replace( array( "\r\n", "\r" ), "\n", $federation_schema_current ), $federation_schema_current_match );
+evt01b2a1_assert( 0 === $federation_schema_base_status && isset( $federation_schema_base_match[0], $federation_schema_current_match[0] ) && $federation_schema_base_match[0] === $federation_schema_current_match[0], 'Faluss Federation table, column, index and DDL contract must remain unchanged in the later transport lot.' );
 
 $bootstrap = file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' );
 $runtime = $bootstrap;
 foreach ( glob( $root . '/plugins/faluss-events/includes/*.php' ) as $file ) { $runtime .= file_get_contents( $file ); }
-evt01b2a1_assert( false !== strpos( $bootstrap, 'Version: 0.2.1' ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_VERSION', '0.2.1'" ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ), 'Faluss Events must be 0.2.1 with schema 1.' );
-foreach ( array( 'register_rest_route', 'event.publish', 'wp_schedule', 'Faluss_Events::register_catalog_provider(', 'Faluss_Events_Engine::register_delivery_route(', 'Faluss_Events_Engine::register_consumer(' ) as $forbidden ) {
-    evt01b2a1_assert( false === strpos( $runtime, $forbidden ), 'No provider, event, transport or worker activation may be introduced: ' . $forbidden );
+evt01b2a1_assert( false !== strpos( $bootstrap, 'Version: 0.3.0' ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_VERSION', '0.3.0'" ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ), 'Faluss Events must be 0.3.0 with schema 1.' );
+foreach ( array( 'register_rest_route', 'Faluss_Events::register_catalog_provider(', 'Faluss_Events_Engine::register_delivery_route(', 'Faluss_Events_Engine::register_consumer(' ) as $forbidden ) {
+    evt01b2a1_assert( false === strpos( $runtime, $forbidden ), 'No business provider, real event, browser route or concrete consumer may be introduced: ' . $forbidden );
 }
 
 echo 'EVT-01B.2A.1 length alignment: OK (' . $evt01b2a1_assertions . ' assertions; production methods and isolated c6becf0 predicates)' . PHP_EOL;

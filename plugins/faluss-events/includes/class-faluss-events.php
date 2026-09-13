@@ -12,6 +12,7 @@ final class Faluss_Events {
     private static $payload_validator_conflict = false;
     private static $federation_validator_registered = false;
     private static $federation_provider_keys = array();
+    private static $federation_publish_registered = false;
 
     public static function boot() {
         if ( function_exists( 'add_action' ) ) {
@@ -26,7 +27,7 @@ final class Faluss_Events {
 
     /** Loading registers only the exact catalog validator and any already trusted local descriptors. */
     public static function register_federation_integration() {
-        if ( ! class_exists( 'Faluss_Federation_Providers' ) || ! method_exists( 'Faluss_Federation_Providers', 'register_event_catalog_contract_validator' ) || ! method_exists( 'Faluss_Federation_Providers', 'register_event_catalog_provider' ) ) {
+        if ( ! class_exists( 'Faluss_Federation_Providers' ) || ! method_exists( 'Faluss_Federation_Providers', 'register_event_catalog_contract_validator' ) || ! method_exists( 'Faluss_Federation_Providers', 'register_event_catalog_provider' ) || ! method_exists( 'Faluss_Federation_Providers', 'register_event_publish_adapter' ) ) {
             return false;
         }
         if ( ! self::$federation_validator_registered ) {
@@ -35,6 +36,13 @@ final class Faluss_Events {
                 return false;
             }
             self::$federation_validator_registered = true;
+        }
+        if ( ! self::$federation_publish_registered ) {
+            $registered = Faluss_Federation_Providers::register_event_publish_adapter( array( __CLASS__, 'validate_publish_request' ), array( __CLASS__, 'receive_published_event' ), array( __CLASS__, 'validate_publish_response' ) );
+            if ( is_wp_error( $registered ) ) {
+                return false;
+            }
+            self::$federation_publish_registered = true;
         }
         foreach ( self::$catalog_providers as $key => $entry ) {
             if ( isset( self::$federation_provider_keys[ $key ] ) ) {
@@ -51,6 +59,39 @@ final class Faluss_Events {
             self::$federation_provider_keys[ $key ] = true;
         }
         return true;
+    }
+
+    /** Federation request adapter: structural envelope validation only. */
+    public static function validate_publish_request( $request ) {
+        return self::exact_keys( $request, array( 'protocol_version', 'message_type', 'request_id', 'operation', 'sender', 'recipient', 'issued_at', 'expires_at', 'nonce', 'subject_context', 'parameters' ) )
+            && 'event.publish' === $request['operation']
+            && null === $request['subject_context']
+            && self::exact_keys( $request['parameters'], array( 'event' ) )
+            && Faluss_Events_Envelope_Validator::validate_transport( $request['parameters']['event'] );
+    }
+
+    /** Called only after Federation authentication, policy and replay consumption. */
+    public static function receive_published_event( $context ) {
+        if ( ! self::valid_publish_context( $context ) || ! class_exists( 'Faluss_Events_Engine' ) ) {
+            return new WP_Error( 'faluss_events_incompatible' );
+        }
+        $sender = array( 'node_id' => $context['sender']['node_id'], 'app_key' => $context['sender']['app_key'] );
+        $recipient = array( 'node_id' => $context['recipient']['node_id'], 'app_key' => $context['recipient']['app_key'] );
+        $accepted = Faluss_Events_Engine::accept_inbound_event( $context['parameters']['event'], $sender, $recipient );
+        if ( is_wp_error( $accepted ) ) {
+            return $accepted;
+        }
+        return array( 'event_id' => $accepted['event_id'], 'event_sha256' => $accepted['event_sha256'], 'disposition' => ! empty( $accepted['existing'] ) ? 'existing' : 'accepted' );
+    }
+
+    /** Client and receiver share one exact acknowledgement validator. */
+    public static function validate_publish_response( $payload, $contract, $request ) {
+        if ( ! self::exact_contract( $contract, 'faluss.event-acceptance', '1.0.0' ) || ! self::exact_keys( $payload, array( 'event_id', 'event_sha256', 'disposition' ) ) || ! in_array( $payload['disposition'], array( 'accepted', 'existing' ), true ) || ! is_string( $payload['event_sha256'] ) || 1 !== preg_match( '/^[a-f0-9]{64}$/D', $payload['event_sha256'] ) || ! self::validate_publish_request( $request ) ) {
+            return false;
+        }
+        $event = $request['parameters']['event'];
+        $canonical = Faluss_Events_Canonicalizer::canonicalize_event( $event );
+        return is_string( $canonical ) && $payload['event_id'] === $event['event_id'] && hash_equals( $payload['event_sha256'], hash( 'sha256', $canonical ) );
     }
 
     /** Trusted owner PHP registers exactly one app/capability/catalog tuple. */
@@ -86,12 +127,25 @@ final class Faluss_Events {
     }
 
     public static function validate_event( $event, $catalog ) {
-        if ( self::$payload_validator_conflict || ! is_array( $event ) || ! is_array( $event['payload_contract'] ?? null ) ) {
+        if ( 'registered' !== self::payload_validator_state( $event ) ) {
             return false;
         }
         $key = ( $event['payload_contract']['document_type'] ?? '' ) . "\x1F" . ( $event['payload_contract']['contract_version'] ?? '' );
         $validator = self::$payload_validators[ $key ] ?? null;
         return is_callable( $validator ) && Faluss_Events_Envelope_Validator::validate( $event, $catalog, $validator );
+    }
+
+    /** Distinguish an invalid contract selector from an unavailable trusted validator. */
+    public static function payload_validator_state( $event ) {
+        if ( self::$payload_validator_conflict ) {
+            return 'unavailable';
+        }
+        $contract = is_array( $event ) ? ( $event['payload_contract'] ?? null ) : null;
+        if ( ! self::exact_keys( $contract, array( 'document_type', 'contract_version' ) ) || ! self::is_document_type( $contract['document_type'] ) || ! self::is_semver( $contract['contract_version'] ) ) {
+            return 'invalid';
+        }
+        $key = $contract['document_type'] . "\x1F" . $contract['contract_version'];
+        return is_callable( self::$payload_validators[ $key ] ?? null ) ? 'registered' : 'unavailable';
     }
 
     /** Federation invokes this adapter only after exact descriptor resolution in its separate registry. */
@@ -206,6 +260,14 @@ final class Faluss_Events {
             && is_array( $context['sender'] )
             && is_array( $context['recipient'] )
             && $context['parameters']['owner_app_key'] === ( $context['recipient']['app_key'] ?? null );
+    }
+
+    private static function valid_publish_context( $context ) {
+        if ( ! self::exact_keys( $context, array( 'operation', 'parameters', 'subject_context', 'sender', 'recipient' ) ) || 'event.publish' !== $context['operation'] || null !== $context['subject_context'] || ! self::exact_keys( $context['parameters'], array( 'event' ) ) || ! is_array( $context['sender'] ) || ! is_array( $context['recipient'] ) ) {
+            return false;
+        }
+        $event = $context['parameters']['event'];
+        return Faluss_Events_Envelope_Validator::validate_transport( $event ) && ( $event['source']['node_id'] ?? null ) === ( $context['sender']['node_id'] ?? null ) && ( $event['source']['app_key'] ?? null ) === ( $context['sender']['app_key'] ?? null ) && ( $event['source']['owner'] ?? null ) === ( $context['sender']['app_key'] ?? null );
     }
 
     private static function provider_result_shape( $result ) { return self::exact_keys( $result, array( 'payload_contract', 'payload' ) ) && is_array( $result['payload_contract'] ) && is_array( $result['payload'] ); }

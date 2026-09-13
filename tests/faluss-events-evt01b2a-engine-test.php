@@ -214,6 +214,7 @@ require_once $root . '/plugins/faluss-events/includes/class-faluss-events-canoni
 require_once $root . '/plugins/faluss-events/includes/class-faluss-events.php';
 require_once $root . '/plugins/faluss-events/includes/class-faluss-events-schema.php';
 require_once $root . '/plugins/faluss-events/includes/class-faluss-events-engine.php';
+require_once $root . '/plugins/faluss-events/includes/class-faluss-events-workers.php';
 
 function evt01b2a_definition( $version = '1.0.0', $destinations = array( 'analytics.events' ) ) {
     return array( 'event_type' => 'future-app.fact.recorded', 'event_version' => '1.0.0', 'payload_contract' => array( 'document_type' => 'future-app.fact-payload', 'contract_version' => '1.0.0' ), 'subject_policy' => 'forbidden', 'allowed_actor_types' => array( 'system' ), 'object_policy' => array( 'presence' => 'forbidden', 'allowed_types' => array() ), 'allowed_destinations' => $destinations, 'max_delivery_delay_seconds' => 3600, 'data_classification' => 'operational', 'max_retention_seconds' => 86400, 'member_result_visibility' => 'never', 'lifecycle' => array( 'deprecated' => false, 'sunset_at' => null, 'replacement_event_type' => null ) );
@@ -264,6 +265,8 @@ $query_count = count( $wpdb->queries );
 evt01b2a_assert( true === Faluss_Events_Schema::install() && $query_count < count( $wpdb->queries ) && 5 === count( $wpdb->ddl ), 'Second installation check is idempotent and creates no extra table.' );
 $query_count = count( $wpdb->queries );
 evt01b2a_assert( true === Faluss_Events_Schema::maybe_upgrade() && $query_count === count( $wpdb->queries ), 'Normal loading with declared schema 1 must perform no schema or data query.' );
+$query_count = count( $wpdb->queries ); $row_counts = array_map( 'count', $wpdb->rows ); Faluss_Events_Workers::run_outbox(); Faluss_Events_Workers::run_consumers();
+evt01b2a_assert( $query_count === count( $wpdb->queries ) && $row_counts === array_map( 'count', $wpdb->rows ), 'Empty route and consumer registries must cause both workers to create no row and issue no query.' );
 
 $GLOBALS['evt01b2a_options'] = array(); $partial = new EVT01B2A_WPDB(); $partial->ddl['wp_faluss_events_catalogs'] = 'CREATE TABLE `wp_faluss_events_catalogs` (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'; $partial->rows['wp_faluss_events_catalogs'] = array(); $wpdb = $partial;
 evt01b2a_assert( false === Faluss_Events_Schema::install() && 0 === count( array_filter( $partial->queries, function ( $query ) { return 0 === strpos( $query, 'CREATE TABLE ' ); } ) ), 'Partial or divergent schema must be refused without repair.' );
@@ -295,11 +298,15 @@ $before_concurrent = evt01b2a_row_count( $wpdb, 'faluss_events_catalogs' );
 evt01b2a_private( 'Faluss_Events_Engine', 'persist_validated_catalog', array( $catalog ) ); evt01b2a_private( 'Faluss_Events_Engine', 'persist_validated_catalog', array( $catalog ) );
 evt01b2a_assert( $before_concurrent === evt01b2a_row_count( $wpdb, 'faluss_events_catalogs' ) && $wpdb->lock_acquisitions >= 4, 'Two shared-lock simulations must retain one catalog occurrence.' );
 
+$before_missing_validator = $wpdb->insert_count;
+$missing_validator = Faluss_Events_Engine::accept_inbound_event( evt01b2a_event( '90000000-0000-4000-8000-000000000001', 'event-ref-0099' ), array( 'node_id' => 'future-node', 'app_key' => 'future-app' ), array( 'node_id' => 'consumer-node', 'app_key' => 'consumer-app' ) );
+evt01b2a_assert( 'faluss_events_registry_unavailable' === evt01b2a_error_code( $missing_validator ) && $before_missing_validator === $wpdb->insert_count, 'Missing payload validator registry must map to not_available before any event write.' );
+
 Faluss_Events::register_payload_validator( 'future-app.fact-payload', '1.0.0', function ( $payload ) { return is_array( $payload ) && isset( $payload['count'], $payload['detail'] ); } );
 evt01b2a_reset_registry();
 $route = array( 'source_node_id' => 'future-node', 'source_app_key' => 'future-app', 'source_capability_key' => 'future-app.events', 'catalog_version' => '1.0.0', 'destination' => 'analytics.events', 'mode' => 'local', 'target_node_id' => 'consumer-node', 'target_app_key' => 'consumer-app' );
 $callback_calls = 0;
-$consumer = array( 'consumer_key' => 'future-consumer.analytics', 'destination' => 'analytics.events', 'sources' => array( array( 'node_id' => 'future-node', 'app_key' => 'future-app', 'capability_key' => 'future-app.events', 'catalog_version' => '1.0.0' ) ), 'callback' => function () use ( &$callback_calls ) { $callback_calls++; return true; } );
+$consumer = array( 'consumer_key' => 'future-consumer.analytics', 'destination' => 'analytics.events', 'target_node_id' => 'consumer-node', 'target_app_key' => 'consumer-app', 'sources' => array( array( 'node_id' => 'future-node', 'app_key' => 'future-app', 'capability_key' => 'future-app.events', 'catalog_version' => '1.0.0' ) ), 'callback' => function () use ( &$callback_calls ) { $callback_calls++; return true; } );
 evt01b2a_assert( true === Faluss_Events_Engine::register_delivery_route( $route ) && true === Faluss_Events_Engine::register_consumer( $consumer ), 'Exact trusted route and consumer must register.' );
 evt01b2a_assert( is_wp_error( Faluss_Events_Engine::register_delivery_route( $route ) ), 'Duplicate route must poison its registry closed.' );
 evt01b2a_assert( is_wp_error( Faluss_Events_Engine::register_consumer( $consumer ) ), 'Duplicate consumer must poison its registry closed.' );
@@ -340,13 +347,14 @@ evt01b2a_assert( 'faluss_events_conflict' === evt01b2a_error_code( Faluss_Events
 
 $inbound = evt01b2a_event( '20000000-0000-4000-8000-000000000001', 'event-ref-0002' );
 $sender = array( 'node_id' => 'future-node', 'app_key' => 'future-app' );
-$inbound_result = Faluss_Events_Engine::accept_inbound_event( $inbound, $sender );
+$recipient = array( 'node_id' => 'consumer-node', 'app_key' => 'consumer-app' );
+$inbound_result = Faluss_Events_Engine::accept_inbound_event( $inbound, $sender, $recipient );
 evt01b2a_assert( is_array( $inbound_result ) && false === $inbound_result['existing'] && 2 === evt01b2a_row_count( $wpdb, 'faluss_events_events' ) && 1 === evt01b2a_row_count( $wpdb, 'faluss_events_inbox' ) && 1 === evt01b2a_row_count( $wpdb, 'faluss_events_consumer_deliveries' ), 'Inbound event, inbox and consumer delivery must commit atomically.' );
-$inbound_retry = Faluss_Events_Engine::accept_inbound_event( $inbound, $sender );
+$inbound_retry = Faluss_Events_Engine::accept_inbound_event( $inbound, $sender, $recipient );
 evt01b2a_assert( is_array( $inbound_retry ) && true === $inbound_retry['existing'] && 1 === evt01b2a_row_count( $wpdb, 'faluss_events_inbox' ) && 1 === evt01b2a_row_count( $wpdb, 'faluss_events_consumer_deliveries' ), 'Inbound retry must be idempotent across inbox and consumer deliveries.' );
 evt01b2a_assert( 0 === $callback_calls, 'EVT-01B.2A must never execute a registered consumer callback.' );
 $before = $wpdb->insert_count; $wrong_sender = array( 'node_id' => 'other-node', 'app_key' => 'future-app' );
-evt01b2a_assert( is_wp_error( Faluss_Events_Engine::accept_inbound_event( evt01b2a_event( '20000000-0000-4000-8000-000000000002', 'event-ref-0003' ), $wrong_sender ) ) && $before === $wpdb->insert_count, 'Inbound source different from authenticated sender must fail before writing.' );
+evt01b2a_assert( is_wp_error( Faluss_Events_Engine::accept_inbound_event( evt01b2a_event( '20000000-0000-4000-8000-000000000002', 'event-ref-0003' ), $wrong_sender, $recipient ) ) && $before === $wpdb->insert_count, 'Inbound source different from authenticated sender must fail before writing.' );
 
 $missing_catalog = evt01b2a_event( '30000000-0000-4000-8000-000000000001', 'event-ref-0004', '1.0.9' ); $before = $wpdb->insert_count;
 evt01b2a_assert( is_wp_error( Faluss_Events_Engine::accept_local_event( $missing_catalog ) ) && $before === $wpdb->insert_count, 'Missing accepted catalog must fail before writing or network fallback.' );
@@ -356,7 +364,7 @@ evt01b2a_assert( is_wp_error( Faluss_Events_Engine::accept_local_event( evt01b2a
 $multi_catalog = evt01b2a_catalog( '1.0.1', array( 'analytics.events', 'quests.events' ) ); evt01b2a_private( 'Faluss_Events_Engine', 'persist_validated_catalog', array( $multi_catalog ) );
 $unrouted = evt01b2a_event( '30000000-0000-4000-8000-000000000003', 'event-ref-0006', '1.0.1', array( 'quests.events' ) ); $before = $wpdb->insert_count;
 evt01b2a_assert( is_wp_error( Faluss_Events_Engine::accept_local_event( $unrouted ) ) && $before === $wpdb->insert_count, 'Destination without an exact route must fail before writing.' );
-evt01b2a_assert( is_wp_error( Faluss_Events_Engine::accept_inbound_event( $unrouted, $sender ) ) && $before === $wpdb->insert_count, 'Destination without an exact consumer must fail before writing.' );
+evt01b2a_assert( is_wp_error( Faluss_Events_Engine::accept_inbound_event( $unrouted, $sender, $recipient ) ) && $before === $wpdb->insert_count, 'Destination without an exact consumer must fail before writing.' );
 
 /* Inject failure at every write boundary and at commit; each transaction restores the shared state. */
 $baseline = array( evt01b2a_row_count( $wpdb, 'faluss_events_events' ), evt01b2a_row_count( $wpdb, 'faluss_events_outbox' ), evt01b2a_row_count( $wpdb, 'faluss_events_inbox' ), evt01b2a_row_count( $wpdb, 'faluss_events_consumer_deliveries' ) );
@@ -370,13 +378,13 @@ $faults = array(
 foreach ( $faults as $fault ) {
     $wpdb->fail_insert_table = 'wp_' . $fault[1];
     $fault_event = evt01b2a_event( $fault[2], $fault[3] );
-    $result = 'local' === $fault[0] ? Faluss_Events_Engine::accept_local_event( $fault_event ) : Faluss_Events_Engine::accept_inbound_event( $fault_event, $sender );
+    $result = 'local' === $fault[0] ? Faluss_Events_Engine::accept_local_event( $fault_event ) : Faluss_Events_Engine::accept_inbound_event( $fault_event, $sender, $recipient );
     $after = array( evt01b2a_row_count( $wpdb, 'faluss_events_events' ), evt01b2a_row_count( $wpdb, 'faluss_events_outbox' ), evt01b2a_row_count( $wpdb, 'faluss_events_inbox' ), evt01b2a_row_count( $wpdb, 'faluss_events_consumer_deliveries' ) );
     evt01b2a_assert( is_wp_error( $result ) && $baseline === $after, 'Injected write failure must roll back the whole transaction: ' . $fault[1] );
 }
 foreach ( array( 'local', 'inbound' ) as $index => $direction ) {
     $wpdb->fail_commit = true; $fault_event = evt01b2a_event( '50000000-0000-4000-8000-' . sprintf( '%012d', $index + 1 ), 'event-ref-002' . $index );
-    $result = 'local' === $direction ? Faluss_Events_Engine::accept_local_event( $fault_event ) : Faluss_Events_Engine::accept_inbound_event( $fault_event, $sender );
+    $result = 'local' === $direction ? Faluss_Events_Engine::accept_local_event( $fault_event ) : Faluss_Events_Engine::accept_inbound_event( $fault_event, $sender, $recipient );
     $after = array( evt01b2a_row_count( $wpdb, 'faluss_events_events' ), evt01b2a_row_count( $wpdb, 'faluss_events_outbox' ), evt01b2a_row_count( $wpdb, 'faluss_events_inbox' ), evt01b2a_row_count( $wpdb, 'faluss_events_consumer_deliveries' ) );
     evt01b2a_assert( is_wp_error( $result ) && $baseline === $after, 'Commit failure must roll back local or inbound writes: ' . $direction );
 }
@@ -389,10 +397,10 @@ evt01b2a_assert( array( 'catalogs', 'events', 'outbox', 'inbox', 'consumer_deliv
 $bootstrap = file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' );
 $engine_source = file_get_contents( $root . '/plugins/faluss-events/includes/class-faluss-events-engine.php' );
 $runtime = $bootstrap . $engine_source . file_get_contents( $root . '/plugins/faluss-events/includes/class-faluss-events-schema.php' );
-evt01b2a_assert( false !== strpos( $bootstrap, 'Version: 0.2.1' ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ) && false !== strpos( $bootstrap, "'Faluss_Events_Schema', 'maybe_upgrade'" ) && false === strpos( $runtime, 'dbDelta(' ), 'Events must be 0.2.1/schema 1 with a controlled first installation and no permissive dbDelta migration.' );
+evt01b2a_assert( false !== strpos( $bootstrap, 'Version: 0.3.0' ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ) && false !== strpos( $bootstrap, "'Faluss_Events_Schema', 'maybe_upgrade'" ) && false === strpos( $runtime, 'dbDelta(' ), 'Events must retain schema 1 with a controlled first installation and no permissive dbDelta migration.' );
 evt01b2a_assert( false !== strpos( $engine_source, 'Faluss_Events::read_remote_catalog(' ) && false !== strpos( $engine_source, 'private static function persist_validated_catalog' ), 'Remote refresh must obtain its own signed validated catalog before reaching private persistence.' );
 evt01b2a_assert( false === strpos( $engine_source, '$wpdb->update(' ) && false === strpos( $engine_source, '$wpdb->delete(' ) && 1 !== preg_match( '/["\'](?:UPDATE|DELETE)\s/i', $engine_source ), 'Accepted catalogs and events must expose no functional UPDATE or DELETE path.' );
-foreach ( array( 'register_rest_route', 'wp_ajax_', 'admin_post_', 'add_shortcode', 'wp_schedule', 'wp_remote_', 'event.publish', 'setcookie', 'Faluss_Analytics', 'Faluss_Quests', 'Faluss_Progression', 'Faluss_Tracking' ) as $forbidden ) { evt01b2a_assert( false === stripos( $runtime, $forbidden ), 'Persistent core must not activate forbidden transport, browser or business behavior: ' . $forbidden ); }
+foreach ( array( 'register_rest_route', 'wp_ajax_', 'admin_post_', 'add_shortcode', 'setcookie', 'Faluss_Analytics', 'Faluss_Quests', 'Faluss_Progression', 'Faluss_Tracking' ) as $forbidden ) { evt01b2a_assert( false === stripos( $runtime, $forbidden ), 'Persistent core must not activate forbidden browser or business behavior: ' . $forbidden ); }
 evt01b2a_assert( false === strpos( $runtime, 'faluss-hub' ) && false === strpos( $runtime, 'faluss-me' ), 'No real Hub or Me provider, catalog or event may ship.' );
 $base_output = array(); $base_status = 0; exec( 'git -C ' . escapeshellarg( $root ) . ' cat-file -e e6fe35f953f5d655f739a83ca297a9eef2c0000c:plugins/faluss-events/includes/class-faluss-events-engine.php 2>&1', $base_output, $base_status );
 evt01b2a_assert( 0 !== $base_status, 'Required base must fail EVT-01B.2A because the persistent engine is absent.' );

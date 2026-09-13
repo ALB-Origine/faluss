@@ -403,6 +403,20 @@ fed01b2_assert( 30 === Faluss_Federation_Providers::$dispatches && 1 === $limite
 fed01b2_assert( 31 === $store->counts[ $burst_bucket ] && 31 === count( $store->bindings ) && 31 === count( $store->nonces ), 'Burst including limited request must commit every unique binding and nonce.' );
 fed01b2_assert( $manager->waits >= 30 && empty( $manager->locks ), 'Burst must exercise shared-lock contention and release every lock.' );
 
+/* EVT-01B.2B exact publish threshold: observed counts 599, 600 and 601. */
+$manager = new FED01B2_Lock_Manager();
+$store = new FED01B2_Store();
+$publish_bucket = $store->bucket( 'hub-node', 'hub-key-0001', 'event.publish' );
+$store->counts[ $publish_bucket ] = 599;
+Faluss_Federation_Providers::$dispatches = 0;
+$publish_results = array();
+for ( $i = 0; $i < 3; $i++ ) {
+    $connection = new FED01B2_WPDB( 'publish-' . $i, $manager, $store );
+    $publish_results[] = fed01b2_connection_result( $connection, fed01b2_request( 850 + $i, 'event.publish' ), 600 )[0];
+}
+fed01b2_assert( true === $publish_results[0] && 'faluss_federation_rate_limited' === fed01b2_error_code( $publish_results[1] ) && 'faluss_federation_rate_limited' === fed01b2_error_code( $publish_results[2] ), 'Publish counts 599/600/601 must dispatch only the request observing 599.' );
+fed01b2_assert( 1 === Faluss_Federation_Providers::$dispatches && 602 === $store->counts[ $publish_bucket ], 'Limited publish requests must still durably consume their unique nonce and binding.' );
+
 /* Different buckets can execute while the first bucket remains locked. */
 $manager = new FED01B2_Lock_Manager();
 $store = new FED01B2_Store();

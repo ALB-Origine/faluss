@@ -212,7 +212,7 @@ Faluss ID, e-mail, session ni donnée métier. Les deux tables anti-rejeu ont un
 rétention technique d'au moins 15 minutes ; l'audit minimal est purgé au plus
 après 30 jours. Aucune projection CAP-01B ou Master Profile n'est persistée.
 
-## Événements EVT-01A et cœur persistant EVT-01B.2A
+## Événements EVT-01A et runtime EVT-01B.2B
 
 Les schémas normatifs
 [`faluss-event-envelope.schema.json`](../contracts/faluss-event-envelope.schema.json)
@@ -220,7 +220,7 @@ et
 [`faluss-event-source-catalog.schema.json`](../contracts/faluss-event-source-catalog.schema.json)
 bornent depuis EVT-01B.2A.1 les clés namespacées et types de document à 512
 caractères, et toutes les versions sémantiques EVT à 32 caractères. Faluss
-Events 0.2.1 conserve l'option technique `faluss_events_schema_version`, égale
+Events 0.3.0 conserve l'option technique `faluss_events_schema_version`, égale
 à `1`, et exactement cinq tables privées InnoDB utilisant le préfixe, le
 charset et la collation WordPress. La clé consommateur interne est bornée à 128
 caractères. Ces bornes correspondent aux `varchar(512)`, `varchar(128)` et
@@ -258,11 +258,12 @@ L'identité est le SHA-256 canonique du tuple exact `source.node_id`,
 
 ### `*_faluss_events_outbox`
 
-Préparation inactive des livraisons futures : `id`, `delivery_uuid`, `event_id`,
+Livraisons locales ou fédérées : `id`, `delivery_uuid`, `event_id`,
 `destination`, `target_node_id`, `target_app_key`, `status`, `attempt_count`,
 `next_attempt_at`, `lease_token`, `lease_expires_at`, `last_result_code`,
-`created_at`, `delivered_at`. Les champs de lease et de résultat sont nullables ;
-aucun claim ou changement de statut n'est actif.
+`created_at`, `delivered_at`. Les états fermés sont `pending`, `leased`, `retry`,
+`delivered`, `dead_letter`. `next_attempt_at` est l'échéance et
+`lease_expires_at` uniquement l'expiration d'un lease actif.
 
 - `PRIMARY (id)` ;
 - `UNIQUE outbox_delivery_unique (delivery_uuid)` ;
@@ -272,7 +273,7 @@ aucun claim ou changement de statut n'est actif.
 
 ### `*_faluss_events_inbox`
 
-Réception idempotente future : `id`, `receipt_uuid`, `sender_node_id`,
+Réception idempotente : `id`, `receipt_uuid`, `sender_node_id`,
 `sender_app_key`, `event_id`, `event_sha256`, `received_at` UTC.
 
 - `PRIMARY (id)` ;
@@ -282,10 +283,13 @@ Réception idempotente future : `id`, `receipt_uuid`, `sender_node_id`,
 
 ### `*_faluss_events_consumer_deliveries`
 
-État indépendant futur par consommateur : `id`, `delivery_uuid`, `event_id`,
+État indépendant par consommateur : `id`, `delivery_uuid`, `event_id`,
 `destination`, `consumer_key`, `status`, `attempt_count`, `lease_token`,
 `lease_expires_at`, `last_result_code`, `created_at`, `processed_at`. Les champs
-de lease, résultat et traitement sont nullables ; aucun callback n'est exécuté.
+de lease, résultat et traitement sont nullables. Les états sont `pending`,
+`leased`, `retry`, `processed`, `dead_letter`. Pour `leased`,
+`lease_expires_at` expire le lease ; pour `retry`, il porte la reprise minimale ;
+il vaut `NULL` dans les états terminaux.
 
 - `PRIMARY (id)` ;
 - `UNIQUE consumer_delivery_unique (delivery_uuid)` ;
@@ -297,8 +301,9 @@ opérationnelles sont atomiques ; un rollback les retire ensemble. Les cinq
 tables ne constituent ni une UI, ni une sortie publique, ni une garantie
 automatique d'effet externe exactement une fois.
 
-Federation 0.2.0 réutilise ses quatre tables techniques existantes sans
-migration ni nouvelle colonne. Aucun modèle Identity, Portal, Link, Token
+Federation 0.3.0 réutilise ses quatre tables techniques existantes sans
+migration ni nouvelle colonne. L'accusé `faluss.event-acceptance` reste dans la
+réponse signée et n'ajoute aucun stockage. Aucun modèle Identity, Portal, Link, Token
 Engine, Subscription ou autre plugin n'est modifié.
 
 Un `faluss_id` éventuel reste limité aux contextes sujet ou acteur réservés de

@@ -162,8 +162,8 @@ EVT-01A ne crée aucun plugin, runtime, transport Federation, bus, table,
 migration, endpoint, outbox, inbox, queue, cookie, tracking, événement réel,
 Analytics, Quête, Progression ou comportement WordPress. EVT-01B.1 apporte les
 validateurs génériques et l'échange de catalogues. EVT-01B.2A apporte le cœur
-persistant ; EVT-01B.2B doit encore livrer transport et workers avant qu'AN-01
-apporte catalogues propriétaires, providers Hub/Me, validateurs de payload,
+persistant ; EVT-01B.2B livre transport et workers avant qu'AN-01 apporte
+catalogues propriétaires, providers Hub/Me, validateurs de payload,
 politiques et premiers événements.
 
 ## EVT-01B.1 — Runtime des catalogues d'événements — livré techniquement
@@ -201,12 +201,15 @@ validateurs PHP sur le stockage existant : 512 caractères pour les clés
 namespacées, 128 pour les clés consommateur internes et 32 pour les versions
 sémantiques EVT. Le DDL du schéma 1 reste inchangé, sans migration.
 
-## EVT-01B.2B — Transport et workers — à réaliser
+## EVT-01B.2B — Transport et workers — livré techniquement
 
-EVT-01B.2B devra ajouter `event.publish`, les leases, le transport Federation,
-les workers, les retries bornés et la livraison au moins une fois. AN-01 reste
-bloqué jusqu'à sa validation, puis l'ordre demeure MP-01B, COS-01, SHOP-01,
-intégrations contextuelles Faluss.me, Quêtes et Progression.
+Faluss Events `0.3.0` et Federation `0.3.0`, schémas `1`, ajoutent l'opération
+fermée `event.publish`, son accusé signé, les leases outbox/consumer, les routes
+locales atomiques, deux workers Cron bornés et huit tentatives déterministes.
+Le DDL Events et les quatre tables Federation restent inchangés. Aucun provider,
+catalogue, événement, route ou consommateur métier n'est enregistré. AN-01 reste
+nécessaire avant toute activation métier, puis l'ordre demeure MP-01B, COS-01,
+SHOP-01, intégrations contextuelles Faluss.me, Quêtes et Progression.
 
 ## FED-01A — Contrat du transport privé fédéré — livré contractuellement
 

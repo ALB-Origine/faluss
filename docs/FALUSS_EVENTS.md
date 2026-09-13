@@ -1,126 +1,138 @@
-# Faluss Events 0.2.1 — cœur persistant sans transport
+# Faluss Events 0.3.0 — transport fiable et workers
 
 ## Frontière
 
-Faluss Events valide les contrats `faluss.event-source-catalog` 1.0.0 et
-`faluss.event` 1.0.0 et matérialise leur cœur persistant. Son schéma interne est
-`1`. EVT-01B.2A crée cinq tables append-only, canonicalise catalogues et
-enveloppes, impose l'idempotence métier et prépare les lignes durables de
-livraison.
+Faluss Events valide `faluss.event-source-catalog` 1.0.0, `faluss.event` 1.0.0
+et `faluss.event-acceptance` 1.0.0. Son schéma interne reste `1`.
+EVT-01B.2B active le transport des outbox, la réception authentifiée et les
+workers internes sur les cinq tables existantes, sans table, colonne, index ou
+migration supplémentaire. `class-faluss-events-schema.php` et son DDL restent
+identiques au lot précédent.
 
-EVT-01B.2A.1 aligne les domaines acceptés avant installation sur les colonnes
-existantes : 512 caractères au plus pour une clé namespacée ou un type de
-document, 128 pour une clé consommateur interne et 32 pour toute version
-sémantique EVT. Les deux schémas JSON et tous les validateurs ou registres PHP
-concernés appliquent ces mêmes bornes avant verrou, transaction, écriture ou
-génération d'UUID. Le schéma interne reste `1`, son DDL est inchangé et aucune
-migration n'est ajoutée.
+Les bornes de stockage restent 512 caractères pour une clé namespacée ou un
+type de document, 128 pour une clé consommateur et 32 pour toute version
+sémantique EVT. Elles sont appliquées avant verrou, transaction, écriture ou
+génération d'UUID.
 
-Ce lot n'enregistre aucun provider ou catalogue Hub/Me, ne produit aucun
-événement et n'active ni `event.publish`, ni endpoint, transport, lease, worker,
-cron, retry, callback consommateur, tracking, Analytics, Quêtes ou Progression.
-Federation reste en version 0.2.0, schéma 1, sans modification.
+Ce lot n'enregistre aucun provider, catalogue, événement, route ou consommateur
+métier Hub/Me. Il n'ajoute ni tracking, cookie, pixel, Analytics, Quêtes,
+Progression, écriture PF, wallet, commerce ou Stripe. Federation passe à 0.3.0,
+schéma 1, uniquement pour l'opération fermée `event.publish` sur sa route signée
+existante.
 
 ## Architecture interne
 
 - `Faluss_Events_Catalog_Validator` contrôle le catalogue fermé et sa cohérence
   avec le manifeste CAP accepté.
-- `Faluss_Events_Envelope_Validator` lie l'enveloppe au catalogue exact et à un
-  validateur de payload enregistré par du PHP de confiance. L'ordre des clés
-  d'un objet JSON n'a aucune portée sémantique.
-- `Faluss_Events_Canonicalizer` produit les octets privés utilisés pour les
-  SHA-256 du catalogue, de l'enveloppe et de l'identité métier.
-- `Faluss_Events_Schema` crée et vérifie le schéma 1 sans `dbDelta()` et refuse
-  toute structure partielle ou divergente.
-- `Faluss_Events_Engine` accepte explicitement un catalogue validé, un événement
-  local ou un événement inbound authentifié. Il ne lance aucun transport et
-  n'exécute aucun callback.
-- `Faluss_Events` conserve les registres fermés de providers et validateurs de
-  payload, ainsi que les lectures signées de catalogue déjà livrées par
-  EVT-01B.1/1.1.
+- `Faluss_Events_Envelope_Validator` sépare la forme transport de l'enveloppe de
+  sa validation contre le catalogue et le validateur de payload exact.
+- `Faluss_Events_Canonicalizer` produit les octets privés et SHA-256 utilisés
+  pour catalogues, événements et identités métier.
+- `Faluss_Events_Schema` vérifie les cinq tables du schéma 1 sans `dbDelta()`.
+- `Faluss_Events_Engine` accepte catalogues et événements, puis résout les
+  routes et consommateurs exacts enregistrés par du PHP de confiance.
+- `Faluss_Events` conserve les registres fermés et enregistre les trois callables
+  distincts de l'adaptateur publish : validateur de requête, receiver inbound et
+  validateur d'accusé.
+- `Faluss_Events_Workers` réclame et finalise outbox et deliveries par lease
+  opaque, hors transaction pendant tout réseau ou callback.
 
-## Installation contrôlée
+L'absence ou le doublon d'un adaptateur, d'une route ou d'un consommateur ferme
+le chemin concerné. Aucun callback, pair, URL ou destination réseau ne vient de
+l'enveloppe ou du navigateur.
 
-La première requête `plugins_loaded` après remplacement d'un 0.1.1 actif,
-l'activation et l'installation neuve suivent le même chemin. Cinq
-tables temporaires InnoDB sont créées, vérifiées champ par champ et index par
-index, puis promues ensemble par un unique `RENAME TABLE`. L'option
-`faluss_events_schema_version = 1` n'est écrite qu'après la vérification des
-cinq tables finales. Une table préexistante, une option inattendue ou une
-structure divergente arrête l'opération sans réparation ni adoption implicite.
+## Installation et données
 
-Une fois l'option 1 déclarée, le chargement normal ne fait qu'une lecture
-d'option et n'exécute aucune requête de schéma ou de donnée. Une seconde
-activation vérifie les structures sans créer de table supplémentaire.
-L'installation n'insère aucun catalogue, événement, outbox, inbox ou delivery.
-La désactivation et la désinstallation ne réécrivent et ne suppriment aucune
-donnée.
+La mise à jour d'un plugin déjà actif vérifie seulement le schéma déclaré et
+planifie les workers manquants. Elle ne migre, ne répare et ne réécrit aucune
+table. Une installation fraîche conserve le chemin atomique existant : cinq
+tables temporaires InnoDB vérifiées champ et index par champ, puis promues par
+un unique `RENAME TABLE`. L'option `faluss_events_schema_version = 1` n'est
+écrite qu'après vérification.
 
-## Canonicalisation supportée
+La désactivation retire exclusivement les deux hooks Cron Faluss Events. La
+désinstallation ne supprime aucune table ni donnée. Aucun catalogue, événement,
+outbox, inbox ou delivery n'est créé au chargement, à l'activation ou à la mise
+à jour.
+
+## Canonicalisation et acceptation
 
 La canonicalisation applique la sémantique RFC 8785/JCS au sous-ensemble fermé
-d'EVT-01A : `null`, booléens, entiers compris entre
-`-9007199254740991` et `9007199254740991`, chaînes UTF-8 et tableaux PHP. Les
-listes conservent leur ordre ; les objets associatifs ont des clés ASCII triées
-récursivement, ce qui est équivalent à l'ordre JCS pour ces clés contractuelles.
-Unicode et slashs restent non échappés, tandis que les contrôles JSON reçoivent
-leur échappement normatif.
-
-Les floats, NaN, infinis, objets PHP, ressources, UTF-8 invalide et clés hors du
-sous-ensemble sont refusés avant toute écriture. Un tableau PHP vide représente
-une liste vide ; seule la racine `payload`, connue par le schéma comme objet,
-est encodée en `{}` lorsqu'elle est vide. Il ne s'agit donc pas d'une
-implémentation JCS générale pour des valeurs PHP arbitraires.
-
-## Catalogues et événements
+d'EVT-01A : `null`, booléens, entiers sûrs, chaînes UTF-8 et tableaux PHP. Les
+listes gardent leur ordre et les clés ASCII des objets sont triées
+récursivement. Floats, UTF-8 invalide et formes hors contrat sont refusés.
 
 Un catalogue accepté est immuable et identifié par
-`node_id/app_key/capability_key/catalog_version`. Même tuple et mêmes octets
-canoniques retrouve le snapshot ; toute divergence produit
-`faluss_events_conflict`. Le rafraîchissement distant est uniquement explicite
-et appelle d'abord `Faluss_Events::read_remote_catalog()`. La résolution locale
-utilise uniquement un provider PHP déjà enregistré.
+`node_id/app_key/capability_key/catalog_version`. L'identité d'un événement est
+le SHA-256 canonique du tuple source, type, version et référence source. Deux
+verrous nommés sérialisent l'identité métier et `event_id`; les contraintes
+uniques restent la seconde barrière.
 
-L'identité d'un événement est le SHA-256 canonique du tuple exact
-`source.node_id`, `source.app_key`, `source.owner`, `source.capability_key`,
-`source.catalog_version`, `event_type`, `event_version` et
-`source_event_reference`. Deux verrous nommés, l'un sur cette identité et
-l'autre sur `event_id`, sérialisent aussi bien deux versions d'un même fait que
-deux faits revendiquant le même identifiant. Les contraintes uniques restent
-la seconde barrière.
+Pour un événement local, l'événement et toutes ses outbox sont insérés ensemble.
+Pour un événement inbound, source node/app/owner doivent égaler le sender
+authentifié et chaque consommateur doit cibler le destinataire node/app exact ;
+événement, inbox et deliveries sont confirmés dans une transaction. Le succès
+Federation n'est produit qu'après ce commit. Un retry identique ne crée aucune
+seconde ligne et rend un accusé `existing`; une identité ou un contenu divergent
+rend un conflit.
 
-Pour un événement local, l'événement et toutes ses outbox sont insérés dans une
-transaction. Pour un événement inbound, la source doit égaler le sender
-authentifié ; événement, inbox et toutes les deliveries consommateurs sont
-insérés dans une transaction. Une route ou un consommateur exact manquant est
-refusé avant écriture. Un retry identique vérifie également toutes ses lignes
-opérationnelles avant de retourner l'occurrence existante.
+## Leases, routes et retries
 
-Les registres de routes et consommateurs n'acceptent aucun wildcard. Les
-callbacks doivent être des callables PHP de confiance, ne sont jamais chargés
-depuis le réseau ou la base et ne sont pas exécutés dans 0.2.1. Un doublon rend
-le registre concerné indisponible de manière fail-closed.
+Chaque worker prend au plus 50 lignes dues sous transaction, attribue un lease
+base64url opaque, passe chaque ligne à `leased` et incrémente `attempt_count`.
+Le commit précède tout transport ou callback. La finalisation exige le même
+`lease_token` et le statut `leased`; un worker ancien ne confirme jamais une
+ligne reprise. Un lease expiré est récupérable.
 
-## Lecture distante de catalogue
+L'outbox utilise `pending`, `leased`, `retry`, `delivered`, `dead_letter`.
+`next_attempt_at` est l'échéance métier et `lease_expires_at` uniquement
+l'expiration du lease. Une route Federation relit l'enveloppe, vérifie ses
+octets et son hash, résout le descriptor exact et appelle seulement
+`Faluss_Federation_Client::event_publish()`. Seul un accusé signé `accepted` ou
+`existing`, lié à l'ID et au SHA-256 canonique, confirme `delivered`.
 
-`Faluss_Events::read_remote_catalog()` conserve le chemin signé
-`manifest.read`, puis `event_catalog.read`. Chaque réponse est liée au pair,
-fraîche et validée ; la validation croisée CAP/EVT demeure obligatoire. Aucun
-cache stale, fallback réseau ou lecture de table distante n'est ajouté.
+Une route locale ne fait aucun HTTP. Dans une transaction unique, elle verrouille
+l'outbox encore louée, crée uniquement les deliveries manquantes par leur clé
+d'idempotence, puis confirme l'outbox. Elle ne crée aucune inbox.
+
+Les deliveries consommateur utilisent `pending`, `leased`, `retry`, `processed`,
+`dead_letter`. En `leased`, `lease_expires_at` est l'expiration du lease ; en
+`retry`, c'est la date minimale de reprise ; dans un état terminal, elle vaut
+`NULL`. Le callback reçoit exactement l'enveloppe, `delivery_uuid`, destination,
+`consumer_key`, numéro de tentative et une clé d'idempotence stable dérivée de
+event ID/destination/consumer. `true` confirme `processed` ;
+`faluss_events_retryable`, une exception ou une forme inconnue réessaie ;
+`faluss_events_permanent` termine en `dead_letter`. Aucun retour libre, message
+ou détail d'exception n'est stocké.
+
+Le maximum est huit tentatives, lease initial compris. Les délais après les sept
+premiers échecs sont 60, 300, 900, 3 600, 10 800, 21 600 et 43 200 secondes. Le
+huitième échec termine en `dead_letter`. `last_result_code` reste dans une
+allowlist technique fixe sans HTTP brut, URL, corps, signature, exception,
+identifiant membre ou payload.
+
+## Ordonnancement WordPress
+
+Deux hooks WP-Cron uniques, outbox et consommateurs, utilisent un intervalle
+d'une minute. La planification est idempotente à l'activation et lors de la
+première requête après mise à jour d'un plugin actif. Un verrou consultatif
+global, borné et distinct par worker empêche deux exécutions simultanées. Si le
+schéma, le registre ou le verrou est indisponible, aucune ligne n'est traitée.
+
+WP-Cron dépend du trafic WordPress. Un vrai cron serveur pourra ultérieurement
+appeler `wp-cron.php`, sans service externe créé par ce lot.
 
 ## Recette WordPress limitée
 
 1. Sauvegarder `faluss.com` et `faluss.me`.
-2. Installer uniquement Faluss Events avec le même ZIP 0.2.1 sur les deux
-   sites, puis activer le plugin.
-3. Ne modifier aucune politique Federation, clé, pair, provider ou constante.
-4. Vérifier Faluss Events 0.2.1, schéma 1 et l'état `ready`.
-5. Vérifier la présence exacte des cinq tables documentées dans
-   `DATA_MODEL.md` et l'absence de toute ligne dans chacune.
-6. Vérifier Federation 0.2.0, schéma 1 et `ready`, puis relancer le diagnostic
-   bidirectionnel existant.
-7. Confirmer qu'aucun événement, provider, catalogue réel, transport, worker,
-   cron, tracking ou consommateur métier n'est actif.
-
-EVT-01B.2B ajoutera `event.publish`, les leases et les workers. AN-01 reste
-bloqué jusqu'à la validation de ce second sous-lot.
+2. Mettre à jour Faluss Federation avec le même ZIP 0.3.0 sur les deux sites,
+   puis Faluss Events avec le même ZIP 0.3.0.
+3. Ne modifier aucune clé, pair, origine, période, seed ou donnée existante.
+4. Vérifier les deux versions, les deux schémas 1 et l'état `ready`.
+5. Vérifier les cinq tables Events existantes et les deux hooks Cron uniques.
+6. Relancer diagnostics bidirectionnels et lectures de manifeste.
+7. Laisser `event.publish` absent des politiques tant qu'aucun test EVT autorisé
+   n'est prévu. Pour un futur test, l'ajouter explicitement avec la capacité
+   source exacte, jamais par wildcard.
+8. Confirmer qu'aucun provider, catalogue, événement, route ou consommateur
+   métier Hub/Me/Analytics/Quêtes/Progression n'est actif.

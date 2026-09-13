@@ -7,13 +7,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 /** Production validator for faluss.event 1.0.0. It executes only a trusted callback supplied by Faluss Events. */
 final class Faluss_Events_Envelope_Validator {
     private const ROOT_KEYS = array( 'contract_version', 'event_id', 'event_type', 'event_version', 'source', 'source_event_reference', 'occurred_at', 'produced_at', 'subject_context', 'actor_context', 'object_context', 'destinations', 'payload_contract', 'payload' );
+    private const DESTINATIONS = array( 'analytics.events', 'quests.events', 'progression.events' );
     private const FORBIDDEN_PAYLOAD_KEYS = array( 'metadata', 'meta', 'context', 'properties', 'faluss_id', 'subject_faluss_id', 'actor_faluss_id', 'wp_user_id', 'email', 'login', 'name', 'display_name', 'pseudonym', 'handle', 'url', 'raw_url', 'domain', 'slug', 'title', 'label', 'content', 'ip', 'user_agent', 'cookie', 'session', 'otp', 'authorization_code', 'nonce', 'signature', 'public_key', 'private_key', 'stripe_id', 'stripe_customer', 'stripe_payment', 'stripe_payload', 'card_data', 'card_number', 'private_content', 'bio', 'link_content', 'media_path', 'media_file', 'pf_balance', 'idempotency_key', 'economic_idempotency_key', 'command', 'authorization', 'entitlement', 'reward' );
 
     public static function validate( $event, $catalog, $payload_validator ) {
-        if ( ! is_callable( $payload_validator ) || ! self::exact_keys( $event, self::ROOT_KEYS ) || ! Faluss_Events_Catalog_Validator::validate( $catalog ) ) {
-            return false;
-        }
-        if ( '1.0.0' !== $event['contract_version'] || ! self::is_uuid_v4( $event['event_id'] ) || ! self::is_namespaced_key( $event['event_type'] ) || ! self::is_semver( $event['event_version'] ) || ! self::opaque_reference( $event['source_event_reference'] ) ) {
+        if ( ! is_callable( $payload_validator ) || ! self::validate_transport( $event ) || ! Faluss_Events_Catalog_Validator::validate( $catalog ) ) {
             return false;
         }
         $source = $event['source'];
@@ -21,7 +19,7 @@ final class Faluss_Events_Envelope_Validator {
             return false;
         }
         $definition = self::definition( $catalog, $event['event_type'], $event['event_version'] );
-        if ( null === $definition || ! self::strict_utc( $event['occurred_at'] ) || ! self::strict_utc( $event['produced_at'] ) ) {
+        if ( null === $definition ) {
             return false;
         }
         $occurred = strtotime( $event['occurred_at'] );
@@ -29,7 +27,7 @@ final class Faluss_Events_Envelope_Validator {
         if ( false === $occurred || false === $produced || $produced < $occurred || $produced - $occurred > $definition['max_delivery_delay_seconds'] || ! self::valid_subject( $event['subject_context'], $definition['subject_policy'] ) || ! self::valid_actor( $event['actor_context'], $definition['allowed_actor_types'] ) || ! self::valid_object( $event['object_context'], $definition['object_policy'] ) ) {
             return false;
         }
-        if ( ! self::is_list( $event['destinations'] ) || empty( $event['destinations'] ) || count( $event['destinations'] ) > 3 || count( $event['destinations'] ) !== count( array_unique( $event['destinations'], SORT_STRING ) ) || array_diff( $event['destinations'], $definition['allowed_destinations'] ) || ! self::same_payload_contract( $event['payload_contract'], $definition['payload_contract'] ) || ! self::valid_payload( $event['payload'] ) ) {
+        if ( array_diff( $event['destinations'], $definition['allowed_destinations'] ) || ! self::same_payload_contract( $event['payload_contract'], $definition['payload_contract'] ) ) {
             return false;
         }
         try {
@@ -37,6 +35,27 @@ final class Faluss_Events_Envelope_Validator {
         } catch ( Throwable $throwable ) {
             return false;
         }
+    }
+
+    /** Validate only the closed transport envelope; catalog and payload semantics remain separate. */
+    public static function validate_transport( $event ) {
+        if ( ! self::exact_keys( $event, self::ROOT_KEYS ) || '1.0.0' !== $event['contract_version'] || ! self::is_uuid_v4( $event['event_id'] ) || ! self::is_namespaced_key( $event['event_type'] ) || ! self::is_semver( $event['event_version'] ) || ! self::opaque_reference( $event['source_event_reference'] ) ) {
+            return false;
+        }
+        $source = $event['source'];
+        if ( ! self::exact_keys( $source, array( 'node_id', 'app_key', 'owner', 'capability_key', 'catalog_version' ) ) || ! self::is_app_key( $source['node_id'] ) || ! self::is_app_key( $source['app_key'] ) || $source['owner'] !== $source['app_key'] || ! self::is_namespaced_key( $source['capability_key'] ) || 0 !== strpos( $source['capability_key'], $source['app_key'] . '.' ) || ! self::is_semver( $source['catalog_version'] ) || 0 !== strpos( $event['event_type'], $source['app_key'] . '.' ) ) {
+            return false;
+        }
+        if ( ! self::strict_utc( $event['occurred_at'] ) || ! self::strict_utc( $event['produced_at'] ) ) {
+            return false;
+        }
+        $occurred = strtotime( $event['occurred_at'] );
+        $produced = strtotime( $event['produced_at'] );
+        if ( false === $occurred || false === $produced || $produced < $occurred || ! self::valid_subject_transport( $event['subject_context'] ) || ! self::valid_actor( $event['actor_context'], array( 'member', 'system', 'anonymous' ) ) || ! self::valid_object_transport( $event['object_context'] ) ) {
+            return false;
+        }
+        $contract = $event['payload_contract'];
+        return self::is_list( $event['destinations'] ) && ! empty( $event['destinations'] ) && count( $event['destinations'] ) <= 3 && count( $event['destinations'] ) === count( array_unique( $event['destinations'], SORT_STRING ) ) && ! array_diff( $event['destinations'], self::DESTINATIONS ) && self::exact_keys( $contract, array( 'document_type', 'contract_version' ) ) && self::is_namespaced_key( $contract['document_type'] ) && self::is_semver( $contract['contract_version'] ) && self::valid_payload( $event['payload'] );
     }
 
     private static function definition( $catalog, $type, $version ) {
@@ -53,6 +72,10 @@ final class Faluss_Events_Envelope_Validator {
             return 'required' !== $policy;
         }
         return 'forbidden' !== $policy && self::exact_keys( $subject, array( 'subject_type', 'subject_faluss_id' ) ) && 'faluss_member' === $subject['subject_type'] && self::is_uuid_v4( $subject['subject_faluss_id'] );
+    }
+
+    private static function valid_subject_transport( $subject ) {
+        return null === $subject || ( self::exact_keys( $subject, array( 'subject_type', 'subject_faluss_id' ) ) && 'faluss_member' === $subject['subject_type'] && self::is_uuid_v4( $subject['subject_faluss_id'] ) );
     }
 
     private static function valid_actor( $actor, $allowed_types ) {
@@ -76,6 +99,10 @@ final class Faluss_Events_Envelope_Validator {
             return 'required' !== $policy['presence'];
         }
         return 'forbidden' !== $policy['presence'] && self::exact_keys( $object, array( 'object_type', 'object_reference' ) ) && is_string( $object['object_type'] ) && 1 === preg_match( '/^[a-z][a-z0-9_]{1,63}$/D', $object['object_type'] ) && in_array( $object['object_type'], $policy['allowed_types'], true ) && self::opaque_reference( $object['object_reference'] );
+    }
+
+    private static function valid_object_transport( $object ) {
+        return null === $object || ( self::exact_keys( $object, array( 'object_type', 'object_reference' ) ) && is_string( $object['object_type'] ) && 1 === preg_match( '/^[a-z][a-z0-9_]{1,63}$/D', $object['object_type'] ) && self::opaque_reference( $object['object_reference'] ) );
     }
 
     private static function valid_payload( $payload ) {
@@ -163,6 +190,7 @@ final class Faluss_Events_Envelope_Validator {
     private static function is_uuid_v4( $value ) { return is_string( $value ) && 1 === preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D', $value ); }
     private static function is_semver( $value ) { return is_string( $value ) && strlen( $value ) <= 32 && 1 === preg_match( '/^[1-9][0-9]*\.[0-9]+\.[0-9]+$/D', $value ); }
     private static function is_namespaced_key( $value ) { return is_string( $value ) && strlen( $value ) <= 512 && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $value ); }
+    private static function is_app_key( $value ) { return is_string( $value ) && '*' !== $value && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}$/D', $value ); }
     private static function text_length( $value ) { return 1 === preg_match( '//u', $value ) ? preg_match_all( '/./us', $value, $matches ) : 257; }
 
     private static function strict_utc( $value ) {

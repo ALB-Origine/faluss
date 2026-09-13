@@ -231,7 +231,7 @@ evt01b1_assert( ! evt01b1_private( 'Faluss_Federation_Server', 'valid_request', 
 $invalid = $request; $invalid['parameters']['audience'] = 'private';
 evt01b1_assert( ! evt01b1_private( 'Faluss_Federation_Server', 'valid_request', array( $invalid ) ), 'No fourth event catalog parameter or audience is accepted.' );
 $invalid = $request; $invalid['operation'] = 'event.publish';
-evt01b1_assert( ! evt01b1_private( 'Faluss_Federation_Server', 'valid_request', array( $invalid ) ), 'event.publish must remain absent.' );
+evt01b1_assert( ! evt01b1_private( 'Faluss_Federation_Server', 'valid_request', array( $invalid ) ), 'event.publish with catalog-read parameters must remain invalid.' );
 $catalog_response = array( 'status' => 'success', 'payload_contract' => $catalog_contract, 'payload' => $hub_catalog, 'error' => null );
 $manifest_request = $request; $manifest_request['operation'] = 'manifest.read'; $manifest_request['parameters'] = array( 'app_key' => 'faluss-hub', 'requested_manifest_version' => '1.0.0' );
 evt01b1_assert( ! Faluss_Federation_Providers::validate_received_payload( $catalog_response, $manifest_request ), 'manifest.read cannot tunnel an EVT catalog.' );
@@ -310,18 +310,18 @@ evt01b1_assert( false !== strpos( $client_source, 'public static function event_
 evt01b1_assert( false !== strpos( $client_source, "\$response['responder']['node_id'] !== \$peer['peer_node_id']" ) && false !== strpos( $client_source, "find_peer( \$peer['peer_node_id'], \$peer['peer_app_key'], \$response['responder']['key_id'] )" ), 'Production client still binds response to exact peer and registered key.' );
 evt01b1_assert( false !== strpos( $server_source, 'consume_replay_and_limit' ) && false !== strpos( $server_source, 'rate_limit( $message[\'operation\'] )' ), 'Existing transactional anti-replay and rate limiting remain on the dispatch path.' );
 evt01b1_assert( 1 !== preg_match( '/wp_remote_|curl_|file_get_contents\s*\(\s*[\'\"]https?:/i', file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' ) . $events_source ), 'Plugin loading performs no network request.' );
-foreach ( array( 'dbDelta', 'register_rest_route', 'add_shortcode', 'wp_schedule', 'setcookie', 'event.publish' ) as $forbidden ) {
+foreach ( array( 'dbDelta', 'register_rest_route', 'add_shortcode', 'setcookie' ) as $forbidden ) {
     evt01b1_assert( false === stripos( file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' ) . $events_source . file_get_contents( $paths['catalog_validator'] ) . file_get_contents( $paths['envelope_validator'] ), $forbidden ), 'Faluss Events must not add forbidden transport or browser behavior: ' . $forbidden );
 }
 evt01b1_assert( false === strpos( $events_source, 'faluss-hub' ) && false === strpos( $events_source, 'faluss-me' ), 'Plugin must ship no real Hub or Me provider/catalog.' );
 
 $schema = json_decode( file_get_contents( $root . '/contracts/faluss-federation-request.schema.json' ), true );
-evt01b1_assert( array( 'diagnostic.read', 'manifest.read', 'read_model.read', 'event_catalog.read' ) === $schema['properties']['operation']['enum'] && 4 === count( $schema['allOf'] ), 'Request schema must add only the exact event catalog branch.' );
+evt01b1_assert( array( 'diagnostic.read', 'manifest.read', 'read_model.read', 'event_catalog.read', 'event.publish' ) === $schema['properties']['operation']['enum'] && 5 === count( $schema['allOf'] ), 'Request schema must retain the exact event catalog branch alongside event publish.' );
 $branch = $schema['allOf'][3]['then']['properties'];
 evt01b1_assert( null === $branch['subject_context']['const'] && array( 'owner_app_key', 'capability_key', 'catalog_version' ) === $branch['parameters']['required'] && false === $branch['parameters']['additionalProperties'], 'Schema branch requires null subject and exactly three parameters.' );
 $bootstrap = file_get_contents( $root . '/plugins/faluss-federation/faluss-federation.php' );
 $events_bootstrap = file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' );
-evt01b1_assert( false !== strpos( $bootstrap, 'Version: 0.2.0' ) && false !== strpos( $bootstrap, "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ) && false !== strpos( $events_bootstrap, 'Version: 0.2.1' ) && false !== strpos( $events_bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ), 'Versions must be Events 0.2.1/schema 1 and Federation 0.2.0/schema 1.' );
+evt01b1_assert( false !== strpos( $bootstrap, 'Version: 0.3.0' ) && false !== strpos( $bootstrap, "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ) && false !== strpos( $events_bootstrap, 'Version: 0.3.0' ) && false !== strpos( $events_bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ), 'Versions must be Events 0.3.0/schema 1 and Federation 0.3.0/schema 1.' );
 Faluss_Events::boot();
 evt01b1_assert( isset( $GLOBALS['evt01b1_hooks']['faluss_federation_ready'][20] ) && isset( $GLOBALS['evt01b1_hooks']['plugins_loaded'][40] ), 'Both early and late activation orders retain one deterministic integration callback.' );
 

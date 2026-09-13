@@ -33,6 +33,10 @@ final class Faluss_Federation_Client {
         return self::call( $peer_node_id, $peer_app_key, 'event_catalog.read', array( 'owner_app_key' => $owner_app_key, 'capability_key' => $capability_key, 'catalog_version' => $catalog_version ), null );
     }
 
+    public static function event_publish( $peer_node_id, $peer_app_key, $event ) {
+        return self::call( $peer_node_id, $peer_app_key, 'event.publish', array( 'event' => $event ), null );
+    }
+
     /** The only network path; every value comes from closed facade parameters and stored policy. */
     private static function call( $peer_node_id, $peer_app_key, $operation, $parameters, $subject_context ) {
         if ( ! Faluss_Federation_Crypto::transport_ready() ) {
@@ -60,6 +64,13 @@ final class Faluss_Federation_Client {
         if ( 'event_catalog.read' === $operation && ( null !== $subject_context || ! Faluss_Federation_Crypto::is_node( $parameters['owner_app_key'] ?? '' ) || ( $parameters['owner_app_key'] ?? null ) !== $peer['peer_app_key'] || ! is_string( $parameters['capability_key'] ?? null ) || 1 !== preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $parameters['capability_key'] ) || 0 !== strpos( $parameters['capability_key'], $parameters['owner_app_key'] . '.' ) || ! Faluss_Federation_Crypto::is_semver( $parameters['catalog_version'] ?? '' ) || ! in_array( $parameters['owner_app_key'], $peer['owner_apps'], true ) || ! in_array( $parameters['capability_key'], $peer['capabilities'], true ) ) ) {
             self::trace( 'client_peer_operation' );
             return new WP_Error( 'faluss_federation_fail_closed' );
+        }
+        if ( 'event.publish' === $operation ) {
+            $event = $parameters['event'] ?? null;
+            if ( null !== $subject_context || ! Faluss_Federation_Providers::validate_event_publish_request( array( 'protocol_version' => '1', 'message_type' => 'request', 'request_id' => '00000000-0000-4000-8000-000000000000', 'operation' => $operation, 'sender' => array( 'node_id' => $identity['node_id'], 'app_key' => $identity['app_key'], 'key_id' => $identity['key_id'] ), 'recipient' => array( 'node_id' => $peer['peer_node_id'], 'app_key' => $peer['peer_app_key'] ), 'issued_at' => '2000-01-01T00:00:00Z', 'expires_at' => '2000-01-01T00:05:00Z', 'nonce' => str_repeat( 'A', 43 ), 'subject_context' => null, 'parameters' => array( 'event' => $event ) ) ) || ( $event['source']['node_id'] ?? null ) !== $identity['node_id'] || ( $event['source']['app_key'] ?? null ) !== $identity['app_key'] || ( $event['source']['owner'] ?? null ) !== $identity['app_key'] ) {
+                self::trace( 'client_peer_operation' );
+                return new WP_Error( 'faluss_federation_fail_closed' );
+            }
         }
         if ( ! Faluss_Federation_Crypto::is_canonical_origin( $peer['canonical_origin'] ) ) {
             self::trace( 'client_origin' );

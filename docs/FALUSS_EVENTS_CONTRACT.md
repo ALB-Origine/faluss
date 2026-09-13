@@ -325,13 +325,14 @@ en plus un catalogue EVT accepté, une capacité et un binding actifs, une
 compatibilité valide et la politique locale de chaque consommateur. CAP-01B.2
 n'active aucun événement.
 
-EVT-01B.1 ajoute uniquement la lecture signée `event_catalog.read`, distincte
+EVT-01B.1 ajoute la lecture signée `event_catalog.read`, distincte
 de `manifest.read` et `read_model.read`. Elle porte un sujet nul et le tuple
 exact `owner_app_key`, `capability_key`, `catalog_version`; elle ne transporte
-jamais une enveloppe `faluss.event`. `event.publish` demeure interdit et aucune
-opération existante ne peut être détournée pour publier un événement.
+jamais une enveloppe `faluss.event`. EVT-01B.2B ajoute séparément l'unique
+`event.publish`, fermé à `parameters.event` et à un sujet nul ; aucune autre
+opération ne peut être détournée pour publier un événement.
 
-Faluss Events 0.2.1 réutilise le validateur CAP de Faluss Apps Registry,
+Faluss Events 0.3.0 réutilise le validateur CAP de Faluss Apps Registry,
 valide séparément manifeste et catalogue, puis exige application/propriétaire,
 capacité `event_source`, bindings de chaque destination et compatibilité non
 dépréciée/non expirée. Cette vérification n'active aucun binding runtime.
@@ -372,10 +373,20 @@ UTF-8 non modifiées, booléens, `null` et entiers sûrs. Floats, objets PHP,
 ressources, UTF-8 invalide et formes hors sous-ensemble sont refusés avant
 écriture. Ce périmètre ne constitue pas une implémentation RFC 8785 générale.
 
-`event.publish`, transport d'enveloppe, leases, workers, cron et retry actif
-restent absents jusqu'à EVT-01B.2B. Aucun provider, catalogue ou événement
-Hub/Me et aucun consommateur Analytics, Quêtes ou Progression n'est enregistré.
-AN-01 demeure postérieur à la validation de 2B.
+### Transport et workers EVT-01B.2B
+
+EVT-01B.2B ajoute `event.publish`, l'accusé fermé
+`faluss.event-acceptance` 1.0.0, les leases, deux workers Cron et huit tentatives
+bornées. Les leases sont committés avant réseau ou callback et finalisés par le
+même token. Une route locale crée les deliveries et confirme l'outbox dans une
+transaction sans inbox ni HTTP. Une route distante appelle seulement la façade
+Federation et exige un accusé signé lié à l'ID et au hash. Les consommateurs
+reçoivent une clé d'idempotence stable et restent responsables de l'unicité de
+leur effet au moins une fois.
+
+Aucun provider, catalogue, événement ou route Hub/Me et aucun consommateur
+Analytics, Quêtes ou Progression n'est enregistré. AN-01 demeure postérieur à
+la validation de 2B.
 
 ### Alignement des longueurs EVT-01B.2A.1
 

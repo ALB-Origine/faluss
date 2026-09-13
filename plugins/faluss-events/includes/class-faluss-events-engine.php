@@ -4,7 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-/** Persistent append-only Faluss Events core. No transport, worker or consumer callback runs here. */
+/** Persistent append-only Faluss Events core and closed route/consumer registry. */
 final class Faluss_Events_Engine {
     private const DESTINATIONS = array( 'analytics.events', 'quests.events', 'progression.events' );
     private static $routes = array();
@@ -27,10 +27,10 @@ final class Faluss_Events_Engine {
         return true;
     }
 
-    /** Trusted PHP registers source filters and a callback that EVT-01B.2A never executes. */
+    /** Trusted PHP registers one exact target, source filters and its callback. */
     public static function register_consumer( $descriptor ) {
-        $keys = array( 'consumer_key', 'destination', 'sources', 'callback' );
-        if ( ! self::exact_keys( $descriptor, $keys ) || ! self::is_consumer_key( $descriptor['consumer_key'] ) || ! in_array( $descriptor['destination'], self::DESTINATIONS, true ) || ! is_callable( $descriptor['callback'] ) || ! self::is_list( $descriptor['sources'] ) || empty( $descriptor['sources'] ) || count( $descriptor['sources'] ) > 64 ) {
+        $keys = array( 'consumer_key', 'destination', 'target_node_id', 'target_app_key', 'sources', 'callback' );
+        if ( ! self::exact_keys( $descriptor, $keys ) || ! self::is_consumer_key( $descriptor['consumer_key'] ) || ! in_array( $descriptor['destination'], self::DESTINATIONS, true ) || ! self::is_node( $descriptor['target_node_id'] ) || ! self::is_app_key( $descriptor['target_app_key'] ) || ! is_callable( $descriptor['callback'] ) || ! self::is_list( $descriptor['sources'] ) || empty( $descriptor['sources'] ) || count( $descriptor['sources'] ) > 64 ) {
             return self::registry_failure();
         }
         $source_keys = array();
@@ -44,7 +44,7 @@ final class Faluss_Events_Engine {
             }
             $source_keys[ $source_key ] = true;
         }
-        $key = $descriptor['destination'] . "\x1F" . $descriptor['consumer_key'];
+        $key = self::consumer_key( $descriptor['target_node_id'], $descriptor['target_app_key'], $descriptor['destination'], $descriptor['consumer_key'] );
         if ( isset( self::$consumers[ $key ] ) ) {
             self::$consumer_conflict = true;
             return self::registry_failure();
@@ -75,13 +75,19 @@ final class Faluss_Events_Engine {
         return self::accept_event( $event, 'local', null );
     }
 
-    /** No endpoint invokes this primitive in EVT-01B.2A. */
-    public static function accept_inbound_event( $event, $authenticated_sender ) {
-        return self::accept_event( $event, 'inbound', $authenticated_sender );
+    /** Federation invokes this primitive only after authentication and policy. */
+    public static function accept_inbound_event( $event, $authenticated_sender, $authenticated_recipient ) {
+        return self::accept_event( $event, 'inbound', $authenticated_sender, $authenticated_recipient );
     }
 
     /** Private server-side read with canonical integrity revalidation. */
     public static function event_by_id( $event_id ) {
+        $record = self::event_record_by_id( $event_id );
+        return is_wp_error( $record ) ? $record : $record['event'];
+    }
+
+    /** Canonical event and persisted digest used by both workers. */
+    public static function event_record_by_id( $event_id ) {
         global $wpdb;
         if ( ! Faluss_Events_Schema::is_ready() || ! self::is_uuid( $event_id ) ) {
             return self::unavailable();
@@ -99,8 +105,44 @@ final class Faluss_Events_Engine {
         if ( is_wp_error( $canonical ) || ! is_string( $row['event_sha256'] ?? null ) || ! is_string( $row['envelope_json'] ?? null ) || $canonical !== $row['envelope_json'] || ! hash_equals( $row['event_sha256'], hash( 'sha256', $canonical ) ) || $event_id !== ( $event['event_id'] ?? null ) ) {
             return self::unavailable();
         }
-        return $event;
+        return array( 'event' => $event, 'event_sha256' => $row['event_sha256'] );
     }
+
+    /** Resolve an outbox row against the exact immutable PHP route descriptor. */
+    public static function delivery_route( $event, $row ) {
+        if ( self::$route_conflict || ! is_array( $event ) || ! is_array( $row ) ) {
+            return self::registry_failure();
+        }
+        $key = self::source_key( $event['source']['node_id'] ?? '', $event['source']['app_key'] ?? '', $event['source']['capability_key'] ?? '', $event['source']['catalog_version'] ?? '' ) . "\x1F" . ( $row['destination'] ?? '' );
+        $route = self::$routes[ $key ] ?? null;
+        return is_array( $route ) && ( $row['target_node_id'] ?? null ) === $route['target_node_id'] && ( $row['target_app_key'] ?? null ) === $route['target_app_key'] ? $route : self::registry_failure();
+    }
+
+    /** Resolve exactly one registered consumer for an already persisted delivery. */
+    public static function consumer_descriptor( $event, $row, $target_node_id, $target_app_key ) {
+        if ( self::$consumer_conflict || ! is_array( $event ) || ! is_array( $row ) ) {
+            return self::registry_failure();
+        }
+        foreach ( self::$consumers as $consumer ) {
+            if ( ( $row['destination'] ?? null ) !== $consumer['destination'] || ( $row['consumer_key'] ?? null ) !== $consumer['consumer_key'] || $target_node_id !== $consumer['target_node_id'] || $target_app_key !== $consumer['target_app_key'] || ! self::consumer_accepts_source( $consumer, $event ) ) {
+                continue;
+            }
+            return $consumer;
+        }
+        return self::registry_failure();
+    }
+
+    public static function consumers_for_local_route( $event, $destination, $target_node_id, $target_app_key ) {
+        if ( ! is_array( $event ) || ! in_array( $destination, self::DESTINATIONS, true ) ) {
+            return self::registry_failure();
+        }
+        $single = $event;
+        $single['destinations'] = array( $destination );
+        return self::consumers_for_event( $single, array( 'node_id' => $target_node_id, 'app_key' => $target_app_key ) );
+    }
+
+    public static function route_registry_ready() { return ! self::$route_conflict && ! empty( self::$routes ); }
+    public static function consumer_registry_ready() { return ! self::$consumer_conflict && ! empty( self::$consumers ); }
 
     /** Bounded non-sensitive counters only. */
     public static function technical_counts() {
@@ -177,16 +219,26 @@ final class Faluss_Events_Engine {
         return array( 'catalog_uuid' => $catalog_uuid, 'existing' => false );
     }
 
-    private static function accept_event( $event, $direction, $authenticated_sender ) {
+    private static function accept_event( $event, $direction, $authenticated_sender, $authenticated_recipient = null ) {
         if ( ! Faluss_Events_Schema::is_ready() || ! is_array( $event ) || ! in_array( $direction, array( 'local', 'inbound' ), true ) ) {
             return self::unavailable();
         }
-        if ( 'inbound' === $direction && ( ! self::valid_sender( $authenticated_sender ) || ( $event['source']['node_id'] ?? null ) !== $authenticated_sender['node_id'] || ( $event['source']['app_key'] ?? null ) !== $authenticated_sender['app_key'] ) ) {
-            return self::unavailable();
+        if ( 'inbound' === $direction && ( ! self::valid_sender( $authenticated_sender ) || ! self::valid_sender( $authenticated_recipient ) || ( $event['source']['node_id'] ?? null ) !== $authenticated_sender['node_id'] || ( $event['source']['app_key'] ?? null ) !== $authenticated_sender['app_key'] || ( $event['source']['owner'] ?? null ) !== $authenticated_sender['app_key'] ) ) {
+            return self::incompatible();
         }
         $catalog = self::accepted_catalog_for_event( $event );
-        if ( is_wp_error( $catalog ) || ! Faluss_Events::validate_event( $event, $catalog ) ) {
-            return self::unavailable();
+        if ( is_wp_error( $catalog ) ) {
+            return $catalog;
+        }
+        $validator_state = Faluss_Events::payload_validator_state( $event );
+        if ( 'unavailable' === $validator_state ) {
+            return self::registry_failure();
+        }
+        if ( 'registered' !== $validator_state ) {
+            return self::incompatible();
+        }
+        if ( ! Faluss_Events::validate_event( $event, $catalog ) ) {
+            return self::incompatible();
         }
         $canonical = Faluss_Events_Canonicalizer::canonicalize_event( $event );
         $identity_canonical = self::source_identity_canonical( $event );
@@ -199,9 +251,9 @@ final class Faluss_Events_Engine {
         if ( ! is_array( $definition ) ) {
             return self::unavailable();
         }
-        $operations = 'local' === $direction ? self::routes_for_event( $event ) : self::consumers_for_event( $event );
+        $operations = 'local' === $direction ? self::routes_for_event( $event ) : self::consumers_for_event( $event, $authenticated_recipient );
         if ( is_wp_error( $operations ) ) {
-            return self::unavailable();
+            return $operations;
         }
         $uuids = self::operation_uuids( $direction, count( $operations ) );
         if ( is_wp_error( $uuids ) ) {
@@ -243,7 +295,7 @@ final class Faluss_Events_Engine {
                 self::rollback();
                 return self::unavailable();
             }
-            return array( 'event_id' => $event['event_id'], 'existing' => true );
+            return array( 'event_id' => $event['event_id'], 'event_sha256' => $event_hash, 'existing' => true );
         }
         $accepted_timestamp = time();
         $accepted_at = gmdate( 'Y-m-d H:i:s', $accepted_timestamp );
@@ -280,7 +332,7 @@ final class Faluss_Events_Engine {
             self::rollback();
             return self::unavailable();
         }
-        return array( 'event_id' => $event['event_id'], 'existing' => false );
+        return array( 'event_id' => $event['event_id'], 'event_sha256' => $event_hash, 'existing' => false );
     }
 
     private static function accepted_catalog_for_event( $event ) {
@@ -290,8 +342,11 @@ final class Faluss_Events_Engine {
         }
         $source = $event['source'];
         $row = $wpdb->get_row( $wpdb->prepare( 'SELECT catalog_sha256,catalog_json FROM ' . Faluss_Events_Schema::quote_identifier( Faluss_Events_Schema::catalogs_table() ) . ' WHERE source_node_id = %s AND source_app_key = %s AND capability_key = %s AND catalog_version = %s LIMIT 1', $source['node_id'] ?? '', $source['app_key'] ?? '', $source['capability_key'] ?? '', $source['catalog_version'] ?? '' ), ARRAY_A );
-        if ( self::database_has_error() || ! is_array( $row ) ) {
+        if ( self::database_has_error() ) {
             return self::unavailable();
+        }
+        if ( ! is_array( $row ) ) {
+            return self::not_available();
         }
         try {
             $catalog = json_decode( $row['catalog_json'], true, 32, JSON_THROW_ON_ERROR );
@@ -325,8 +380,11 @@ final class Faluss_Events_Engine {
         return $routes;
     }
 
-    private static function consumers_for_event( $event ) {
+    private static function consumers_for_event( $event, $recipient ) {
         if ( self::$consumer_conflict ) {
+            return self::registry_failure();
+        }
+        if ( ! self::valid_sender( $recipient ) ) {
             return self::registry_failure();
         }
         $resolved = array();
@@ -334,7 +392,7 @@ final class Faluss_Events_Engine {
         foreach ( $event['destinations'] as $destination ) {
             $found = false;
             foreach ( self::$consumers as $consumer ) {
-                if ( $destination !== $consumer['destination'] ) {
+                if ( $destination !== $consumer['destination'] || $recipient['node_id'] !== $consumer['target_node_id'] || $recipient['app_key'] !== $consumer['target_app_key'] ) {
                     continue;
                 }
                 foreach ( $consumer['sources'] as $source ) {
@@ -399,7 +457,15 @@ final class Faluss_Events_Engine {
     }
 
     private static function route_key( $descriptor ) { return self::source_key( $descriptor['source_node_id'], $descriptor['source_app_key'], $descriptor['source_capability_key'], $descriptor['catalog_version'] ) . "\x1F" . $descriptor['destination']; }
+    private static function consumer_key( $node, $app, $destination, $consumer ) { return implode( "\x1F", array( $node, $app, $destination, $consumer ) ); }
     private static function source_key( $node, $app, $capability, $version ) { return implode( "\x1F", array( $node, $app, $capability, $version ) ); }
+    private static function consumer_accepts_source( $consumer, $event ) {
+        $wanted = self::source_key( $event['source']['node_id'] ?? '', $event['source']['app_key'] ?? '', $event['source']['capability_key'] ?? '', $event['source']['catalog_version'] ?? '' );
+        foreach ( $consumer['sources'] as $source ) {
+            if ( $wanted === self::source_key( $source['node_id'], $source['app_key'], $source['capability_key'], $source['catalog_version'] ) ) { return true; }
+        }
+        return false;
+    }
     private static function valid_consumer_source( $source ) { return self::exact_keys( $source, array( 'node_id', 'app_key', 'capability_key', 'catalog_version' ) ) && self::is_node( $source['node_id'] ) && self::is_app_key( $source['app_key'] ) && self::is_capability( $source['capability_key'], $source['app_key'] ) && self::is_semver( $source['catalog_version'] ); }
     private static function valid_sender( $sender ) { return self::exact_keys( $sender, array( 'node_id', 'app_key' ) ) && self::is_node( $sender['node_id'] ) && self::is_app_key( $sender['app_key'] ); }
     private static function is_node( $value ) { return self::is_app_key( $value ); }
@@ -448,5 +514,7 @@ final class Faluss_Events_Engine {
     private static function uuid() { if ( ! function_exists( 'wp_generate_uuid4' ) ) { return self::unavailable(); } $uuid = wp_generate_uuid4(); return self::is_uuid( $uuid ) ? $uuid : self::unavailable(); }
     private static function unavailable() { return new WP_Error( 'faluss_events_unavailable' ); }
     private static function conflict() { return new WP_Error( 'faluss_events_conflict' ); }
+    private static function incompatible() { return new WP_Error( 'faluss_events_incompatible' ); }
+    private static function not_available() { return new WP_Error( 'faluss_events_not_available' ); }
     private static function registry_failure() { return new WP_Error( 'faluss_events_registry_unavailable' ); }
 }

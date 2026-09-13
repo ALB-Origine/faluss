@@ -83,13 +83,14 @@ runtime ; aucun registre CAP-01B n'est livré ici.
 FED-01A réserve un échange HTTPS serveur-à-serveur entre nœuds approuvés, signé
 uniquement Ed25519, à clés locales rotationnées et politique exacte par nœud,
 application, opération, capacité et audience lorsque l'opération en possède une.
-Il ferme l'échange à quatre lectures bornées, impose canonicalisation, durée courte et anti-rejeu atomique,
+Il ferme l'échange à quatre lectures bornées et à l'unique écriture
+`event.publish`, impose canonicalisation, durée courte et anti-rejeu atomique,
 et ne partage ni session WordPress ni table. FPR, Identity, Token Connector et
 Stripe restent séparés. FED-01B ajoute exclusivement sa route privée, ses clés
 publiques et politiques locales, son anti-rejeu et son audit technique ; aucun
 provider métier, manifeste réel ou projection membre n'est embarqué.
 
-## Contrat et cœur persistant des événements EVT-01A / EVT-01B.2A
+## Contrat, persistance et transport des événements EVT-01A / EVT-01B.2B
 
 EVT-01A définit une enveloppe `faluss.event` et un catalogue propriétaire
 `faluss.event-source-catalog`, tous deux en version 1.0.0. Un événement est un
@@ -103,10 +104,10 @@ Progression. L'événement accepté est append-only. Une future livraison sera a
 moins une fois et chaque consommateur devra rendre son propre effet idempotent ;
 la ligne de delivery ne garantit pas seule un effet externe exactement une fois.
 CAP `event_source`, catalogue EVT, binding actif et politique consommateur sont
-tous obligatoires. Faluss Events 0.2.1 valide catalogues et enveloppes, croise le
-catalogue avec le manifeste CAP accepté et fournit le schéma persistant 1.
-Federation 0.2.0 ajoute seulement `event_catalog.read`; aucun transport
-d'enveloppe événementielle n'existe encore.
+tous obligatoires. Faluss Events 0.3.0 valide catalogues et enveloppes, croise le
+catalogue avec le manifeste CAP accepté et conserve le schéma persistant 1.
+Federation 0.3.0 expose `event_catalog.read` et l'unique transport fermé
+`event.publish` sur la route Ed25519 existante.
 
 EVT-01B.2A crée exactement les journaux de catalogues et d'événements, l'outbox,
 l'inbox et les deliveries consommateurs. Une acceptation locale écrit
@@ -120,10 +121,13 @@ Les clés namespacées et types de document sont bornés à 512 caractères, les
 clés consommateur internes à 128 et les versions sémantiques EVT à 32 avant
 toute écriture. Ces limites correspondent au DDL inchangé du schéma 1.
 
-Ces primitives restent internes : aucune route, `event.publish`, lease, queue
-active, worker, cron ou callback n'est lancé. Aucun provider, catalogue ou
-événement Hub/Me et aucun consommateur métier n'est enregistré. EVT-01B.2B doit
-ajouter le transport et les workers avant AN-01. Le contrat complet est dans
+EVT-01B.2B active deux workers bornés à 50 lignes, avec lease opaque, commit
+avant réseau/callback, reprise d'un lease expiré, huit tentatives et échéances
+60/300/900/3600/10800/21600/43200 secondes. La route locale crée les deliveries
+et confirme l'outbox dans une transaction ; la route distante appelle seulement
+la façade Federation. L'effet consommateur reste au moins une fois et sa clé
+d'idempotence est stable. Aucun provider, catalogue, route ou événement Hub/Me
+et aucun consommateur métier n'est enregistré. Le contrat complet est dans
 [`FALUSS_EVENTS_CONTRACT.md`](FALUSS_EVENTS_CONTRACT.md).
 
 ## Production Reset FPR-01

@@ -12,6 +12,8 @@ final class Faluss_Federation_Providers {
     private static $event_catalog_providers = array();
     private static $event_catalog_contract_validators = array();
     private static $event_catalog_conflict = false;
+    private static $event_publish_adapter = null;
+    private static $event_publish_conflict = false;
 
     public static function boot() {}
 
@@ -22,7 +24,30 @@ final class Faluss_Federation_Providers {
             'manifest.read' => empty( self::$manifest_providers ) ? 'not_available' : 'registered',
             'read_model.read' => empty( self::$read_model_providers ) ? 'not_available' : 'registered',
             'event_catalog.read' => self::$event_catalog_conflict || empty( self::$event_catalog_providers ) ? 'not_available' : 'registered',
+            'event.publish' => self::$event_publish_conflict || ! is_array( self::$event_publish_adapter ) ? 'not_available' : 'registered',
         );
+    }
+
+    /** Events registers three independent callables; a duplicate poisons this operation closed. */
+    public static function register_event_publish_adapter( $request_validator, $receiver, $response_validator ) {
+        if ( ! is_callable( $request_validator ) || ! is_callable( $receiver ) || ! is_callable( $response_validator ) || null !== self::$event_publish_adapter ) {
+            self::$event_publish_conflict = true;
+            self::$event_publish_adapter = null;
+            return new WP_Error( 'faluss_federation_provider_refused' );
+        }
+        self::$event_publish_adapter = array( 'request_validator' => $request_validator, 'receiver' => $receiver, 'response_validator' => $response_validator );
+        return true;
+    }
+
+    public static function validate_event_publish_request( $request ) {
+        if ( self::$event_publish_conflict || ! is_array( self::$event_publish_adapter ) ) {
+            return false;
+        }
+        try {
+            return true === call_user_func( self::$event_publish_adapter['request_validator'], $request );
+        } catch ( Throwable $throwable ) {
+            return false;
+        }
     }
 
     /** Trusted server PHP may register one exact owner producer. */
@@ -151,6 +176,15 @@ final class Faluss_Federation_Providers {
             }
             return self::dispatch_event_catalog( self::$event_catalog_providers[ $key ], $request );
         }
+        if ( 'event.publish' === $request['operation'] ) {
+            if ( self::$event_publish_conflict ) {
+                return self::failure( 'not_available' );
+            }
+            if ( ! is_array( self::$event_publish_adapter ) ) {
+                return self::failure( 'not_available' );
+            }
+            return self::dispatch_event_publish( $request );
+        }
         return self::failure( 'invalid_request' );
     }
 
@@ -166,6 +200,16 @@ final class Faluss_Federation_Providers {
         }
         if ( 'event_catalog.read' === ( $request['operation'] ?? null ) ) {
             return self::validate_event_catalog_payload( $response['payload'], $response['payload_contract'], $request );
+        }
+        if ( 'event.publish' === ( $request['operation'] ?? null ) ) {
+            if ( self::$event_publish_conflict || ! is_array( self::$event_publish_adapter ) ) {
+                return false;
+            }
+            try {
+                return true === call_user_func( self::$event_publish_adapter['response_validator'], $response['payload'], $response['payload_contract'], $request );
+            } catch ( Throwable $throwable ) {
+                return false;
+            }
         }
         $key = self::descriptor_key_from_parameters( $request['parameters'] ?? array() );
         $entry = null !== $key ? ( self::$read_model_providers[ $key ] ?? null ) : null;
@@ -239,6 +283,37 @@ final class Faluss_Federation_Providers {
             return self::failure( 'incompatible' );
         }
         return array( 'status' => 'success', 'payload_contract' => $result['payload_contract'], 'payload' => $result['payload'], 'error' => null );
+    }
+
+    private static function dispatch_event_publish( $request ) {
+        if ( ! self::validate_event_publish_request( $request ) ) {
+            return self::failure( 'incompatible' );
+        }
+        try {
+            $result = call_user_func( self::$event_publish_adapter['receiver'], self::safe_context( $request ) );
+        } catch ( Throwable $throwable ) {
+            return self::failure( 'temporarily_unavailable' );
+        }
+        if ( is_wp_error( $result ) ) {
+            $code = $result->get_error_code();
+            if ( 'faluss_events_conflict' === $code || 'faluss_events_incompatible' === $code ) {
+                return self::failure( 'incompatible' );
+            }
+            if ( 'faluss_events_not_available' === $code || 'faluss_events_registry_unavailable' === $code ) {
+                return self::failure( 'not_available' );
+            }
+            return self::failure( 'temporarily_unavailable' );
+        }
+        $contract = array( 'document_type' => 'faluss.event-acceptance', 'contract_version' => '1.0.0' );
+        try {
+            $valid = is_array( $result ) && true === call_user_func( self::$event_publish_adapter['response_validator'], $result, $contract, $request );
+        } catch ( Throwable $throwable ) {
+            $valid = false;
+        }
+        if ( ! $valid ) {
+            return self::failure( 'incompatible' );
+        }
+        return array( 'status' => 'success', 'payload_contract' => $contract, 'payload' => $result, 'error' => null );
     }
 
     private static function validate_event_catalog_payload( $payload, $contract, $request ) {

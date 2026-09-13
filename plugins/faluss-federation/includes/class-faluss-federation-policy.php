@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /** Local trust store and exact operation policy. Remote manifests never create trust. */
 final class Faluss_Federation_Policy {
-    public static function operations() { return array( 'diagnostic.read', 'manifest.read', 'read_model.read', 'event_catalog.read' ); }
+    public static function operations() { return array( 'diagnostic.read', 'manifest.read', 'read_model.read', 'event_catalog.read', 'event.publish' ); }
     public static function audiences() { return array( 'private', 'members', 'public' ); }
 
     public static function has_usable_peer() {
@@ -80,6 +80,11 @@ final class Faluss_Federation_Policy {
         if ( 'event_catalog.read' === $request['operation'] ) {
             $parameters = $request['parameters'];
             return null === $request['subject_context'] && ( $parameters['owner_app_key'] ?? null ) === $request['recipient']['app_key'] && in_array( $parameters['owner_app_key'] ?? '', $peer['owner_apps'], true ) && in_array( $parameters['capability_key'] ?? '', $peer['capabilities'], true ) ? true : new WP_Error( 'faluss_federation_not_authorized' );
+        }
+        if ( 'event.publish' === $request['operation'] ) {
+            $event = $request['parameters']['event'] ?? null;
+            $source = is_array( $event ) ? ( $event['source'] ?? null ) : null;
+            return null === $request['subject_context'] && is_array( $source ) && ( $source['node_id'] ?? null ) === $peer['peer_node_id'] && ( $source['app_key'] ?? null ) === $peer['peer_app_key'] && ( $source['owner'] ?? null ) === $peer['peer_app_key'] && in_array( $source['capability_key'] ?? '', $peer['capabilities'], true ) ? true : new WP_Error( 'faluss_federation_not_authorized' );
         }
         $parameters = $request['parameters'];
         if ( ( $parameters['owner_app_key'] ?? null ) !== $request['recipient']['app_key'] || ! in_array( $parameters['owner_app_key'] ?? '', $peer['owner_apps'], true ) || ! in_array( $parameters['capability_key'] ?? '', $peer['capabilities'], true ) || ! in_array( $parameters['audience'] ?? '', $peer['audiences'], true ) ) {
@@ -335,7 +340,7 @@ final class Faluss_Federation_Policy {
         if ( ! is_array( $row ) ) {
             return new WP_Error( 'faluss_federation_unknown_peer' );
         }
-        $peer = array( 'id' => absint( $row['id'] ?? 0 ), 'peer_node_id' => $row['peer_node_id'] ?? '', 'peer_app_key' => $row['peer_app_key'] ?? '', 'canonical_origin' => $row['canonical_origin'] ?? '', 'key_id' => $row['key_id'] ?? '', 'public_key' => $row['public_key'] ?? '', 'key_state' => $row['key_state'] ?? '', 'valid_from' => $row['valid_from'] ?? '', 'valid_until' => $row['valid_until'] ?? '', 'operations' => self::decode_list( $row['operations_json'] ?? '', 'operation', 4 ), 'owner_apps' => self::decode_list( $row['owner_apps_json'] ?? '', 'node', 32 ), 'capabilities' => self::decode_list( $row['capabilities_json'] ?? '', 'capability', 128 ), 'audiences' => self::decode_list( $row['audiences_json'] ?? '', 'audience', 3 ) );
+        $peer = array( 'id' => absint( $row['id'] ?? 0 ), 'peer_node_id' => $row['peer_node_id'] ?? '', 'peer_app_key' => $row['peer_app_key'] ?? '', 'canonical_origin' => $row['canonical_origin'] ?? '', 'key_id' => $row['key_id'] ?? '', 'public_key' => $row['public_key'] ?? '', 'key_state' => $row['key_state'] ?? '', 'valid_from' => $row['valid_from'] ?? '', 'valid_until' => $row['valid_until'] ?? '', 'operations' => self::decode_list( $row['operations_json'] ?? '', 'operation', 5 ), 'owner_apps' => self::decode_list( $row['owner_apps_json'] ?? '', 'node', 32 ), 'capabilities' => self::decode_list( $row['capabilities_json'] ?? '', 'capability', 128 ), 'audiences' => self::decode_list( $row['audiences_json'] ?? '', 'audience', 3 ) );
         return self::peer_is_usable( $peer ) ? $peer : new WP_Error( 'faluss_federation_unknown_peer' );
     }
 
@@ -356,7 +361,7 @@ final class Faluss_Federation_Policy {
         if ( array_diff( array_keys( $input ), $allowed ) || array_diff( $allowed, array_keys( $input ) ) ) {
             return new WP_Error( 'faluss_federation_invalid_peer' );
         }
-        $peer = array( 'peer_node_id' => $input['peer_node_id'], 'peer_app_key' => $input['peer_app_key'], 'canonical_origin' => $input['canonical_origin'], 'key_id' => $input['key_id'], 'public_key' => $input['public_key'], 'key_state' => $input['key_state'], 'valid_from' => $input['valid_from'], 'valid_until' => $input['valid_until'], 'operations' => self::normalize_list( $input['operations'], 'operation', 4 ), 'owner_apps' => self::normalize_list( $input['owner_apps'], 'node', 32 ), 'capabilities' => self::normalize_list( $input['capabilities'], 'capability', 128 ), 'audiences' => self::normalize_list( $input['audiences'], 'audience', 3 ) );
+        $peer = array( 'peer_node_id' => $input['peer_node_id'], 'peer_app_key' => $input['peer_app_key'], 'canonical_origin' => $input['canonical_origin'], 'key_id' => $input['key_id'], 'public_key' => $input['public_key'], 'key_state' => $input['key_state'], 'valid_from' => $input['valid_from'], 'valid_until' => $input['valid_until'], 'operations' => self::normalize_list( $input['operations'], 'operation', 5 ), 'owner_apps' => self::normalize_list( $input['owner_apps'], 'node', 32 ), 'capabilities' => self::normalize_list( $input['capabilities'], 'capability', 128 ), 'audiences' => self::normalize_list( $input['audiences'], 'audience', 3 ) );
         $from = strtotime( str_replace( ' ', 'T', $peer['valid_from'] ) . 'Z' );
         $until = strtotime( str_replace( ' ', 'T', $peer['valid_until'] ) . 'Z' );
         if ( ! Faluss_Federation_Crypto::is_node( $peer['peer_node_id'] ) || ! Faluss_Federation_Crypto::is_node( $peer['peer_app_key'] ) || ! Faluss_Federation_Crypto::is_canonical_origin( $peer['canonical_origin'] ) || ! Faluss_Federation_Crypto::is_key_id( $peer['key_id'] ) || is_wp_error( Faluss_Federation_Crypto::base64url_decode( $peer['public_key'], 32 ) ) || 'active' !== $peer['key_state'] || false === $from || false === $until || $until <= $from || in_array( false, $peer, true ) ) {
@@ -372,7 +377,7 @@ final class Faluss_Federation_Policy {
             return new WP_Error( 'faluss_federation_invalid_peer_policy' );
         }
         $policy = array(
-            'operations' => self::normalize_policy_list( $input['operations'], 'operation', 4, false ),
+            'operations' => self::normalize_policy_list( $input['operations'], 'operation', 5, false ),
             'owner_apps' => self::normalize_policy_list( $input['owner_apps'], 'node', 32, $existing ),
             'capabilities' => self::normalize_policy_list( $input['capabilities'], 'capability', 128, true ),
             'audiences' => self::normalize_policy_list( $input['audiences'], 'audience', 3, true ),

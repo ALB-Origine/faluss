@@ -31,7 +31,7 @@ function fed01a_has_remote_ref( $value ) {
     if ( ! is_array( $value ) ) {
         return false;
     }
-    if ( isset( $value['$ref'] ) && ( ! is_string( $value['$ref'] ) || 0 !== strpos( $value['$ref'], '#/' ) ) ) {
+    if ( isset( $value['$ref'] ) && ( ! is_string( $value['$ref'] ) || ( 0 !== strpos( $value['$ref'], '#/' ) && 'faluss-event-envelope.schema.json' !== $value['$ref'] ) ) ) {
         return true;
     }
     foreach ( $value as $child ) {
@@ -379,9 +379,9 @@ $response_schema = json_decode( file_get_contents( $root . '/contracts/faluss-fe
 $contract = file_get_contents( $root . '/docs/FALUSS_FEDERATION_CONTRACT.md' );
 
 fed01a_assert( is_array( $request_schema ) && is_array( $response_schema ), 'both Federation schemas parse as JSON' );
-fed01a_assert( ! fed01a_has_remote_ref( $request_schema ) && ! fed01a_has_remote_ref( $response_schema ), 'schemas use only local references' );
+fed01a_assert( ! fed01a_has_remote_ref( $request_schema ) && ! fed01a_has_remote_ref( $response_schema ), 'schemas use only local references except the exact sibling EVT envelope contract' );
 fed01a_assert( false === $request_schema['additionalProperties'] && false === $response_schema['additionalProperties'], 'envelopes are closed' );
-fed01a_assert( 4 === count( $request_schema['allOf'] ) && 8 === count( $response_schema['allOf'] ), 'operation and each status branch are explicit' );
+fed01a_assert( 5 === count( $request_schema['allOf'] ) && 8 === count( $response_schema['allOf'] ), 'operation and each status branch are explicit' );
 fed01a_assert( array( 'subject_faluss_id' ) === $request_schema['$defs']['subjectContext']['oneOf'][1]['required'], 'subject context has no second audience authority' );
 fed01a_assert( '^[A-Za-z0-9_-]{43}$' === $request_schema['$defs']['nonce']['pattern'], 'schema fixes nonce representation to 43 characters' );
 fed01a_assert( 'base64url-no-padding-canonical-64-bytes' === $response_schema['x-fed01a-transport']['signature_encoding'], 'response schema fixes canonical Ed25519 encoding' );

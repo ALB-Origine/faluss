@@ -178,7 +178,8 @@ réémission automatique ne contourne pas ces contrôles.
 
 La liste précédente est exhaustive. Sont notamment interdits :
 
-- `event.publish` et tout transport d'enveloppe événementielle ;
+- tout transport d'enveloppe événementielle autre que l'opération fermée
+  `event.publish` enregistrée par Faluss Events ;
 - RPC arbitraire, action déléguée générique, écriture de profil ou de registre ;
 - claim, PF, débit, crédit, achat, paiement, entitlement, cosmétique, Fans,
   Shop, progression ou quête ;
@@ -191,26 +192,26 @@ Toute demande invalide, non autorisée, expirée, incompatible ou non conforme
 échoue fermée. Elle n'entraîne ni accès direct, ni cache ancien, ni valeur
 inventée, ni deuxième transport de secours.
 
-## Coordination avec EVT-01A
+## Coordination avec EVT-01A et EVT-01B.2B
 
-`event.publish` reste interdit. Les quatre opérations actuelles
-`diagnostic.read`, `manifest.read`, `read_model.read` et `event_catalog.read`
-sont des lectures fermées et ne peuvent jamais être renommées, enveloppées ou
-détournées pour publier un événement. Un payload `faluss.event`, même conforme,
-est donc refusé par le protocole actuel.
+`event.publish` est la cinquième et seule opération d'écriture transportée. Elle
+accepte exactement `parameters.event` et `subject_context = null` sur la route
+signée existante. Elle n'est pas un RPC ni un bus générique. Source node/app/
+owner, destinataire, capacité, catalogue accepté et consommateurs doivent tous
+correspondre exactement au pair et aux registres locaux.
 
 EVT-01A ajoute les contrats documentaires
 [`faluss.event`](../contracts/faluss-event-envelope.schema.json) et
 [`faluss.event-source-catalog`](../contracts/faluss-event-source-catalog.schema.json).
-EVT-01B.1 ajoute seulement la branche de requête `event_catalog.read`, sans
-changer le schéma de réponse, la route, la canonicalisation, les en-têtes, les
-nonces, le stockage ou l'algorithme. Son provider séparé exige le validateur EVT
-et la validation croisée du manifeste CAP accepté. Une politique existante ne
-contenant pas l'opération continue de refuser.
+EVT-01B.1 conserve sa lecture `event_catalog.read`. EVT-01B.2B enregistre par
+Faluss Events trois callables distincts : validation de requête, réception
+inbound et validation d'accusé. Le succès porte exclusivement
+`faluss.event-acceptance` 1.0.0, avec l'ID, le SHA-256 canonique et la disposition
+`accepted` ou `existing`. Une politique existante ne contenant pas
+`event.publish` continue de refuser ; aucune politique n'est migrée.
 
-Le transport futur des événements eux-mêmes exigera une autre extension
-explicitement versionnée et autorisée. Il ne pourra réutiliser aucun secret FPR,
-Faluss Identity, Token Engine Connector, Stripe ou aucune session WordPress.
+Cette extension ne réutilise aucun secret FPR, Faluss Identity, Token Engine
+Connector, Stripe ou session WordPress.
 
 ## Enveloppe, signature et fraîcheur de réponse
 

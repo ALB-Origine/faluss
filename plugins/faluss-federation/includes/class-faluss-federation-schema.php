@@ -270,13 +270,14 @@ final class Faluss_Federation_Schema {
         if ( array_diff( array_keys( $data ), $allowed ) ) {
             return false;
         }
-        $request_id = isset( $data['request_id'] ) && self::is_uuid( $data['request_id'] ) ? $data['request_id'] : null;
+        $operation = isset( $data['operation_name'] ) && in_array( $data['operation_name'], Faluss_Federation_Policy::operations(), true ) ? $data['operation_name'] : null;
+        $is_event_publish = 'event.publish' === $operation;
+        $request_id = ! $is_event_publish && isset( $data['request_id'] ) && self::is_uuid( $data['request_id'] ) ? $data['request_id'] : null;
         $sender = isset( $data['sender_node_id'] ) && self::is_node( $data['sender_node_id'] ) ? $data['sender_node_id'] : null;
         $recipient = isset( $data['recipient_node_id'] ) && self::is_node( $data['recipient_node_id'] ) ? $data['recipient_node_id'] : null;
-        $operation = isset( $data['operation_name'] ) && in_array( $data['operation_name'], Faluss_Federation_Policy::operations(), true ) ? $data['operation_name'] : null;
         $capability = isset( $data['capability_key'] ) && is_string( $data['capability_key'] ) && strlen( $data['capability_key'] ) <= 160 ? $data['capability_key'] : null;
         $result = isset( $data['result_code'] ) && is_string( $data['result_code'] ) && 1 === preg_match( '/^[a-z_]{1,64}$/D', $data['result_code'] ) ? $data['result_code'] : 'fail_closed';
-        $opaque = isset( $data['opaque_code'] ) && is_string( $data['opaque_code'] ) && 1 === preg_match( '/^[a-z_]{1,64}$/D', $data['opaque_code'] ) ? $data['opaque_code'] : 'unknown';
+        $opaque = $is_event_publish ? '' : ( isset( $data['opaque_code'] ) && is_string( $data['opaque_code'] ) && 1 === preg_match( '/^[a-z_]{1,64}$/D', $data['opaque_code'] ) ? $data['opaque_code'] : 'unknown' );
         $duration = isset( $data['duration_ms'] ) ? absint( $data['duration_ms'] ) : 0;
         return false !== $wpdb->insert( self::audit_table(), array( 'audit_uuid' => wp_generate_uuid4(), 'request_id' => $request_id, 'sender_node_id' => $sender, 'recipient_node_id' => $recipient, 'operation_name' => $operation, 'capability_key' => $capability, 'result_code' => $result, 'opaque_code' => $opaque, 'duration_ms' => $duration, 'created_at' => gmdate( 'Y-m-d H:i:s' ), 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + self::AUDIT_RETENTION_SECONDS ) ), array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ) );
     }

@@ -153,7 +153,11 @@ final class Faluss_Federation_Server {
         if ( ! is_string( $raw ) || is_wp_error( $signature ) ) {
             return self::pre_auth_reject();
         }
-        Faluss_Federation_Schema::audit( array( 'request_id' => $request['request_id'], 'sender_node_id' => $request['sender']['node_id'], 'recipient_node_id' => $identity['node_id'], 'operation_name' => $request['operation'], 'capability_key' => $request['parameters']['capability_key'] ?? null, 'result_code' => $status, 'opaque_code' => 'receiver', 'duration_ms' => (int) round( ( microtime( true ) - $started ) * 1000 ) ) );
+        $duration = (int) round( ( microtime( true ) - $started ) * 1000 );
+        $audit = 'event.publish' === $request['operation']
+            ? array( 'sender_node_id' => $request['sender']['node_id'], 'recipient_node_id' => $identity['node_id'], 'operation_name' => $request['operation'], 'capability_key' => $request['parameters']['event']['source']['capability_key'] ?? null, 'result_code' => $status, 'duration_ms' => $duration )
+            : array( 'request_id' => $request['request_id'], 'sender_node_id' => $request['sender']['node_id'], 'recipient_node_id' => $identity['node_id'], 'operation_name' => $request['operation'], 'capability_key' => $request['parameters']['capability_key'] ?? null, 'result_code' => $status, 'opaque_code' => 'receiver', 'duration_ms' => $duration );
+        Faluss_Federation_Schema::audit( $audit );
         $response_object = new WP_REST_Response( array( '_faluss_federation_raw_json' => $raw ), $http_status );
         $response_object->header( 'Content-Type', 'application/json' );
         $response_object->header( 'Cache-Control', 'private, no-store' );
@@ -242,6 +246,9 @@ final class Faluss_Federation_Server {
             $parameters = $request['parameters'];
             return null === $request['subject_context'] && self::only_keys( $parameters, array( 'owner_app_key', 'capability_key', 'catalog_version' ) ) && self::has_keys( $parameters, array( 'owner_app_key', 'capability_key', 'catalog_version' ) ) && Faluss_Federation_Crypto::is_node( $parameters['owner_app_key'] ) && is_string( $parameters['capability_key'] ) && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $parameters['capability_key'] ) && 0 === strpos( $parameters['capability_key'], $parameters['owner_app_key'] . '.' ) && Faluss_Federation_Crypto::is_semver( $parameters['catalog_version'] );
         }
+        if ( 'event.publish' === $request['operation'] ) {
+            return null === $request['subject_context'] && self::only_keys( $request['parameters'], array( 'event' ) ) && self::has_keys( $request['parameters'], array( 'event' ) ) && Faluss_Federation_Providers::validate_event_publish_request( $request );
+        }
         $parameters = $request['parameters'];
         $subject = $request['subject_context'];
         return self::only_keys( $parameters, array( 'owner_app_key', 'capability_key', 'document_type', 'contract_version', 'audience' ) ) && self::has_keys( $parameters, array( 'owner_app_key', 'capability_key', 'document_type', 'contract_version', 'audience' ) ) && Faluss_Federation_Crypto::is_node( $parameters['owner_app_key'] ) && is_string( $parameters['capability_key'] ) && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9_.-]{1,127})+$/D', $parameters['capability_key'] ) && is_string( $parameters['document_type'] ) && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63})+$/D', $parameters['document_type'] ) && Faluss_Federation_Crypto::is_semver( $parameters['contract_version'] ) && in_array( $parameters['audience'], Faluss_Federation_Policy::audiences(), true ) && ( null === $subject || ( self::only_keys( $subject, array( 'subject_faluss_id' ) ) && Faluss_Federation_Crypto::is_uuid( $subject['subject_faluss_id'] ?? '' ) ) );
@@ -269,7 +276,12 @@ final class Faluss_Federation_Server {
     private static function failure_status( $error ) { return 'faluss_federation_incompatible' === $error->get_error_code() ? 'incompatible' : ( 'faluss_federation_invalid_request' === $error->get_error_code() ? 'invalid_request' : 'not_authorized' ); }
     private static function consume_failure_status( $error ) { return 'faluss_federation_replay_rejected' === $error->get_error_code() ? 'replay_rejected' : 'temporarily_unavailable'; }
     private static function http_status( $status ) { $map = array( 'success' => 200, 'empty' => 200, 'not_available' => 404, 'not_authorized' => 403, 'incompatible' => 409, 'temporarily_unavailable' => 503, 'invalid_request' => 400, 'replay_rejected' => 409 ); return $map[ $status ] ?? 400; }
-    private static function rate_limit( $operation ) { return 'diagnostic.read' === $operation ? 30 : ( 'manifest.read' === $operation ? 60 : 600 ); }
+    private static function rate_limit( $operation ) {
+        if ( 'diagnostic.read' === $operation ) { return 30; }
+        if ( 'manifest.read' === $operation ) { return 60; }
+        if ( 'event.publish' === $operation ) { return 600; }
+        return 600;
+    }
     private static function valid_date( $value ) { return Faluss_Federation_Crypto::is_utc_timestamp( $value ); }
     private static function valid_sender( $value ) { return self::only_keys( $value, array( 'node_id', 'app_key', 'key_id' ) ) && self::has_keys( $value, array( 'node_id', 'app_key', 'key_id' ) ) && Faluss_Federation_Crypto::is_node( $value['node_id'] ) && Faluss_Federation_Crypto::is_node( $value['app_key'] ) && Faluss_Federation_Crypto::is_key_id( $value['key_id'] ); }
     private static function valid_recipient( $value ) { return self::only_keys( $value, array( 'node_id', 'app_key' ) ) && self::has_keys( $value, array( 'node_id', 'app_key' ) ) && Faluss_Federation_Crypto::is_node( $value['node_id'] ) && Faluss_Federation_Crypto::is_node( $value['app_key'] ); }
