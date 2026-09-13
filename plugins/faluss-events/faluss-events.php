@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Faluss Events
  * Description: Coeur persistant et validateurs fermes des contrats d'evenements Faluss.
- * Version: 0.2.0
+ * Version: 0.2.1
  * Requires at least: 6.4
  * Requires PHP: 7.4
  */
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'FALUSS_EVENTS_VERSION', '0.2.0' );
+define( 'FALUSS_EVENTS_VERSION', '0.2.1' );
 define( 'FALUSS_EVENTS_SCHEMA_VERSION', '1' );
 
 require_once __DIR__ . '/includes/class-faluss-events-catalog-validator.php';

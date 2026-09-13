@@ -185,7 +185,7 @@ activation métier.
 
 ## EVT-01B.2A — Cœur persistant du moteur — livré techniquement
 
-Faluss Events `0.2.0`, schéma `1`, matérialise exactement cinq tables InnoDB :
+Faluss Events `0.2.1`, schéma `1`, matérialise exactement cinq tables InnoDB :
 catalogues acceptés, événements, outbox, inbox et deliveries consommateurs. Le
 moteur canonicalise et hache les documents, sérialise les identités et
 `event_id` concurrents, refuse les divergences et écrit chaque événement avec
@@ -195,6 +195,11 @@ Les routes et consommateurs sont des registres PHP fermés sans wildcard. Aucun
 descriptor réel n'est enregistré, aucun callback n'est exécuté et les cinq
 tables restent vides après installation. Aucun endpoint, événement réel,
 tracking ou donnée métier n'est ajouté.
+
+EVT-01B.2A.1 aligne avant installation les limites des deux schémas JSON et des
+validateurs PHP sur le stockage existant : 512 caractères pour les clés
+namespacées, 128 pour les clés consommateur internes et 32 pour les versions
+sémantiques EVT. Le DDL du schéma 1 reste inchangé, sans migration.
 
 ## EVT-01B.2B — Transport et workers — à réaliser
 

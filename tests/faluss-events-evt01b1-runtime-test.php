@@ -321,7 +321,7 @@ $branch = $schema['allOf'][3]['then']['properties'];
 evt01b1_assert( null === $branch['subject_context']['const'] && array( 'owner_app_key', 'capability_key', 'catalog_version' ) === $branch['parameters']['required'] && false === $branch['parameters']['additionalProperties'], 'Schema branch requires null subject and exactly three parameters.' );
 $bootstrap = file_get_contents( $root . '/plugins/faluss-federation/faluss-federation.php' );
 $events_bootstrap = file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' );
-evt01b1_assert( false !== strpos( $bootstrap, 'Version: 0.2.0' ) && false !== strpos( $bootstrap, "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ) && false !== strpos( $events_bootstrap, 'Version: 0.2.0' ) && false !== strpos( $events_bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ), 'Versions must be Events 0.2.0/schema 1 and Federation 0.2.0/schema 1.' );
+evt01b1_assert( false !== strpos( $bootstrap, 'Version: 0.2.0' ) && false !== strpos( $bootstrap, "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ) && false !== strpos( $events_bootstrap, 'Version: 0.2.1' ) && false !== strpos( $events_bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ), 'Versions must be Events 0.2.1/schema 1 and Federation 0.2.0/schema 1.' );
 Faluss_Events::boot();
 evt01b1_assert( isset( $GLOBALS['evt01b1_hooks']['faluss_federation_ready'][20] ) && isset( $GLOBALS['evt01b1_hooks']['plugins_loaded'][40] ), 'Both early and late activation orders retain one deterministic integration callback.' );
 

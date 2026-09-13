@@ -1,4 +1,4 @@
-# Faluss Events 0.2.0 — cœur persistant sans transport
+# Faluss Events 0.2.1 — cœur persistant sans transport
 
 ## Frontière
 
@@ -7,6 +7,14 @@ Faluss Events valide les contrats `faluss.event-source-catalog` 1.0.0 et
 `1`. EVT-01B.2A crée cinq tables append-only, canonicalise catalogues et
 enveloppes, impose l'idempotence métier et prépare les lignes durables de
 livraison.
+
+EVT-01B.2A.1 aligne les domaines acceptés avant installation sur les colonnes
+existantes : 512 caractères au plus pour une clé namespacée ou un type de
+document, 128 pour une clé consommateur interne et 32 pour toute version
+sémantique EVT. Les deux schémas JSON et tous les validateurs ou registres PHP
+concernés appliquent ces mêmes bornes avant verrou, transaction, écriture ou
+génération d'UUID. Le schéma interne reste `1`, son DDL est inchangé et aucune
+migration n'est ajoutée.
 
 Ce lot n'enregistre aucun provider ou catalogue Hub/Me, ne produit aucun
 événement et n'active ni `event.publish`, ni endpoint, transport, lease, worker,
@@ -31,7 +39,7 @@ Federation reste en version 0.2.0, schéma 1, sans modification.
   payload, ainsi que les lectures signées de catalogue déjà livrées par
   EVT-01B.1/1.1.
 
-## Migration contrôlée
+## Installation contrôlée
 
 La première requête `plugins_loaded` après remplacement d'un 0.1.1 actif,
 l'activation et l'installation neuve suivent le même chemin. Cinq
@@ -90,7 +98,7 @@ opérationnelles avant de retourner l'occurrence existante.
 
 Les registres de routes et consommateurs n'acceptent aucun wildcard. Les
 callbacks doivent être des callables PHP de confiance, ne sont jamais chargés
-depuis le réseau ou la base et ne sont pas exécutés dans 0.2.0. Un doublon rend
+depuis le réseau ou la base et ne sont pas exécutés dans 0.2.1. Un doublon rend
 le registre concerné indisponible de manière fail-closed.
 
 ## Lecture distante de catalogue
@@ -103,10 +111,10 @@ cache stale, fallback réseau ou lecture de table distante n'est ajouté.
 ## Recette WordPress limitée
 
 1. Sauvegarder `faluss.com` et `faluss.me`.
-2. Mettre à jour uniquement Faluss Events avec le même ZIP 0.2.0 sur les deux
+2. Installer uniquement Faluss Events avec le même ZIP 0.2.1 sur les deux
    sites, puis activer le plugin.
 3. Ne modifier aucune politique Federation, clé, pair, provider ou constante.
-4. Vérifier Faluss Events 0.2.0, schéma 1 et l'état `ready`.
+4. Vérifier Faluss Events 0.2.1, schéma 1 et l'état `ready`.
 5. Vérifier la présence exacte des cinq tables documentées dans
    `DATA_MODEL.md` et l'absence de toute ligne dans chacune.
 6. Vérifier Federation 0.2.0, schéma 1 et `ready`, puis relancer le diagnostic

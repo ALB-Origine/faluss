@@ -62,6 +62,7 @@
   "$defs": {
     "semanticVersion": {
       "type": "string",
+      "maxLength": 32,
       "pattern": "^[1-9][0-9]*\\.[0-9]+\\.[0-9]+$"
     },
     "nodeId": {
@@ -78,10 +79,12 @@
     },
     "namespacedKey": {
       "type": "string",
+      "maxLength": 512,
       "pattern": "^[a-z][a-z0-9-]{1,63}(?:\\.[a-z][a-z0-9-]{1,63}){1,7}$"
     },
     "documentType": {
       "type": "string",
+      "maxLength": 512,
       "pattern": "^[a-z][a-z0-9-]{1,63}(?:\\.[a-z][a-z0-9-]{1,63}){1,7}$"
     },
     "strictUtcDateTime": {

@@ -404,9 +404,9 @@ final class Faluss_Events_Engine {
     private static function valid_sender( $sender ) { return self::exact_keys( $sender, array( 'node_id', 'app_key' ) ) && self::is_node( $sender['node_id'] ) && self::is_app_key( $sender['app_key'] ); }
     private static function is_node( $value ) { return self::is_app_key( $value ); }
     private static function is_app_key( $value ) { return is_string( $value ) && '*' !== $value && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}$/D', $value ); }
-    private static function is_capability( $value, $app ) { return is_string( $value ) && '*' !== $value && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $value ) && 0 === strpos( $value, $app . '.' ); }
-    private static function is_semver( $value ) { return is_string( $value ) && 1 === preg_match( '/^[1-9][0-9]*\.[0-9]+\.[0-9]+$/D', $value ); }
-    private static function is_consumer_key( $value ) { return is_string( $value ) && '*' !== $value && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,3}$/D', $value ); }
+    private static function is_capability( $value, $app ) { return is_string( $value ) && strlen( $value ) <= 512 && '*' !== $value && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $value ) && 0 === strpos( $value, $app . '.' ); }
+    private static function is_semver( $value ) { return is_string( $value ) && strlen( $value ) <= 32 && 1 === preg_match( '/^[1-9][0-9]*\.[0-9]+\.[0-9]+$/D', $value ); }
+    private static function is_consumer_key( $value ) { return is_string( $value ) && strlen( $value ) <= 128 && '*' !== $value && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,3}$/D', $value ); }
     private static function is_uuid( $value ) { return is_string( $value ) && 1 === preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D', $value ); }
     private static function exact_keys( $value, $expected ) { if ( ! is_array( $value ) || self::is_list( $value ) ) { return false; } $actual = array_keys( $value ); sort( $actual, SORT_STRING ); sort( $expected, SORT_STRING ); return $actual === $expected; }
     private static function is_list( $value ) { return is_array( $value ) && ( array() === $value || array_keys( $value ) === range( 0, count( $value ) - 1 ) ); }

@@ -331,7 +331,7 @@ exact `owner_app_key`, `capability_key`, `catalog_version`; elle ne transporte
 jamais une enveloppe `faluss.event`. `event.publish` demeure interdit et aucune
 opération existante ne peut être détournée pour publier un événement.
 
-Faluss Events 0.2.0 réutilise le validateur CAP de Faluss Apps Registry,
+Faluss Events 0.2.1 réutilise le validateur CAP de Faluss Apps Registry,
 valide séparément manifeste et catalogue, puis exige application/propriétaire,
 capacité `event_source`, bindings de chaque destination et compatibilité non
 dépréciée/non expirée. Cette vérification n'active aucun binding runtime.
@@ -377,6 +377,20 @@ restent absents jusqu'à EVT-01B.2B. Aucun provider, catalogue ou événement
 Hub/Me et aucun consommateur Analytics, Quêtes ou Progression n'est enregistré.
 AN-01 demeure postérieur à la validation de 2B.
 
+### Alignement des longueurs EVT-01B.2A.1
+
+Avant toute installation, EVT-01B.2A.1 borne les clés namespacées et types de
+document à 512 caractères, les clés consommateur internes à 128 caractères et
+toutes les versions sémantiques EVT à 32 caractères. La limite est inclusive.
+Les deux schémas JSON portent les `maxLength` correspondants ; les validateurs
+de catalogue et d'enveloppe, le registre Events et le moteur persistent les
+mêmes limites avant tout verrou, transaction, accès d'écriture ou UUID.
+
+Cette correction ne change aucune colonne, aucun index, aucune table et aucune
+version de schéma. Le DDL du schéma 1 reste identique et aucune migration n'est
+ajoutée. Les cinq tables de la première installation restent vides, et aucun
+provider, catalogue, événement, transport ou worker n'est activé.
+
 ## Frontières des consommateurs futurs
 
 Analytics pourra compter et agréger des événements acceptés, produire des
@@ -402,9 +416,10 @@ Ce helper n'est ni un runtime Faluss Events ni la preuve d'une validation JSON
 Schema standard complète. Une validation standard ne peut être revendiquée que
 si un moteur Draft 2020-12 indépendant est réellement disponible et exécuté.
 
-EVT-01B.1 ne modifie pas ces deux schémas normatifs. Son test exécutable appelle
+EVT-01B.1 ne modifiait pas ces deux schémas normatifs. Son test exécutable appelle
 les validateurs PHP de production, le registre fermé, la politique et le chemin
 de réponse signé Federation. Aucun catalogue Hub/Me réel, provider propriétaire,
 événement, table, migration, outbox, inbox, worker, tracking ou Analytics n'est
 livré par ce sous-lot. EVT-01B.2A ajoute ensuite uniquement le cœur persistant
-décrit ci-dessus, sans altérer les schémas ni activer ces comportements.
+décrit ci-dessus. EVT-01B.2A.1 ajoute seulement les bornes de stockage aux deux
+schémas, sans activer ces comportements.

@@ -233,7 +233,7 @@ function evt01b2a_index_map( $rows ) {
     return $map;
 }
 
-/* Initial 0.1.1-to-0.2.0 migration and fresh installation share the same empty controlled path. */
+/* First schema-1 installation through an active plugin and fresh activation share the same empty controlled path. */
 $GLOBALS['evt01b2a_options'] = array(); $GLOBALS['evt01b2a_uuid'] = 0; $wpdb = new EVT01B2A_WPDB();
 evt01b2a_assert( true === Faluss_Events_Schema::maybe_upgrade(), 'An active empty 0.1.1 installation must upgrade to schema 1.' );
 evt01b2a_assert( '1' === get_option( 'faluss_events_schema_version' ), 'Schema option is declared only after full promotion.' );
@@ -389,7 +389,7 @@ evt01b2a_assert( array( 'catalogs', 'events', 'outbox', 'inbox', 'consumer_deliv
 $bootstrap = file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' );
 $engine_source = file_get_contents( $root . '/plugins/faluss-events/includes/class-faluss-events-engine.php' );
 $runtime = $bootstrap . $engine_source . file_get_contents( $root . '/plugins/faluss-events/includes/class-faluss-events-schema.php' );
-evt01b2a_assert( false !== strpos( $bootstrap, 'Version: 0.2.0' ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ) && false !== strpos( $bootstrap, "'Faluss_Events_Schema', 'maybe_upgrade'" ) && false === strpos( $runtime, 'dbDelta(' ), 'Events must be 0.2.0/schema 1 with a controlled active-plugin upgrade and no permissive dbDelta migration.' );
+evt01b2a_assert( false !== strpos( $bootstrap, 'Version: 0.2.1' ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ) && false !== strpos( $bootstrap, "'Faluss_Events_Schema', 'maybe_upgrade'" ) && false === strpos( $runtime, 'dbDelta(' ), 'Events must be 0.2.1/schema 1 with a controlled first installation and no permissive dbDelta migration.' );
 evt01b2a_assert( false !== strpos( $engine_source, 'Faluss_Events::read_remote_catalog(' ) && false !== strpos( $engine_source, 'private static function persist_validated_catalog' ), 'Remote refresh must obtain its own signed validated catalog before reaching private persistence.' );
 evt01b2a_assert( false === strpos( $engine_source, '$wpdb->update(' ) && false === strpos( $engine_source, '$wpdb->delete(' ) && 1 !== preg_match( '/["\'](?:UPDATE|DELETE)\s/i', $engine_source ), 'Accepted catalogs and events must expose no functional UPDATE or DELETE path.' );
 foreach ( array( 'register_rest_route', 'wp_ajax_', 'admin_post_', 'add_shortcode', 'wp_schedule', 'wp_remote_', 'event.publish', 'setcookie', 'Faluss_Analytics', 'Faluss_Quests', 'Faluss_Progression', 'Faluss_Tracking' ) as $forbidden ) { evt01b2a_assert( false === stripos( $runtime, $forbidden ), 'Persistent core must not activate forbidden transport, browser or business behavior: ' . $forbidden ); }

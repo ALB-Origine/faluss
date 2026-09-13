@@ -35,6 +35,13 @@ function evt01a_pattern( $value, $pattern ) {
     return is_string( $value ) && 1 === preg_match( '#' . $pattern . '#D', $value );
 }
 
+function evt01a_schema_string( $value, $definition ) {
+    return is_array( $definition )
+        && evt01a_pattern( $value, $definition['pattern'] )
+        && ( ! isset( $definition['minLength'] ) || strlen( $value ) >= $definition['minLength'] )
+        && ( ! isset( $definition['maxLength'] ) || strlen( $value ) <= $definition['maxLength'] );
+}
+
 function evt01a_strict_utc( $value ) {
     if ( ! is_string( $value ) || 1 !== preg_match( '/^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$/D', $value ) ) {
         return false;
@@ -167,9 +174,9 @@ function evt01a_local_refs_resolve( $schema ) {
 
 function evt01a_valid_payload_contract( $contract, $schema, $app_key ) {
     return evt01a_exact_keys( $contract, array( 'document_type', 'contract_version' ) )
-        && evt01a_pattern( $contract['document_type'], $schema['$defs']['documentType']['pattern'] )
+        && evt01a_schema_string( $contract['document_type'], $schema['$defs']['documentType'] )
         && 0 === strpos( $contract['document_type'], $app_key . '.' )
-        && evt01a_pattern( $contract['contract_version'], $schema['$defs']['semanticVersion']['pattern'] );
+        && evt01a_schema_string( $contract['contract_version'], $schema['$defs']['semanticVersion'] );
 }
 
 function evt01a_definition_is_valid( $definition, $catalog, $schema ) {
@@ -177,10 +184,10 @@ function evt01a_definition_is_valid( $definition, $catalog, $schema ) {
     if ( ! evt01a_exact_keys( $definition, $required ) ) {
         return false;
     }
-    if ( ! evt01a_pattern( $definition['event_type'], $schema['$defs']['namespacedKey']['pattern'] ) || 0 !== strpos( $definition['event_type'], $catalog['app_key'] . '.' ) ) {
+    if ( ! evt01a_schema_string( $definition['event_type'], $schema['$defs']['namespacedKey'] ) || 0 !== strpos( $definition['event_type'], $catalog['app_key'] . '.' ) ) {
         return false;
     }
-    if ( ! evt01a_pattern( $definition['event_version'], $schema['$defs']['semanticVersion']['pattern'] ) || ! evt01a_valid_payload_contract( $definition['payload_contract'], $schema, $catalog['app_key'] ) ) {
+    if ( ! evt01a_schema_string( $definition['event_version'], $schema['$defs']['semanticVersion'] ) || ! evt01a_valid_payload_contract( $definition['payload_contract'], $schema, $catalog['app_key'] ) ) {
         return false;
     }
     if ( ! in_array( $definition['subject_policy'], $schema['$defs']['subjectPolicy']['enum'], true ) ) {
@@ -217,18 +224,18 @@ function evt01a_definition_is_valid( $definition, $catalog, $schema ) {
         return false;
     }
     return null === $lifecycle['replacement_event_type']
-        || ( evt01a_pattern( $lifecycle['replacement_event_type'], $schema['$defs']['namespacedKey']['pattern'] ) && 0 === strpos( $lifecycle['replacement_event_type'], $catalog['app_key'] . '.' ) );
+        || ( evt01a_schema_string( $lifecycle['replacement_event_type'], $schema['$defs']['namespacedKey'] ) && 0 === strpos( $lifecycle['replacement_event_type'], $catalog['app_key'] . '.' ) );
 }
 
 function evt01a_catalog_is_valid( $catalog, $schema ) {
     if ( ! evt01a_exact_keys( $catalog, $schema['required'] ) || evt01a_catalog_has_forbidden_content( $catalog ) ) {
         return false;
     }
-    if ( '1.0.0' !== $catalog['contract_version'] || 'faluss.event-source-catalog' !== $catalog['document_type'] || ! evt01a_pattern( $catalog['catalog_version'], $schema['$defs']['semanticVersion']['pattern'] ) ) {
+    if ( '1.0.0' !== $catalog['contract_version'] || 'faluss.event-source-catalog' !== $catalog['document_type'] || ! evt01a_schema_string( $catalog['catalog_version'], $schema['$defs']['semanticVersion'] ) ) {
         return false;
     }
     foreach ( array( 'node_id' => 'nodeId', 'app_key' => 'appKey', 'owner' => 'appKey', 'owner_engine' => 'engineId', 'capability_key' => 'namespacedKey' ) as $field => $definition ) {
-        if ( ! evt01a_pattern( $catalog[ $field ], $schema['$defs'][ $definition ]['pattern'] ) ) {
+        if ( ! evt01a_schema_string( $catalog[ $field ], $schema['$defs'][ $definition ] ) ) {
             return false;
         }
     }
@@ -236,11 +243,11 @@ function evt01a_catalog_is_valid( $catalog, $schema ) {
         return false;
     }
     $compatibility = $catalog['compatibility'];
-    if ( ! evt01a_exact_keys( $compatibility, $schema['$defs']['catalogCompatibility']['required'] ) || ! evt01a_pattern( $compatibility['minimum_runtime_version'], $schema['$defs']['semanticVersion']['pattern'] ) || ! evt01a_is_list( $compatibility['compatible_with'] ) || empty( $compatibility['compatible_with'] ) || count( $compatibility['compatible_with'] ) !== count( array_unique( $compatibility['compatible_with'], SORT_STRING ) ) || ! is_bool( $compatibility['deprecated'] ) || ( null !== $compatibility['sunset_at'] && ! evt01a_strict_utc( $compatibility['sunset_at'] ) ) || ( null !== $compatibility['replacement_catalog_version'] && ! evt01a_pattern( $compatibility['replacement_catalog_version'], $schema['$defs']['semanticVersion']['pattern'] ) ) ) {
+    if ( ! evt01a_exact_keys( $compatibility, $schema['$defs']['catalogCompatibility']['required'] ) || ! evt01a_schema_string( $compatibility['minimum_runtime_version'], $schema['$defs']['semanticVersion'] ) || ! evt01a_is_list( $compatibility['compatible_with'] ) || empty( $compatibility['compatible_with'] ) || count( $compatibility['compatible_with'] ) !== count( array_unique( $compatibility['compatible_with'], SORT_STRING ) ) || ! is_bool( $compatibility['deprecated'] ) || ( null !== $compatibility['sunset_at'] && ! evt01a_strict_utc( $compatibility['sunset_at'] ) ) || ( null !== $compatibility['replacement_catalog_version'] && ! evt01a_schema_string( $compatibility['replacement_catalog_version'], $schema['$defs']['semanticVersion'] ) ) ) {
         return false;
     }
     foreach ( $compatibility['compatible_with'] as $version ) {
-        if ( ! evt01a_pattern( $version, $schema['$defs']['semanticVersion']['pattern'] ) ) {
+        if ( ! evt01a_schema_string( $version, $schema['$defs']['semanticVersion'] ) ) {
             return false;
         }
     }
@@ -330,7 +337,7 @@ function evt01a_event_is_valid( $event, $catalog, $envelope_schema, $catalog_sch
     if ( ! evt01a_exact_keys( $event, $envelope_schema['required'] ) || ! evt01a_catalog_is_valid( $catalog, $catalog_schema ) ) {
         return false;
     }
-    if ( '1.0.0' !== $event['contract_version'] || ! evt01a_pattern( $event['event_id'], $envelope_schema['$defs']['uuidV4']['pattern'] ) || ! evt01a_pattern( $event['event_type'], $envelope_schema['$defs']['namespacedKey']['pattern'] ) || ! evt01a_pattern( $event['event_version'], $envelope_schema['$defs']['semanticVersion']['pattern'] ) || ! evt01a_opaque_reference( $event['source_event_reference'], $envelope_schema ) ) {
+    if ( '1.0.0' !== $event['contract_version'] || ! evt01a_pattern( $event['event_id'], $envelope_schema['$defs']['uuidV4']['pattern'] ) || ! evt01a_schema_string( $event['event_type'], $envelope_schema['$defs']['namespacedKey'] ) || ! evt01a_schema_string( $event['event_version'], $envelope_schema['$defs']['semanticVersion'] ) || ! evt01a_opaque_reference( $event['source_event_reference'], $envelope_schema ) ) {
         return false;
     }
     $source = $event['source'];
@@ -503,6 +510,7 @@ foreach ( array( $envelope_schema, $catalog_schema ) as $schema ) {
     evt01a_assert( 'https://json-schema.org/draft/2020-12/schema' === $schema['$schema'], 'Every EVT-01A schema must declare Draft 2020-12.' );
     evt01a_assert( 'object' === $schema['type'] && false === $schema['additionalProperties'], 'Every EVT-01A root must be a closed object.' );
     evt01a_assert( 'documentary-contract-only' === $schema['x-evt01a-scope']['nature'], 'Scope must remain documentary-contract-only.' );
+    evt01a_assert( 512 === $schema['$defs']['namespacedKey']['maxLength'] && 512 === $schema['$defs']['documentType']['maxLength'] && 32 === $schema['$defs']['semanticVersion']['maxLength'], 'EVT strings must expose the storage-aligned maximum lengths.' );
     foreach ( array( 'wordpress_runtime_changes', 'transport', 'tables_or_migrations', 'endpoints', 'real_events', 'assets_or_ui_changes' ) as $flag ) {
         evt01a_assert( false === $schema['x-evt01a-scope'][ $flag ], 'Scope flag must stay false: ' . $flag );
     }
@@ -767,7 +775,7 @@ evt01a_assert( false !== strpos( $fed_contract, '`event.publish` reste interdit'
 evt01a_assert( array( 'diagnostic.read', 'manifest.read', 'read_model.read', 'event_catalog.read' ) === $federation_request['properties']['operation']['enum'], 'Federation schema must remain closed to its four read operations.' );
 evt01a_assert( false !== strpos( $portal_contract, '## Frontière événements EVT-01A' ) && false !== strpos( $portal_contract, 'ne produit et ne consomme encore aucun événement' ), 'Portal must remain free of event production and tracking.' );
 evt01a_assert( false !== strpos( $architecture, '## Contrat et cœur persistant des événements EVT-01A / EVT-01B.2A' ), 'Architecture must preserve the four-responsibility topology through the persistent runtime.' );
-evt01a_assert( false !== strpos( $data_model, '## Événements EVT-01A et cœur persistant EVT-01B.2A' ) && false !== strpos( $data_model, 'Les schémas normatifs' ) && false !== strpos( $data_model, 'restent byte-for-byte inchangés' ), 'Data model must preserve the immutable EVT-01A schemas while documenting later persistence.' );
+evt01a_assert( false !== strpos( $data_model, '## Événements EVT-01A et cœur persistant EVT-01B.2A' ) && false !== strpos( $data_model, 'Les schémas normatifs' ) && false !== strpos( $data_model, 'EVT-01B.2A.1' ), 'Data model must document the bounded EVT schemas and persistent runtime together.' );
 evt01a_assert( false !== strpos( $roadmap, '## EVT-01A — Contrat commun des événements — livré contractuellement' ), 'Roadmap must register EVT-01A as contract-only.' );
 
 fwrite( STDOUT, 'EVT-01A common event contract: OK (' . $evt01a_assertions . ' assertions; test-only semantic helpers, not a full Draft 2020-12 engine).' . PHP_EOL );

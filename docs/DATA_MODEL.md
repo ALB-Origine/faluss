@@ -218,9 +218,13 @@ Les schémas normatifs
 [`faluss-event-envelope.schema.json`](../contracts/faluss-event-envelope.schema.json)
 et
 [`faluss-event-source-catalog.schema.json`](../contracts/faluss-event-source-catalog.schema.json)
-restent byte-for-byte inchangés. Faluss Events 0.2.0 ajoute l'option technique
-`faluss_events_schema_version`, égale à `1`, et exactement cinq tables privées
-InnoDB utilisant le préfixe, le charset et la collation WordPress.
+bornent depuis EVT-01B.2A.1 les clés namespacées et types de document à 512
+caractères, et toutes les versions sémantiques EVT à 32 caractères. Faluss
+Events 0.2.1 conserve l'option technique `faluss_events_schema_version`, égale
+à `1`, et exactement cinq tables privées InnoDB utilisant le préfixe, le
+charset et la collation WordPress. La clé consommateur interne est bornée à 128
+caractères. Ces bornes correspondent aux `varchar(512)`, `varchar(128)` et
+`varchar(32)` existants ; le DDL est inchangé et aucune migration n'est ajoutée.
 
 ### `*_faluss_events_catalogs`
 
@@ -288,7 +292,7 @@ de lease, résultat et traitement sont nullables ; aucun callback n'est exécut�
 - `UNIQUE consumer_event_unique (event_id, destination, consumer_key)` ;
 - `INDEX consumer_pending (status, created_at)`.
 
-La migration ne crée aucune ligne. L'événement et toutes ses lignes
+L'installation ne crée aucune ligne. L'événement et toutes ses lignes
 opérationnelles sont atomiques ; un rollback les retire ensemble. Les cinq
 tables ne constituent ni une UI, ni une sortie publique, ni une garantie
 automatique d'effet externe exactement une fois.

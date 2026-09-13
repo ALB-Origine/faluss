@@ -103,7 +103,7 @@ Progression. L'événement accepté est append-only. Une future livraison sera a
 moins une fois et chaque consommateur devra rendre son propre effet idempotent ;
 la ligne de delivery ne garantit pas seule un effet externe exactement une fois.
 CAP `event_source`, catalogue EVT, binding actif et politique consommateur sont
-tous obligatoires. Faluss Events 0.2.0 valide catalogues et enveloppes, croise le
+tous obligatoires. Faluss Events 0.2.1 valide catalogues et enveloppes, croise le
 catalogue avec le manifeste CAP accepté et fournit le schéma persistant 1.
 Federation 0.2.0 ajoute seulement `event_catalog.read`; aucun transport
 d'enveloppe événementielle n'existe encore.
@@ -115,6 +115,10 @@ sender authentifié et écrit événement, inbox et deliveries dans une transact
 La canonicalisation et les SHA-256 rendent les retries vérifiables ; des verrous
 distincts sur l'identité métier et `event_id`, complétés par deux index uniques,
 ferment les versions concurrentes d'un même fait.
+
+Les clés namespacées et types de document sont bornés à 512 caractères, les
+clés consommateur internes à 128 et les versions sémantiques EVT à 32 avant
+toute écriture. Ces limites correspondent au DDL inchangé du schéma 1.
 
 Ces primitives restent internes : aucune route, `event.publish`, lease, queue
 active, worker, cron ou callback n'est lancé. Aucun provider, catalogue ou

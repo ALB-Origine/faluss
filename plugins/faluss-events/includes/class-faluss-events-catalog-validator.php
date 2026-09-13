@@ -202,7 +202,7 @@ final class Faluss_Events_Catalog_Validator {
     private static function is_node( $value ) { return self::is_app_key( $value ); }
     private static function is_app_key( $value ) { return is_string( $value ) && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}$/D', $value ) && '*' !== $value; }
     private static function is_semver( $value ) { return is_string( $value ) && 1 === preg_match( '/^[1-9][0-9]*\.[0-9]+\.[0-9]+$/D', $value ) && strlen( $value ) <= 32; }
-    private static function is_namespaced_key( $value ) { return is_string( $value ) && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $value ); }
+    private static function is_namespaced_key( $value ) { return is_string( $value ) && strlen( $value ) <= 512 && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $value ); }
     private static function is_object_type( $value ) { return is_string( $value ) && 1 === preg_match( '/^[a-z][a-z0-9_]{1,63}$/D', $value ); }
 
     private static function strict_utc( $value ) {

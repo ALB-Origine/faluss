@@ -212,9 +212,9 @@ final class Faluss_Events {
     private static function exact_contract( $contract, $type, $version ) { return self::exact_keys( $contract, array( 'document_type', 'contract_version' ) ) && $type === $contract['document_type'] && $version === $contract['contract_version']; }
     private static function catalog_key( $owner, $capability, $version ) { return implode( "\x1F", array( $owner, $capability, $version ) ); }
     private static function is_app_key( $value ) { return is_string( $value ) && '*' !== $value && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}$/D', $value ); }
-    private static function is_capability_key( $value, $owner ) { return is_string( $value ) && '*' !== $value && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $value ) && 0 === strpos( $value, $owner . '.' ); }
-    private static function is_document_type( $value ) { return is_string( $value ) && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $value ); }
-    private static function is_semver( $value ) { return is_string( $value ) && 1 === preg_match( '/^[1-9][0-9]*\.[0-9]+\.[0-9]+$/D', $value ); }
+    private static function is_capability_key( $value, $owner ) { return is_string( $value ) && strlen( $value ) <= 512 && '*' !== $value && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $value ) && 0 === strpos( $value, $owner . '.' ); }
+    private static function is_document_type( $value ) { return is_string( $value ) && strlen( $value ) <= 512 && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,7}$/D', $value ); }
+    private static function is_semver( $value ) { return is_string( $value ) && strlen( $value ) <= 32 && 1 === preg_match( '/^[1-9][0-9]*\.[0-9]+\.[0-9]+$/D', $value ); }
     private static function exact_keys( $value, $expected ) { if ( ! is_array( $value ) ) { return false; } $actual = array_keys( $value ); sort( $actual, SORT_STRING ); sort( $expected, SORT_STRING ); return $actual === $expected; }
     private static function failure() { return new WP_Error( 'faluss_events_unavailable' ); }
     private static function timestamp( $value ) {
