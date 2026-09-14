@@ -235,6 +235,7 @@ concret, par exemple `date.summary`, et son propre contrat versionné.
 | `apps.registry` | Faluss Apps Registry | `members` / `private`, `members` | membre | possession supposée, URL non déclarée, activité privée, droit ou donnée d'un autre moteur |
 | `subscriptions.private` | Faluss Subscriptions | `private` / `private` | strictement privé | toute projection publique ; e-mail, paiement, carte, référence Stripe/Customer/Checkout/Price, payload fournisseur ou secret |
 | `pf.summary` | Token Engine, projection officielle Faluss PF | `private` / `private` | strictement privé | ledger, transaction, règle, solde ALB converti, paiement, droit ou écriture économique |
+| `analytics.summary` | Faluss Analytics | `private` / `private` | strictement privé, réservé par AN-01A sans activation | `faluss_id`, identité visiteur, événement brut, `event_id`, hash, inbox, outbox, delivery, donnée Federation, score, PF, classement, entitlement ou facturation |
 | `progression.global` | Faluss Progression | `private` / `private`, `members`, `public` | public seulement sur choix | métrique `date.*`, `fans.*` ou `hof.*`, détail d'événement dérivé, calcul effectué par le Master Profile |
 | `cosmetics.equipped` | Faluss Cosmetics | `private` / `private`, `members`, `public` | public seulement sur choix | inventaire complet, prix, achat, droit, moyen de paiement ou cosmétique non équipé |
 | `date.*` | moteur Faluss Date propriétaire du sous-module | `private` / sous-ensemble déclaré de `private`, `members`, `public` | privé par défaut | préférences, conversations, rencontres, notes, signalements, score détaillé, existence ou cause du mode fantôme, métrique `progression.*` |
@@ -245,6 +246,13 @@ La qualité de créateur est une capacité `fans.creator` activable et réversib
 jamais un rôle global. Une future action de soutien ne pourra être projetée que
 si un module Fans public l'autorise explicitement. MP-01A ne crée ni profil
 créateur, bouton de don, paiement, ni score HOF.
+
+AN-01A réserve `analytics.summary` 1.0.0 comme read-model privé futur du seul
+sujet authentifié. Il contient des agrégats bornés et omet le `faluss_id` du
+document. Les vues brutes restent des comptes d'événements qualifiés et les
+visiteurs uniques sont `not_supported` en v1. Cette réservation n'active pas le
+module dans MP-01B, ne donne aucun accès aux tables Events et ne permet pas au
+Master Profile de recalculer, conserver ou fusionner les agrégats.
 
 ## Actions profondes
 

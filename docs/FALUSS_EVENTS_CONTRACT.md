@@ -281,8 +281,19 @@ EVT-01A.
 | Faluss Me | `faluss-me.link.clicked` | référence opaque du lien uniquement |
 | Faluss Me | `faluss-me.collection.opened` | référence opaque de collection uniquement |
 
-AN-01 matérialisera éventuellement ces réservations avec leurs contrats de
-payload spécialisés et les manifestes CAP versionnés nécessaires.
+AN-01A matérialise uniquement les six contrats de payload spécialisés, sans
+catalogue installé, manifeste runtime, provider ni émission. Seul
+`faluss-hub.portal.viewed` porte `surface_key`, borné à `hub`, `apps` ou
+`explore`; les cinq autres payloads sont strictement vides. Pour les trois
+faits Me, l'acteur est exclusivement anonyme et toutes ses références valent
+`null`. AN-01B reste nécessaire pour tout producteur, catalogue ou événement
+réel. Voir [`FALUSS_ANALYTICS_CONTRACT.md`](FALUSS_ANALYTICS_CONTRACT.md).
+
+Dans AN-01, les six définitions visent exclusivement `analytics.events`.
+`quests.events` et `progression.events` restent réservées globalement par EVT,
+mais sont inactives pour ces faits. Une cible Hub, lien ou collection utilise
+seulement une référence objet opaque namespacée dérivée par SHA-256 côté
+propriétaire ; aucune URL, UUID brut ou identité visiteur n'est admis.
 
 ## Données interdites
 
@@ -385,8 +396,9 @@ reçoivent une clé d'idempotence stable et restent responsables de l'unicité d
 leur effet au moins une fois.
 
 Aucun provider, catalogue, événement ou route Hub/Me et aucun consommateur
-Analytics, Quêtes ou Progression n'est enregistré. AN-01 demeure postérieur à
-la validation de 2B.
+Analytics, Quêtes ou Progression n'est enregistré. AN-01A ferme ensuite les
+contrats spécialisés sans runtime ; AN-01B demeure postérieur à la validation
+de 2B pour toute activation.
 
 ### Alignement des longueurs EVT-01B.2A.1
 
@@ -413,6 +425,15 @@ Progression conservera ses propres politiques et écritures.
 Aucun consommateur ne modifie l'événement, ne réinterprète une donnée absente,
 n'attribue directement des PF hors Token Engine, ne fusionne deux membres ou ne
 déduit une identité depuis une référence anonyme.
+
+AN-01A réserve `faluss-analytics` sur `hub-node` comme consommateur exclusif de
+`analytics.events` sous la clé `faluss-analytics.aggregate-v1`. Les faits bruts
+Analytics sont conservables au plus 90 jours, les reçus d'idempotence au moins
+30 jours et les agrégats journaliers au plus 25 mois. Le read-model privé
+`analytics.summary` distingue vues brutes et visiteurs uniques ; ces derniers
+sont obligatoirement `not_supported` en v1. Il n'expose jamais d'enveloppe EVT,
+identifiant ou hash d'événement, delivery, donnée Federation ou identité
+visiteur.
 
 ## Portée vérifiable et preuve
 

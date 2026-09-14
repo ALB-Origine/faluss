@@ -136,12 +136,13 @@ L'ordre de livraison conservé est :
 6. EVT-01B.1/1.1 — validateurs, lecture signée et liaison du catalogue au nœud, sans provider réel ;
 7. EVT-01B.2A — cœur persistant : catalogues et événements append-only, canonicalisation, outbox, inbox et deliveries inactives ;
 8. EVT-01B.2B — `event.publish`, leases, transport Federation et workers ;
-9. AN-01 — catalogues et providers Hub/Me, politiques explicites, premiers événements réels et premier consommateur Analytics ;
-10. MP-01B ;
-11. COS-01 ;
-12. SHOP-01 ;
-13. intégrations contextuelles Faluss.me ;
-14. Quêtes et Progression.
+9. AN-01A — contrat Analytics et payloads Hub/Me, sans runtime ;
+10. AN-01B — catalogues et providers Hub/Me, politiques explicites, premiers événements réels et premier consommateur Analytics ;
+11. MP-01B ;
+12. COS-01 ;
+13. SHOP-01 ;
+14. intégrations contextuelles Faluss.me ;
+15. Quêtes et Progression.
 
 SUB-01C et SUB-01D, le Daily Reward Faluss Me 75 PF, Fans, Date, Shop et Hall
 of Fame comme moteurs propriétaires futurs, ainsi que le staging opérationnel,
@@ -210,6 +211,27 @@ Le DDL Events et les quatre tables Federation restent inchangés. Aucun provider
 catalogue, événement, route ou consommateur métier n'est enregistré. AN-01 reste
 nécessaire avant toute activation métier, puis l'ordre demeure MP-01B, COS-01,
 SHOP-01, intégrations contextuelles Faluss.me, Quêtes et Progression.
+
+## AN-01A — Contrat Analytics et premiers événements — livré contractuellement
+
+AN-01A ferme les six payloads `faluss-hub.portal.viewed`,
+`faluss-hub.app.opened`, `faluss-hub.daily-reward.claimed`,
+`faluss-me.card.viewed`, `faluss-me.link.clicked` et
+`faluss-me.collection.opened`. Les capacités futures sont
+`faluss-hub.events` sur `hub-node` et `faluss-me.events` sur `me-node`; la seule
+destination est `analytics.events`.
+
+Le lot réserve `faluss-analytics` sur Hub, sa clé consommateur
+`faluss-analytics.aggregate-v1` et le read-model privé `analytics.summary`
+1.0.0. Les vues brutes sont distinguées des visiteurs uniques, obligatoirement
+`not_supported` en v1. Rétention, suppression, absence d'identité visiteur et
+politique Federation exacte sont contractuelles.
+
+AN-01A ne crée aucun plugin, table, migration, catalogue/provider installé,
+politique réelle, route, cookie, tracking, worker supplémentaire, événement,
+écran, graphique, ZIP ou comportement WordPress. AN-01B reste nécessaire pour
+toute activation réelle ; MP-01B reste postérieur et le module Analytics n'y
+est pas activé par ce lot.
 
 ## FED-01A — Contrat du transport privé fédéré — livré contractuellement
 

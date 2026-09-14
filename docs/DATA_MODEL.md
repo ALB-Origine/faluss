@@ -311,6 +311,29 @@ l'enveloppe serveur. Il n'entre jamais dans le payload, une référence, une URL
 un cache public, un log technique ou une sortie membre. Aucun solde PF,
 identifiant économique, paiement ou contenu propriétaire n'est copié.
 
+## Analytics AN-01A
+
+AN-01A n'ajoute aucune table, colonne, option, migration, plugin, route, cookie,
+événement ou donnée. Il définit six payloads fermés et le read-model privé
+[`faluss-analytics-summary.schema.json`](../contracts/faluss-analytics-summary.schema.json).
+L'autorité future `faluss-analytics` sera hébergée par `faluss-hub` sur
+`hub-node` et consommera `analytics.events` sous la clé
+`faluss-analytics.aggregate-v1`. Aucun modèle Analytics n'est dupliqué dans
+Faluss Link, Portal ou Master Profile.
+
+Le futur stockage devra séparer faits EVT bruts, reçus d'idempotence, agrégats
+journaliers et totaux propres au membre. Leurs durées sont respectivement de 90
+jours maximum, 30 jours minimum couvrant tous les retries, 25 mois maximum et
+une suppression liée à celle de l'identité. Aucune identité visiteur n'est
+collectée ou conservée. Les références d'objet exposées aux agrégats sont des
+digests SHA-256 opaques namespacés, jamais l'identifiant propriétaire source.
+
+`analytics.summary` ne contient pas le Faluss ID qui adresse la requête privée,
+ni événement brut, `event_id`, hash, inbox, outbox, delivery ou donnée
+Federation. Il ne porte aucun score, PF, classement, entitlement ou facturation.
+Les visiteurs uniques sont `not_supported` en v1 et ne provoquent la création
+d'aucun cookie, fingerprint ou identifiant anonyme persistant.
+
 ## Master Profile MP-01A
 
 MP-01A n'ajoute aucune table, colonne, option, migration, donnée membre ou copie

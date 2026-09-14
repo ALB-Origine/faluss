@@ -130,6 +130,22 @@ d'idempotence est stable. Aucun provider, catalogue, route ou événement Hub/Me
 et aucun consommateur métier n'est enregistré. Le contrat complet est dans
 [`FALUSS_EVENTS_CONTRACT.md`](FALUSS_EVENTS_CONTRACT.md).
 
+## Analytics AN-01A
+
+AN-01A réserve l'autorité centrale `faluss-analytics` sur `hub-node`, hébergée
+par `faluss-hub`. Hub produira localement via `faluss-hub.events`; Me produira
+sur `me-node` via `faluss-me.events` puis publiera vers Hub par Federation.
+Les six faits ne visent que `analytics.events`. Events journalise et route,
+Federation authentifie le transport, Analytics agrège : aucun de ces moteurs ne
+devient propriétaire de l'action métier d'un autre.
+
+Le futur read-model privé `analytics.summary` sera lié au propre sujet
+authentifié et pourra être lu par Me au moyen du transport signé. Il n'expose ni
+identité visiteur, enveloppe ou identifiant EVT, donnée Federation, score, PF ou
+facturation. Link, Portal et Master Profile n'en conservent aucune copie ; le
+module Master Profile est seulement réservé. AN-01A reste documentaire et
+AN-01B est requis pour tout catalogue, provider, politique ou événement réel.
+
 ## Production Reset FPR-01
 
 `Faluss Production Reset` est un plugin isolé, installé identiquement sur

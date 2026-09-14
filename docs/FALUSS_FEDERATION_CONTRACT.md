@@ -213,6 +213,22 @@ inbound et validation d'accusé. Le succès porte exclusivement
 Cette extension ne réutilise aucun secret FPR, Faluss Identity, Token Engine
 Connector, Stripe ou session WordPress.
 
+### Politique future AN-01A
+
+AN-01A documente sans mutation la publication future de Faluss Me vers Hub.
+Elle exigera l'opération exacte `event.publish` et la capacité entrante exacte
+`faluss-me.events`. La lecture du catalogue Me exigera séparément
+`event_catalog.read` et cette même capacité. Aucun wildcard n'est admis ;
+`owner_apps` et `audiences` ne participent jamais à l'autorisation de
+`event.publish`.
+
+Aucun plugin, installateur ou migration ne peut créer ou élargir cette
+politique automatiquement. Le pair, la clé, la source, le destinataire, le
+catalogue, le manifeste CAP, le binding `analytics.events` et le validateur de
+payload restent des contrôles cumulatifs. Federation transporte seulement :
+elle ne devient ni propriétaire des six sources, ni moteur Analytics, ni
+autorité d'identité visiteur.
+
 ## Enveloppe, signature et fraîcheur de réponse
 
 Le schéma autonome Draft 2020-12
