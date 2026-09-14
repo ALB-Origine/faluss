@@ -774,8 +774,8 @@ evt01a_assert( false !== strpos( $cap_contract, '### Coordination EVT-01A' ) && 
 evt01a_assert( false !== strpos( $fed_contract, '`event.publish`' ) && false !== strpos( $fed_contract, '`event_catalog.read`' ), 'Federation must document the two exact EVT operations without becoming a generic bus.' );
 evt01a_assert( array( 'diagnostic.read', 'manifest.read', 'read_model.read', 'event_catalog.read', 'event.publish' ) === $federation_request['properties']['operation']['enum'], 'Federation schema must remain closed to its five explicit operations.' );
 evt01a_assert( false !== strpos( $portal_contract, '## Frontière événements EVT-01A' ) && false !== strpos( $portal_contract, 'ne produit et ne consomme encore aucun événement' ), 'Portal must remain free of event production and tracking.' );
-evt01a_assert( false !== strpos( $architecture, '## Contrat, persistance et transport des événements EVT-01A / EVT-01B.2B' ), 'Architecture must preserve the four-responsibility topology through the transport runtime.' );
-evt01a_assert( false !== strpos( $data_model, '## Événements EVT-01A et runtime EVT-01B.2B' ) && false !== strpos( $data_model, 'Les schémas normatifs' ) && false !== strpos( $data_model, 'EVT-01B.2A.1' ), 'Data model must document the bounded EVT schemas and persistent runtime together.' );
+evt01a_assert( false !== strpos( $architecture, '## Contrat, persistance, transport et rétention des événements EVT-01A / EVT-01B.2C' ), 'Architecture must preserve the responsibility topology through the retention runtime.' );
+evt01a_assert( false !== strpos( $data_model, '## Événements EVT-01A et runtime EVT-01B.2C' ) && false !== strpos( $data_model, 'Les schémas normatifs' ) && false !== strpos( $data_model, 'EVT-01B.2A.1' ), 'Data model must document the bounded EVT schemas and retention runtime together.' );
 evt01a_assert( false !== strpos( $roadmap, '## EVT-01A — Contrat commun des événements — livré contractuellement' ), 'Roadmap must register EVT-01A as contract-only.' );
 
 fwrite( STDOUT, 'EVT-01A common event contract: OK (' . $evt01a_assertions . ' assertions; test-only semantic helpers, not a full Draft 2020-12 engine).' . PHP_EOL );

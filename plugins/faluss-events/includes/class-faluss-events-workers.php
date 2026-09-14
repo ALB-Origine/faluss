@@ -13,8 +13,8 @@ final class Faluss_Events_Workers {
     const MAX_ATTEMPTS = 8;
     const LEASE_SECONDS = 300;
     private const RETRY_DELAYS = array( 60, 300, 900, 3600, 10800, 21600, 43200 );
-    private const OUTBOX_CODES = array( 'accepted', 'existing', 'transport', 'not_authorized', 'incompatible', 'not_available', 'temporary', 'invalid_response', 'local' );
-    private const CONSUMER_CODES = array( 'processed', 'retryable', 'permanent', 'invalid_result', 'event_unavailable', 'consumer_unavailable' );
+    private const OUTBOX_CODES = array( 'accepted', 'existing', 'transport', 'not_authorized', 'incompatible', 'not_available', 'temporary', 'invalid_response', 'local', 'expired' );
+    private const CONSUMER_CODES = array( 'processed', 'retryable', 'permanent', 'invalid_result', 'event_unavailable', 'consumer_unavailable', 'expired' );
 
     public static function boot() {
         if ( ! function_exists( 'add_action' ) ) { return; }
@@ -115,30 +115,37 @@ final class Faluss_Events_Workers {
     }
 
     private static function process_outbox( $row ) {
-        $record = Faluss_Events_Engine::event_record_by_id( $row['event_id'] ?? '' );
-        if ( is_wp_error( $record ) ) { self::finish_outbox( $row, false, 'temporary' ); return; }
-        $event = $record['event'];
-        $route = Faluss_Events_Engine::delivery_route( $event, $row );
-        if ( is_wp_error( $route ) ) { self::finish_outbox( $row, false, 'not_available' ); return; }
-        if ( 'local' === $route['mode'] ) {
-            if ( self::complete_local_route( $row, $event, $route ) ) { return; }
-            self::finish_outbox( $row, false, 'temporary' );
-            return;
+        $lock = Faluss_Events_Retention::acquire_event_lock( $row['event_id'] ?? '' );
+        if ( false === $lock ) { self::finish_outbox( $row, false, 'temporary' ); return; }
+        try {
+            $record = Faluss_Events_Engine::event_record_by_id( $row['event_id'] ?? '' );
+            if ( is_wp_error( $record ) ) { self::finish_outbox( $row, false, 'temporary' ); return; }
+            if ( self::record_expired( $record ) ) { self::finish_outbox( $row, false, 'expired', true ); return; }
+            $event = $record['event'];
+            $route = Faluss_Events_Engine::delivery_route( $event, $row );
+            if ( is_wp_error( $route ) ) { self::finish_outbox( $row, false, 'not_available' ); return; }
+            if ( 'local' === $route['mode'] ) {
+                if ( self::complete_local_route( $row, $event, $route ) ) { return; }
+                self::finish_outbox( $row, false, 'temporary' );
+                return;
+            }
+            if ( 'federation' !== $route['mode'] || ! class_exists( 'Faluss_Federation_Client' ) || ! method_exists( 'Faluss_Federation_Client', 'event_publish' ) ) { self::finish_outbox( $row, false, 'not_available' ); return; }
+            $response = Faluss_Federation_Client::event_publish( $row['target_node_id'], $row['target_app_key'], $event );
+            if ( is_wp_error( $response ) ) {
+                $code = $response->get_error_code();
+                self::finish_outbox( $row, false, 'faluss_federation_incompatible_response' === $code || 'faluss_federation_invalid_response' === $code ? 'invalid_response' : 'transport' );
+                return;
+            }
+            if ( 'success' === ( $response['status'] ?? null ) && is_array( $response['payload'] ?? null ) && in_array( $response['payload']['disposition'] ?? '', array( 'accepted', 'existing' ), true ) ) {
+                self::finish_outbox( $row, true, $response['payload']['disposition'] );
+                return;
+            }
+            $status = $response['status'] ?? '';
+            $map = array( 'not_authorized' => 'not_authorized', 'incompatible' => 'incompatible', 'not_available' => 'not_available', 'temporarily_unavailable' => 'temporary' );
+            self::finish_outbox( $row, false, $map[ $status ] ?? 'invalid_response', in_array( $status, array( 'not_authorized', 'incompatible' ), true ) );
+        } finally {
+            Faluss_Events_Retention::release_event_lock( $lock );
         }
-        if ( 'federation' !== $route['mode'] || ! class_exists( 'Faluss_Federation_Client' ) || ! method_exists( 'Faluss_Federation_Client', 'event_publish' ) ) { self::finish_outbox( $row, false, 'not_available' ); return; }
-        $response = Faluss_Federation_Client::event_publish( $row['target_node_id'], $row['target_app_key'], $event );
-        if ( is_wp_error( $response ) ) {
-            $code = $response->get_error_code();
-            self::finish_outbox( $row, false, 'faluss_federation_incompatible_response' === $code || 'faluss_federation_invalid_response' === $code ? 'invalid_response' : 'transport' );
-            return;
-        }
-        if ( 'success' === ( $response['status'] ?? null ) && is_array( $response['payload'] ?? null ) && in_array( $response['payload']['disposition'] ?? '', array( 'accepted', 'existing' ), true ) ) {
-            self::finish_outbox( $row, true, $response['payload']['disposition'] );
-            return;
-        }
-        $status = $response['status'] ?? '';
-        $map = array( 'not_authorized' => 'not_authorized', 'incompatible' => 'incompatible', 'not_available' => 'not_available', 'temporarily_unavailable' => 'temporary' );
-        self::finish_outbox( $row, false, $map[ $status ] ?? 'invalid_response', in_array( $status, array( 'not_authorized', 'incompatible' ), true ) );
     }
 
     private static function complete_local_route( $row, $event, $route ) {
@@ -175,17 +182,24 @@ final class Faluss_Events_Workers {
     }
 
     private static function process_consumer( $row ) {
-        $record = Faluss_Events_Engine::event_record_by_id( $row['event_id'] ?? '' );
-        if ( is_wp_error( $record ) ) { self::finish_consumer( $row, 'event_unavailable' ); return; }
-        $identity = class_exists( 'Faluss_Federation_Crypto' ) ? Faluss_Federation_Crypto::local_identity() : new WP_Error( 'unavailable' );
-        if ( is_wp_error( $identity ) ) { self::finish_consumer( $row, 'consumer_unavailable' ); return; }
-        $consumer = Faluss_Events_Engine::consumer_descriptor( $record['event'], $row, $identity['node_id'], $identity['app_key'] );
-        if ( is_wp_error( $consumer ) ) { self::finish_consumer( $row, 'consumer_unavailable' ); return; }
-        $context = array( 'event' => $record['event'], 'delivery_uuid' => $row['delivery_uuid'], 'destination' => $row['destination'], 'consumer_key' => $row['consumer_key'], 'attempt' => (int) $row['attempt_count'], 'idempotency_key' => self::consumer_idempotency_key( $row['event_id'], $row['destination'], $row['consumer_key'] ) );
-        try { $result = call_user_func( $consumer['callback'], $context ); } catch ( Throwable $throwable ) { $result = new WP_Error( 'faluss_events_retryable' ); }
-        if ( true === $result ) { self::finish_consumer( $row, 'processed' ); return; }
-        if ( is_wp_error( $result ) && 'faluss_events_permanent' === $result->get_error_code() ) { self::finish_consumer( $row, 'permanent', true ); return; }
-        self::finish_consumer( $row, is_wp_error( $result ) && 'faluss_events_retryable' === $result->get_error_code() ? 'retryable' : 'invalid_result' );
+        $lock = Faluss_Events_Retention::acquire_event_lock( $row['event_id'] ?? '' );
+        if ( false === $lock ) { self::finish_consumer( $row, 'event_unavailable' ); return; }
+        try {
+            $record = Faluss_Events_Engine::event_record_by_id( $row['event_id'] ?? '' );
+            if ( is_wp_error( $record ) ) { self::finish_consumer( $row, 'event_unavailable' ); return; }
+            if ( self::record_expired( $record ) ) { self::finish_consumer( $row, 'expired', true ); return; }
+            $identity = class_exists( 'Faluss_Federation_Crypto' ) ? Faluss_Federation_Crypto::local_identity() : new WP_Error( 'unavailable' );
+            if ( is_wp_error( $identity ) ) { self::finish_consumer( $row, 'consumer_unavailable' ); return; }
+            $consumer = Faluss_Events_Engine::consumer_descriptor( $record['event'], $row, $identity['node_id'], $identity['app_key'] );
+            if ( is_wp_error( $consumer ) ) { self::finish_consumer( $row, 'consumer_unavailable' ); return; }
+            $context = array( 'event' => $record['event'], 'delivery_uuid' => $row['delivery_uuid'], 'destination' => $row['destination'], 'consumer_key' => $row['consumer_key'], 'attempt' => (int) $row['attempt_count'], 'idempotency_key' => self::consumer_idempotency_key( $row['event_id'], $row['destination'], $row['consumer_key'] ) );
+            try { $result = call_user_func( $consumer['callback'], $context ); } catch ( Throwable $throwable ) { $result = new WP_Error( 'faluss_events_retryable' ); }
+            if ( true === $result ) { self::finish_consumer( $row, 'processed' ); return; }
+            if ( is_wp_error( $result ) && 'faluss_events_permanent' === $result->get_error_code() ) { self::finish_consumer( $row, 'permanent', true ); return; }
+            self::finish_consumer( $row, is_wp_error( $result ) && 'faluss_events_retryable' === $result->get_error_code() ? 'retryable' : 'invalid_result' );
+        } finally {
+            Faluss_Events_Retention::release_event_lock( $lock );
+        }
     }
 
     private static function finish_consumer( $row, $code, $permanent = false ) {
@@ -200,6 +214,10 @@ final class Faluss_Events_Workers {
 
     private static function consumer_idempotency_key( $event_id, $destination, $consumer_key ) {
         return 'faluss-event-consumer:' . hash( 'sha256', strlen( $event_id ) . ':' . $event_id . ';' . strlen( $destination ) . ':' . $destination . ';' . strlen( $consumer_key ) . ':' . $consumer_key );
+    }
+
+    private static function record_expired( $record ) {
+        return ! is_array( $record ) || ! is_string( $record['retention_until'] ?? null ) || $record['retention_until'] <= gmdate( 'Y-m-d H:i:s' );
     }
 
     private static function retry_delay( $attempt ) { return self::RETRY_DELAYS[ max( 0, min( 6, (int) $attempt - 1 ) ) ]; }

@@ -4,16 +4,17 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-/** Fresh-only, verified schema for the persistent Faluss Events core. */
+/** Verified fresh installation and additive schema-1-to-2 migration. */
 final class Faluss_Events_Schema {
     const OPTION = 'faluss_events_schema_version';
-    const VERSION = '1';
+    const VERSION = '2';
 
     public static function catalogs_table() { return self::table( 'faluss_events_catalogs' ); }
     public static function events_table() { return self::table( 'faluss_events_events' ); }
     public static function outbox_table() { return self::table( 'faluss_events_outbox' ); }
     public static function inbox_table() { return self::table( 'faluss_events_inbox' ); }
     public static function consumer_deliveries_table() { return self::table( 'faluss_events_consumer_deliveries' ); }
+    public static function tombstones_table() { return self::table( 'faluss_events_tombstones' ); }
 
     public static function activate() {
         if ( ! self::install() ) {
@@ -21,7 +22,7 @@ final class Faluss_Events_Schema {
         }
     }
 
-    /** Runs once after an active 0.1.1 plugin is replaced; ready requests only read the version option. */
+    /** Ready requests only read the version option; schema 1 takes the sole additive path. */
     public static function maybe_upgrade() {
         return self::VERSION === (string) get_option( self::OPTION ) || self::install();
     }
@@ -39,7 +40,11 @@ final class Faluss_Events_Schema {
         if ( self::current_schema_ready() ) {
             return self::VERSION === (string) get_option( self::OPTION );
         }
-        if ( self::existing_tables( self::tables() ) || null !== get_option( self::OPTION, null ) ) {
+        $stored = get_option( self::OPTION, null );
+        if ( '1' === (string) $stored ) {
+            return self::migrate_from_one();
+        }
+        if ( self::existing_tables( self::tables() ) || null !== $stored ) {
             return false;
         }
         $lock = 'faluss_events_schema_' . substr( hash( 'sha256', (string) $wpdb->prefix ), 0, 24 );
@@ -111,6 +116,10 @@ final class Faluss_Events_Schema {
     }
 
     private static function tables() {
+        return self::legacy_tables() + array( 'tombstones' => self::tombstones_table() );
+    }
+
+    private static function legacy_tables() {
         return array(
             'catalogs' => self::catalogs_table(),
             'events' => self::events_table(),
@@ -118,6 +127,42 @@ final class Faluss_Events_Schema {
             'inbox' => self::inbox_table(),
             'consumer_deliveries' => self::consumer_deliveries_table(),
         );
+    }
+
+    /** Schema 1 is accepted only when all five historical tables are exact. */
+    private static function migrate_from_one() {
+        global $wpdb;
+        if ( ! self::legacy_schema_ready() || self::table_exists( self::tombstones_table() ) ) {
+            return false;
+        }
+        $lock = 'faluss_events_schema_' . substr( hash( 'sha256', (string) $wpdb->prefix ), 0, 24 );
+        if ( 1 !== (int) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s,%d)', $lock, 10 ) ) || self::database_has_error() ) {
+            return false;
+        }
+        $temporary = '';
+        try {
+            if ( '1' !== (string) get_option( self::OPTION, null ) || ! self::legacy_schema_ready() || self::table_exists( self::tombstones_table() ) ) {
+                return false;
+            }
+            try {
+                $temporary = self::tombstones_table() . '__fe_' . substr( bin2hex( random_bytes( 8 ) ), 0, 12 );
+            } catch ( Throwable $throwable ) {
+                return false;
+            }
+            if ( strlen( $temporary ) > 64 || self::table_exists( $temporary ) || false === $wpdb->query( self::create_query( 'tombstones', $temporary ) ) || self::database_has_error() || ! self::verify_table( 'tombstones', $temporary ) ) {
+                return false;
+            }
+            if ( false === $wpdb->query( 'RENAME TABLE ' . self::quote_identifier( $temporary ) . ' TO ' . self::quote_identifier( self::tombstones_table() ) ) || self::database_has_error() ) {
+                return false;
+            }
+            $temporary = '';
+            return self::current_schema_ready() && true === update_option( self::OPTION, self::VERSION, false );
+        } finally {
+            if ( '' !== $temporary && self::table_exists( $temporary ) ) {
+                $wpdb->query( 'DROP TABLE ' . self::quote_identifier( $temporary ) );
+            }
+            $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock ) );
+        }
     }
 
     private static function existing_tables( $tables ) {
@@ -151,7 +196,10 @@ final class Faluss_Events_Schema {
         if ( 'inbox' === $name ) {
             return 'CREATE TABLE ' . self::quote_identifier( $table ) . ' (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`receipt_uuid` char(36) NOT NULL,`sender_node_id` varchar(64) NOT NULL,`sender_app_key` varchar(64) NOT NULL,`event_id` char(36) NOT NULL,`event_sha256` char(64) NOT NULL,`received_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `inbox_receipt_unique` (`receipt_uuid`),UNIQUE KEY `inbox_sender_event_unique` (`sender_node_id`,`sender_app_key`,`event_id`),KEY `inbox_received` (`received_at`)) ENGINE=InnoDB ' . $charset;
         }
-        return 'CREATE TABLE ' . self::quote_identifier( $table ) . ' (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`delivery_uuid` char(36) NOT NULL,`event_id` char(36) NOT NULL,`destination` varchar(64) NOT NULL,`consumer_key` varchar(128) NOT NULL,`status` varchar(16) NOT NULL,`attempt_count` bigint(20) unsigned NOT NULL,`lease_token` varchar(128) NULL,`lease_expires_at` datetime NULL,`last_result_code` varchar(64) NULL,`created_at` datetime NOT NULL,`processed_at` datetime NULL,PRIMARY KEY (`id`),UNIQUE KEY `consumer_delivery_unique` (`delivery_uuid`),UNIQUE KEY `consumer_event_unique` (`event_id`,`destination`,`consumer_key`),KEY `consumer_pending` (`status`,`created_at`)) ENGINE=InnoDB ' . $charset;
+        if ( 'consumer_deliveries' === $name ) {
+            return 'CREATE TABLE ' . self::quote_identifier( $table ) . ' (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`delivery_uuid` char(36) NOT NULL,`event_id` char(36) NOT NULL,`destination` varchar(64) NOT NULL,`consumer_key` varchar(128) NOT NULL,`status` varchar(16) NOT NULL,`attempt_count` bigint(20) unsigned NOT NULL,`lease_token` varchar(128) NULL,`lease_expires_at` datetime NULL,`last_result_code` varchar(64) NULL,`created_at` datetime NOT NULL,`processed_at` datetime NULL,PRIMARY KEY (`id`),UNIQUE KEY `consumer_delivery_unique` (`delivery_uuid`),UNIQUE KEY `consumer_event_unique` (`event_id`,`destination`,`consumer_key`),KEY `consumer_pending` (`status`,`created_at`)) ENGINE=InnoDB ' . $charset;
+        }
+        return 'CREATE TABLE ' . self::quote_identifier( $table ) . ' (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,`tombstone_uuid` char(36) NOT NULL,`event_id` char(36) NOT NULL,`source_identity_sha256` char(64) NOT NULL,`event_sha256` char(64) NOT NULL,`purged_at` datetime NOT NULL,`expires_at` datetime NOT NULL,`created_at` datetime NOT NULL,PRIMARY KEY (`id`),UNIQUE KEY `tombstone_uuid_unique` (`tombstone_uuid`),UNIQUE KEY `tombstone_event_unique` (`event_id`),UNIQUE KEY `tombstone_source_identity_unique` (`source_identity_sha256`),KEY `tombstone_expiry` (`expires_at`)) ENGINE=InnoDB ' . $charset;
     }
 
     private static function current_schema_ready() {
@@ -159,6 +207,18 @@ final class Faluss_Events_Schema {
             return false;
         }
         foreach ( self::tables() as $name => $table ) {
+            if ( ! self::table_exists( $table ) || ! self::verify_table( $name, $table ) ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static function legacy_schema_ready() {
+        if ( ! self::valid_prefix() || ! self::valid_table_names() ) {
+            return false;
+        }
+        foreach ( self::legacy_tables() as $name => $table ) {
             if ( ! self::table_exists( $table ) || ! self::verify_table( $name, $table ) ) {
                 return false;
             }
@@ -219,6 +279,7 @@ final class Faluss_Events_Schema {
             'outbox' => array( 'id' => $id, 'delivery_uuid' => $required( 'char(36)' ), 'event_id' => $required( 'char(36)' ), 'destination' => $required( 'varchar(64)' ), 'target_node_id' => $required( 'varchar(64)' ), 'target_app_key' => $required( 'varchar(64)' ), 'status' => $required( 'varchar(16)' ), 'attempt_count' => $required( 'bigint(20) unsigned' ), 'next_attempt_at' => $required( 'datetime' ), 'lease_token' => $nullable( 'varchar(128)' ), 'lease_expires_at' => $nullable( 'datetime' ), 'last_result_code' => $nullable( 'varchar(64)' ), 'created_at' => $required( 'datetime' ), 'delivered_at' => $nullable( 'datetime' ) ),
             'inbox' => array( 'id' => $id, 'receipt_uuid' => $required( 'char(36)' ), 'sender_node_id' => $required( 'varchar(64)' ), 'sender_app_key' => $required( 'varchar(64)' ), 'event_id' => $required( 'char(36)' ), 'event_sha256' => $required( 'char(64)' ), 'received_at' => $required( 'datetime' ) ),
             'consumer_deliveries' => array( 'id' => $id, 'delivery_uuid' => $required( 'char(36)' ), 'event_id' => $required( 'char(36)' ), 'destination' => $required( 'varchar(64)' ), 'consumer_key' => $required( 'varchar(128)' ), 'status' => $required( 'varchar(16)' ), 'attempt_count' => $required( 'bigint(20) unsigned' ), 'lease_token' => $nullable( 'varchar(128)' ), 'lease_expires_at' => $nullable( 'datetime' ), 'last_result_code' => $nullable( 'varchar(64)' ), 'created_at' => $required( 'datetime' ), 'processed_at' => $nullable( 'datetime' ) ),
+            'tombstones' => array( 'id' => $id, 'tombstone_uuid' => $required( 'char(36)' ), 'event_id' => $required( 'char(36)' ), 'source_identity_sha256' => $required( 'char(64)' ), 'event_sha256' => $required( 'char(64)' ), 'purged_at' => $required( 'datetime' ), 'expires_at' => $required( 'datetime' ), 'created_at' => $required( 'datetime' ) ),
         );
     }
 
@@ -229,6 +290,7 @@ final class Faluss_Events_Schema {
             'outbox' => array( 'PRIMARY' => array( 'non_unique' => 0, 'columns' => array( 'id' ) ), 'outbox_delivery_unique' => array( 'non_unique' => 0, 'columns' => array( 'delivery_uuid' ) ), 'outbox_route_unique' => array( 'non_unique' => 0, 'columns' => array( 'event_id', 'destination', 'target_node_id', 'target_app_key' ) ), 'outbox_due' => array( 'non_unique' => 1, 'columns' => array( 'status', 'next_attempt_at' ) ) ),
             'inbox' => array( 'PRIMARY' => array( 'non_unique' => 0, 'columns' => array( 'id' ) ), 'inbox_receipt_unique' => array( 'non_unique' => 0, 'columns' => array( 'receipt_uuid' ) ), 'inbox_sender_event_unique' => array( 'non_unique' => 0, 'columns' => array( 'sender_node_id', 'sender_app_key', 'event_id' ) ), 'inbox_received' => array( 'non_unique' => 1, 'columns' => array( 'received_at' ) ) ),
             'consumer_deliveries' => array( 'PRIMARY' => array( 'non_unique' => 0, 'columns' => array( 'id' ) ), 'consumer_delivery_unique' => array( 'non_unique' => 0, 'columns' => array( 'delivery_uuid' ) ), 'consumer_event_unique' => array( 'non_unique' => 0, 'columns' => array( 'event_id', 'destination', 'consumer_key' ) ), 'consumer_pending' => array( 'non_unique' => 1, 'columns' => array( 'status', 'created_at' ) ) ),
+            'tombstones' => array( 'PRIMARY' => array( 'non_unique' => 0, 'columns' => array( 'id' ) ), 'tombstone_uuid_unique' => array( 'non_unique' => 0, 'columns' => array( 'tombstone_uuid' ) ), 'tombstone_event_unique' => array( 'non_unique' => 0, 'columns' => array( 'event_id' ) ), 'tombstone_source_identity_unique' => array( 'non_unique' => 0, 'columns' => array( 'source_identity_sha256' ) ), 'tombstone_expiry' => array( 'non_unique' => 1, 'columns' => array( 'expires_at' ) ) ),
         );
     }
 

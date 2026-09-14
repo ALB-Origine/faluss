@@ -35,10 +35,16 @@ final class EVT01B2A_WPDB {
     public $queries = array();
     public $insert_count = 0;
     public $fail_insert_table = null;
+    public $fail_delete_table = null;
+    public $fail_start = false;
+    public $fail_event_read = false;
+    public $fail_tombstone_read = false;
     public $fail_commit = false;
     public $fail_create_at = null;
     public $create_attempts = 0;
     public $lock_acquisitions = 0;
+    public $lock_available = true;
+    public $held_locks = array();
     private $snapshot = null;
 
     public function get_charset_collate() { return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'; }
@@ -54,8 +60,17 @@ final class EVT01B2A_WPDB {
 
     public function get_var( $query ) {
         $this->begin_query( $query );
-        if ( 0 === strpos( $query, 'SELECT GET_LOCK(' ) ) { $this->lock_acquisitions++; return 1; }
-        if ( 0 === strpos( $query, 'SELECT RELEASE_LOCK(' ) ) { return 1; }
+        if ( 0 === strpos( $query, 'SELECT GET_LOCK(' ) ) {
+            $this->lock_acquisitions++;
+            if ( ! $this->lock_available || ! preg_match( "/SELECT GET_LOCK\('([^']+)'/", $query, $matches ) || isset( $this->held_locks[ $matches[1] ] ) ) { return 0; }
+            $this->held_locks[ $matches[1] ] = true;
+            return 1;
+        }
+        if ( 0 === strpos( $query, 'SELECT RELEASE_LOCK(' ) ) {
+            if ( ! preg_match( "/SELECT RELEASE_LOCK\('([^']+)'/", $query, $matches ) || ! isset( $this->held_locks[ $matches[1] ] ) ) { return 0; }
+            unset( $this->held_locks[ $matches[1] ] );
+            return 1;
+        }
         if ( preg_match( "/^SHOW TABLES LIKE '((?:''|[^'])+)'$/", $query, $matches ) ) {
             $table = preg_replace( '/\\\\([_%\\\\])/', '$1', str_replace( "''", "'", $matches[1] ) );
             return array_key_exists( $table, $this->ddl ) ? $table : null;
@@ -68,7 +83,7 @@ final class EVT01B2A_WPDB {
 
     public function query( $query ) {
         $this->begin_query( $query );
-        if ( 'START TRANSACTION' === $query ) { $this->snapshot = serialize( $this->rows ); return 1; }
+        if ( 'START TRANSACTION' === $query ) { if ( $this->fail_start ) { $this->fail_start = false; $this->last_error = 'injected start failure'; return false; } $this->snapshot = serialize( $this->rows ); return 1; }
         if ( 'ROLLBACK' === $query ) { if ( null !== $this->snapshot ) { $this->rows = unserialize( $this->snapshot ); } $this->snapshot = null; return 1; }
         if ( 'COMMIT' === $query ) {
             if ( $this->fail_commit ) { $this->fail_commit = false; $this->last_error = 'injected commit failure'; return false; }
@@ -82,7 +97,7 @@ final class EVT01B2A_WPDB {
         }
         if ( 0 === strpos( $query, 'RENAME TABLE ' ) ) {
             preg_match_all( '/`([^`]+)` TO `([^`]+)`/', $query, $pairs, PREG_SET_ORDER );
-            if ( 5 !== count( $pairs ) ) { $this->last_error = 'invalid rename'; return false; }
+            if ( ! in_array( count( $pairs ), array( 1, 6 ), true ) ) { $this->last_error = 'invalid rename'; return false; }
             foreach ( $pairs as $pair ) { if ( ! isset( $this->ddl[ $pair[1] ] ) || isset( $this->ddl[ $pair[2] ] ) ) { $this->last_error = 'rename collision'; return false; } }
             foreach ( $pairs as $pair ) { $this->ddl[ $pair[2] ] = $this->ddl[ $pair[1] ]; $this->rows[ $pair[2] ] = $this->rows[ $pair[1] ]; unset( $this->ddl[ $pair[1] ], $this->rows[ $pair[1] ] ); }
             return 1;
@@ -105,6 +120,7 @@ final class EVT01B2A_WPDB {
             return null;
         }
         if ( false !== strpos( $query, 'FROM `' . $this->prefix . 'faluss_events_events`' ) && false !== strpos( $query, 'WHERE event_id =' ) ) {
+            if ( $this->fail_event_read ) { $this->fail_event_read = false; $this->last_error = 'injected event read failure'; return null; }
             foreach ( $this->rows[ $this->prefix . 'faluss_events_events' ] ?? array() as $row ) { if ( $this->matches( $query, $row, array( 'event_id' ) ) ) { return $row; } }
             return null;
         }
@@ -120,6 +136,17 @@ final class EVT01B2A_WPDB {
         $this->begin_query( $query );
         if ( preg_match( '/^SHOW FULL COLUMNS FROM `([^`]+)`$/', $query, $matches ) ) { return $this->ddl_columns( $this->ddl[ $matches[1] ] ?? '' ); }
         if ( preg_match( '/^SHOW INDEX FROM `([^`]+)`$/', $query, $matches ) ) { return $this->ddl_indexes( $this->ddl[ $matches[1] ] ?? '' ); }
+        if ( false !== strpos( $query, 'SELECT event_id FROM `' . $this->prefix . 'faluss_events_events`' ) && preg_match( "/retention_until <= '([^']+)'/", $query, $matches ) ) {
+            $found = array(); foreach ( $this->rows[ $this->prefix . 'faluss_events_events' ] ?? array() as $row ) { if ( ( $row['retention_until'] ?? '' ) <= $matches[1] ) { $found[] = array( 'event_id' => $row['event_id'] ); } }
+            usort( $found, function ( $a, $b ) { return strcmp( $a['event_id'], $b['event_id'] ); } ); return array_slice( $found, 0, 50 );
+        }
+        if ( false !== strpos( $query, 'FROM `' . $this->prefix . 'faluss_events_tombstones`' ) && false !== strpos( $query, 'source_identity_sha256 =' ) ) {
+            if ( $this->fail_tombstone_read ) { $this->fail_tombstone_read = false; $this->last_error = 'injected tombstone read failure'; return null; }
+            $found = array(); foreach ( $this->rows[ $this->prefix . 'faluss_events_tombstones' ] ?? array() as $row ) { if ( $this->matches_any( $query, $row, array( 'source_identity_sha256', 'event_id' ) ) ) { $found[] = $row; } } return $found;
+        }
+        if ( false !== strpos( $query, 'SELECT id FROM `' . $this->prefix . 'faluss_events_tombstones`' ) && preg_match( "/expires_at <= '([^']+)'/", $query, $matches ) ) {
+            $found = array(); foreach ( $this->rows[ $this->prefix . 'faluss_events_tombstones' ] ?? array() as $row ) { if ( ( $row['expires_at'] ?? '' ) <= $matches[1] ) { $found[] = array( 'id' => $row['id'] ); } } usort( $found, function ( $a, $b ) { return $a['id'] <=> $b['id']; } ); return array_slice( $found, 0, 50 );
+        }
         if ( false !== strpos( $query, 'SELECT * FROM `' . $this->prefix . 'faluss_events_events`' ) ) {
             $found = array();
             foreach ( $this->rows[ $this->prefix . 'faluss_events_events' ] ?? array() as $row ) {
@@ -154,6 +181,31 @@ final class EVT01B2A_WPDB {
         return 1;
     }
 
+    public function update( $table, $data, $where, $formats = null, $where_formats = null ) {
+        unset( $formats, $where_formats );
+        $this->last_error = '';
+        if ( ! isset( $this->rows[ $table ] ) ) { return 0; }
+        foreach ( $this->rows[ $table ] as &$row ) {
+            $match = true; foreach ( $where as $field => $value ) { if ( (string) ( $row[ $field ] ?? '' ) !== (string) $value ) { $match = false; break; } }
+            if ( $match ) { foreach ( $data as $field => $value ) { $row[ $field ] = $value; } unset( $row ); return 1; }
+        }
+        unset( $row );
+        return 0;
+    }
+
+    public function delete( $table, $where, $formats = null ) {
+        unset( $formats );
+        $this->last_error = '';
+        if ( $this->fail_delete_table === $table ) { $this->fail_delete_table = null; $this->last_error = 'injected delete failure'; return false; }
+        $kept = array(); $deleted = 0;
+        foreach ( $this->rows[ $table ] ?? array() as $row ) {
+            $match = true; foreach ( $where as $field => $value ) { if ( (string) ( $row[ $field ] ?? '' ) !== (string) $value ) { $match = false; break; } }
+            if ( $match ) { $deleted++; } else { $kept[] = $row; }
+        }
+        $this->rows[ $table ] = $kept;
+        return $deleted;
+    }
+
     public function columns_for( $table ) { return $this->ddl_columns( $this->ddl[ $table ] ?? '' ); }
     public function indexes_for( $table ) { return $this->ddl_indexes( $this->ddl[ $table ] ?? '' ); }
 
@@ -167,6 +219,7 @@ final class EVT01B2A_WPDB {
         if ( false !== strpos( $table, 'faluss_events_events' ) ) { return array( array( 'event_id' ), array( 'source_identity_sha256' ) ); }
         if ( false !== strpos( $table, 'faluss_events_outbox' ) ) { return array( array( 'delivery_uuid' ), array( 'event_id', 'destination', 'target_node_id', 'target_app_key' ) ); }
         if ( false !== strpos( $table, 'faluss_events_inbox' ) ) { return array( array( 'receipt_uuid' ), array( 'sender_node_id', 'sender_app_key', 'event_id' ) ); }
+        if ( false !== strpos( $table, 'faluss_events_tombstones' ) ) { return array( array( 'tombstone_uuid' ), array( 'event_id' ), array( 'source_identity_sha256' ) ); }
         return array( array( 'delivery_uuid' ), array( 'event_id', 'destination', 'consumer_key' ) );
     }
 
@@ -234,11 +287,11 @@ function evt01b2a_index_map( $rows ) {
     return $map;
 }
 
-/* First schema-1 installation through an active plugin and fresh activation share the same empty controlled path. */
+/* Fresh schema-2 installation through an active plugin and activation share the same empty controlled path. */
 $GLOBALS['evt01b2a_options'] = array(); $GLOBALS['evt01b2a_uuid'] = 0; $wpdb = new EVT01B2A_WPDB();
-evt01b2a_assert( true === Faluss_Events_Schema::maybe_upgrade(), 'An active empty 0.1.1 installation must upgrade to schema 1.' );
-evt01b2a_assert( '1' === get_option( 'faluss_events_schema_version' ), 'Schema option is declared only after full promotion.' );
-$expected_tables = array( 'faluss_events_catalogs', 'faluss_events_events', 'faluss_events_outbox', 'faluss_events_inbox', 'faluss_events_consumer_deliveries' );
+evt01b2a_assert( true === Faluss_Events_Schema::maybe_upgrade(), 'An empty installation must install schema 2.' );
+evt01b2a_assert( '2' === get_option( 'faluss_events_schema_version' ), 'Schema option is declared only after full promotion.' );
+$expected_tables = array( 'faluss_events_catalogs', 'faluss_events_events', 'faluss_events_outbox', 'faluss_events_inbox', 'faluss_events_consumer_deliveries', 'faluss_events_tombstones' );
 foreach ( $expected_tables as $suffix ) { evt01b2a_assert( isset( $wpdb->ddl[ 'wp_' . $suffix ] ), 'Exact table missing: ' . $suffix ); evt01b2a_assert( 0 === evt01b2a_row_count( $wpdb, $suffix ), 'Installation must create no business row: ' . $suffix ); }
 $expected_columns = array(
     'faluss_events_catalogs' => array( 'id', 'catalog_uuid', 'source_node_id', 'source_app_key', 'capability_key', 'catalog_version', 'catalog_sha256', 'catalog_json', 'accepted_at' ),
@@ -246,6 +299,7 @@ $expected_columns = array(
     'faluss_events_outbox' => array( 'id', 'delivery_uuid', 'event_id', 'destination', 'target_node_id', 'target_app_key', 'status', 'attempt_count', 'next_attempt_at', 'lease_token', 'lease_expires_at', 'last_result_code', 'created_at', 'delivered_at' ),
     'faluss_events_inbox' => array( 'id', 'receipt_uuid', 'sender_node_id', 'sender_app_key', 'event_id', 'event_sha256', 'received_at' ),
     'faluss_events_consumer_deliveries' => array( 'id', 'delivery_uuid', 'event_id', 'destination', 'consumer_key', 'status', 'attempt_count', 'lease_token', 'lease_expires_at', 'last_result_code', 'created_at', 'processed_at' ),
+    'faluss_events_tombstones' => array( 'id', 'tombstone_uuid', 'event_id', 'source_identity_sha256', 'event_sha256', 'purged_at', 'expires_at', 'created_at' ),
 );
 foreach ( $expected_columns as $suffix => $expected ) { evt01b2a_assert( $expected === array_column( $wpdb->columns_for( 'wp_' . $suffix ), 'Field' ), 'Exact ordered columns differ for ' . $suffix ); }
 $expected_indexes = array(
@@ -254,24 +308,25 @@ $expected_indexes = array(
     'faluss_events_outbox' => array( 'PRIMARY' => array( 0, array( 'id' ) ), 'outbox_delivery_unique' => array( 0, array( 'delivery_uuid' ) ), 'outbox_due' => array( 1, array( 'status', 'next_attempt_at' ) ), 'outbox_route_unique' => array( 0, array( 'event_id', 'destination', 'target_node_id', 'target_app_key' ) ) ),
     'faluss_events_inbox' => array( 'PRIMARY' => array( 0, array( 'id' ) ), 'inbox_receipt_unique' => array( 0, array( 'receipt_uuid' ) ), 'inbox_received' => array( 1, array( 'received_at' ) ), 'inbox_sender_event_unique' => array( 0, array( 'sender_node_id', 'sender_app_key', 'event_id' ) ) ),
     'faluss_events_consumer_deliveries' => array( 'PRIMARY' => array( 0, array( 'id' ) ), 'consumer_delivery_unique' => array( 0, array( 'delivery_uuid' ) ), 'consumer_event_unique' => array( 0, array( 'event_id', 'destination', 'consumer_key' ) ), 'consumer_pending' => array( 1, array( 'status', 'created_at' ) ) ),
+    'faluss_events_tombstones' => array( 'PRIMARY' => array( 0, array( 'id' ) ), 'tombstone_uuid_unique' => array( 0, array( 'tombstone_uuid' ) ), 'tombstone_event_unique' => array( 0, array( 'event_id' ) ), 'tombstone_source_identity_unique' => array( 0, array( 'source_identity_sha256' ) ), 'tombstone_expiry' => array( 1, array( 'expires_at' ) ) ),
 );
 foreach ( $expected_indexes as $suffix => $expected ) {
     $actual = evt01b2a_index_map( $wpdb->indexes_for( 'wp_' . $suffix ) );
     $normalized = array(); foreach ( $expected as $name => $definition ) { $normalized[ $name ] = array( 'non_unique' => $definition[0], 'columns' => $definition[1] ); } ksort( $normalized, SORT_STRING );
     evt01b2a_assert( $normalized === $actual && false !== strpos( $wpdb->ddl[ 'wp_' . $suffix ], 'ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci' ), 'Exact InnoDB indexes or WordPress collation differ for ' . $suffix );
 }
-evt01b2a_assert( 5 === count( array_filter( $wpdb->queries, function ( $query ) { return 0 === strpos( $query, 'CREATE TABLE ' ); } ) ) && 1 === count( array_filter( $wpdb->queries, function ( $query ) { return 0 === strpos( $query, 'RENAME TABLE ' ); } ) ), 'Five verified temporary InnoDB tables must be promoted by one atomic rename.' );
+evt01b2a_assert( 6 === count( array_filter( $wpdb->queries, function ( $query ) { return 0 === strpos( $query, 'CREATE TABLE ' ); } ) ) && 1 === count( array_filter( $wpdb->queries, function ( $query ) { return 0 === strpos( $query, 'RENAME TABLE ' ); } ) ), 'Six verified temporary InnoDB tables must be promoted by one atomic rename.' );
 $query_count = count( $wpdb->queries );
-evt01b2a_assert( true === Faluss_Events_Schema::install() && $query_count < count( $wpdb->queries ) && 5 === count( $wpdb->ddl ), 'Second installation check is idempotent and creates no extra table.' );
+evt01b2a_assert( true === Faluss_Events_Schema::install() && $query_count < count( $wpdb->queries ) && 6 === count( $wpdb->ddl ), 'Second installation check is idempotent and creates no extra table.' );
 $query_count = count( $wpdb->queries );
-evt01b2a_assert( true === Faluss_Events_Schema::maybe_upgrade() && $query_count === count( $wpdb->queries ), 'Normal loading with declared schema 1 must perform no schema or data query.' );
+evt01b2a_assert( true === Faluss_Events_Schema::maybe_upgrade() && $query_count === count( $wpdb->queries ), 'Normal loading with declared schema 2 must perform no schema or data query.' );
 $query_count = count( $wpdb->queries ); $row_counts = array_map( 'count', $wpdb->rows ); Faluss_Events_Workers::run_outbox(); Faluss_Events_Workers::run_consumers();
 evt01b2a_assert( $query_count === count( $wpdb->queries ) && $row_counts === array_map( 'count', $wpdb->rows ), 'Empty route and consumer registries must cause both workers to create no row and issue no query.' );
 
 $GLOBALS['evt01b2a_options'] = array(); $partial = new EVT01B2A_WPDB(); $partial->ddl['wp_faluss_events_catalogs'] = 'CREATE TABLE `wp_faluss_events_catalogs` (`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'; $partial->rows['wp_faluss_events_catalogs'] = array(); $wpdb = $partial;
 evt01b2a_assert( false === Faluss_Events_Schema::install() && 0 === count( array_filter( $partial->queries, function ( $query ) { return 0 === strpos( $query, 'CREATE TABLE ' ); } ) ), 'Partial or divergent schema must be refused without repair.' );
 $GLOBALS['evt01b2a_options'] = array(); $failed_install = new EVT01B2A_WPDB(); $failed_install->fail_create_at = 3; $wpdb = $failed_install;
-evt01b2a_assert( false === Faluss_Events_Schema::install() && array() === $failed_install->ddl && null === get_option( 'faluss_events_schema_version', null ), 'Failed initial creation must remove only its temporary tables and never declare schema 1.' );
+evt01b2a_assert( false === Faluss_Events_Schema::install() && array() === $failed_install->ddl && null === get_option( 'faluss_events_schema_version', null ), 'Failed initial creation must remove only its temporary tables and never declare schema 2.' );
 
 /* Canonicalizer: recursive object order, stable UTF-8 and significant arrays. */
 $object_a = array( 'z' => array( 'b' => 2, 'a' => 1 ), 'a' => "Été/\n\t" );
@@ -392,12 +447,12 @@ foreach ( array( 'local', 'inbound' ) as $index => $direction ) {
 $private_event = Faluss_Events_Engine::event_by_id( $event['event_id'] );
 $counts = Faluss_Events_Engine::technical_counts();
 evt01b2a_assert( is_array( $private_event ) && Faluss_Events_Canonicalizer::canonicalize_event( $private_event ) === $event_canonical, 'Private event read must revalidate canonical bytes and hash.' );
-evt01b2a_assert( array( 'catalogs', 'events', 'outbox', 'inbox', 'consumer_deliveries' ) === array_keys( $counts ) && 2 === $counts['catalogs'] && 2 === $counts['events'], 'Technical counters expose only bounded table counts.' );
+evt01b2a_assert( array( 'catalogs', 'events', 'outbox', 'inbox', 'consumer_deliveries', 'tombstones' ) === array_keys( $counts ) && 2 === $counts['catalogs'] && 2 === $counts['events'] && 0 === $counts['tombstones'], 'Technical counters expose only bounded table counts.' );
 
 $bootstrap = file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' );
 $engine_source = file_get_contents( $root . '/plugins/faluss-events/includes/class-faluss-events-engine.php' );
 $runtime = $bootstrap . $engine_source . file_get_contents( $root . '/plugins/faluss-events/includes/class-faluss-events-schema.php' );
-evt01b2a_assert( false !== strpos( $bootstrap, 'Version: 0.3.0' ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ) && false !== strpos( $bootstrap, "'Faluss_Events_Schema', 'maybe_upgrade'" ) && false === strpos( $runtime, 'dbDelta(' ), 'Events must retain schema 1 with a controlled first installation and no permissive dbDelta migration.' );
+evt01b2a_assert( false !== strpos( $bootstrap, 'Version: 0.3.1' ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '2'" ) && false !== strpos( $bootstrap, "'Faluss_Events_Schema', 'maybe_upgrade'" ) && false === strpos( $runtime, 'dbDelta(' ), 'Events must use controlled schema 2 installation and migration without permissive dbDelta.' );
 evt01b2a_assert( false !== strpos( $engine_source, 'Faluss_Events::read_remote_catalog(' ) && false !== strpos( $engine_source, 'private static function persist_validated_catalog' ), 'Remote refresh must obtain its own signed validated catalog before reaching private persistence.' );
 evt01b2a_assert( false === strpos( $engine_source, '$wpdb->update(' ) && false === strpos( $engine_source, '$wpdb->delete(' ) && 1 !== preg_match( '/["\'](?:UPDATE|DELETE)\s/i', $engine_source ), 'Accepted catalogs and events must expose no functional UPDATE or DELETE path.' );
 foreach ( array( 'register_rest_route', 'wp_ajax_', 'admin_post_', 'add_shortcode', 'setcookie', 'Faluss_Analytics', 'Faluss_Quests', 'Faluss_Progression', 'Faluss_Tracking' ) as $forbidden ) { evt01b2a_assert( false === stripos( $runtime, $forbidden ), 'Persistent core must not activate forbidden browser or business behavior: ' . $forbidden ); }

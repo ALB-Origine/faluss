@@ -90,7 +90,7 @@ Stripe restent séparés. FED-01B ajoute exclusivement sa route privée, ses cl�
 publiques et politiques locales, son anti-rejeu et son audit technique ; aucun
 provider métier, manifeste réel ou projection membre n'est embarqué.
 
-## Contrat, persistance et transport des événements EVT-01A / EVT-01B.2B
+## Contrat, persistance, transport et rétention des événements EVT-01A / EVT-01B.2C
 
 EVT-01A définit une enveloppe `faluss.event` et un catalogue propriétaire
 `faluss.event-source-catalog`, tous deux en version 1.0.0. Un événement est un
@@ -104,8 +104,8 @@ Progression. L'événement accepté est append-only. Une future livraison sera a
 moins une fois et chaque consommateur devra rendre son propre effet idempotent ;
 la ligne de delivery ne garantit pas seule un effet externe exactement une fois.
 CAP `event_source`, catalogue EVT, binding actif et politique consommateur sont
-tous obligatoires. Faluss Events 0.3.0 valide catalogues et enveloppes, croise le
-catalogue avec le manifeste CAP accepté et conserve le schéma persistant 1.
+tous obligatoires. Faluss Events 0.3.1 valide catalogues et enveloppes, croise le
+catalogue avec le manifeste CAP accepté et utilise le schéma persistant 2.
 Federation 0.3.0 expose `event_catalog.read` et l'unique transport fermé
 `event.publish` sur la route Ed25519 existante.
 
@@ -129,6 +129,14 @@ la façade Federation. L'effet consommateur reste au moins une fois et sa clé
 d'idempotence est stable. Aucun provider, catalogue, route ou événement Hub/Me
 et aucun consommateur métier n'est enregistré. Le contrat complet est dans
 [`FALUSS_EVENTS_CONTRACT.md`](FALUSS_EVENTS_CONTRACT.md).
+
+EVT-01B.2C ajoute une sixième table de tombstones minimaux et une purge bornée.
+Les cinq DDL historiques restent identiques. Sous transaction, les opérations
+d'un fait expiré sont supprimées avant le fait et le reçu conserve seulement
+les deux SHA-256, l'UUID du fait, son propre UUID et trois dates UTC pendant
+trente jours. Les workers et le purgeur partagent un verrou haché d'événement ;
+aucune transaction n'est maintenue pendant réseau ou callback. Federation reste
+0.3.0 et aucun producteur ou consommateur métier n'est activé.
 
 ## Analytics AN-01A
 

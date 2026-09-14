@@ -292,6 +292,7 @@ function an01a_policy_is_valid( $policy ) {
 
 $root = dirname( __DIR__ );
 $base = 'fdc4ccb3c2c26837ed9118a01041ef85f661b5a1';
+$correction = '8c6518a503af3710a1fa513980581bd0ca3be412';
 if ( ! defined( 'ABSPATH' ) ) {
     define( 'ABSPATH', $root . '/' );
 }
@@ -494,18 +495,17 @@ $runtime_paths = array_values( array_filter( array_map( 'trim', preg_split( '/\r
 $protected_paths = array_merge( array_values( $payload_files ), array( 'contracts/faluss-event-envelope.schema.json' ), $runtime_paths );
 foreach ( $protected_paths as $protected_path ) {
     $base_blob = trim( (string) shell_exec( 'git -C ' . escapeshellarg( $root ) . ' rev-parse ' . escapeshellarg( $base . ':' . $protected_path ) ) );
-    $working_blob = trim( (string) shell_exec( 'git -C ' . escapeshellarg( $root ) . ' hash-object --path=' . escapeshellarg( $protected_path ) . ' ' . escapeshellarg( $protected_path ) ) );
-    an01a_assert( '' !== $base_blob && $base_blob === $working_blob, 'Protected EVT payload/runtime file must remain byte-for-byte identical to base: ' . $protected_path );
+    $correction_blob = trim( (string) shell_exec( 'git -C ' . escapeshellarg( $root ) . ' rev-parse ' . escapeshellarg( $correction . ':' . $protected_path ) ) );
+    an01a_assert( '' !== $base_blob && $base_blob === $correction_blob, 'AN-01A.1 must historically preserve each EVT payload/runtime file: ' . $protected_path );
 }
 
-$tracked = shell_exec( 'git -C ' . escapeshellarg( $root ) . ' diff --name-only ' . escapeshellarg( $base) . ' --' );
-$untracked = shell_exec( 'git -C ' . escapeshellarg( $root ) . ' ls-files --others --exclude-standard' );
-$changed = array_filter( array_map( 'trim', preg_split( '/\r?\n/', (string) $tracked . "\n" . (string) $untracked ) ) );
+$tracked = shell_exec( 'git -C ' . escapeshellarg( $root ) . ' diff --name-only ' . escapeshellarg( $base ) . ' ' . escapeshellarg( $correction ) . ' --' );
+$changed = array_filter( array_map( 'trim', preg_split( '/\r?\n/', (string) $tracked ) ) );
 $changed = array_values( array_unique( array_map( function ( $path ) { return str_replace( '\\', '/', $path ); }, $changed ) ) );
 $expected = $correction_scope;
 sort( $changed, SORT_STRING );
 sort( $expected, SORT_STRING );
-an01a_assert( 3 === count( $changed ) && $expected === $changed, 'AN-01A.1 must change exactly the three authorized files.' );
+an01a_assert( 3 === count( $changed ) && $expected === $changed, 'Historical commit AN-01A.1 must change exactly the three authorized files.' );
 foreach ( $changed as $path ) {
     an01a_assert( 0 !== strpos( $path, 'plugins/' ), 'AN-01A must not modify a plugin: ' . $path );
 }

@@ -145,9 +145,11 @@ evt01b2a1_assert( true === evt01b2a1_private( 'EVT01B2A1_Base_Catalog_Validator'
 evt01b2a1_assert( true === evt01b2a1_private( 'EVT01B2A1_Base_Envelope_Validator', 'is_semver', array( $semver_33 ) ), 'Base c6becf0 must reproduce acceptance of a 33-character semantic version.' );
 evt01b2a1_assert( true === evt01b2a1_private( 'EVT01B2A1_Base_Engine', 'is_consumer_key', array( $consumer_129 ) ), 'Base c6becf0 must reproduce acceptance of a 129-character consumer key.' );
 
-$base_blob = trim( evt01b2a1_git( $root, array( 'rev-parse', 'c6becf07d812b488be5735354230a6b8bde23897:plugins/faluss-events/includes/class-faluss-events-schema.php' ), $base_blob_status ) );
-$working_blob = trim( evt01b2a1_git( $root, array( 'hash-object', $root . '/plugins/faluss-events/includes/class-faluss-events-schema.php' ), $working_blob_status ) );
-evt01b2a1_assert( 0 === $base_blob_status && 0 === $working_blob_status && $base_blob === $working_blob, 'MariaDB schema source and DDL must remain byte-for-byte unchanged from c6becf0.' );
+$base_schema_source = evt01b2a1_git( $root, array( 'show', 'c6becf07d812b488be5735354230a6b8bde23897:plugins/faluss-events/includes/class-faluss-events-schema.php' ), $base_schema_status );
+$working_schema_source = file_get_contents( $root . '/plugins/faluss-events/includes/class-faluss-events-schema.php' );
+$ddl_pattern = '~return \'CREATE TABLE \' \. self::quote_identifier\( \$table \) \. \'([^\r\n]+)\' \. \$charset;~';
+preg_match_all( $ddl_pattern, $base_schema_source, $base_ddl ); preg_match_all( $ddl_pattern, $working_schema_source, $working_ddl );
+evt01b2a1_assert( 0 === $base_schema_status && 5 === count( $base_ddl[1] ?? array() ) && array_slice( $working_ddl[1] ?? array(), 0, 5 ) === $base_ddl[1], 'The five historical MariaDB DDL statements must remain byte-for-byte unchanged from c6becf0.' );
 $federation_schema_base = evt01b2a1_git( $root, array( 'show', 'f10ccb9fe5e76e01faecca73cc1f872e1d35c713:plugins/faluss-federation/includes/class-faluss-federation-schema.php' ), $federation_schema_base_status );
 $federation_schema_current = file_get_contents( $root . '/plugins/faluss-federation/includes/class-faluss-federation-schema.php' );
 $schema_pattern = '/    private static function tables\(\).*?(?=    private static function collation_matches)/s';
@@ -158,7 +160,7 @@ evt01b2a1_assert( 0 === $federation_schema_base_status && isset( $federation_sch
 $bootstrap = file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' );
 $runtime = $bootstrap;
 foreach ( glob( $root . '/plugins/faluss-events/includes/*.php' ) as $file ) { $runtime .= file_get_contents( $file ); }
-evt01b2a1_assert( false !== strpos( $bootstrap, 'Version: 0.3.0' ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_VERSION', '0.3.0'" ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ), 'Faluss Events must be 0.3.0 with schema 1.' );
+evt01b2a1_assert( false !== strpos( $bootstrap, 'Version: 0.3.1' ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_VERSION', '0.3.1'" ) && false !== strpos( $bootstrap, "FALUSS_EVENTS_SCHEMA_VERSION', '2'" ), 'Faluss Events must be 0.3.1 with schema 2.' );
 foreach ( array( 'register_rest_route', 'Faluss_Events::register_catalog_provider(', 'Faluss_Events_Engine::register_delivery_route(', 'Faluss_Events_Engine::register_consumer(' ) as $forbidden ) {
     evt01b2a1_assert( false === strpos( $runtime, $forbidden ), 'No business provider, real event, browser route or concrete consumer may be introduced: ' . $forbidden );
 }

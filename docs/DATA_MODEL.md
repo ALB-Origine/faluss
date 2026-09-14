@@ -212,7 +212,7 @@ Faluss ID, e-mail, session ni donnée métier. Les deux tables anti-rejeu ont un
 rétention technique d'au moins 15 minutes ; l'audit minimal est purgé au plus
 après 30 jours. Aucune projection CAP-01B ou Master Profile n'est persistée.
 
-## Événements EVT-01A et runtime EVT-01B.2B
+## Événements EVT-01A et runtime EVT-01B.2C
 
 Les schémas normatifs
 [`faluss-event-envelope.schema.json`](../contracts/faluss-event-envelope.schema.json)
@@ -220,8 +220,8 @@ et
 [`faluss-event-source-catalog.schema.json`](../contracts/faluss-event-source-catalog.schema.json)
 bornent depuis EVT-01B.2A.1 les clés namespacées et types de document à 512
 caractères, et toutes les versions sémantiques EVT à 32 caractères. Faluss
-Events 0.3.0 conserve l'option technique `faluss_events_schema_version`, égale
-à `1`, et exactement cinq tables privées InnoDB utilisant le préfixe, le
+Events 0.3.1 conserve l'option technique `faluss_events_schema_version`, égale
+à `2`, et exactement six tables privées InnoDB utilisant le préfixe, le
 charset et la collation WordPress. La clé consommateur interne est bornée à 128
 caractères. Ces bornes correspondent aux `varchar(512)`, `varchar(128)` et
 `varchar(32)` existants ; le DDL est inchangé et aucune migration n'est ajoutée.
@@ -296,8 +296,24 @@ il vaut `NULL` dans les états terminaux.
 - `UNIQUE consumer_event_unique (event_id, destination, consumer_key)` ;
 - `INDEX consumer_pending (status, created_at)`.
 
+### `*_faluss_events_tombstones`
+
+Reçu temporaire de purge : `id`, `tombstone_uuid`, `event_id`,
+`source_identity_sha256`, `event_sha256`, `purged_at`, `expires_at`,
+`created_at`. Il ne contient aucune enveloppe, payload, identité membre,
+référence source ou objet, URL, IP, session, cookie, clé ou signature.
+
+- `PRIMARY (id)` ;
+- `UNIQUE tombstone_uuid_unique (tombstone_uuid)` ;
+- `UNIQUE tombstone_event_unique (event_id)` ;
+- `UNIQUE tombstone_source_identity_unique (source_identity_sha256)` ;
+- `INDEX tombstone_expiry (expires_at)`.
+
+`expires_at` vaut exactement `purged_at + 30 jours`. La migration 1 vers 2
+vérifie les cinq tables historiques et crée seulement cette table, sans seed.
+
 L'installation ne crée aucune ligne. L'événement et toutes ses lignes
-opérationnelles sont atomiques ; un rollback les retire ensemble. Les cinq
+opérationnelles sont atomiques ; un rollback les retire ensemble. Les six
 tables ne constituent ni une UI, ni une sortie publique, ni une garantie
 automatique d'effet externe exactement une fois.
 

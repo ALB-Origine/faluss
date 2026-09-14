@@ -44,6 +44,7 @@ final class Faluss_Events_Schema {
     public static function outbox_table() { return 'wp_faluss_events_outbox'; }
     public static function inbox_table() { return 'wp_faluss_events_inbox'; }
     public static function consumer_deliveries_table() { return 'wp_faluss_events_consumer_deliveries'; }
+    public static function tombstones_table() { return 'wp_faluss_events_tombstones'; }
     public static function quote_identifier( $v ) { return '`' . $v . '`'; }
 }
 
@@ -96,7 +97,7 @@ final class Faluss_Events_Engine {
     public static function accept_inbound_event( $event, $sender, $recipient ) { $GLOBALS['evt01b2b_inbound'][] = array( $event, $sender, $recipient ); return self::$inbound_result; }
     public static function route_registry_ready() { return true; }
     public static function consumer_registry_ready() { return true; }
-    public static function event_record_by_id( $id ) { return $id === ( self::$event['event_id'] ?? null ) ? array( 'event' => self::$event, 'event_sha256' => hash( 'sha256', Faluss_Events_Canonicalizer::canonicalize_event( self::$event ) ) ) : new WP_Error( 'faluss_events_unavailable' ); }
+    public static function event_record_by_id( $id ) { return $id === ( self::$event['event_id'] ?? null ) ? array( 'event' => self::$event, 'event_sha256' => hash( 'sha256', Faluss_Events_Canonicalizer::canonicalize_event( self::$event ) ), 'retention_until' => '2031-01-01 00:00:00' ) : new WP_Error( 'faluss_events_unavailable' ); }
     public static function delivery_route( $event, $row ) { unset( $event ); return array( 'mode' => self::$mode, 'destination' => $row['destination'], 'target_node_id' => $row['target_node_id'], 'target_app_key' => $row['target_app_key'] ); }
     public static function consumers_for_local_route( $event, $destination, $node, $app ) { unset( $event, $node, $app ); return array( array( 'consumer_key' => 'future-consumer.analytics', 'destination' => $destination ) ); }
     public static function consumer_descriptor( $event, $row, $node, $app ) { unset( $event, $row, $node, $app ); return array( 'callback' => self::$callback ); }
@@ -116,6 +117,7 @@ require_once $root . '/plugins/faluss-federation/includes/class-faluss-federatio
 require_once $root . '/plugins/faluss-federation/includes/class-faluss-federation-policy.php';
 require_once $root . '/plugins/faluss-federation/includes/class-faluss-federation-server.php';
 require_once $root . '/plugins/faluss-events/includes/class-faluss-events.php';
+require_once $root . '/plugins/faluss-events/includes/class-faluss-events-retention.php';
 require_once $root . '/plugins/faluss-events/includes/class-faluss-events-workers.php';
 
 $event = array(
@@ -219,12 +221,12 @@ evt01b2b_assert( false === strpos( $workers_source, 'register_rest_route' ) && f
 preg_match( '/\$audit = \'event\.publish\'.*?\? array\((.*?)\)\s*: array/s', $server_source, $audit_match );
 evt01b2b_assert( isset( $audit_match[1] ) && false === strpos( $audit_match[1], "'request_id' =>" ) && false === strpos( $audit_match[1], "'event_id' =>" ), 'Publish audit branch must omit request ID and event identifiers.' );
 evt01b2b_assert( false !== strpos( $federation_schema_source, "\$is_event_publish = 'event.publish' === \$operation" ) && false !== strpos( $federation_schema_source, "\$request_id = ! \$is_event_publish" ) && false !== strpos( $federation_schema_source, "\$opaque = \$is_event_publish ? ''" ), 'Federation audit storage must discard publish request IDs and store no opaque diagnostic detail.' );
-$events_schema_base = trim( shell_exec( 'git -C ' . escapeshellarg( $root ) . ' rev-parse f10ccb9fe5e76e01faecca73cc1f872e1d35c713:plugins/faluss-events/includes/class-faluss-events-schema.php' ) ); $events_schema_current = trim( shell_exec( 'git -C ' . escapeshellarg( $root ) . ' hash-object ' . escapeshellarg( $root . '/plugins/faluss-events/includes/class-faluss-events-schema.php' ) ) );
-evt01b2b_assert( '' !== $events_schema_base && $events_schema_base === $events_schema_current, 'Events schema and all five DDL definitions must remain byte-identical to the mandatory base.' );
+$events_schema_source = file_get_contents( $root . '/plugins/faluss-events/includes/class-faluss-events-schema.php' );
+evt01b2b_assert( false !== strpos( $events_schema_source, "const VERSION = '2'" ) && false !== strpos( $events_schema_source, 'faluss_events_tombstones' ), 'Events schema 2 must add only the retention receipt table; legacy DDL equality is covered by EVT-01B.2C.' );
 foreach ( array( 'faluss-event-envelope.schema.json', 'faluss-event-source-catalog.schema.json' ) as $schema_file ) { $base = trim( shell_exec( 'git -C ' . escapeshellarg( $root ) . ' rev-parse f10ccb9fe5e76e01faecca73cc1f872e1d35c713:contracts/' . $schema_file ) ); $current = trim( shell_exec( 'git -C ' . escapeshellarg( $root ) . ' hash-object ' . escapeshellarg( $root . '/contracts/' . $schema_file ) ) ); evt01b2b_assert( $base === $current, 'Base EVT schema must remain byte-identical: ' . $schema_file ); }
 $policy_base = shell_exec( 'git -C ' . escapeshellarg( $root ) . ' show f10ccb9fe5e76e01faecca73cc1f872e1d35c713:plugins/faluss-federation/includes/class-faluss-federation-policy.php' ); evt01b2b_assert( false === strpos( $policy_base, "'event.publish'" ), 'Mandatory base must fail because event.publish is absent.' );
 $bootstrap_events = file_get_contents( $root . '/plugins/faluss-events/faluss-events.php' ); $bootstrap_fed = file_get_contents( $root . '/plugins/faluss-federation/faluss-federation.php' );
-evt01b2b_assert( false !== strpos( $bootstrap_events, 'Version: 0.3.0' ) && false !== strpos( $bootstrap_events, "FALUSS_EVENTS_SCHEMA_VERSION', '1'" ) && false !== strpos( $bootstrap_fed, 'Version: 0.3.0' ) && false !== strpos( $bootstrap_fed, "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ), 'Both plugins must be 0.3.0 with schemas fixed at 1.' );
+evt01b2b_assert( false !== strpos( $bootstrap_events, 'Version: 0.3.1' ) && false !== strpos( $bootstrap_events, "FALUSS_EVENTS_SCHEMA_VERSION', '2'" ) && false !== strpos( $bootstrap_fed, 'Version: 0.3.0' ) && false !== strpos( $bootstrap_fed, "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ), 'Events must be 0.3.1/schema 2 while Federation stays 0.3.0/schema 1.' );
 $events_runtime = $bootstrap_events . file_get_contents( $root . '/plugins/faluss-events/includes/class-faluss-events.php' ) . $workers_source;
 evt01b2b_assert( false === strpos( $events_runtime, 'Faluss_Events_Engine::register_delivery_route(' ) && false === strpos( $events_runtime, 'Faluss_Events_Engine::register_consumer(' ) && false === strpos( $events_runtime, 'Faluss_Events::register_catalog_provider(' ) && false === strpos( $events_runtime, 'update_peer_policy(' ), 'Loading must register no business route, consumer, catalog/provider or policy mutation.' );
 $before_rows = array_map( 'count', $wpdb->rows ); $duplicate_adapter = Faluss_Federation_Providers::register_event_publish_adapter( function () { return true; }, function () { return true; }, function () { return true; } ); Faluss_Events_Workers::run_outbox(); Faluss_Events_Workers::run_consumers();

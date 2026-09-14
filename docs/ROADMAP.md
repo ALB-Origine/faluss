@@ -136,13 +136,14 @@ L'ordre de livraison conservé est :
 6. EVT-01B.1/1.1 — validateurs, lecture signée et liaison du catalogue au nœud, sans provider réel ;
 7. EVT-01B.2A — cœur persistant : catalogues et événements append-only, canonicalisation, outbox, inbox et deliveries inactives ;
 8. EVT-01B.2B — `event.publish`, leases, transport Federation et workers ;
-9. AN-01A — contrat Analytics et payloads Hub/Me, sans runtime ;
-10. AN-01B — catalogues et providers Hub/Me, politiques explicites, premiers événements réels et premier consommateur Analytics ;
-11. MP-01B ;
-12. COS-01 ;
-13. SHOP-01 ;
-14. intégrations contextuelles Faluss.me ;
-15. Quêtes et Progression.
+9. EVT-01B.2C — purge transactionnelle, tombstones minimaux et rétention effective ;
+10. AN-01A — contrat Analytics et payloads Hub/Me, sans runtime ;
+11. AN-01B — catalogues et providers Hub/Me, politiques explicites, premiers événements réels et premier consommateur Analytics ;
+12. MP-01B ;
+13. COS-01 ;
+14. SHOP-01 ;
+15. intégrations contextuelles Faluss.me ;
+16. Quêtes et Progression.
 
 SUB-01C et SUB-01D, le Daily Reward Faluss Me 75 PF, Fans, Date, Shop et Hall
 of Fame comme moteurs propriétaires futurs, ainsi que le staging opérationnel,
@@ -211,6 +212,16 @@ Le DDL Events et les quatre tables Federation restent inchangés. Aucun provider
 catalogue, événement, route ou consommateur métier n'est enregistré. AN-01 reste
 nécessaire avant toute activation métier, puis l'ordre demeure MP-01B, COS-01,
 SHOP-01, intégrations contextuelles Faluss.me, Quêtes et Progression.
+
+## EVT-01B.2C — Rétention effective — livré techniquement
+
+Faluss Events `0.3.1`, schéma `2`, ajoute exclusivement une table de tombstones
+minimaux, une migration additive depuis les cinq tables vérifiées et un troisième
+hook Cron. La purge transactionnelle et bornée retire les opérations puis le
+fait arrivé à `retention_until`, conserve l'idempotence trente jours et refuse
+toute divergence. Les workers relisent l'expiration sous le verrou commun avant
+réseau ou callback. Federation reste `0.3.0`; aucun événement, catalogue,
+provider, consommateur Analytics, tracking, cookie ou endpoint n'est activé.
 
 ## AN-01A — Contrat Analytics et premiers événements — livré contractuellement
 

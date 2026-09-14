@@ -1,13 +1,13 @@
-# Faluss Events 0.3.0 — transport fiable et workers
+# Faluss Events 0.3.1 — transport fiable, workers et rétention
 
 ## Frontière
 
 Faluss Events valide `faluss.event-source-catalog` 1.0.0, `faluss.event` 1.0.0
-et `faluss.event-acceptance` 1.0.0. Son schéma interne reste `1`.
+et `faluss.event-acceptance` 1.0.0. Son schéma interne est `2`.
 EVT-01B.2B active le transport des outbox, la réception authentifiée et les
-workers internes sur les cinq tables existantes, sans table, colonne, index ou
-migration supplémentaire. `class-faluss-events-schema.php` et son DDL restent
-identiques au lot précédent.
+workers internes. EVT-01B.2C ajoute exclusivement la table de reçus de purge et
+la migration additive `1 → 2`, sans modifier le DDL ni les lignes des cinq
+tables historiques.
 
 Les bornes de stockage restent 512 caractères pour une clé namespacée ou un
 type de document, 128 pour une clé consommateur et 32 pour toute version
@@ -28,7 +28,8 @@ existante.
   sa validation contre le catalogue et le validateur de payload exact.
 - `Faluss_Events_Canonicalizer` produit les octets privés et SHA-256 utilisés
   pour catalogues, événements et identités métier.
-- `Faluss_Events_Schema` vérifie les cinq tables du schéma 1 sans `dbDelta()`.
+- `Faluss_Events_Schema` vérifie les six tables du schéma 2 sans `dbDelta()` ;
+  une mise à jour depuis le schéma 1 vérifié crée seulement la sixième.
 - `Faluss_Events_Engine` accepte catalogues et événements, puis résout les
   routes et consommateurs exacts enregistrés par du PHP de confiance.
 - `Faluss_Events` conserve les registres fermés et enregistre les trois callables
@@ -36,6 +37,8 @@ existante.
   validateur d'accusé.
 - `Faluss_Events_Workers` réclame et finalise outbox et deliveries par lease
   opaque, hors transaction pendant tout réseau ou callback.
+- `Faluss_Events_Retention` purge par lots les faits expirés et conserve un
+  reçu minimal pendant exactement trente jours.
 
 L'absence ou le doublon d'un adaptateur, d'une route ou d'un consommateur ferme
 le chemin concerné. Aucun callback, pair, URL ou destination réseau ne vient de
@@ -43,17 +46,18 @@ l'enveloppe ou du navigateur.
 
 ## Installation et données
 
-La mise à jour d'un plugin déjà actif vérifie seulement le schéma déclaré et
-planifie les workers manquants. Elle ne migre, ne répare et ne réécrit aucune
-table. Une installation fraîche conserve le chemin atomique existant : cinq
+La mise à jour d'un plugin au schéma 1 vérifie les cinq tables historiques,
+crée et vérifie seulement la table de tombstones, puis déclare le schéma 2. Elle
+ne répare et ne réécrit aucune table existante. Une installation fraîche suit
+le chemin atomique : six
 tables temporaires InnoDB vérifiées champ et index par champ, puis promues par
-un unique `RENAME TABLE`. L'option `faluss_events_schema_version = 1` n'est
+un unique `RENAME TABLE`. L'option `faluss_events_schema_version = 2` n'est
 écrite qu'après vérification.
 
-La désactivation retire exclusivement les deux hooks Cron Faluss Events. La
+La désactivation retire exclusivement les trois hooks Cron Faluss Events. La
 désinstallation ne supprime aucune table ni donnée. Aucun catalogue, événement,
-outbox, inbox ou delivery n'est créé au chargement, à l'activation ou à la mise
-à jour.
+outbox, inbox, delivery ou tombstone n'est créé au chargement, à l'activation
+ou à la mise à jour.
 
 ## Canonicalisation et acceptation
 
@@ -113,7 +117,7 @@ identifiant membre ou payload.
 
 ## Ordonnancement WordPress
 
-Deux hooks WP-Cron uniques, outbox et consommateurs, utilisent un intervalle
+Trois hooks WP-Cron uniques, outbox, consommateurs et rétention, utilisent un intervalle
 d'une minute. La planification est idempotente à l'activation et lors de la
 première requête après mise à jour d'un plugin actif. Un verrou consultatif
 global, borné et distinct par worker empêche deux exécutions simultanées. Si le
@@ -122,17 +126,33 @@ schéma, le registre ou le verrou est indisponible, aucune ligne n'est traitée.
 WP-Cron dépend du trafic WordPress. Un vrai cron serveur pourra ultérieurement
 appeler `wp-cron.php`, sans service externe créé par ce lot.
 
+## Rétention effective
+
+Le hook `faluss_events_run_retention` sélectionne au plus cinquante événements
+dont `retention_until` est atteint selon l'heure UTC serveur. Sous un verrou
+consultatif global puis un verrou haché par événement, chaque purge relit le
+fait `FOR UPDATE`, crée ou vérifie son tombstone, supprime dans l'ordre outbox,
+inbox, deliveries consommateurs, puis le fait, et committe l'ensemble. Toute
+erreur ou ambiguïté annule la transaction. Aucun catalogue n'est supprimé.
+
+Le tombstone ne contient que son UUID, `event_id`, les SHA-256 d'identité source
+et d'événement, `purged_at`, `expires_at` et `created_at`. Il ne permet jamais de
+reconstruire l'enveloppe. Un retry exact retourne `existing`; une divergence est
+un conflit. Les tombstones arrivés à trente jours sont supprimés dans une
+transaction séparée et bornée.
+
+Avant un appel Federation ou un callback, chaque worker prend le même verrou
+d'événement et relit `retention_until`. Un fait expiré reçoit seulement le code
+technique `expired` : aucun réseau, callback ou effet métier n'est exécuté et
+aucune transaction SQL ne reste ouverte pendant une sortie externe.
+
 ## Recette WordPress limitée
 
 1. Sauvegarder `faluss.com` et `faluss.me`.
-2. Mettre à jour Faluss Federation avec le même ZIP 0.3.0 sur les deux sites,
-   puis Faluss Events avec le même ZIP 0.3.0.
-3. Ne modifier aucune clé, pair, origine, période, seed ou donnée existante.
-4. Vérifier les deux versions, les deux schémas 1 et l'état `ready`.
-5. Vérifier les cinq tables Events existantes et les deux hooks Cron uniques.
-6. Relancer diagnostics bidirectionnels et lectures de manifeste.
-7. Laisser `event.publish` absent des politiques tant qu'aucun test EVT autorisé
-   n'est prévu. Pour un futur test, l'ajouter explicitement avec la capacité
-   source exacte, jamais par wildcard.
-8. Confirmer qu'aucun provider, catalogue, événement, route ou consommateur
-   métier Hub/Me/Analytics/Quêtes/Progression n'est actif.
+2. Installer le même ZIP Events sur les deux sites.
+3. Vérifier la version `0.3.1` et le schéma `2`.
+4. Vérifier les six tables et la nouvelle table vide.
+5. Vérifier les trois hooks Cron uniques.
+6. Confirmer que les cinq anciennes tables n'ont perdu aucune ligne.
+7. Relancer les diagnostics Federation existants.
+8. Ne modifier aucune politique et ne produire aucun événement métier.

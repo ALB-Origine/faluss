@@ -92,7 +92,7 @@ final class Faluss_Events_Engine {
         if ( ! Faluss_Events_Schema::is_ready() || ! self::is_uuid( $event_id ) ) {
             return self::unavailable();
         }
-        $row = $wpdb->get_row( $wpdb->prepare( 'SELECT event_id,event_sha256,envelope_json FROM ' . Faluss_Events_Schema::quote_identifier( Faluss_Events_Schema::events_table() ) . ' WHERE event_id = %s LIMIT 1', $event_id ), ARRAY_A );
+        $row = $wpdb->get_row( $wpdb->prepare( 'SELECT event_id,event_sha256,retention_until,envelope_json FROM ' . Faluss_Events_Schema::quote_identifier( Faluss_Events_Schema::events_table() ) . ' WHERE event_id = %s LIMIT 1', $event_id ), ARRAY_A );
         if ( self::database_has_error() || ! is_array( $row ) ) {
             return self::unavailable();
         }
@@ -102,10 +102,10 @@ final class Faluss_Events_Engine {
             return self::unavailable();
         }
         $canonical = Faluss_Events_Canonicalizer::canonicalize_event( $event );
-        if ( is_wp_error( $canonical ) || ! is_string( $row['event_sha256'] ?? null ) || ! is_string( $row['envelope_json'] ?? null ) || $canonical !== $row['envelope_json'] || ! hash_equals( $row['event_sha256'], hash( 'sha256', $canonical ) ) || $event_id !== ( $event['event_id'] ?? null ) ) {
+        if ( is_wp_error( $canonical ) || ! is_string( $row['event_sha256'] ?? null ) || ! self::is_sql_utc( $row['retention_until'] ?? null ) || ! is_string( $row['envelope_json'] ?? null ) || $canonical !== $row['envelope_json'] || ! hash_equals( $row['event_sha256'], hash( 'sha256', $canonical ) ) || $event_id !== ( $event['event_id'] ?? null ) ) {
             return self::unavailable();
         }
-        return array( 'event' => $event, 'event_sha256' => $row['event_sha256'] );
+        return array( 'event' => $event, 'event_sha256' => $row['event_sha256'], 'retention_until' => $row['retention_until'] );
     }
 
     /** Resolve an outbox row against the exact immutable PHP route descriptor. */
@@ -150,7 +150,7 @@ final class Faluss_Events_Engine {
         if ( ! Faluss_Events_Schema::is_ready() ) {
             return array();
         }
-        $tables = array( 'catalogs' => Faluss_Events_Schema::catalogs_table(), 'events' => Faluss_Events_Schema::events_table(), 'outbox' => Faluss_Events_Schema::outbox_table(), 'inbox' => Faluss_Events_Schema::inbox_table(), 'consumer_deliveries' => Faluss_Events_Schema::consumer_deliveries_table() );
+        $tables = array( 'catalogs' => Faluss_Events_Schema::catalogs_table(), 'events' => Faluss_Events_Schema::events_table(), 'outbox' => Faluss_Events_Schema::outbox_table(), 'inbox' => Faluss_Events_Schema::inbox_table(), 'consumer_deliveries' => Faluss_Events_Schema::consumer_deliveries_table(), 'tombstones' => Faluss_Events_Schema::tombstones_table() );
         $counts = array();
         foreach ( $tables as $name => $table ) {
             $value = $wpdb->get_var( 'SELECT COUNT(*) FROM ' . Faluss_Events_Schema::quote_identifier( $table ) );
@@ -286,12 +286,33 @@ final class Faluss_Events_Engine {
             self::rollback();
             return self::unavailable();
         }
+        $tombstones = $wpdb->get_results( $wpdb->prepare( 'SELECT tombstone_uuid,event_id,source_identity_sha256,event_sha256,expires_at FROM ' . Faluss_Events_Schema::quote_identifier( Faluss_Events_Schema::tombstones_table() ) . ' WHERE source_identity_sha256 = %s OR event_id = %s FOR UPDATE', $identity_hash, $event['event_id'] ), ARRAY_A );
+        if ( self::database_has_error() || ! is_array( $tombstones ) ) {
+            self::rollback();
+            return self::unavailable();
+        }
+        if ( count( $rows ) > 1 || count( $tombstones ) > 1 || ( ! empty( $rows ) && ! empty( $tombstones ) ) ) {
+            self::rollback();
+            return self::conflict();
+        }
         if ( ! empty( $rows ) ) {
-            if ( 1 !== count( $rows ) || ! self::existing_event_matches( $rows[0], $event, $canonical, $identity_hash, $event_hash, $direction ) || ! self::existing_operations_match( $event, $event_hash, $direction, $sender, $operations ) ) {
+            if ( ! self::existing_event_matches( $rows[0], $event, $canonical, $identity_hash, $event_hash, $direction ) || ! self::existing_operations_match( $event, $event_hash, $direction, $sender, $operations ) ) {
                 self::rollback();
                 return self::conflict();
             }
             if ( ! self::commit() ) {
+                self::rollback();
+                return self::unavailable();
+            }
+            return array( 'event_id' => $event['event_id'], 'event_sha256' => $event_hash, 'existing' => true );
+        }
+        if ( ! empty( $tombstones ) ) {
+            $receipt = $tombstones[0];
+            if ( ! self::is_uuid( $receipt['tombstone_uuid'] ?? null ) || ( $receipt['event_id'] ?? null ) !== $event['event_id'] || ( $receipt['source_identity_sha256'] ?? null ) !== $identity_hash || ( $receipt['event_sha256'] ?? null ) !== $event_hash || ! self::is_sql_utc( $receipt['expires_at'] ?? null ) ) {
+                self::rollback();
+                return self::conflict();
+            }
+            if ( $receipt['expires_at'] <= gmdate( 'Y-m-d H:i:s' ) || ! self::commit() ) {
                 self::rollback();
                 return self::unavailable();
             }
@@ -474,6 +495,7 @@ final class Faluss_Events_Engine {
     private static function is_semver( $value ) { return is_string( $value ) && strlen( $value ) <= 32 && 1 === preg_match( '/^[1-9][0-9]*\.[0-9]+\.[0-9]+$/D', $value ); }
     private static function is_consumer_key( $value ) { return is_string( $value ) && strlen( $value ) <= 128 && '*' !== $value && 1 === preg_match( '/^[a-z][a-z0-9-]{1,63}(?:\.[a-z][a-z0-9-]{1,63}){1,3}$/D', $value ); }
     private static function is_uuid( $value ) { return is_string( $value ) && 1 === preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D', $value ); }
+    private static function is_sql_utc( $value ) { return is_string( $value ) && 1 === preg_match( '/^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$/D', $value ) && false !== strtotime( $value . ' UTC' ); }
     private static function exact_keys( $value, $expected ) { if ( ! is_array( $value ) || self::is_list( $value ) ) { return false; } $actual = array_keys( $value ); sort( $actual, SORT_STRING ); sort( $expected, SORT_STRING ); return $actual === $expected; }
     private static function is_list( $value ) { return is_array( $value ) && ( array() === $value || array_keys( $value ) === range( 0, count( $value ) - 1 ) ); }
     private static function utc_to_sql( $value ) { $time = is_string( $value ) ? strtotime( $value ) : false; return false === $time ? '' : gmdate( 'Y-m-d H:i:s', $time ); }

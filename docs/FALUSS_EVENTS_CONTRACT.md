@@ -343,7 +343,7 @@ jamais une enveloppe `faluss.event`. EVT-01B.2B ajoute séparément l'unique
 `event.publish`, fermé à `parameters.event` et à un sujet nul ; aucune autre
 opération ne peut être détournée pour publier un événement.
 
-Faluss Events 0.3.0 réutilise le validateur CAP de Faluss Apps Registry,
+Faluss Events 0.3.1 réutilise le validateur CAP de Faluss Apps Registry,
 valide séparément manifeste et catalogue, puis exige application/propriétaire,
 capacité `event_source`, bindings de chaque destination et compatibilité non
 dépréciée/non expirée. Cette vérification n'active aucun binding runtime.
@@ -398,7 +398,37 @@ leur effet au moins une fois.
 Aucun provider, catalogue, événement ou route Hub/Me et aucun consommateur
 Analytics, Quêtes ou Progression n'est enregistré. AN-01A ferme ensuite les
 contrats spécialisés sans runtime ; AN-01B demeure postérieur à la validation
-de 2B pour toute activation.
+de 2C pour toute activation.
+
+### Rétention effective EVT-01B.2C
+
+Faluss Events 0.3.1 porte le schéma 2. La migration depuis le schéma 1 vérifie
+intégralement les cinq tables existantes puis crée exclusivement
+`*_faluss_events_tombstones`; leur DDL, leurs index et leurs lignes ne sont pas
+modifiés. Une installation neuve crée six tables vides.
+
+Un fait est purgeable seulement quand `retention_until` est inférieur ou égal
+à l'heure UTC serveur. Une transaction verrouille et relit le fait, crée ou
+retrouve son reçu exact, supprime dans l'ordre outbox, inbox, deliveries puis le
+fait, et n'est validée que si chaque résultat et le commit sont certains. Le
+catalogue accepté demeure. Un verrou consultatif global empêche deux purges et
+un verrou d'événement commun aux workers empêche une suppression entre la
+relecture d'expiration et le début d'un réseau ou callback.
+
+Le reçu minimal conserve uniquement `tombstone_uuid`, `event_id`,
+`source_identity_sha256`, `event_sha256`, `purged_at`, `expires_at` et
+`created_at`. Il expire exactement trente jours après `purged_at`. Tant qu'il
+existe, un retry aux trois identifiants et hash exacts retourne `existing` sans
+recréer de ligne ; toute divergence est un conflit fermé. Sa suppression à
+expiration est une transaction séparée et bornée. Ni enveloppe, payload,
+identité membre, référence métier, donnée réseau ni donnée Federation n'y est
+stocké.
+
+Les workers relisent l'expiration sous ce verrou avant toute sortie externe.
+Le résultat technique `expired` termine la tentative sans appel Federation,
+callback ou effet métier. Aucun provider, catalogue propriétaire, événement
+réel, consommateur Analytics, tracking, cookie, pixel, écran ou endpoint n'est
+ajouté par EVT-01B.2C.
 
 ### Alignement des longueurs EVT-01B.2A.1
 
