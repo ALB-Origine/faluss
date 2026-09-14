@@ -225,7 +225,7 @@
     },
     "opaqueObjectReference": {
       "type": "string",
-      "pattern": "^an01:(?:app|link|collection):[a-f0-9]{64}$",
+      "pattern": "^an01_(?:app|link|collection)_[a-f0-9]{64}$",
       "maxLength": 84
     },
     "objectBreakdown": {
@@ -256,7 +256,7 @@
           "then": {
             "properties": {
               "object_reference": {
-                "pattern": "^an01:app:[a-f0-9]{64}$"
+                "pattern": "^an01_app_[a-f0-9]{64}$"
               }
             }
           }
@@ -273,7 +273,7 @@
           "then": {
             "properties": {
               "object_reference": {
-                "pattern": "^an01:link:[a-f0-9]{64}$"
+                "pattern": "^an01_link_[a-f0-9]{64}$"
               }
             }
           }
@@ -290,7 +290,7 @@
           "then": {
             "properties": {
               "object_reference": {
-                "pattern": "^an01:collection:[a-f0-9]{64}$"
+                "pattern": "^an01_collection_[a-f0-9]{64}$"
               }
             }
           }
@@ -481,6 +481,18 @@
       "docs/ARCHITECTURE.md",
       "docs/DATA_MODEL.md",
       "docs/ROADMAP.md"
+    ]
+  },
+  "x-an01a1-scope": {
+    "nature": "documentary-compatibility-correction-only",
+    "changed_path_count": 3,
+    "event_contract_changes": false,
+    "events_runtime_changes": false,
+    "payload_schema_changes": false,
+    "allowed_changed_paths": [
+      "docs/FALUSS_ANALYTICS_CONTRACT.md",
+      "contracts/faluss-analytics-summary.schema.json",
+      "tests/faluss-analytics-an01a-contract-test.php"
     ]
   }
 }

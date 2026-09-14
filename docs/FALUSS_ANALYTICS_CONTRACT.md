@@ -129,9 +129,14 @@ ni UUID, nom, slug ou contenu de collection. Le payload est `{}`.
 
 ## Références opaques et idempotence
 
-Une référence d'objet AN-01 suit la forme
-`an01:<object_type>:<sha256-hex-minuscule>`, où `object_type` vaut `app`,
-`link` ou `collection`. Le digest est calculé côté propriétaire ainsi :
+Une référence d'objet AN-01 suit exactement l'une des formes
+`an01_app_<sha256-hex-minuscule>`, `an01_link_<sha256-hex-minuscule>` ou
+`an01_collection_<sha256-hex-minuscule>`. La référence d'occurrence suit
+exactement `an01_event_<sha256-hex-minuscule>`. Ces séparateurs `_` rendent les
+valeurs compatibles avec la référence opaque EVT ; toute ancienne forme
+`an01:<type>:<digest>` est invalide, sans transition ni double format.
+
+Le digest d'objet est calculé côté propriétaire ainsi :
 
 ```text
 SHA-256("faluss-an01:v1\n" + owner_app_key + "\n" + object_type + "\n" + canonical_owner_object_identifier)
@@ -145,10 +150,13 @@ réversible dans le contrat. Une référence brute, aléatoire à chaque requêt
 issue du navigateur est invalide.
 
 `source_event_reference` reste l'identité opaque et stable de l'occurrence
-métier selon EVT-01A. Pour le daily reward, elle dérive côté serveur de
-l'occurrence PF déjà commise sans exposer sa clé ledger. Le retry strictement
-identique conserve événement et référence ; il ne crée pas une deuxième vue,
-ouverture, récompense ou conséquence Analytics.
+métier selon EVT-01A. Son digest conserve strictement la préimage
+`"faluss-an01:event:v1\n" + owner_app_key + "\n" +
+canonical_occurrence_identifier`; seul le séparateur de la valeur finalement
+exposée est `_`. Pour le daily reward, elle dérive côté serveur de l'occurrence
+PF déjà commise sans exposer sa clé ledger. Le retry strictement identique
+conserve événement et référence ; il ne crée pas une deuxième vue, ouverture,
+récompense ou conséquence Analytics.
 
 ## Read-model privé `analytics.summary`
 

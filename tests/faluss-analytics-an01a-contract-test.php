@@ -51,11 +51,11 @@ function an01a_payload_is_valid( $payload, $schema ) {
 }
 
 function an01a_opaque_reference( $owner_app_key, $object_type, $canonical_owner_object_identifier ) {
-    return 'an01:' . $object_type . ':' . hash( 'sha256', "faluss-an01:v1\n" . $owner_app_key . "\n" . $object_type . "\n" . $canonical_owner_object_identifier );
+    return 'an01_' . $object_type . '_' . hash( 'sha256', "faluss-an01:v1\n" . $owner_app_key . "\n" . $object_type . "\n" . $canonical_owner_object_identifier );
 }
 
 function an01a_event_reference( $owner_app_key, $canonical_occurrence_identifier ) {
-    return 'an01:event:' . hash( 'sha256', "faluss-an01:event:v1\n" . $owner_app_key . "\n" . $canonical_occurrence_identifier );
+    return 'an01_event_' . hash( 'sha256', "faluss-an01:event:v1\n" . $owner_app_key . "\n" . $canonical_occurrence_identifier );
 }
 
 function an01a_contains_sensitive_data( $value ) {
@@ -89,6 +89,45 @@ function an01a_definitions() {
         'faluss-me.card.viewed' => array( 'type' => 'faluss-me.card.viewed', 'node' => 'me-node', 'app' => 'faluss-me', 'engine' => 'faluss-link', 'capability' => 'faluss-me.events', 'document' => 'faluss-me.card-viewed', 'actor' => 'anonymous', 'object' => null ),
         'faluss-me.link.clicked' => array( 'type' => 'faluss-me.link.clicked', 'node' => 'me-node', 'app' => 'faluss-me', 'engine' => 'faluss-link', 'capability' => 'faluss-me.events', 'document' => 'faluss-me.link-clicked', 'actor' => 'anonymous', 'object' => 'link' ),
         'faluss-me.collection.opened' => array( 'type' => 'faluss-me.collection.opened', 'node' => 'me-node', 'app' => 'faluss-me', 'engine' => 'faluss-link', 'capability' => 'faluss-me.events', 'document' => 'faluss-me.collection-opened', 'actor' => 'anonymous', 'object' => 'collection' ),
+    );
+}
+
+function an01a_catalog( $definition ) {
+    return array(
+        'contract_version'     => '1.0.0',
+        'document_type'       => 'faluss.event-source-catalog',
+        'catalog_version'     => '1.0.0',
+        'node_id'             => $definition['node'],
+        'app_key'             => $definition['app'],
+        'owner'               => $definition['app'],
+        'owner_engine'        => $definition['engine'],
+        'capability_key'      => $definition['capability'],
+        'capability_interface' => 'event_source',
+        'event_types'         => array(
+            array(
+                'event_type'                 => $definition['type'],
+                'event_version'              => '1.0.0',
+                'payload_contract'           => array( 'document_type' => $definition['document'], 'contract_version' => '1.0.0' ),
+                'subject_policy'             => 'required',
+                'allowed_actor_types'        => array( $definition['actor'] ),
+                'object_policy'              => null === $definition['object']
+                    ? array( 'presence' => 'forbidden', 'allowed_types' => array() )
+                    : array( 'presence' => 'required', 'allowed_types' => array( $definition['object'] ) ),
+                'allowed_destinations'       => array( 'analytics.events' ),
+                'max_delivery_delay_seconds' => 3600,
+                'data_classification'        => 'personal',
+                'max_retention_seconds'      => 7776000,
+                'member_result_visibility'  => 'own_subject_only',
+                'lifecycle'                  => array( 'deprecated' => false, 'sunset_at' => null, 'replacement_event_type' => null ),
+            ),
+        ),
+        'compatibility'       => array(
+            'minimum_runtime_version'      => '1.0.0',
+            'compatible_with'              => array( '1.0.0' ),
+            'deprecated'                   => false,
+            'sunset_at'                    => null,
+            'replacement_catalog_version' => null,
+        ),
     );
 }
 
@@ -134,7 +173,7 @@ function an01a_event_is_valid( $event, $definition, $payload_schema, $canonical_
     if ( '1.0.0' !== $event['contract_version'] || '1.0.0' !== $event['event_version'] || $definition['type'] !== $event['event_type'] || array( 'analytics.events' ) !== $event['destinations'] ) {
         return false;
     }
-    if ( 1 !== preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D', $event['event_id'] ) || 1 !== preg_match( '/^an01:event:[a-f0-9]{64}$/D', $event['source_event_reference'] ) ) {
+    if ( 1 !== preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D', $event['event_id'] ) || 1 !== preg_match( '/^an01_event_[a-f0-9]{64}$/D', $event['source_event_reference'] ) ) {
         return false;
     }
     if ( 1 !== preg_match( '/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/D', $event['occurred_at'] ) || 1 !== preg_match( '/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/D', $event['produced_at'] ) || strtotime( $event['occurred_at'] ) > strtotime( $event['produced_at'] ) ) {
@@ -214,7 +253,7 @@ function an01a_summary_is_valid( $summary, $schema ) {
         return false;
     }
     foreach ( $summary['breakdowns']['by_object_reference'] as $item ) {
-        if ( ! an01a_exact_keys( $item, array( 'object_type', 'object_reference', 'total' ) ) || ! in_array( $item['object_type'], array( 'app', 'link', 'collection' ), true ) || 1 !== preg_match( '/^an01:' . preg_quote( $item['object_type'], '/' ) . ':[a-f0-9]{64}$/D', $item['object_reference'] ) ) {
+        if ( ! an01a_exact_keys( $item, array( 'object_type', 'object_reference', 'total' ) ) || ! in_array( $item['object_type'], array( 'app', 'link', 'collection' ), true ) || 1 !== preg_match( '/^an01_' . preg_quote( $item['object_type'], '/' ) . '_[a-f0-9]{64}$/D', $item['object_reference'] ) ) {
             return false;
         }
     }
@@ -252,7 +291,17 @@ function an01a_policy_is_valid( $policy ) {
 }
 
 $root = dirname( __DIR__ );
-$base = 'f978a0b28094776f9ff1852d44a93dfcf871e8d4';
+$base = 'fdc4ccb3c2c26837ed9118a01041ef85f661b5a1';
+if ( ! defined( 'ABSPATH' ) ) {
+    define( 'ABSPATH', $root . '/' );
+}
+if ( ! function_exists( 'wp_json_encode' ) ) {
+    function wp_json_encode( $value, $flags = 0, $depth = 512 ) {
+        return json_encode( $value, $flags, $depth );
+    }
+}
+require_once $root . '/plugins/faluss-events/includes/class-faluss-events-catalog-validator.php';
+require_once $root . '/plugins/faluss-events/includes/class-faluss-events-envelope-validator.php';
 $payload_files = array(
     'faluss-hub.portal.viewed'       => 'contracts/faluss-hub-portal-viewed.schema.json',
     'faluss-hub.app.opened'          => 'contracts/faluss-hub-app-opened.schema.json',
@@ -296,26 +345,55 @@ $scope = array(
     'docs/DATA_MODEL.md',
     'docs/ROADMAP.md',
 );
+$correction_scope = array(
+    'docs/FALUSS_ANALYTICS_CONTRACT.md',
+    'contracts/faluss-analytics-summary.schema.json',
+    'tests/faluss-analytics-an01a-contract-test.php',
+);
 foreach ( array_merge( array_values( $schemas ), array( $summary_schema ) ) as $schema ) {
     an01a_assert( 16 === $schema['x-an01a-scope']['changed_path_count'] && $scope === $schema['x-an01a-scope']['allowed_changed_paths'], 'Every AN-01A schema must expose the exact sixteen-file scope.' );
     an01a_assert( false === $schema['x-an01a-scope']['wordpress_runtime_changes'] && false === $schema['x-an01a-scope']['real_events_or_tracking'], 'Scope must remain documentary with no runtime or event.' );
 }
+an01a_assert( 3 === $summary_schema['x-an01a1-scope']['changed_path_count'] && $correction_scope === $summary_schema['x-an01a1-scope']['allowed_changed_paths'], 'AN-01A.1 must declare exactly its three-file correction scope.' );
+an01a_assert( false === $summary_schema['x-an01a1-scope']['event_contract_changes'] && false === $summary_schema['x-an01a1-scope']['events_runtime_changes'] && false === $summary_schema['x-an01a1-scope']['payload_schema_changes'], 'AN-01A.1 must leave EVT, Events runtime and six payload schemas unchanged.' );
 
-// The mandatory base fails because none of the seven specialized schemas exists.
-foreach ( array_merge( array_values( $payload_files ), array( 'contracts/faluss-analytics-summary.schema.json' ) ) as $path ) {
-    $base_content = shell_exec( 'git -C ' . escapeshellarg( $root ) . ' show ' . escapeshellarg( $base . ':' . $path ) . ' 2>NUL' );
-    an01a_assert( null === $base_content || '' === $base_content, 'Mandatory base must fail by lacking AN-01A schema: ' . $path );
-}
+// The mandatory base fails on colon-separated references that production EVT rejects.
+$base_test = shell_exec( 'git -C ' . escapeshellarg( $root ) . ' show ' . escapeshellarg( $base . ':tests/faluss-analytics-an01a-contract-test.php') );
+$base_summary = shell_exec( 'git -C ' . escapeshellarg( $root ) . ' show ' . escapeshellarg( $base . ':contracts/faluss-analytics-summary.schema.json') );
+an01a_assert( is_string( $base_test ) && false !== strpos( $base_test, "return 'an01:' . \$object_type . ':'" ) && false !== strpos( $base_test, "return 'an01:event:'" ), 'Mandatory base must expose colon-separated Analytics references.' );
+an01a_assert( is_string( $base_summary ) && false !== strpos( $base_summary, '^an01:(?:app|link|collection):' ), 'Mandatory base summary schema must expose its incompatible colon pattern.' );
 
 // Six valid payloads and full semantic envelopes.
 $definitions = an01a_definitions();
 $subject_id = '11111111-1111-4111-8111-111111111111';
+$production_events = array();
 foreach ( $definitions as $type => $definition ) {
     $payload = 'faluss-hub.portal.viewed' === $type ? array( 'surface_key' => 'apps' ) : array();
     $canonical_object_identifier = null === $definition['object'] ? null : 'owner-internal-' . $definition['object'] . '-7';
     $event = an01a_event( $type, $definition, $subject_id, $payload, $canonical_object_identifier );
+    $catalog = an01a_catalog( $definition );
+    $payload_validator = function ( $candidate_payload ) use ( $schemas, $type ) {
+        return an01a_payload_is_valid( $candidate_payload, $schemas[ $type ] );
+    };
     an01a_assert( an01a_payload_is_valid( $payload, $schemas[ $type ] ), 'Valid closed payload must pass: ' . $type );
     an01a_assert( an01a_event_is_valid( $event, $definition, $schemas[ $type ], $canonical_object_identifier ), 'Valid AN-01A event semantics must pass: ' . $type );
+    an01a_assert( Faluss_Events_Envelope_Validator::validate( $event, $catalog, $payload_validator ), 'Production Events validator must accept the complete AN-01A envelope: ' . $type );
+    $production_events[ $type ] = array( 'event' => $event, 'catalog' => $catalog, 'payload_validator' => $payload_validator );
+    if ( null !== $definition['object'] ) {
+        an01a_assert( Faluss_Events_Envelope_Validator::validate_transport( $event ) && 1 === preg_match( '/^an01_' . preg_quote( $definition['object'], '/' ) . '_[a-f0-9]{64}$/D', $event['object_context']['object_reference'] ), 'Production Events must accept the exact opaque ' . $definition['object'] . ' reference.' );
+    }
+}
+
+an01a_assert( 'an01_link_7e65cb854077bbd35a0a4ed32c0bcc6f428a5a2f2f9b4961ab13496a004b683b' === an01a_opaque_reference( 'faluss-me', 'link', 'internal-link-7' ), 'Object SHA-256 preimage bytes must remain unchanged.' );
+an01a_assert( 'an01_event_3bee78fa46e61ec621385236bbaee665163c104195de1699853a8b227a374a26' === an01a_event_reference( 'faluss-hub', 'faluss-hub.portal.viewed:occurrence-1' ), 'Event SHA-256 preimage bytes must remain unchanged.' );
+
+$legacy_event = $production_events['faluss-hub.portal.viewed']['event'];
+$legacy_event['source_event_reference'] = 'an01:event:' . substr( $legacy_event['source_event_reference'], strlen( 'an01_event_' ) );
+an01a_assert( ! Faluss_Events_Envelope_Validator::validate_transport( $legacy_event ) && ! Faluss_Events_Envelope_Validator::validate( $legacy_event, $production_events['faluss-hub.portal.viewed']['catalog'], $production_events['faluss-hub.portal.viewed']['payload_validator'] ), 'Production Events validator must reject legacy an01:event:<sha256>.' );
+foreach ( array( 'faluss-hub.app.opened' => 'app', 'faluss-me.link.clicked' => 'link', 'faluss-me.collection.opened' => 'collection' ) as $type => $object_type ) {
+    $legacy_object = $production_events[ $type ]['event'];
+    $legacy_object['object_context']['object_reference'] = 'an01:' . $object_type . ':' . substr( $legacy_object['object_context']['object_reference'], strlen( 'an01_' . $object_type . '_' ) );
+    an01a_assert( ! Faluss_Events_Envelope_Validator::validate_transport( $legacy_object ) && ! Faluss_Events_Envelope_Validator::validate( $legacy_object, $production_events[ $type ]['catalog'], $production_events[ $type ]['payload_validator'] ), 'Production Events validator must reject legacy colon object reference: ' . $object_type );
 }
 
 $hub_view = an01a_event( 'faluss-hub.portal.viewed', $definitions['faluss-hub.portal.viewed'], $subject_id, array( 'surface_key' => 'hub' ) );
@@ -365,6 +443,18 @@ $empty = an01a_summary( 'empty' );
 $ready = an01a_summary( 'ready' );
 an01a_assert( an01a_summary_is_valid( $empty, $summary_schema ), 'Empty Analytics summary must be valid.' );
 an01a_assert( an01a_summary_is_valid( $ready, $summary_schema ), 'Ready Analytics summary must be valid.' );
+$summary_reference_pattern = '/' . str_replace( '/', '\\/', $summary_schema['$defs']['opaqueObjectReference']['pattern'] ) . '/D';
+foreach ( array( 'app', 'link', 'collection' ) as $object_type ) {
+    $new_reference = an01a_opaque_reference( 'faluss-me', $object_type, 'summary-' . $object_type );
+    $legacy_reference = 'an01:' . $object_type . ':' . substr( $new_reference, strlen( 'an01_' . $object_type . '_' ) );
+    an01a_assert( 1 === preg_match( $summary_reference_pattern, $new_reference ) && 0 === preg_match( $summary_reference_pattern, $legacy_reference ), 'analytics.summary schema must accept only the underscore form for ' . $object_type . '.' );
+}
+$invalid = $ready;
+$invalid['breakdowns']['by_object_reference'][0]['object_reference'] = 'an01:link:' . substr( $ready['breakdowns']['by_object_reference'][0]['object_reference'], strlen( 'an01_link_' ) );
+an01a_assert( ! an01a_summary_is_valid( $invalid, $summary_schema ), 'Analytics summary must reject a legacy colon reference.' );
+$invalid = $ready;
+$invalid['breakdowns']['by_object_reference'][0]['object_type'] = 'collection';
+an01a_assert( ! an01a_summary_is_valid( $invalid, $summary_schema ), 'Analytics summary object type and opaque prefix must remain coherent.' );
 $invalid = $ready;
 $invalid['faluss_id'] = $subject_id;
 an01a_assert( ! an01a_summary_is_valid( $invalid, $summary_schema ), 'Faluss ID must stay outside Analytics summary.' );
@@ -399,14 +489,23 @@ an01a_assert( false !== strpos( $fed_contract, '### Politique future AN-01A' ) &
 an01a_assert( false !== strpos( $master_contract, '| `analytics.summary` | Faluss Analytics |' ) && false !== strpos( $master_contract, "n'active pas le" ), 'Master Profile must reserve but not activate analytics.summary.' );
 an01a_assert( false !== strpos( $architecture, '## Analytics AN-01A' ) && false !== strpos( $data_model, '## Analytics AN-01A' ) && false !== strpos( $roadmap, '## AN-01A — Contrat Analytics et premiers événements — livré contractuellement' ), 'Architecture, data model and roadmap must register documentary AN-01A.' );
 
+$runtime_paths_output = shell_exec( 'git -C ' . escapeshellarg( $root ) . ' ls-tree -r --name-only ' . escapeshellarg( $base ) . ' -- plugins/faluss-events' );
+$runtime_paths = array_values( array_filter( array_map( 'trim', preg_split( '/\r?\n/', (string) $runtime_paths_output ) ) ) );
+$protected_paths = array_merge( array_values( $payload_files ), array( 'contracts/faluss-event-envelope.schema.json' ), $runtime_paths );
+foreach ( $protected_paths as $protected_path ) {
+    $base_blob = trim( (string) shell_exec( 'git -C ' . escapeshellarg( $root ) . ' rev-parse ' . escapeshellarg( $base . ':' . $protected_path ) ) );
+    $working_blob = trim( (string) shell_exec( 'git -C ' . escapeshellarg( $root ) . ' hash-object --path=' . escapeshellarg( $protected_path ) . ' ' . escapeshellarg( $protected_path ) ) );
+    an01a_assert( '' !== $base_blob && $base_blob === $working_blob, 'Protected EVT payload/runtime file must remain byte-for-byte identical to base: ' . $protected_path );
+}
+
 $tracked = shell_exec( 'git -C ' . escapeshellarg( $root ) . ' diff --name-only ' . escapeshellarg( $base) . ' --' );
 $untracked = shell_exec( 'git -C ' . escapeshellarg( $root ) . ' ls-files --others --exclude-standard' );
 $changed = array_filter( array_map( 'trim', preg_split( '/\r?\n/', (string) $tracked . "\n" . (string) $untracked ) ) );
 $changed = array_values( array_unique( array_map( function ( $path ) { return str_replace( '\\', '/', $path ); }, $changed ) ) );
-$expected = $scope;
+$expected = $correction_scope;
 sort( $changed, SORT_STRING );
 sort( $expected, SORT_STRING );
-an01a_assert( 16 === count( $changed ) && $expected === $changed, 'AN-01A must change exactly the sixteen authorized files.' );
+an01a_assert( 3 === count( $changed ) && $expected === $changed, 'AN-01A.1 must change exactly the three authorized files.' );
 foreach ( $changed as $path ) {
     an01a_assert( 0 !== strpos( $path, 'plugins/' ), 'AN-01A must not modify a plugin: ' . $path );
 }
@@ -415,4 +514,4 @@ foreach ( array( 'register_rest_route', 'CREATE TABLE', 'setcookie(', 'wp_schedu
 }
 an01a_assert( false !== strpos( $analytics_contract, 'ne crée aucun plugin, ZIP, table' ) && false !== strpos( $analytics_contract, 'Aucune donnée réelle n\'est créée' ), 'Contract must explicitly confirm absence of plugin, table, route, cookie and real event.' );
 
-fwrite( STDOUT, 'AN-01A Analytics documentary contract: OK (' . $an01a_assertions . ' assertions; no runtime or real event).' . PHP_EOL );
+fwrite( STDOUT, 'AN-01A.1 Analytics/EVT compatibility: OK (' . $an01a_assertions . ' assertions; 6 complete envelopes accepted by production Events validator; legacy colon forms rejected; no runtime or real event).' . PHP_EOL );
