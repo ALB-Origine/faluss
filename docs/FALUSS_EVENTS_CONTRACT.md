@@ -465,6 +465,14 @@ sont obligatoirement `not_supported` en v1. Il n'expose jamais d'enveloppe EVT,
 identifiant ou hash d'événement, delivery, donnée Federation ou identité
 visiteur.
 
+AN-01B.1 enregistre ce consumer uniquement sur l'identité locale exacte
+`hub-node` / `faluss-hub` / `https://faluss.com`, avec les deux sources fermées
+`faluss-hub.events` et `faluss-me.events` `1.0.0`. Il utilise le contexte exact
+des workers, recalcule leur clé d'idempotence et retourne uniquement `true`,
+`faluss_events_permanent` ou `faluss_events_retryable`. Le registre, les tables,
+les workers, la rétention, le transport et les schémas Faluss Events restent
+inchangés ; aucun catalogue, provider, route ou événement source n'est ajouté.
+
 ## Portée vérifiable et preuve
 
 Les deux schémas embarquent le même `x-evt01a-scope` listant exactement les dix

@@ -241,3 +241,34 @@ Les neuf ajouts sont le présent document, six schémas de payload, le schéma
 AN-01A ne modifie aucun fichier sous `plugins/`, schéma EVT existant, manifeste
 CAP runtime, politique Federation, table, option, donnée ou configuration. Il
 ne fournit aucune recette WordPress parce que rien n'est installable.
+
+## AN-01B.1 — moteur et premier consommateur réel
+
+AN-01B.1 matérialise séparément Faluss Analytics `0.1.0`, schéma `1`, uniquement
+sur `hub-node` / `faluss-hub` / `https://faluss.com`. Le plugin reste fermé sans
+fatal lorsque cette identité Federation, Faluss Events ou son propre schéma est
+indisponible. Il ne crée ni catalogue, provider, route, producteur, événement,
+politique, endpoint, UI, cookie, pixel ou tracking.
+
+Trois tables privées InnoDB conservent respectivement les reçus minimaux pendant
+exactement 30 jours, les métriques quotidiennes et les breakdowns quotidiens
+d'objets pendant au plus 25 mois. Le Faluss ID est remplacé avant verrou et
+écriture par `SHA-256("faluss-analytics:subject:v1\n" + lowercase_faluss_id)` ;
+ni l'identifiant brut ni sa préimage ne sont journalisés.
+
+Le consumer `faluss-analytics.aggregate-v1` vise uniquement
+`analytics.events`, sur Hub, depuis les tuples exacts `faluss-hub.events` et
+`faluss-me.events` `1.0.0`. Il recalcule la clé d'idempotence Events, revalide
+les six sémantiques AN-01, sérialise événement et sujet par des verrous hachés,
+incrémente les agrégats et crée le reçu dans une transaction unique. Un reçu
+exact rend le retry sans effet ; toute divergence est permanente et toute
+indisponibilité SQL est retryable.
+
+La façade PHP privée `analytics.summary` utilise un snapshot cohérent, une
+période serveur de 800 jours au plus et la fenêtre conservée de 25 mois. Elle
+omet les métriques absentes, borne les objets à 200, n'expose aucune identité ou
+donnée de transport et conserve `unique_visitors = not_supported`. Elle n'est
+enregistrée ni dans Federation, Portal ou Master Profile. La suppression d'un
+membre retire seulement métriques et objets ; ses reçus restent jusqu'à leur
+expiration. Le hook unique `faluss_analytics_run_retention` exécute les purges
+UTC par lots bornés sous verrou consultatif.

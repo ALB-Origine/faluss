@@ -156,3 +156,12 @@ aucune transaction SQL ne reste ouverte pendant une sortie externe.
 6. Confirmer que les cinq anciennes tables n'ont perdu aucune ligne.
 7. Relancer les diagnostics Federation existants.
 8. Ne modifier aucune politique et ne produire aucun événement métier.
+
+## Consommateur Analytics AN-01B.1
+
+Faluss Analytics `0.1.0` utilise exclusivement les façades publiques de ce
+runtime pour enregistrer six validateurs de payload et le consumer exact
+`analytics.events` / `faluss-analytics.aggregate-v1`. Il n'ajoute aucune route,
+catalogue, source ou modification à Faluss Events `0.3.1`. En l'absence des
+futurs catalogues, providers, routes et producteurs Hub/Me, aucun fait réel
+n'est livré au consumer.

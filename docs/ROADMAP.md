@@ -244,6 +244,16 @@ politique réelle, route, cookie, tracking, worker supplémentaire, événement,
 toute activation réelle ; MP-01B reste postérieur et le module Analytics n'y
 est pas activé par ce lot.
 
+## AN-01B.1 — moteur Analytics et premier consommateur — livré techniquement
+
+Faluss Analytics `0.1.0`, schéma `1`, crée trois tables privées vides sur Hub,
+enregistre les six validateurs AN-01 et le consumer fermé
+`faluss-analytics.aggregate-v1`. Agrégation, retry, concurrence, suppression
+membre et rétention sont transactionnels. `analytics.summary` est disponible
+uniquement comme façade PHP privée ; aucune lecture Federation ou UI ne
+l'expose. Les catalogues, providers, routes, politiques, producteurs et
+premiers événements réels restent réservés aux sous-lots AN-01B suivants.
+
 ## FED-01A — Contrat du transport privé fédéré — livré contractuellement
 
 FED-01A réserve le seul échange privé bidirectionnel entre nœuds Faluss

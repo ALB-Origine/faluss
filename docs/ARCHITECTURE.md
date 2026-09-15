@@ -138,7 +138,7 @@ trente jours. Les workers et le purgeur partagent un verrou haché d'événement
 aucune transaction n'est maintenue pendant réseau ou callback. Federation reste
 0.3.0 et aucun producteur ou consommateur métier n'est activé.
 
-## Analytics AN-01A
+## Analytics AN-01A / AN-01B.1
 
 AN-01A réserve l'autorité centrale `faluss-analytics` sur `hub-node`, hébergée
 par `faluss-hub`. Hub produira localement via `faluss-hub.events`; Me produira
@@ -153,6 +153,13 @@ identité visiteur, enveloppe ou identifiant EVT, donnée Federation, score, PF 
 facturation. Link, Portal et Master Profile n'en conservent aucune copie ; le
 module Master Profile est seulement réservé. AN-01A reste documentaire et
 AN-01B est requis pour tout catalogue, provider, politique ou événement réel.
+
+AN-01B.1 livre le moteur privé Faluss Analytics sur le Hub sans activer ces
+sources. Trois tables séparent reçus, métriques quotidiennes et breakdowns
+d'objets. Le consumer Events agrège sous verrous hachés et transaction ; sa
+façade `analytics.summary` reste PHP-only et n'est reliée ni à Federation,
+Portal ou Master Profile. Le hook de rétention supprime les reçus à 30 jours et
+les agrégats au-delà de 25 mois. Aucun identifiant visiteur n'est créé.
 
 ## Production Reset FPR-01
 

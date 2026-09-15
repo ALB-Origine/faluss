@@ -350,6 +350,15 @@ Federation. Il ne porte aucun score, PF, classement, entitlement ou facturation.
 Les visiteurs uniques sont `not_supported` en v1 et ne provoquent la création
 d'aucun cookie, fingerprint ou identifiant anonyme persistant.
 
+AN-01B.1 matérialise trois tables Analytics sur Hub : reçus d'idempotence,
+métriques quotidiennes et objets quotidiens. Elles stockent seulement le hash
+domain-separated du sujet. Les reçus portent UUID de reçu, UUID d'événement,
+hash d'idempotence, hash canonique EVT, hash sujet et dates UTC ; aucune
+enveloppe ou payload. Les deux tables d'agrégats ont une unicité sujet/date/clé
+ou sujet/date/type/référence. Les reçus expirent exactement à 30 jours et les
+agrégats au-delà de 25 mois. La suppression membre conserve les reçus jusqu'à
+leur expiration pour empêcher une recréation par retry tardif.
+
 ## Master Profile MP-01A
 
 MP-01A n'ajoute aucune table, colonne, option, migration, donnée membre ou copie
