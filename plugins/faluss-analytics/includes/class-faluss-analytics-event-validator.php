@@ -52,7 +52,10 @@ final class Faluss_Analytics_Event_Validator {
             if ( 'member' !== $actor['actor_type'] || $event['subject_context']['subject_faluss_id'] !== $actor['actor_faluss_id'] || null !== $actor['anonymous_reference'] || null !== $actor['anonymous_scope'] ) {
                 return false;
             }
-        } elseif ( array( 'actor_type' => 'anonymous', 'actor_faluss_id' => null, 'anonymous_reference' => null, 'anonymous_scope' => null ) !== $actor ) {
+        } elseif ( 'anonymous' !== $actor['actor_type']
+            || null !== $actor['actor_faluss_id']
+            || null !== $actor['anonymous_reference']
+            || null !== $actor['anonymous_scope'] ) {
             return false;
         }
         if ( null === $definition['object_type'] ) {

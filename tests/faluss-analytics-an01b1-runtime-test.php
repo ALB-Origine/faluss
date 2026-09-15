@@ -131,6 +131,11 @@ final class AN01B1_WPDB {
             $table = preg_replace( '/\\\\([_%\\\\])/', '$1', str_replace( "''", "'", $matches[1] ) );
             return isset( $this->ddl[ $table ] ) ? array( 'Name' => $table, 'Engine' => 'InnoDB', 'Collation' => 'utf8mb4_unicode_ci' ) : null;
         }
+        if ( preg_match( "/^SELECT event_id,event_sha256,retention_until,envelope_json FROM `([^`]+)` WHERE event_id = '([^']+)' LIMIT 1$/", $query, $matches ) ) {
+            foreach ( $this->rows[ $matches[1] ] ?? array() as $row ) {
+                if ( $matches[2] === ( $row['event_id'] ?? null ) ) { return $row; }
+            }
+        }
         return null;
     }
 
@@ -187,6 +192,12 @@ final class Faluss_Federation_Crypto {
     public static function local_identity() { return self::$identity; }
 }
 
+final class Faluss_Events_Schema {
+    public static function is_ready() { return true; }
+    public static function events_table() { return 'wp_faluss_events'; }
+    public static function quote_identifier( $identifier ) { return '`' . str_replace( '`', '``', (string) $identifier ) . '`'; }
+}
+
 $root = dirname( __DIR__ );
 require_once $root . '/plugins/faluss-events/includes/class-faluss-events-canonicalizer.php';
 require_once $root . '/plugins/faluss-events/includes/class-faluss-events.php';
@@ -196,13 +207,23 @@ foreach ( array( 'schema', 'event-validator', 'consumer', 'read-model', 'retenti
     require_once $path;
 }
 
+function an01b1_reference_times() {
+    static $times = null;
+    if ( null === $times ) {
+        $date = gmdate( 'Y-m-d' );
+        $occurred = strtotime( $date . ' 12:00:00 UTC' );
+        $times = array( 'occurred_at' => gmdate( 'Y-m-d\TH:i:s\Z', $occurred ), 'produced_at' => gmdate( 'Y-m-d\TH:i:s\Z', $occurred + 1800 ) );
+    }
+    return $times;
+}
 function an01b1_event( $type, $event_id, $subject ) {
     $definition = Faluss_Analytics_Event_Validator::definition( $type );
     $anonymous = 'anonymous' === $definition['actor_type'];
+    $times = an01b1_reference_times();
     $event = array(
         'contract_version' => '1.0.0', 'event_id' => $event_id, 'event_type' => $type, 'event_version' => '1.0.0',
         'source' => array( 'node_id' => $definition['node_id'], 'app_key' => $definition['app_key'], 'owner' => $definition['app_key'], 'capability_key' => $definition['capability_key'], 'catalog_version' => '1.0.0' ),
-        'source_event_reference' => 'an01_event_' . hash( 'sha256', $type . $event_id ), 'occurred_at' => gmdate( 'Y-m-d\T00:00:00\Z' ), 'produced_at' => gmdate( 'Y-m-d\TH:i:s\Z' ),
+        'source_event_reference' => 'an01_event_' . hash( 'sha256', $type . $event_id ), 'occurred_at' => $times['occurred_at'], 'produced_at' => $times['produced_at'],
         'subject_context' => array( 'subject_type' => 'faluss_member', 'subject_faluss_id' => $subject ),
         'actor_context' => $anonymous ? array( 'actor_type' => 'anonymous', 'actor_faluss_id' => null, 'anonymous_reference' => null, 'anonymous_scope' => null ) : array( 'actor_type' => 'member', 'actor_faluss_id' => $subject, 'anonymous_reference' => null, 'anonymous_scope' => null ),
         'object_context' => null, 'destinations' => array( 'analytics.events' ),
@@ -259,6 +280,8 @@ foreach ( $types as $index => $type ) {
     $events[ $type ] = an01b1_event( $type, sprintf( 'b0000000-0000-4000-8000-%012x', $index + 1 ), $subject );
     an01b1_assert( Faluss_Analytics_Event_Validator::validate_event( $events[ $type ] ), 'Production Analytics validator must accept exact event: ' . $type );
 }
+$times = an01b1_reference_times();
+an01b1_assert( '12:00:00' === substr( $times['occurred_at'], 11, 8 ) && 1800 === strtotime( $times['produced_at'] ) - strtotime( $times['occurred_at'] ), 'All test events must use one UTC-date-stable reference after 01:00 with a valid deterministic delay.' );
 $invalid = $events['faluss-hub.portal.viewed']; $invalid['actor_context']['actor_faluss_id'] = '22222222-2222-4222-8222-222222222222';
 an01b1_assert( ! Faluss_Analytics_Event_Validator::validate_event( $invalid ), 'Hub actor must equal its member subject.' );
 $invalid = $events['faluss-me.card.viewed']; $invalid['actor_context']['anonymous_reference'] = 'visitor_reference';
@@ -271,6 +294,44 @@ $invalid = $events['faluss-hub.portal.viewed']; $invalid['payload']['extra'] = t
 $before_invalid = serialize( $wpdb->rows );
 an01b1_assert( 'faluss_events_permanent' === an01b1_error( Faluss_Analytics_Consumer::consume( an01b1_context( $invalid ) ) ) && $before_invalid === serialize( $wpdb->rows ), 'Invalid events must be permanently rejected before any write.' );
 
+/* Actual Events canonical storage round-trip for all three anonymous Me events. */
+$wpdb = an01b1_install_db();
+$wpdb->rows['wp_faluss_events'] = array();
+$me_types = array( 'faluss-me.card.viewed', 'faluss-me.link.clicked', 'faluss-me.collection.opened' );
+$roundtrip_results = array();
+foreach ( $me_types as $index => $type ) {
+    $canonical = Faluss_Events_Canonicalizer::canonicalize_event( $events[ $type ] );
+    $decoded = is_string( $canonical ) ? json_decode( $canonical, true ) : null;
+    an01b1_assert( is_string( $canonical ) && is_array( $decoded ) && array( 'actor_faluss_id', 'actor_type', 'anonymous_reference', 'anonymous_scope' ) === array_keys( $decoded['actor_context'] ), 'Events canonical round-trip must reproduce its sorted anonymous actor order: ' . $type );
+    $wpdb->rows['wp_faluss_events'][] = array( 'event_id' => $decoded['event_id'], 'event_sha256' => hash( 'sha256', $canonical ), 'retention_until' => '2099-12-31 23:59:59', 'envelope_json' => $canonical );
+    $record = Faluss_Events_Engine::event_record_by_id( $decoded['event_id'] );
+    an01b1_assert( is_array( $record ) && $decoded === $record['event'] && Faluss_Analytics_Event_Validator::validate_event( $record['event'] ), 'Production event_record_by_id round-trip must remain valid for Analytics: ' . $type );
+    $context = an01b1_context( $record['event'], 70 + $index );
+    $roundtrip_results[] = Faluss_Analytics_Consumer::consume( $context );
+    $before_permutation = serialize( $wpdb->rows );
+    $permuted = $record['event'];
+    $permuted['actor_context'] = array( 'anonymous_scope' => null, 'actor_type' => 'anonymous', 'anonymous_reference' => null, 'actor_faluss_id' => null );
+    an01b1_assert( Faluss_Analytics_Event_Validator::validate_event( $permuted ) && true === Faluss_Analytics_Consumer::consume( an01b1_context( $permuted, 80 + $index ) ) && $before_permutation === serialize( $wpdb->rows ), 'Anonymous actor key permutation must preserve validation and exact-once aggregation: ' . $type );
+}
+an01b1_assert( array( true, true, true ) === $roundtrip_results && 3 === count( $wpdb->rows['wp_faluss_analytics_receipts'] ) && 3 === count( $wpdb->rows['wp_faluss_analytics_daily_metrics'] ) && 2 === count( $wpdb->rows['wp_faluss_analytics_daily_objects'] ), 'Three valid canonical Me round-trips must aggregate exactly once without a permanent result.' );
+$anonymous_base = json_decode( Faluss_Events_Canonicalizer::canonicalize_event( $events['faluss-me.card.viewed'] ), true );
+$anonymous_divergences = array(
+    'actor_type' => array( 'actor_type' => 'system' ),
+    'actor_faluss_id' => array( 'actor_faluss_id' => $subject ),
+    'anonymous_reference' => array( 'anonymous_reference' => 'an01_event_' . str_repeat( 'a', 64 ), 'anonymous_scope' => 'request' ),
+    'anonymous_scope' => array( 'anonymous_scope' => 'request' ),
+);
+foreach ( $anonymous_divergences as $field => $changes ) {
+    $invalid = $anonymous_base;
+    foreach ( $changes as $key => $value ) { $invalid['actor_context'][ $key ] = $value; }
+    an01b1_assert( ! Faluss_Analytics_Event_Validator::validate_event( $invalid ), 'Divergent anonymous value must remain refused: ' . $field );
+}
+$invalid = $anonymous_base; unset( $invalid['actor_context']['anonymous_scope'] );
+an01b1_assert( ! Faluss_Analytics_Event_Validator::validate_event( $invalid ), 'A missing anonymous actor key must remain refused.' );
+$invalid = $anonymous_base; $invalid['actor_context']['extra'] = null;
+an01b1_assert( ! Faluss_Analytics_Event_Validator::validate_event( $invalid ), 'An additional anonymous actor key must remain refused.' );
+$wpdb = an01b1_install_db();
+
 /* Idempotent aggregation, divergent retry, contention and no lost increment. */
 $first = $events['faluss-me.link.clicked']; $first_context = an01b1_context( $first, 10 );
 an01b1_assert( true === Faluss_Analytics_Consumer::consume( $first_context ), 'First exact consumer delivery must aggregate.' );
@@ -278,7 +339,7 @@ $first_receipt = $wpdb->rows['wp_faluss_analytics_receipts'][0];
 an01b1_assert( Faluss_Analytics_Consumer::RECEIPT_SECONDS === strtotime( $first_receipt['expires_at'] . ' UTC' ) - strtotime( $first_receipt['processed_at'] . ' UTC' ), 'Analytics receipt retention must be exactly thirty days from acquired processing.' );
 $after_first = serialize( $wpdb->rows );
 an01b1_assert( true === Faluss_Analytics_Consumer::consume( $first_context ) && $after_first === serialize( $wpdb->rows ), 'Exact retry must return true without a second increment.' );
-$divergent = $first; $divergent['produced_at'] = gmdate( 'Y-m-d\TH:i:s\Z', time() + 1 );
+$divergent = $first; $divergent['produced_at'] = gmdate( 'Y-m-d\TH:i:s\Z', strtotime( $first['produced_at'] ) + 1 );
 an01b1_assert( 'faluss_events_permanent' === an01b1_error( Faluss_Analytics_Consumer::consume( an01b1_context( $divergent, 11 ) ) ), 'Same event identity with a divergent canonical hash must fail permanently.' );
 $event_lock = 'faluss_an_event_' . substr( hash( 'sha256', $first['event_id'] . "\x1F" . hash( 'sha256', $first_context['idempotency_key'] ) ), 0, 40 );
 $wpdb->held_locks[ $event_lock ] = true;
@@ -351,9 +412,11 @@ $plugin_source = '';
 foreach ( glob( $root . '/plugins/faluss-analytics/*.php' ) as $path ) { $plugin_source .= file_get_contents( $path ); }
 foreach ( glob( $root . '/plugins/faluss-analytics/includes/*.php' ) as $path ) { $plugin_source .= file_get_contents( $path ); }
 foreach ( array( 'register_rest_route', 'wp_remote_', 'register_delivery_route', 'register_catalog_provider', 'setcookie', 'wp_ajax_', 'admin_post_', 'add_shortcode', 'Faluss_Federation_Providers', 'event.publish' ) as $forbidden ) { an01b1_assert( false === stripos( $plugin_source, $forbidden ), 'Analytics runtime must not activate transport, producer, UI or browser behavior: ' . $forbidden ); }
+$bootstrap = file_get_contents( $root . '/plugins/faluss-analytics/faluss-analytics.php' );
+an01b1_assert( false !== strpos( $bootstrap, 'Version: 0.1.1' ) && false !== strpos( $bootstrap, "FALUSS_ANALYTICS_VERSION', '0.1.1'" ) && false !== strpos( $bootstrap, "FALUSS_ANALYTICS_SCHEMA_VERSION', '1'" ), 'Analytics patch version must be 0.1.1 while schema remains 1.' );
 $base = 'bac88ba8167c4e2570414d2582062728fc33e245';
 $base_runtime = shell_exec( 'git -C ' . escapeshellarg( $root ) . ' ls-tree -r --name-only ' . escapeshellarg( $base) . ' -- plugins/faluss-analytics' );
 an01b1_assert( '' === trim( (string) $base_runtime ), 'Mandatory base must contain no competing Analytics runtime.' );
 foreach ( array( 'plugins/faluss-events', 'plugins/faluss-federation', 'plugins/faluss-portal', 'plugins/faluss-link', 'plugins/faluss-apps-registry', 'plugins/faluss-identity', 'plugins/faluss-identity-client', 'plugins/token-engine', 'plugins/token-engine-connector', 'contracts' ) as $protected ) { $status = 1; exec( 'git -C ' . escapeshellarg( $root ) . ' diff --quiet ' . escapeshellarg( $base ) . ' -- ' . escapeshellarg( $protected ), $unused, $status ); an01b1_assert( 0 === $status, 'Protected tree must stay byte-for-byte identical: ' . $protected ); }
 
-fwrite( STDOUT, 'AN-01B.1 Analytics engine: OK (' . $an01b1_assertions . ' assertions; production schema/validator/consumer/read-model/retention with transactional wpdb harness)' . PHP_EOL );
+fwrite( STDOUT, 'AN-01B.1.1 Analytics engine: OK (' . $an01b1_assertions . ' assertions; 3 production canonical Me round-trips plus schema/validator/consumer/read-model/retention)' . PHP_EOL );

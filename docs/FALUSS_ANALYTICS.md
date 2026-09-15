@@ -1,4 +1,4 @@
-# Faluss Analytics 0.1.0 — moteur privé AN-01B.1
+# Faluss Analytics 0.1.1 — moteur privé AN-01B.1
 
 ## Frontière
 
@@ -69,6 +69,11 @@ annule la transaction. Un retry exact retrouve le reçu et ne réapplique aucun
 effet ; une divergence canonique est permanente. Deux événements visant le même
 agrégat utilisent un upsert atomique.
 
+Depuis `0.1.1`, les quatre champs fermés d'un acteur anonyme sont validés par
+nom et par valeur après `exact_keys()`. Leur ordre PHP ne participe jamais à la
+sémantique : une enveloppe triée, stockée puis redécodée par Faluss Events reste
+acceptée, tandis qu'une clé absente, supplémentaire ou divergente reste refusée.
+
 Les six correspondances sont :
 
 | Événement | Métrique |
@@ -105,7 +110,7 @@ désinstallation ne supprime table ou donnée.
 
 1. Sauvegarder `faluss.com`.
 2. Installer Faluss Analytics uniquement sur `faluss.com`.
-3. Vérifier la version `0.1.0` et le schéma `1`.
+3. Vérifier la version `0.1.1` et le schéma `1`.
 4. Vérifier les trois tables vides.
 5. Vérifier l'unicité du hook de rétention.
 6. Vérifier Events `0.3.1` et Federation `0.3.0` inchangés.

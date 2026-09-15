@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Faluss Analytics
  * Description: Agrégation privée et minimale des événements Analytics Faluss.
- * Version: 0.1.0
+ * Version: 0.1.1
  * Requires at least: 6.4
  * Requires PHP: 7.4
  */
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'FALUSS_ANALYTICS_VERSION', '0.1.0' );
+define( 'FALUSS_ANALYTICS_VERSION', '0.1.1' );
 define( 'FALUSS_ANALYTICS_SCHEMA_VERSION', '1' );
 
 require_once __DIR__ . '/includes/class-faluss-analytics-schema.php';

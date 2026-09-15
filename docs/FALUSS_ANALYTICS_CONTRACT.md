@@ -272,3 +272,13 @@ enregistrée ni dans Federation, Portal ou Master Profile. La suppression d'un
 membre retire seulement métriques et objets ; ses reçus restent jusqu'à leur
 expiration. Le hook unique `faluss_analytics_run_retention` exécute les purges
 UTC par lots bornés sous verrou consultatif.
+
+### AN-01B.1.1 — round-trip canonique
+
+Faluss Analytics `0.1.1`, schéma `1`, conserve strictement les quatre clés de
+l'acteur anonyme et valide chacune par son nom et sa valeur, indépendamment de
+l'ordre du tableau PHP. Les trois événements Me restent donc valides après le
+tri canonique Faluss Events, le stockage JSON et le redécodage. Toute clé
+absente ou supplémentaire, tout acteur non anonyme, Faluss ID, référence ou
+scope anonyme non nul reste refusé. Aucun contrat, schéma, stockage ou runtime
+Events n'est modifié par ce correctif.
