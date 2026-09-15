@@ -493,3 +493,18 @@ de réponse signé Federation. Aucun catalogue Hub/Me réel, provider propriéta
 livré par ce sous-lot. EVT-01B.2A ajoute ensuite uniquement le cœur persistant
 décrit ci-dessus. EVT-01B.2A.1 ajoute seulement les bornes de stockage aux deux
 schémas, sans activer ces comportements.
+
+AN-01B.2 ajoute ensuite les deux premiers catalogues propriétaires sans modifier
+Faluss Events `0.3.1`, son schéma `2`, ses tables, workers ou validateurs. Le
+catalogue Hub contient exclusivement `faluss-hub.portal.viewed`,
+`faluss-hub.app.opened` et `faluss-hub.daily-reward.claimed`; le catalogue Me
+contient exclusivement `faluss-me.card.viewed`, `faluss-me.link.clicked` et
+`faluss-me.collection.opened`. Chaque événement vise seulement
+`analytics.events`, avec un délai maximal de 3 600 secondes et une rétention
+maximale de 7 776 000 secondes.
+
+Un provider propriétaire répond uniquement au contexte fermé
+`event_catalog.read` correspondant à son tuple et à son destinataire local. Sa
+présence dans le registre ne déclenche jamais une acceptation locale, une route,
+un appel réseau ou une écriture. Sans politique Federation ultérieure
+explicite, aucune lecture ni publication n'est autorisée.

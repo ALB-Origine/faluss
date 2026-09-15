@@ -381,3 +381,16 @@ naviguer ni ouvrir une nouvelle page.
 Cette recette WordPress réelle n'est pas couverte par la preuve automatisée et
 doit être exécutée sur les deux installations avant production. Aucune recette
 Stripe n'est requise par AP-02A.
+
+## Catalogue propriétaire Analytics AN-01B.2
+
+Faluss Portal `0.1.23` conserve exactement la capacité historique
+`faluss-hub.daily-reward` et ajoute `faluss-hub.events` au manifeste Hub
+`1.0.0`. Cette capacité déclare uniquement `event_source` et le binding
+`analytics.events`. Le catalogue local `1.0.0` décrit exclusivement
+`portal.viewed`, `app.opened` et `daily-reward.claimed` avec les contrats AN-01.
+
+Le provider ne s'enregistre que pour l'identité exacte
+`hub-node/faluss-hub/https://faluss.com`. Il est descriptif : aucune acceptation
+de catalogue, route, production, émission, politique Federation, métrique ou
+donnée membre n'est créée.

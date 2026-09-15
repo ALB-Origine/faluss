@@ -165,3 +165,18 @@ runtime pour enregistrer six validateurs de payload et le consumer exact
 catalogue, source ou modification à Faluss Events `0.3.1`. En l'absence des
 futurs catalogues, providers, routes et producteurs Hub/Me, aucun fait réel
 n'est livré au consumer.
+
+## Providers propriétaires AN-01B.2
+
+Portal `0.1.23` et Link `0.3.20` enregistrent dans
+`Faluss_Events::register_catalog_provider()` les tuples fermés
+`faluss-hub/faluss-hub.events/1.0.0` et
+`faluss-me/faluss-me.events/1.0.0`. Les catalogues sont validés par les classes
+Events de production puis croisés avec les manifestes CAP propriétaires. Les
+enregistrements sont idempotents; une collision ou une divergence ferme le
+provider.
+
+Ces providers ne font qu'exposer leur document à une lecture explicitement
+autorisée. Ils n'appellent aucun chemin d'acceptation, de publication, de route
+ou de rafraîchissement; ils ne créent donc ni catalogue accepté, ni événement,
+ni outbox, inbox, delivery ou métrique.

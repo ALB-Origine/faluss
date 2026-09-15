@@ -26,7 +26,7 @@ $card_css = file_get_contents( $root . '/plugins/faluss-link/assets/css/faluss-l
 $preview_resolver = onb022_method( $link, 'private static function onboarding_preview_state', 'private static function save_onboarding_step' );
 $public_renderer = onb022_method( $link, 'private static function card_markup', 'private static function public_block_markup' );
 
-onb022_assert( false !== strpos( $bootstrap, 'Version: 0.3.19' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.19'" ), 'The asset cache key must include the current Faluss Link frontend assets.' );
+onb022_assert( false !== strpos( $bootstrap, 'Version: 0.3.20' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.20'" ), 'The asset cache key must include the current Faluss Link frontend assets.' );
 onb022_assert( false !== strpos( $link, "wp_ajax_faluss_link_onboarding_preview" ) && false === strpos( $link, "wp_ajax_nopriv_faluss_link_onboarding_preview" ), 'Only the authenticated member may resolve a draft preview.' );
 onb022_assert( false !== strpos( $link, "self::ONBOARDING_SCRIPT, plugins_url( 'assets/js/faluss-link-onboarding.js'" ) && false !== strpos( $link, 'array( self::CARD_SCRIPT )' ), 'The wizard must load the shared card runtime explicitly.' );
 

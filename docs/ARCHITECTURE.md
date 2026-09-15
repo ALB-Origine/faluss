@@ -298,3 +298,16 @@ dont Faluss Me, n'affichent aucun gain supposé.
 ## Bibliothèque privée de découvertes
 
 Mes découvertes est une donnée locale de Faluss Link, uniquement accessible au membre Faluss actif qui la possède. La route publique résout d’abord un profil Identity publié puis, seulement pour un autre membre connecté et ayant laissé l’enregistrement actif, actualise une paire de références d’identité côté serveur. Cette écriture ne contient ni contenu du profil ni donnée analytique de navigation. Elle n’est transmise à aucun Core, Connector, catalogue ou site tiers et n’est jamais exposée au propriétaire du profil découvert. Toute future analytique créateur doit être un système séparé, avec sa propre finalité et ses propres données ; elle ne peut pas dériver de cette bibliothèque.
+
+## Déclarations de sources AN-01B.2
+
+Faluss Portal et Faluss Link sont les propriétaires descriptifs des catalogues
+Hub et Me. Ils réutilisent l'unique registre de providers Events, les
+validateurs EVT/CAP et leurs manifestes existants. Chaque enregistrement est
+fermé sur l'identité Federation locale exacte et ne produit qu'un couple
+`payload_contract`/`payload` pour `event_catalog.read`.
+
+Cette nouvelle arête est déclarative seulement : aucun appel réseau n'est émis
+au boot, aucun catalogue n'est accepté et aucun événement, route, politique,
+delivery ou agrégat n'est créé. Faluss Events, Federation et Analytics restent
+les uniques autorités de leurs responsabilités respectives.

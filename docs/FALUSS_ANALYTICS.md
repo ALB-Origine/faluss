@@ -117,3 +117,17 @@ désinstallation ne supprime table ou donnée.
 7. Ne modifier aucune politique Federation.
 8. Ne produire aucun événement métier.
 9. Ne pas installer ce ZIP sur `faluss.me`.
+
+## Sources déclarées AN-01B.2
+
+AN-01B.2 ne modifie pas Faluss Analytics `0.1.1` ni son schéma `1`. Faluss
+Portal `0.1.23` et Faluss Link `0.3.20` déclarent respectivement les capacités
+`faluss-hub.events` et `faluss-me.events`, leurs bindings uniques
+`analytics.events` et leurs catalogues propriétaires `1.0.0`. Les providers
+locaux savent seulement répondre à une lecture explicite `event_catalog.read`
+sur l'identité Federation exacte du propriétaire.
+
+Cette disponibilité technique n'accepte aucun catalogue, n'insère aucune ligne
+Events ou Analytics et n'autorise ni `event_catalog.read` ni `event.publish`.
+Aucun producteur, événement, tracking, route, écran ou politique Federation
+n'est activé par ce lot.

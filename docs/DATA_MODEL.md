@@ -378,3 +378,15 @@ Le schéma JSON v1 réside dans
 [`contracts/master-profile-module.schema.json`](../contracts/master-profile-module.schema.json).
 Il décrit un format d'échange seulement et ne crée ni transport, route REST,
 cache persistant, table fédérée ou nouvelle autorité de données.
+
+## AN-01B.2 — absence de nouveau stockage
+
+Les catalogues propriétaires Hub et Me sont des tableaux PHP immuables fournis
+à la demande par Portal et Link. Leur enregistrement dans le registre mémoire
+Faluss Events ne crée ni option, table, migration ou ligne. En particulier, les
+six tables Events et les trois tables Analytics conservent exactement leurs
+compteurs lors de l'installation de Portal `0.1.23` et Link `0.3.20`.
+
+Une persistance dans `*_faluss_events_catalogs` ne peut résulter que d'une
+acceptation explicite ultérieure, absente de ce lot. Aucun profil, événement,
+inbox, outbox, delivery, métrique ou donnée Federation n'est écrit au boot.

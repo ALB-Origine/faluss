@@ -137,6 +137,6 @@ foreach ( array( 'method="post"', 'faluss_portal_hub_daily_nonce', 'data-faluss-
 foreach ( array( 'amount_pf', 'economic_class', 'logical_date', 'reward_key', 'idempotency' ) as $field ) {
     ap02a1_assert( false === strpos( $hub_card[0], $field ), 'No economic decision field may be supplied by the Hub browser form: ' . $field );
 }
-ap02a1_assert( false !== strpos( $bootstrap, "FALUSS_PORTAL_VERSION', '0.1.22'" ) && false === strpos( $portal, 'token_engine_pf_ledger' ) && false === strpos( $portal, 'dbDelta' ) && false === strpos( $portal, 'CREATE TABLE' ), 'DR-02A.1 must remain present without adding a ledger, migration or table.' );
+ap02a1_assert( false !== strpos( $bootstrap, "FALUSS_PORTAL_VERSION', '0.1.23'" ) && false === strpos( $portal, 'token_engine_pf_ledger' ) && false === strpos( $portal, 'dbDelta' ) && false === strpos( $portal, 'CREATE TABLE' ), 'DR-02A.1 must remain present without adding a ledger, migration or table.' );
 
 echo "AP-02A.2 Mes Apps visual primitive contract: OK\n";

@@ -57,6 +57,14 @@ final class Faluss_Portal_Manifest {
                     'symbolic_actions' => array( array( 'action_key' => 'faluss-hub.daily-reward.claim', 'kind' => 'delegated_action' ) ),
                     'compatibility' => array( 'minimum_consumer_version' => '1.0.0', 'compatible_with' => array( '1.0.0' ), 'deprecated' => false, 'sunset_at' => null, 'replacement_capability_key' => null ),
                 ),
+                array(
+                    'capability_key' => 'faluss-hub.events',
+                    'interfaces' => array( 'event_source' ),
+                    'requested_bindings' => array( array( 'interface' => 'event_source', 'slot' => 'analytics.events' ) ),
+                    'read_model_contract' => null,
+                    'symbolic_actions' => array(),
+                    'compatibility' => array( 'minimum_consumer_version' => '1.0.0', 'compatible_with' => array( '1.0.0' ), 'deprecated' => false, 'sunset_at' => null, 'replacement_capability_key' => null ),
+                ),
             ),
             'compatibility' => array( 'minimum_consumer_version' => '1.0.0', 'compatible_with' => array( '1.0.0' ), 'deprecated' => false, 'sunset_at' => null, 'replacement_capability_key' => null ),
         );

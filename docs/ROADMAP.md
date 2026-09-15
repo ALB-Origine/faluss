@@ -365,3 +365,17 @@ Faluss Plus est prévu à `3,99 € / mois`, sans engagement et sans gain direct
 Points Faluss, quelle que soit leur classe. Cette décision est un prérequis de
 SUB-03 uniquement : PF-02A ne modifie ni Faluss Subscriptions, ni Stripe, ni
 prix, Checkout, entitlement ou paiement réel.
+
+## AN-01B.2 — capacités et catalogues propriétaires — livré techniquement
+
+Faluss Portal `0.1.23` et Faluss Link `0.3.20` ajoutent aux manifestes CAP
+`1.0.0` les sources `faluss-hub.events` et `faluss-me.events`, liées uniquement
+à `analytics.events`, ainsi que leurs catalogues propriétaires `1.0.0` de trois
+événements chacun. Les providers locaux utilisent le registre et les
+validateurs Faluss Events `0.3.1` existants et ferment toute identité, contexte,
+collision ou divergence inattendue.
+
+Ce sous-lot s'arrête à la description : aucune politique Federation,
+acceptation de catalogue, route, producteur, tracking ou événement réel n'est
+activé. Les sous-lots ultérieurs restent nécessaires avant toute autorisation
+de `event_catalog.read` ou `event.publish` et avant toute production métier.

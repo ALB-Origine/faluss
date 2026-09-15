@@ -213,13 +213,21 @@ function cap01b1_hub_expected() {
         'canonical_origins' => array( 'https://faluss.com' ),
         'public_presentation' => array( 'display_name' => 'Faluss Hub', 'summary' => 'Le portail central permettant au membre de retrouver ses applications et les services Faluss qui lui sont accessibles.' ),
         'official_asset' => null,
-        'capabilities' => array( array(
-            'capability_key' => 'faluss-hub.daily-reward', 'interfaces' => array( 'delegated_action' ),
-            'requested_bindings' => array( array( 'interface' => 'delegated_action', 'slot' => 'portal.apps.card_action' ) ),
-            'read_model_contract' => array( 'document_type' => 'daily-reward.status', 'contract_version' => '1.0.0' ),
-            'symbolic_actions' => array( array( 'action_key' => 'faluss-hub.daily-reward.claim', 'kind' => 'delegated_action' ) ),
-            'compatibility' => array( 'minimum_consumer_version' => '1.0.0', 'compatible_with' => array( '1.0.0' ), 'deprecated' => false, 'sunset_at' => null, 'replacement_capability_key' => null ),
-        ) ),
+        'capabilities' => array(
+            array(
+                'capability_key' => 'faluss-hub.daily-reward', 'interfaces' => array( 'delegated_action' ),
+                'requested_bindings' => array( array( 'interface' => 'delegated_action', 'slot' => 'portal.apps.card_action' ) ),
+                'read_model_contract' => array( 'document_type' => 'daily-reward.status', 'contract_version' => '1.0.0' ),
+                'symbolic_actions' => array( array( 'action_key' => 'faluss-hub.daily-reward.claim', 'kind' => 'delegated_action' ) ),
+                'compatibility' => array( 'minimum_consumer_version' => '1.0.0', 'compatible_with' => array( '1.0.0' ), 'deprecated' => false, 'sunset_at' => null, 'replacement_capability_key' => null ),
+            ),
+            array(
+                'capability_key' => 'faluss-hub.events', 'interfaces' => array( 'event_source' ),
+                'requested_bindings' => array( array( 'interface' => 'event_source', 'slot' => 'analytics.events' ) ),
+                'read_model_contract' => null, 'symbolic_actions' => array(),
+                'compatibility' => array( 'minimum_consumer_version' => '1.0.0', 'compatible_with' => array( '1.0.0' ), 'deprecated' => false, 'sunset_at' => null, 'replacement_capability_key' => null ),
+            ),
+        ),
         'compatibility' => array( 'minimum_consumer_version' => '1.0.0', 'compatible_with' => array( '1.0.0' ), 'deprecated' => false, 'sunset_at' => null, 'replacement_capability_key' => null ),
     );
 }
@@ -229,7 +237,13 @@ function cap01b1_me_expected() {
         'owner' => array( 'engine' => 'faluss-me', 'authority' => 'faluss.me' ), 'product_state' => 'active',
         'canonical_origins' => array( 'https://faluss.me' ),
         'public_presentation' => array( 'display_name' => 'Faluss Me', 'summary' => 'La carte publique personnalisable permettant au membre de présenter son identité, ses liens et les services Faluss qu’il choisit d’exposer.' ),
-        'official_asset' => null, 'capabilities' => array(),
+        'official_asset' => null,
+        'capabilities' => array( array(
+            'capability_key' => 'faluss-me.events', 'interfaces' => array( 'event_source' ),
+            'requested_bindings' => array( array( 'interface' => 'event_source', 'slot' => 'analytics.events' ) ),
+            'read_model_contract' => null, 'symbolic_actions' => array(),
+            'compatibility' => array( 'minimum_consumer_version' => '1.0.0', 'compatible_with' => array( '1.0.0' ), 'deprecated' => false, 'sunset_at' => null, 'replacement_capability_key' => null ),
+        ) ),
         'compatibility' => array( 'minimum_consumer_version' => '1.0.0', 'compatible_with' => array( '1.0.0' ), 'deprecated' => false, 'sunset_at' => null, 'replacement_capability_key' => null ),
     );
 }
@@ -346,7 +360,7 @@ $admin_source = file_get_contents( $paths['admin'] );
 cap01b1_assert( false !== strpos( $admin_source, 'find_outbound_peer_by_id' ) && false !== strpos( $admin_source, "manifest_read( \$peer['peer_node_id'], \$peer['peer_app_key'], '1.0.0' )" ), 'Admin must resolve destination and fixed manifest version from server-side data.' );
 cap01b1_assert( false === strpos( $admin_source, 'update_option' ) && false === strpos( $admin_source, 'set_transient' ), 'Manifest test must never store a payload.' );
 $manifest_message = cap01b1_private( 'Faluss_Federation_Admin', 'manifest_test_message', array( array( 'status' => 'success', 'payload_contract' => $reordered_contract, 'payload' => $me_manifest, 'error' => null ), $peer ) );
-cap01b1_assert( 'Manifeste distant vérifié. app_key : faluss-me ; manifest_version : 1.0.0 ; product_state : active ; capacités : 0.' === $manifest_message, 'Admin success output must contain only the four approved manifest summary values.' );
+cap01b1_assert( 'Manifeste distant vérifié. app_key : faluss-me ; manifest_version : 1.0.0 ; product_state : active ; capacités : 1.' === $manifest_message, 'Admin success output must contain only the four approved manifest summary values.' );
 
 cap01b1_reset_providers(); Faluss_Apps_Registry::register_federation_validator();
 Faluss_Federation_Crypto::$identity = array( 'node_id' => 'hub-node', 'app_key' => 'faluss-hub', 'key_id' => 'hub-key-0001' );
@@ -371,7 +385,7 @@ cap01b1_assert( 404 === $missing_signed->get_status() && 86 === strlen( $missing
 $bootstrap_sources = array_map( 'file_get_contents', array( $paths['federation_bootstrap'], $paths['registry'], $paths['portal_bootstrap'], $paths['link_bootstrap'] ) );
 cap01b1_assert( false !== strpos( $bootstrap_sources[0], 'Version: 0.2.0' ) && false !== strpos( $bootstrap_sources[0], "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ), 'Federation must be 0.2.0 with schema 1.' );
 cap01b1_assert( false !== strpos( $bootstrap_sources[1], 'Version: 0.2.0' ), 'Apps Registry must retain CAP-01B.1 under version 0.2.0.' );
-cap01b1_assert( false !== strpos( $bootstrap_sources[2], 'Version: 0.1.22' ) && false !== strpos( $bootstrap_sources[3], 'Version: 0.3.19' ), 'Portal and Link versions must be 0.1.22 and 0.3.19.' );
+cap01b1_assert( false !== strpos( $bootstrap_sources[2], 'Version: 0.1.23' ) && false !== strpos( $bootstrap_sources[3], 'Version: 0.3.20' ), 'Portal and Link versions must be 0.1.23 and 0.3.20.' );
 $registry_runtime = $bootstrap_sources[1] . file_get_contents( $paths['registry_class'] ) . file_get_contents( $paths['validator'] );
 foreach ( array( 'CREATE TABLE', 'dbDelta', 'register_rest_route', 'add_shortcode', 'update_option', 'wp_insert', 'wp_update' ) as $forbidden ) {
     cap01b1_assert( false === stripos( $registry_runtime, $forbidden ), 'Apps Registry CAP-01B.1 must not add storage, routes, UI or mutations: ' . $forbidden );

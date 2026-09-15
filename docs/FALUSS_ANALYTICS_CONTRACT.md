@@ -282,3 +282,18 @@ tri canonique Faluss Events, le stockage JSON et le redécodage. Toute clé
 absente ou supplémentaire, tout acteur non anonyme, Faluss ID, référence ou
 scope anonyme non nul reste refusé. Aucun contrat, schéma, stockage ou runtime
 Events n'est modifié par ce correctif.
+
+## AN-01B.2 — capacités et catalogues propriétaires
+
+Faluss Portal `0.1.23` publie dans le manifeste Hub `1.0.0` la capacité
+`faluss-hub.events`; Faluss Link `0.3.20` publie dans le manifeste Me `1.0.0`
+la capacité `faluss-me.events`. Chacune déclare uniquement l'interface
+`event_source` et le binding `analytics.events`. Le Hub conserve en outre, sans
+changement, `faluss-hub.daily-reward`; Me ne déclare aucune autre capacité.
+
+Les deux catalogues `faluss.event-source-catalog` `1.0.0` décrivent exactement
+les trois événements AN-01 de leur propriétaire. Leurs providers sont locaux,
+fermés sur l'identité Federation et le contexte `event_catalog.read`, et
+enregistrés dans l'unique registre Faluss Events existant. L'enregistrement ne
+vaut ni acceptation de catalogue ni autorisation de transport : aucune ligne,
+route, politique, production, émission ou métrique n'est créée.

@@ -159,3 +159,15 @@ Lorsqu’un membre connecté avec une identité Faluss active consulte la carte 
 La bibliothèque affiche seulement les profils encore publiés, les plus récents d’abord. Le membre peut désactiver **Enregistrer mes découvertes**, retirer une entrée ou tout effacer : ces actions sont limitées à son identité active et n’affectent jamais celle d’un autre membre. L’historique existant est conservé lorsque l’enregistrement est désactivé. Chaque bibliothèque est bornée à 250 profils ; les entrées les plus anciennes sont écartées de manière déterministe.
 
 Un futur moteur d’analytics créateur, s’il est un jour validé, restera un produit distinct. Il ne devra jamais lire, réutiliser ni transformer Mes découvertes en outil de suivi des visiteurs.
+
+## Catalogue propriétaire Analytics AN-01B.2
+
+Faluss Link `0.3.20` publie le manifeste Me `1.0.0` avec l'unique capacité
+`faluss-me.events`, interface `event_source` et seul binding
+`analytics.events`. Son catalogue local `1.0.0` décrit exclusivement
+`card.viewed`, `link.clicked` et `collection.opened` avec les contrats AN-01.
+
+Le provider ne s'enregistre que pour l'identité exacte
+`me-node/faluss-me/https://faluss.me`. Il n'observe aucune navigation et ne
+produit aucun événement : aucun tracking, cookie, pixel, route, acceptation de
+catalogue, politique Federation, écriture ou donnée membre n'est ajouté.

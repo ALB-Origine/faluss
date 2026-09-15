@@ -48,7 +48,16 @@ final class Faluss_Link_Manifest {
                 'summary' => 'La carte publique personnalisable permettant au membre de présenter son identité, ses liens et les services Faluss qu’il choisit d’exposer.',
             ),
             'official_asset' => null,
-            'capabilities' => array(),
+            'capabilities' => array(
+                array(
+                    'capability_key' => 'faluss-me.events',
+                    'interfaces' => array( 'event_source' ),
+                    'requested_bindings' => array( array( 'interface' => 'event_source', 'slot' => 'analytics.events' ) ),
+                    'read_model_contract' => null,
+                    'symbolic_actions' => array(),
+                    'compatibility' => array( 'minimum_consumer_version' => '1.0.0', 'compatible_with' => array( '1.0.0' ), 'deprecated' => false, 'sunset_at' => null, 'replacement_capability_key' => null ),
+                ),
+            ),
             'compatibility' => array( 'minimum_consumer_version' => '1.0.0', 'compatible_with' => array( '1.0.0' ), 'deprecated' => false, 'sunset_at' => null, 'replacement_capability_key' => null ),
         );
     }

@@ -381,3 +381,16 @@ recette WordPress car rien n'est installable.
 CAP-01A.1 aligne exclusivement les deux schémas, le présent contrat et le test
 CAP-01A : aucun autre fichier, état, interface, emplacement, valeur métier ou
 étape de roadmap n'est modifié.
+
+## Runtime AN-01B.2
+
+Le manifeste Hub `1.0.0` de Faluss Portal `0.1.23` contient désormais exactement
+`faluss-hub.daily-reward`, strictement inchangée, puis `faluss-hub.events`. Le
+manifeste Me `1.0.0` de Faluss Link `0.3.20` contient exactement
+`faluss-me.events`. Les deux capacités Events ont pour seule interface
+`event_source`, pour seul binding `analytics.events`, aucun read-model et aucune
+action symbolique.
+
+Les catalogues propriétaires `1.0.0` sont croisés avec ces manifestes par les
+validateurs CAP et Events existants. Cette déclaration ne crée aucun binding
+actif, aucune capacité Quêtes ou Progression et aucune autorisation Federation.
