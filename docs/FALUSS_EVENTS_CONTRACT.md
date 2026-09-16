@@ -508,3 +508,16 @@ Un provider propriétaire répond uniquement au contexte fermé
 présence dans le registre ne déclenche jamais une acceptation locale, une route,
 un appel réseau ou une écriture. Sans politique Federation ultérieure
 explicite, aucune lecture ni publication n'est autorisée.
+
+AN-01B.3 ajoute hors du plugin Events deux routes immuables via son registre
+public existant. La source Hub vise localement `hub-node/faluss-hub`; la source
+Me vise en mode Federation cette même cible. Toutes deux concernent uniquement
+`analytics.events` et les catalogues `1.0.0`. La disponibilité du catalogue,
+des schémas, de l'identité et du consumer ou transport requis précède
+l'enregistrement ; toute collision échoue fermée.
+
+Les trois validateurs producteurs Me imposent leur couple exact
+événement/document, le contrat `1.0.0`, la source propriétaire complète et un
+payload vide, indépendamment de l'ordre des clés. Ils ne réutilisent pas le
+plugin Analytics. Aucun chemin d'acceptation ou de publication n'est appelé et
+aucun fait, delivery, réseau ou stockage n'est créé au démarrage.

@@ -131,3 +131,17 @@ Cette disponibilité technique n'accepte aucun catalogue, n'insère aucune ligne
 Events ou Analytics et n'autorise ni `event_catalog.read` ni `event.publish`.
 Aucun producteur, événement, tracking, route, écran ou politique Federation
 n'est activé par ce lot.
+
+## Routes propriétaires fermées AN-01B.3
+
+Faluss Portal `0.1.24` enregistre sur le Hub la route locale exacte de
+`faluss-hub.events` vers le consumer `faluss-analytics.aggregate-v1`, seulement
+après résolution du catalogue et confirmation de l'état Analytics prêt. Faluss
+Link `0.3.21` enregistre sur Me la route Federation exacte de
+`faluss-me.events` vers `hub-node/faluss-hub`, ainsi que les trois validateurs
+de payload producteur Me. Une collision ou divergence ferme le runtime.
+
+Ces routes sont des descripteurs mémoire : elles ne créent aucune ligne, ne
+lancent aucun worker et n'émettent aucun appel. Aucun producteur métier,
+tracking ou politique Federation n'est ajouté ; Analytics reste `0.1.1`,
+schéma `1`.

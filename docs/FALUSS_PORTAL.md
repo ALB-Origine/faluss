@@ -394,3 +394,16 @@ Le provider ne s'enregistre que pour l'identité exacte
 `hub-node/faluss-hub/https://faluss.com`. Il est descriptif : aucune acceptation
 de catalogue, route, production, émission, politique Federation, métrique ou
 donnée membre n'est créée.
+
+## Route Analytics locale AN-01B.3
+
+Faluss Portal `0.1.24` conserve son manifeste et son catalogue AN-01B.2
+strictement inchangés. Après résolution de ce catalogue et confirmation que
+Faluss Events, le schéma Analytics et le consumer
+`faluss-analytics.aggregate-v1` sont prêts sans conflit, Portal enregistre
+l'unique route locale `faluss-hub.events@1.0.0` vers `analytics.events` sur
+`hub-node/faluss-hub`.
+
+Portal n'enregistre aucun payload validator et ne produit aucun événement.
+L'enregistrement répété est sans effet ; toute identité, catalogue, consumer ou
+route divergent ferme le runtime sans réseau ni écriture.

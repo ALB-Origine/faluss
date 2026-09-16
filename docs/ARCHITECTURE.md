@@ -311,3 +311,16 @@ Cette nouvelle arête est déclarative seulement : aucun appel réseau n'est ém
 au boot, aucun catalogue n'est accepté et aucun événement, route, politique,
 delivery ou agrégat n'est créé. Faluss Events, Federation et Analytics restent
 les uniques autorités de leurs responsabilités respectives.
+
+## Composition des routes AN-01B.3
+
+Les moteurs propriétaires composent maintenant les registres existants sans
+nouvelle autorité. Portal attend son catalogue, Events et le consumer Analytics
+Hub, puis déclare une route locale fermée. Link déclare ses trois validateurs
+producteurs locaux, puis attend le transport Federation avant de déclarer la
+route Me vers le Hub. Les états séparés permettent cette reprise sans doublon.
+
+Ces déclarations ne traversent pas la frontière d'exécution : aucun catalogue
+n'est accepté, aucun worker n'est déclenché et aucune politique n'est modifiée.
+Sans producteur métier et sans autorisation Federation explicite, aucun fait ne
+peut entrer dans le transport ou le stockage.

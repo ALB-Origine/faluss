@@ -379,3 +379,16 @@ Ce sous-lot s'arrête à la description : aucune politique Federation,
 acceptation de catalogue, route, producteur, tracking ou événement réel n'est
 activé. Les sous-lots ultérieurs restent nécessaires avant toute autorisation
 de `event_catalog.read` ou `event.publish` et avant toute production métier.
+
+## AN-01B.3 — validateurs producteurs et routes fermées — livré techniquement
+
+Faluss Portal `0.1.24` enregistre la route locale Hub vers le consumer Analytics
+existant. Faluss Link `0.3.21` enregistre trois validateurs producteurs Me et,
+une fois Federation prête, la route exacte Me vers le Hub. Les catalogues et
+manifestes `1.0.0`, Faluss Events `0.3.1` schéma `2` et Faluss Analytics
+`0.1.1` schéma `1` restent inchangés.
+
+Ce sous-lot n'ajoute toujours aucun producteur métier, hook de tracking,
+événement réel, acceptation de catalogue ou politique Federation. Les routes
+restent inertes tant qu'un lot ultérieur n'autorise pas explicitement les
+opérations et n'active pas un producteur borné.

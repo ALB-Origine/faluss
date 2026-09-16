@@ -297,3 +297,19 @@ fermés sur l'identité Federation et le contexte `event_catalog.read`, et
 enregistrés dans l'unique registre Faluss Events existant. L'enregistrement ne
 vaut ni acceptation de catalogue ni autorisation de transport : aucune ligne,
 route, politique, production, émission ou métrique n'est créée.
+
+## AN-01B.3 — validateurs producteurs et routes fermées
+
+Portal `0.1.24` lie le tuple Hub exact à `analytics.events` en mode local, vers
+le consumer Analytics Hub déjà enregistré. Link `0.3.21` lie le tuple Me exact
+à la même destination en mode Federation, avec la cible immuable
+`hub-node/faluss-hub`. Les deux routes exigent identité, schéma et catalogue
+propriétaire résolu ; la route Hub exige en plus Analytics prêt sans conflit,
+et la route Me un transport Federation prêt.
+
+Sur Me uniquement, trois validateurs producteurs fermés acceptent les contrats
+`card-viewed`, `link-clicked` et `collection-opened` `1.0.0`, leur mapping exact
+d'événement, la source Me exacte et un payload vide. L'ordre des clés est sans
+effet, mais toute clé, valeur, source, version, alias ou donnée supplémentaire
+est refusée. Ce lot n'accepte aucun catalogue, n'autorise aucune opération et
+ne produit encore aucun événement réel.

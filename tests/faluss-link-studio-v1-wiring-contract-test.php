@@ -14,7 +14,7 @@ $widgets = file_get_contents( $root . '/plugins/faluss-link/includes/class-falus
 $card_script = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-card.js' );
 $editor_script = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
 
-studio_v1_wiring_assert( false !== strpos( $bootstrap, 'Version: 0.3.20' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.20'" ), 'Faluss Link must retain the Studio interaction patch under version 0.3.20.' );
+studio_v1_wiring_assert( false !== strpos( $bootstrap, 'Version: 0.3.21' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.21'" ), 'Faluss Link must retain the Studio interaction patch under version 0.3.21.' );
 studio_v1_wiring_assert( false !== strpos( $link, "add_shortcode( 'faluss_link_appearance', array( __CLASS__, 'appearance_shortcode' ) )" ), 'The historical shortcode must remain registered for existing Elementor content.' );
 studio_v1_wiring_assert( false !== strpos( $link, "add_shortcode( 'faluss_link_studio', array( __CLASS__, 'studio_shortcode' ) )" ), 'The canonical Studio shortcode must remain registered.' );
 studio_v1_wiring_assert( false !== strpos( $link, 'public static function appearance_shortcode() { return self::studio_shortcode(); }' ), 'The historical shortcode must mount the canonical Studio renderer.' );

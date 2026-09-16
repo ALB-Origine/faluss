@@ -171,3 +171,17 @@ Le provider ne s'enregistre que pour l'identité exacte
 `me-node/faluss-me/https://faluss.me`. Il n'observe aucune navigation et ne
 produit aucun événement : aucun tracking, cookie, pixel, route, acceptation de
 catalogue, politique Federation, écriture ou donnée membre n'est ajouté.
+
+## Validateurs producteurs et route fermée AN-01B.3
+
+Faluss Link `0.3.21` conserve son manifeste et son catalogue AN-01B.2
+strictement inchangés. Il enregistre localement les validateurs exacts des
+payloads vides `faluss-me.card-viewed`, `faluss-me.link-clicked` et
+`faluss-me.collection-opened` `1.0.0`, avec leur événement et source Me exacts.
+Ces validateurs ne dépendent pas de Faluss Analytics.
+
+Lorsque le transport Federation est prêt, Link enregistre l'unique route
+`faluss-me.events@1.0.0` / `analytics.events` vers
+`hub-node/faluss-hub`. Aucun producteur n'est relié à la carte, au Studio ou à
+une action métier : aucun clic, affichage, cookie, tracking, événement, appel
+réseau ou écriture n'est créé par ce lot.

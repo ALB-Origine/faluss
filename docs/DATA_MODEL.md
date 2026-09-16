@@ -390,3 +390,14 @@ compteurs lors de l'installation de Portal `0.1.23` et Link `0.3.20`.
 Une persistance dans `*_faluss_events_catalogs` ne peut résulter que d'une
 acceptation explicite ultérieure, absente de ce lot. Aucun profil, événement,
 inbox, outbox, delivery, métrique ou donnée Federation n'est écrit au boot.
+
+## AN-01B.3 — registres mémoire sans donnée
+
+Les deux routes de livraison et les trois callbacks de validation Me sont des
+entrées immuables dans les registres PHP en mémoire de Faluss Events. Leur
+enregistrement ne crée aucune table, migration, option, UUID, tâche, requête SQL
+ou ligne dans les six tables Events et les trois tables Analytics.
+
+Les manifestes et catalogues `1.0.0`, ainsi que les schémas Events `2` et
+Analytics `1`, restent inchangés. Un événement ne pourra être persisté que par
+un futur producteur explicitement autorisé ; AN-01B.3 n'en installe aucun.

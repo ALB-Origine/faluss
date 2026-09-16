@@ -18,7 +18,7 @@ $onboarding_js = file_get_contents( $root . '/plugins/faluss-link/assets/js/falu
 $studio_js = file_get_contents( $root . '/plugins/faluss-link/assets/js/faluss-link-editor.js' );
 $onboarding_doc = file_get_contents( $root . '/docs/FALUSS_ONBOARDING.md' );
 
-onb026_assert( false !== strpos( $bootstrap, 'Version: 0.3.20' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.20'" ), 'The current CSS and JavaScript assets need plugin version 0.3.20.' );
+onb026_assert( false !== strpos( $bootstrap, 'Version: 0.3.21' ) && false !== strpos( $bootstrap, "FALUSS_LINK_VERSION','0.3.21'" ), 'The current CSS and JavaScript assets need plugin version 0.3.21.' );
 
 foreach ( array( '.faluss-link-card--density-compact .faluss-link-card__preview-links', 'grid-template-columns:minmax(0,1fr)', 'width:100%', 'min-width:0', 'justify-self:stretch' ) as $needle ) {
     onb026_assert( false !== strpos( $card_css, $needle ), 'Compact real and skeleton links must retain the full card column: ' . $needle );

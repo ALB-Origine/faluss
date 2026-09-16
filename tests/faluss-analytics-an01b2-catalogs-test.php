@@ -116,8 +116,8 @@ foreach ( $paths as $path ) { require_once $path; }
 
 $portal_bootstrap = file_get_contents( $root . '/plugins/faluss-portal/faluss-portal.php' );
 $link_bootstrap = file_get_contents( $root . '/plugins/faluss-link/faluss-link.php' );
-an01b2_assert( false !== strpos( $portal_bootstrap, 'Version: 0.1.23' ) && false !== strpos( $portal_bootstrap, "FALUSS_PORTAL_VERSION', '0.1.23'" ), 'Portal version must be exactly 0.1.23.' );
-an01b2_assert( false !== strpos( $link_bootstrap, 'Version: 0.3.20' ) && false !== strpos( $link_bootstrap, "FALUSS_LINK_VERSION','0.3.20'" ), 'Link version must be exactly 0.3.20.' );
+an01b2_assert( false !== strpos( $portal_bootstrap, 'Version: 0.1.24' ) && false !== strpos( $portal_bootstrap, "FALUSS_PORTAL_VERSION', '0.1.24'" ), 'Portal version must be exactly 0.1.24.' );
+an01b2_assert( false !== strpos( $link_bootstrap, 'Version: 0.3.21' ) && false !== strpos( $link_bootstrap, "FALUSS_LINK_VERSION','0.3.21'" ), 'Link version must be exactly 0.3.21.' );
 
 $hub_manifest = Faluss_Portal_Manifest::manifest();
 $me_manifest = Faluss_Link_Manifest::manifest();

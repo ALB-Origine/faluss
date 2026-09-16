@@ -180,3 +180,17 @@ Ces providers ne font qu'exposer leur document à une lecture explicitement
 autorisée. Ils n'appellent aucun chemin d'acceptation, de publication, de route
 ou de rafraîchissement; ils ne créent donc ni catalogue accepté, ni événement,
 ni outbox, inbox, delivery ou métrique.
+
+## Routes propriétaires AN-01B.3
+
+Sans modifier Faluss Events `0.3.1` ni son schéma `2`, Portal `0.1.24` et Link
+`0.3.21` utilisent `Faluss_Events_Engine::register_delivery_route()` pour deux
+descripteurs fermés : Hub local vers Hub Analytics, et Me Federation vers ce
+même Hub. Link utilise aussi l'unique registre public de payload validators
+pour les trois contrats Me AN-01 ; Portal n'enregistre aucun validateur.
+
+Les états d'enregistrement des validateurs et de la route Me sont séparés afin
+que le signal Federation puisse reprendre seulement la route. Les répétitions
+sont sans effet ; une collision ou un état partiel divergent ferme le runtime.
+L'enregistrement n'accepte pas le catalogue, ne persiste rien, ne planifie rien
+et ne constitue aucune autorisation `event_catalog.read` ou `event.publish`.

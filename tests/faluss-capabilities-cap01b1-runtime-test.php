@@ -385,7 +385,7 @@ cap01b1_assert( 404 === $missing_signed->get_status() && 86 === strlen( $missing
 $bootstrap_sources = array_map( 'file_get_contents', array( $paths['federation_bootstrap'], $paths['registry'], $paths['portal_bootstrap'], $paths['link_bootstrap'] ) );
 cap01b1_assert( false !== strpos( $bootstrap_sources[0], 'Version: 0.2.0' ) && false !== strpos( $bootstrap_sources[0], "FALUSS_FEDERATION_SCHEMA_VERSION', '1'" ), 'Federation must be 0.2.0 with schema 1.' );
 cap01b1_assert( false !== strpos( $bootstrap_sources[1], 'Version: 0.2.0' ), 'Apps Registry must retain CAP-01B.1 under version 0.2.0.' );
-cap01b1_assert( false !== strpos( $bootstrap_sources[2], 'Version: 0.1.23' ) && false !== strpos( $bootstrap_sources[3], 'Version: 0.3.20' ), 'Portal and Link versions must be 0.1.23 and 0.3.20.' );
+cap01b1_assert( false !== strpos( $bootstrap_sources[2], 'Version: 0.1.24' ) && false !== strpos( $bootstrap_sources[3], 'Version: 0.3.21' ), 'Portal and Link versions must be 0.1.24 and 0.3.21.' );
 $registry_runtime = $bootstrap_sources[1] . file_get_contents( $paths['registry_class'] ) . file_get_contents( $paths['validator'] );
 foreach ( array( 'CREATE TABLE', 'dbDelta', 'register_rest_route', 'add_shortcode', 'update_option', 'wp_insert', 'wp_update' ) as $forbidden ) {
     cap01b1_assert( false === stripos( $registry_runtime, $forbidden ), 'Apps Registry CAP-01B.1 must not add storage, routes, UI or mutations: ' . $forbidden );
